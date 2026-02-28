@@ -1,0 +1,357 @@
+# =============================================================================
+# File Organizer — written in Xell
+# =============================================================================
+# A port of the Bash "Reiko File Organizer" to Xell.
+#
+# Features:
+#   - Categorizes files by extension (Images, Docs, Archives, Audio, etc.)
+#   - Creates organized directory structure
+#   - Supports test mode (creates sample files, then sorts them)
+#   - Logs every action to What_I_did/what_i_did.log
+#
+# Usage:
+#   xell file_organizer.xel                   # Interactive mode
+#   xell file_organizer.xel --test            # Create test files and sort
+#   xell file_organizer.xel --test-only       # Create test files only
+#   xell file_organizer.xel --help            # Show help
+# =============================================================================
+
+# ── File Category Definitions ─────────────────────────────
+
+categories = {
+    "Images":   ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "svg", "webp", "heic", "raw", "cr2", "nef", "arw", "dng"],
+    "Docs":     ["txt", "md", "log", "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "csv", "epub", "mobi", "html", "css", "xml", "json", "yaml", "yml", "rtf"],
+    "Archives": ["zip", "rar", "7z", "tar", "gz", "bz2", "tgz", "iso", "dmg", "apk"],
+    "Audio":    ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "aiff"],
+    "Video":    ["mp4", "mkv", "avi", "mov", "flv", "webm", "mpg", "mpeg", "3gp", "wmv"],
+    "Scripts":  ["sh", "py", "js", "java", "cpp", "c", "rb", "php", "go", "rs", "ts", "tsx", "jsx", "swift", "kotlin", "cs", "lua", "pl", "sql", "xel"],
+    "Fonts":    ["ttf", "otf", "woff", "woff2"],
+    "System":   ["exe", "bin", "dll", "deb", "rpm", "bak", "tmp", "env", "conf", "ini"],
+    "Design":   ["psd", "ai", "sketch", "xd", "fig", "prproj", "aep"]
+}
+;
+
+# Build a reverse lookup: extension → category name
+ext_to_category = {}
+category_names = keys(categories)
+for cat_name in category_names:
+    ext_list = categories->cat_name
+    for e in ext_list:
+        set(ext_to_category, e, cat_name)
+    ;
+;
+
+# ── State ─────────────────────────────────────────────────
+
+step_num = 1
+log_lines = []
+
+# ── Helper Functions ──────────────────────────────────────
+
+fn log(message):
+    push(log_lines, "{step_num}. {message}")
+    step_num = step_num + 1
+;
+
+fn log_plain(message):
+    push(log_lines, message)
+;
+
+fn save_log(log_path):
+    content = ""
+    for line in log_lines:
+        content = "{content}{line}\n"
+    ;
+    write(log_path, content)
+;
+
+fn get_ext_lower(filename):
+    --> Get the extension without the dot, lowercased <--
+    raw_ext = ext(filename)
+    # ext() returns ".txt" — strip the leading dot
+    if len(raw_ext) > 1:
+        give raw_ext
+    ;
+    give ""
+;
+
+fn classify_file(filename):
+    --> Given a filename, return its category name or "Others" <--
+    file_ext = get_ext_lower(filename)
+    if file_ext eq "":
+        give "Others"
+    ;
+    # Strip leading dot if present
+    if len(file_ext) > 0:
+        # ext() returns ".png" — we need "png"
+        # Check first char
+        first_char = file_ext
+        # Use run_capture to strip dot (Xell doesn't have string slicing yet)
+        result = run_capture("echo '{file_ext}' | sed 's/^\\.//'" )
+        clean_ext = result->"stdout"
+        # Trim trailing newline
+        result2 = run_capture("echo -n '{clean_ext}' | tr -d '\\n'")
+        clean_ext = result2->"stdout"
+    ;
+
+    # Look up in our reverse map
+    if has(ext_to_category, clean_ext):
+        give ext_to_category->clean_ext
+    ;
+    give "Others"
+;
+
+# ── Test File Creator ─────────────────────────────────────
+
+fn create_test_files(base_dir):
+    print("Creating test files in {base_dir}...")
+    mkdir(base_dir)
+
+    samples = ["alpha", "beta", "gamma", "delta", "epsilon"]
+
+    # Create 3 samples for the first 3 extensions of each category
+    for cat_name in category_names:
+        ext_list = categories->cat_name
+        count = 0
+        for e in ext_list:
+            if count >= 3:
+                break
+            ;
+            for s in samples:
+                if count >= 3:
+                    break
+                ;
+                filepath = "{base_dir}/{s}.{e}"
+                write(filepath, "sample {cat_name} file")
+            ;
+            count = count + 1
+        ;
+    ;
+
+    # Count created files
+    files = ls(base_dir)
+    file_count = 0
+    for f in files:
+        if is_file("{base_dir}/{f}"):
+            file_count = file_count + 1
+        ;
+    ;
+    print("Created {file_count} test files in {base_dir}")
+;
+
+# ── Core Sort Function ────────────────────────────────────
+
+fn sort_directory(target_dir):
+    log("Starting to sort files in: {target_dir}")
+
+    entries = ls(target_dir)
+    sorted_count = 0
+    category_counts = {}
+
+    for entry in entries:
+        full_path = "{target_dir}/{entry}"
+
+        # Skip directories, only process files
+        if is_dir(full_path):
+            continue
+        ;
+
+        # Skip the log folder
+        if entry eq "what_i_did.log":
+            continue
+        ;
+
+        category = classify_file(entry)
+
+        # Create category directory if needed
+        cat_dir = "{target_dir}/{category}"
+        if not exists(cat_dir):
+            mkdir(cat_dir)
+            log("Created directory: {category}/")
+        ;
+
+        # Move the file
+        dest = "{cat_dir}/{entry}"
+        if exists(dest):
+            # Handle duplicate: prepend a number
+            dest = "{cat_dir}/dup_{entry}"
+        ;
+
+        mv(full_path, dest)
+        sorted_count = sorted_count + 1
+
+        # Track per-category counts
+        if has(category_counts, category):
+            old_count = category_counts->category
+            set(category_counts, category, old_count + 1)
+        ;
+        if not has(category_counts, category):
+            set(category_counts, category, 1)
+        ;
+    ;
+
+    # Log summary
+    log("Sorting complete!")
+    log_plain("")
+    log("Summary:")
+    cat_keys = keys(category_counts)
+    for ck in cat_keys:
+        cnt = category_counts->ck
+        log("  {ck}: {cnt} file(s)")
+    ;
+    log_plain("")
+    log("Total files organized: {sorted_count}")
+;
+
+# ── Cleanup: Remove Empty Directories ─────────────────────
+
+fn cleanup_empty_dirs(base_dir):
+    log("Checking for empty directories...")
+    entries = ls(base_dir)
+    removed = 0
+    for entry in entries:
+        full_path = "{base_dir}/{entry}"
+        if is_dir(full_path):
+            sub_entries = ls(full_path)
+            if len(sub_entries) eq 0:
+                rm(full_path)
+                log("Removed empty directory: {entry}/")
+                removed = removed + 1
+            ;
+        ;
+    ;
+    if removed eq 0:
+        log("No empty directories to remove")
+    ;
+;
+
+# ── Print Results ─────────────────────────────────────────
+
+fn print_results(base_dir):
+    print("")
+    print("  Organized structure:")
+    print("  --------------------")
+    entries = ls(base_dir)
+    for entry in entries:
+        full_path = "{base_dir}/{entry}"
+        if is_dir(full_path):
+            sub_files = ls(full_path)
+            count = len(sub_files)
+            print("    {entry}/ ({count} files)")
+        ;
+    ;
+    print("")
+;
+
+# ── Mode: Test (create + sort) ────────────────────────────
+
+fn run_test():
+    test_dir = "{cwd()}/xell_test_dir"
+
+    # Clean up any previous test
+    if exists(test_dir):
+        rm(test_dir)
+    ;
+
+    create_test_files(test_dir)
+
+    print("")
+    print("Sorting test files...")
+    print("")
+
+    # Initialize log
+    log_dir = "{test_dir}/What_I_did"
+    mkdir(log_dir)
+    log_path = "{log_dir}/what_i_did.log"
+    log_plain("===== Xell File Organizer Log =====")
+    log_plain("")
+
+    sort_directory(test_dir)
+    cleanup_empty_dirs(test_dir)
+
+    log_plain("")
+    log("All done! Your files are beautifully organized!")
+    log_plain("===== End of Log =====")
+
+    save_log(log_path)
+
+    print_results(test_dir)
+    print("  Log saved to: {log_path}")
+    print("")
+    print("  Done! Check {test_dir} to see the results.")
+    print("")
+;
+
+# ── Mode: Sort a specific directory ───────────────────────
+
+fn run_sort(target_dir):
+    if not exists(target_dir):
+        print("Error: Directory '{target_dir}' does not exist!")
+        give none
+    ;
+    if not is_dir(target_dir):
+        print("Error: '{target_dir}' is not a directory!")
+        give none
+    ;
+
+    abs_path = abspath(target_dir)
+    print("")
+    print("  Organizing: {abs_path}")
+    print("")
+
+    # Initialize log
+    log_dir = "{abs_path}/What_I_did"
+    if not exists(log_dir):
+        mkdir(log_dir)
+    ;
+    log_path = "{log_dir}/what_i_did.log"
+    log_plain("===== Xell File Organizer Log =====")
+    log_plain("")
+
+    sort_directory(abs_path)
+    cleanup_empty_dirs(abs_path)
+
+    log_plain("")
+    log("All done! Your files are beautifully organized!")
+    log_plain("===== End of Log =====")
+
+    save_log(log_path)
+
+    print_results(abs_path)
+    print("  Log saved to: {log_path}")
+    print("")
+;
+
+# ── Help ──────────────────────────────────────────────────
+
+fn show_help():
+    print("")
+    print("  Xell File Organizer")
+    print("  ===================")
+    print("")
+    print("  A file organizer written in Xell that sorts files")
+    print("  into category folders by their extension.")
+    print("")
+    print("  Categories: Images, Docs, Archives, Audio, Video,")
+    print("              Scripts, Fonts, System, Design, Others")
+    print("")
+    print("  Usage:")
+    print("    xell file_organizer.xel                  # Sort current directory")
+    print("    xell file_organizer.xel --test           # Create test files and sort")
+    print("    xell file_organizer.xel --test-only      # Create test files only")
+    print("    xell file_organizer.xel <directory>      # Sort a specific directory")
+    print("    xell file_organizer.xel --help           # Show this help")
+    print("")
+;
+
+# ── Main Entry Point ──────────────────────────────────────
+
+print("")
+print("  ╔════════════════════════════════════════════╗")
+print("  ║       Xell File Organizer                  ║")
+print("  ╚════════════════════════════════════════════╝")
+
+# For now, run test mode (since Xell doesn't have sys.argv yet)
+# To switch modes, change the call below:
+
+run_test()
