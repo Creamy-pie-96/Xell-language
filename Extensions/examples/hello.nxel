@@ -1,0 +1,96 @@
+{
+  "nxel_format": "1.0",
+  "metadata": {
+    "title": "Hello Xell Notebook",
+    "created": "2025-01-01T00:00:00Z",
+    "modified": "2025-01-01T00:00:00Z",
+    "kernel": "xell",
+    "kernel_version": "0.1"
+  },
+  "cells": [
+    {
+      "id": "cell-welcome",
+      "type": "markdown",
+      "source": "# Welcome to Xell Notebooks! 🎉\n\nThis is a `.nxel` notebook. Run each cell with **Shift+Enter**.\n\n- Code cells contain Xell code\n- Markdown cells contain rich text\n- State persists between cells",
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {}
+    },
+    {
+      "id": "cell-variables",
+      "type": "code",
+      "source": "# Variables — no var/let keyword needed\nname = \"World\"\nage = 25\nprint(\"Hello {name}! You are {age} years old.\")",
+      "outputs": [
+        {
+          "type": "stdout",
+          "text": "Hello World! You are 25 years old.\n"
+        }
+      ],
+      "execution_count": 1,
+      "metadata": {}
+    },
+    {
+      "id": "cell-functions",
+      "type": "markdown",
+      "source": "## Functions\n\nXell uses `fn` for function definitions, `:` to open the body, and `;` to close it.\nUse `give` instead of `return`.",
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {}
+    },
+    {
+      "id": "cell-fn-demo",
+      "type": "code",
+      "source": "fn factorial(n):\n    if n <= 1:\n        give 1\n    ;\n    give n * factorial(n - 1)\n;\n\nfor i in range(1, 11):\n    print(\"{i}! = {factorial(i)}\")\n;",
+      "outputs": [
+        {
+          "type": "stdout",
+          "text": "1! = 1\n2! = 2\n3! = 6\n4! = 24\n5! = 120\n6! = 720\n7! = 5040\n8! = 40320\n9! = 362880\n10! = 3628800\n"
+        }
+      ],
+      "execution_count": 2,
+      "metadata": {}
+    },
+    {
+      "id": "cell-collections",
+      "type": "markdown",
+      "source": "## Collections\n\nXell supports **lists** `[...]` and **maps** `{...}`. Access map values with `->`.",
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {}
+    },
+    {
+      "id": "cell-list-map",
+      "type": "code",
+      "source": "# Lists\ncolors = [\"red\", \"green\", \"blue\"]\npush(colors, \"yellow\")\nprint(\"Colors: {colors}\")\nprint(\"Length: {len(colors)}\")\n\n# Maps\nuser = {\"name\": \"Alice\", \"age\": 30, \"role\": \"developer\"}\nprint(\"User: {user->name}, {user->role}\")",
+      "outputs": [
+        {
+          "type": "stdout",
+          "text": "Colors: [red, green, blue, yellow]\nLength: 4\nUser: Alice, developer\n"
+        }
+      ],
+      "execution_count": 3,
+      "metadata": {}
+    },
+    {
+      "id": "cell-math",
+      "type": "code",
+      "source": "# Math builtins\nprint(\"floor(3.7) = {floor(3.7)}\")\nprint(\"ceil(3.2)  = {ceil(3.2)}\")\nprint(\"round(3.5) = {round(3.5)}\")\nprint(\"abs(-42)   = {abs(-42)}\")\nprint(\"mod(17, 5) = {mod(17, 5)}\")",
+      "outputs": [
+        {
+          "type": "stdout",
+          "text": "floor(3.7) = 3\nceil(3.2) = 4\nround(3.5) = 4\nabs(-42) = 42\nmod(17, 5) = 2\n"
+        }
+      ],
+      "execution_count": 4,
+      "metadata": {}
+    },
+    {
+      "id": "cell-end",
+      "type": "markdown",
+      "source": "---\n\n✅ **That's the basics!** Explore more with OS builtins (`mkdir`, `read`, `write`, `ls`, `run`...) and the full standard library.",
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {}
+    }
+  ]
+}

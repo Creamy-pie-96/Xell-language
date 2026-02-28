@@ -1,0 +1,356 @@
+{
+  "name": "xell-lang",
+  "displayName": "Xell Language Support",
+  "description": "Syntax highlighting, IntelliSense, error diagnostics, notebook support, and file icons for the Xell programming language",
+  "version": "0.1.0",
+  "publisher": "xell",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Snippets",
+    "Notebooks"
+  ],
+  "keywords": [
+    "xell",
+    "scripting",
+    "language",
+    "notebook",
+    "automation"
+  ],
+  "activationEvents": [
+    "onLanguage:xell",
+    "onNotebook:xell-notebook"
+  ],
+  "main": "./out/client/extension.js",
+  "icon": "images/icon.png",
+  "contributes": {
+    "languages": [
+      {
+        "id": "xell",
+        "aliases": [
+          "Xell",
+          "xell",
+          "xel"
+        ],
+        "extensions": [
+          ".xel"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/xel-icon.svg",
+          "dark": "./images/xel-icon.svg"
+        }
+      },
+      {
+        "id": "xell-notebook-src",
+        "aliases": [
+          "Xell Notebook"
+        ],
+        "extensions": [
+          ".nxel"
+        ],
+        "icon": {
+          "light": "./images/nxel-icon.svg",
+          "dark": "./images/nxel-icon.svg"
+        }
+      }
+    ],
+    "notebooks": [
+      {
+        "type": "xell-notebook",
+        "displayName": "Xell Notebook",
+        "selector": [
+          {
+            "filenamePattern": "*.nxel"
+          }
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "xell",
+        "scopeName": "source.xell",
+        "path": "./syntaxes/xell.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "xell",
+        "path": "./snippets/xell.json"
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "xell-icons",
+        "label": "Xell File Icons",
+        "path": "./themes/xell-icon-theme.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Xell",
+      "properties": {
+        "xell.xellPath": {
+          "type": "string",
+          "default": "xell",
+          "description": "Path to the Xell binary. If installed system-wide, just 'xell'. Otherwise, provide the full path."
+        },
+        "xell.maxNumberOfProblems": {
+          "scope": "resource",
+          "type": "number",
+          "default": 100,
+          "description": "Controls the maximum number of problems produced by the linter."
+        },
+        "xell.enableLinting": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable real-time error diagnostics."
+        },
+        "xell.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the Xell language server."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "xell.runFile",
+        "title": "Xell: Run Current File",
+        "icon": "$(play)"
+      },
+      {
+        "command": "xell.runSelection",
+        "title": "Xell: Run Selection"
+      },
+      {
+        "command": "xell.openNotebook",
+        "title": "Xell: Open Notebook Server"
+      },
+      {
+        "command": "xell.restartKernel",
+        "title": "Xell: Restart Notebook Kernel",
+        "icon": "$(debug-restart)"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "xell.runFile",
+          "when": "resourceLangId == xell",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "xell.runFile",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "resourceLangId == xell"
+      }
+    ]
+  },
+  "configurationDefaults": {
+    "editor.tokenColorCustomizations": {
+      "textMateRules": [
+        {
+          "scope": "comment.block.arrow.xell",
+          "settings": { "foreground": "#98c379" }
+        },
+        {
+          "scope": "comment.line.number-sign.xell",
+          "settings": { "foreground": "#5c6370", "fontStyle": "italic" }
+        },
+        {
+          "scope": "punctuation.definition.comment.begin.xell",
+          "settings": { "foreground": "#98c379" }
+        },
+        {
+          "scope": "punctuation.definition.comment.end.xell",
+          "settings": { "foreground": "#98c379" }
+        },
+        {
+          "scope": "constant.character.escape.xell",
+          "settings": { "foreground": "#d19a66" }
+        },
+        {
+          "scope": "constant.language.boolean.false.xell",
+          "settings": { "foreground": "#c678dd" }
+        },
+        {
+          "scope": "constant.language.boolean.true.xell",
+          "settings": { "foreground": "#c678dd" }
+        },
+        {
+          "scope": "constant.language.none.xell",
+          "settings": { "foreground": "#c678dd" }
+        },
+        {
+          "scope": "constant.numeric.float.xell",
+          "settings": { "foreground": "#d19a66" }
+        },
+        {
+          "scope": "constant.numeric.integer.xell",
+          "settings": { "foreground": "#d19a66" }
+        },
+        {
+          "scope": "string.quoted.double.xell",
+          "settings": { "foreground": "#98c379" }
+        },
+        {
+          "scope": "string.interpolation.xell",
+          "settings": { "foreground": "#d19a66" }
+        },
+        {
+          "scope": "entity.name.function.call.xell",
+          "settings": { "foreground": "#00ffff" }
+        },
+        {
+          "scope": "entity.name.function.definition.xell",
+          "settings": { "foreground": "#00ffff" }
+        },
+        {
+          "scope": "entity.name.function.method.xell",
+          "settings": { "foreground": "#00ffff" }
+        },
+        {
+          "scope": "support.function.builtin.xell",
+          "settings": { "foreground": "#00ffff" }
+        },
+        {
+          "scope": "support.function.builtin.os.xell",
+          "settings": { "foreground": "#00ffff" }
+        },
+        {
+          "scope": "support.function.math.xell",
+          "settings": { "foreground": "#00ffff" }
+        },
+        {
+          "scope": "support.type.conversion.xell",
+          "settings": { "foreground": "#008080" }
+        },
+        {
+          "scope": "keyword.control.flow.xell",
+          "settings": { "foreground": "#e06c75", "fontStyle": "bold" }
+        },
+        {
+          "scope": "keyword.control.loop.xell",
+          "settings": { "foreground": "#e06c75", "fontStyle": "bold" }
+        },
+        {
+          "scope": "keyword.control.import.xell",
+          "settings": { "foreground": "#e06c75", "fontStyle": "bold" }
+        },
+        {
+          "scope": "keyword.control.return.xell",
+          "settings": { "foreground": "#e5c07b", "fontStyle": "bold" }
+        },
+        {
+          "scope": "keyword.declaration.function.xell",
+          "settings": { "foreground": "#e5c07b", "fontStyle": "bold" }
+        },
+        {
+          "scope": "keyword.other.special.xell",
+          "settings": { "foreground": "#e5c07b", "fontStyle": "bold" }
+        },
+        {
+          "scope": "keyword.operator.arithmetic.xell",
+          "settings": { "foreground": "#c678dd" }
+        },
+        {
+          "scope": "keyword.operator.assignment.xell",
+          "settings": { "foreground": "#c678dd" }
+        },
+        {
+          "scope": "keyword.operator.comparison.xell",
+          "settings": { "foreground": "#c678dd" }
+        },
+        {
+          "scope": "keyword.operator.comparison.word.xell",
+          "settings": { "foreground": "#c678dd" }
+        },
+        {
+          "scope": "keyword.operator.logical.xell",
+          "settings": { "foreground": "#c678dd" }
+        },
+        {
+          "scope": "keyword.operator.access.xell",
+          "settings": { "foreground": "#61afef", "fontStyle": "bold" }
+        },
+        {
+          "scope": "punctuation.bracket.round.xell",
+          "settings": { "foreground": "#abb2bf" }
+        },
+        {
+          "scope": "punctuation.bracket.square.xell",
+          "settings": { "foreground": "#abb2bf" }
+        },
+        {
+          "scope": "punctuation.bracket.curly.xell",
+          "settings": { "foreground": "#abb2bf" }
+        },
+        {
+          "scope": "punctuation.separator.colon.xell",
+          "settings": { "foreground": "#abb2bf" }
+        },
+        {
+          "scope": "punctuation.separator.comma.xell",
+          "settings": { "foreground": "#abb2bf" }
+        },
+        {
+          "scope": "punctuation.terminator.block.xell",
+          "settings": { "foreground": "#abb2bf" }
+        },
+        {
+          "scope": "punctuation.terminator.statement.xell",
+          "settings": { "foreground": "#abb2bf" }
+        },
+        {
+          "scope": "variable.other.xell",
+          "settings": { "foreground": "#eeeeee" }
+        },
+        {
+          "scope": "variable.other.declaration.xell",
+          "settings": { "foreground": "#eeeeee" }
+        },
+        {
+          "scope": "variable.other.loop.xell",
+          "settings": { "foreground": "#eeeeee" }
+        },
+        {
+          "scope": "variable.parameter.xell",
+          "settings": { "foreground": "#eeeeee" }
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -b",
+    "watch": "tsc -b -w",
+    "lint": "eslint src --ext ts",
+    "package": "npx @vscode/vsce package --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0",
+    "vscode-languageserver": "^9.0.0",
+    "vscode-languageserver-textdocument": "^1.0.0"
+  }
+}

@@ -1,0 +1,299 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Xell",
+  "scopeName": "source.xell",
+  "fileTypes": ["xel"],
+  "patterns": [
+    { "include": "#block-comment" },
+    { "include": "#line-comment" },
+    { "include": "#strings" },
+    { "include": "#function-definition" },
+    { "include": "#for-loop" },
+    { "include": "#for-in-loop" },
+    { "include": "#bring-statement" },
+    { "include": "#declaration-keywords" },
+    { "include": "#control-keywords" },
+    { "include": "#loop-keywords" },
+    { "include": "#import-keywords" },
+    { "include": "#logical-operators" },
+    { "include": "#comparison-word-operators" },
+    { "include": "#boolean-constants" },
+    { "include": "#none-constant" },
+    { "include": "#builtin-functions" },
+    { "include": "#os-builtin-functions" },
+    { "include": "#math-functions" },
+    { "include": "#type-functions" },
+    { "include": "#arrow-access" },
+    { "include": "#comparison-operators" },
+    { "include": "#increment-operators" },
+    { "include": "#assignment-operator" },
+    { "include": "#arithmetic-operators" },
+    { "include": "#numbers" },
+    { "include": "#method-call" },
+    { "include": "#function-call" },
+    { "include": "#semicolon-terminator" },
+    { "include": "#dot-terminator" },
+    { "include": "#punctuation" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "block-comment": {
+      "name": "comment.block.arrow.xell",
+      "begin": "-->",
+      "end": "<--",
+      "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.xell" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.comment.end.xell" } }
+    },
+    "line-comment": {
+      "name": "comment.line.number-sign.xell",
+      "match": "#.*$"
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.xell",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "string.interpolation.xell",
+              "begin": "\\{",
+              "end": "\\}",
+              "beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.xell" } },
+              "endCaptures": { "0": { "name": "punctuation.section.interpolation.end.xell" } },
+              "patterns": [
+                { "include": "source.xell" }
+              ]
+            },
+            {
+              "name": "constant.character.escape.xell",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "function-definition": {
+      "comment": "fn name(param1, param2):",
+      "patterns": [
+        {
+          "name": "meta.function.definition.xell",
+          "begin": "\\b(fn)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+          "beginCaptures": {
+            "1": { "name": "keyword.declaration.function.xell" },
+            "2": { "name": "entity.name.function.definition.xell" }
+          },
+          "end": "\\)\\s*(:|\\.)",
+          "endCaptures": { "1": { "name": "punctuation.definition.function.xell" } },
+          "patterns": [
+            {
+              "comment": "Regular parameter",
+              "name": "variable.parameter.xell",
+              "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b"
+            },
+            { "name": "punctuation.separator.parameter.xell", "match": "," }
+          ]
+        }
+      ]
+    },
+    "for-loop": {
+      "comment": "for i in range(...)",
+      "patterns": [
+        {
+          "match": "\\b(for)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s+(in)\\s+(range)\\b",
+          "captures": {
+            "1": { "name": "keyword.control.flow.xell" },
+            "2": { "name": "variable.other.loop.xell" },
+            "3": { "name": "keyword.control.loop.xell" },
+            "4": { "name": "support.function.builtin.xell" }
+          }
+        }
+      ]
+    },
+    "for-in-loop": {
+      "comment": "for item in collection",
+      "patterns": [
+        {
+          "match": "\\b(for)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s+(in)\\b",
+          "captures": {
+            "1": { "name": "keyword.control.flow.xell" },
+            "2": { "name": "variable.other.loop.xell" },
+            "3": { "name": "keyword.control.loop.xell" }
+          }
+        }
+      ]
+    },
+    "bring-statement": {
+      "comment": "bring name from 'file' as alias",
+      "patterns": [
+        {
+          "match": "\\b(bring)\\s+(.+?)\\s+(from)\\b",
+          "captures": {
+            "1": { "name": "keyword.control.import.xell" },
+            "3": { "name": "keyword.control.import.xell" }
+          }
+        }
+      ]
+    },
+    "declaration-keywords": {
+      "comment": "fn, give, of",
+      "patterns": [
+        { "name": "keyword.declaration.function.xell", "match": "\\b(fn)\\b" },
+        { "name": "keyword.control.return.xell", "match": "\\b(give)\\b" },
+        { "name": "keyword.other.special.xell", "match": "\\b(of)\\b" }
+      ]
+    },
+    "control-keywords": {
+      "comment": "if, elif, else, for, while",
+      "patterns": [
+        { "name": "keyword.control.flow.xell", "match": "\\b(while|elif|else|for|if)\\b" }
+      ]
+    },
+    "loop-keywords": {
+      "comment": "in, range",
+      "patterns": [
+        { "name": "keyword.control.loop.xell", "match": "\\b(range|in)\\b" }
+      ]
+    },
+    "import-keywords": {
+      "comment": "bring, from, as",
+      "patterns": [
+        { "name": "keyword.control.import.xell", "match": "\\b(bring|from|as)\\b" }
+      ]
+    },
+    "logical-operators": {
+      "comment": "and, or, not",
+      "patterns": [
+        { "name": "keyword.operator.logical.xell", "match": "\\b(and|not|or)\\b" }
+      ]
+    },
+    "comparison-word-operators": {
+      "comment": "is, eq, ne, gt, lt, ge, le — word comparison aliases",
+      "patterns": [
+        { "name": "keyword.operator.comparison.word.xell", "match": "\\b(is|eq|ne|gt|lt|ge|le)\\b" }
+      ]
+    },
+    "boolean-constants": {
+      "patterns": [
+        { "name": "constant.language.boolean.true.xell", "match": "\\btrue\\b" },
+        { "name": "constant.language.boolean.false.xell", "match": "\\bfalse\\b" }
+      ]
+    },
+    "none-constant": {
+      "patterns": [
+        { "name": "constant.language.none.xell", "match": "\\bnone\\b" }
+      ]
+    },
+    "builtin-functions": {
+      "comment": "Core built-in functions",
+      "patterns": [
+        {
+          "name": "support.function.builtin.xell",
+          "match": "\\b(print|assert|type|str|num|len|push|pop|keys|values|range|set|has)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "os-builtin-functions": {
+      "comment": "OS / filesystem / process built-in functions",
+      "patterns": [
+        {
+          "name": "support.function.builtin.os.xell",
+          "match": "\\b(mkdir|rm|cp|mv|exists|is_file|is_dir|ls|read|write|append|file_size|cwd|cd|abspath|basename|dirname|ext|env_get|env_set|env_unset|env_has|run|run_capture|pid)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "math-functions": {
+      "comment": "Math built-in functions",
+      "patterns": [
+        {
+          "name": "support.function.math.xell",
+          "match": "\\b(floor|ceil|round|abs|mod)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "type-functions": {
+      "comment": "Type conversion functions",
+      "patterns": [
+        {
+          "name": "support.type.conversion.xell",
+          "match": "\\b(type|str|num)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "arrow-access": {
+      "comment": "-> map key access operator",
+      "patterns": [
+        { "name": "keyword.operator.access.xell", "match": "->" }
+      ]
+    },
+    "comparison-operators": {
+      "patterns": [
+        { "name": "keyword.operator.comparison.xell", "match": "==|!=|<=|>=|<|>" }
+      ]
+    },
+    "increment-operators": {
+      "patterns": [
+        { "name": "keyword.operator.increment.xell", "match": "\\+\\+|--" }
+      ]
+    },
+    "assignment-operator": {
+      "patterns": [
+        { "name": "keyword.operator.assignment.xell", "match": "=" }
+      ]
+    },
+    "arithmetic-operators": {
+      "patterns": [
+        { "name": "keyword.operator.arithmetic.xell", "match": "\\+|-|\\*|/|%" }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.float.xell", "match": "(?<![a-zA-Z_\\.])\\d+\\.\\d+" },
+        { "name": "constant.numeric.integer.xell", "match": "(?<![a-zA-Z_\\.])\\d+(?!\\.\\d)" }
+      ]
+    },
+    "method-call": {
+      "comment": ".name( — method call via dot",
+      "patterns": [
+        {
+          "match": "\\.([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+          "captures": { "1": { "name": "entity.name.function.method.xell" } }
+        }
+      ]
+    },
+    "function-call": {
+      "comment": "name( — function call",
+      "patterns": [
+        {
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+          "captures": { "1": { "name": "entity.name.function.call.xell" } }
+        }
+      ]
+    },
+    "semicolon-terminator": {
+      "patterns": [
+        { "name": "punctuation.terminator.block.xell", "match": "^\\s*;\\s*$" }
+      ]
+    },
+    "dot-terminator": {
+      "patterns": [
+        { "name": "punctuation.terminator.statement.xell", "match": "\\.(?=\\s*$|\\s*#)" }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        { "name": "punctuation.bracket.round.xell", "match": "[()]" },
+        { "name": "punctuation.bracket.square.xell", "match": "[\\[\\]]" },
+        { "name": "punctuation.bracket.curly.xell", "match": "[{}]" },
+        { "name": "punctuation.separator.comma.xell", "match": "," },
+        { "name": "punctuation.separator.colon.xell", "match": ":" }
+      ]
+    },
+    "identifiers": {
+      "comment": "Catch-all: remaining identifiers → variable color",
+      "patterns": [
+        { "name": "variable.other.xell", "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b" }
+      ]
+    }
+  }
+}

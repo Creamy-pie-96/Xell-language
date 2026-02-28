@@ -1,1 +1,0 @@
-{"root":["./src/client/extension.ts","./src/client/notebookController.ts","./src/client/notebookSerializer.ts","./src/server/completions.ts","./src/server/diagnostics.ts","./src/server/hover.ts","./src/server/server.ts"],"version":"5.9.3"}

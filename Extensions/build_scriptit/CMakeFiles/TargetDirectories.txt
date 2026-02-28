@@ -1,7 +1,0 @@
-/home/DATA/CODE/code/pythonic/include/pythonic/REPL/build_scriptit/CMakeFiles/scriptit.dir
-/home/DATA/CODE/code/pythonic/include/pythonic/REPL/build_scriptit/CMakeFiles/edit_cache.dir
-/home/DATA/CODE/code/pythonic/include/pythonic/REPL/build_scriptit/CMakeFiles/rebuild_cache.dir
-/home/DATA/CODE/code/pythonic/include/pythonic/REPL/build_scriptit/CMakeFiles/list_install_components.dir
-/home/DATA/CODE/code/pythonic/include/pythonic/REPL/build_scriptit/CMakeFiles/install.dir
-/home/DATA/CODE/code/pythonic/include/pythonic/REPL/build_scriptit/CMakeFiles/install/local.dir
-/home/DATA/CODE/code/pythonic/include/pythonic/REPL/build_scriptit/CMakeFiles/install/strip.dir

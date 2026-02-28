@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xell — Color Customizer</title>
+<style>
+:root {
+    --bg: #1a1a2e;
+    --bg2: #16213e;
+    --bg3: #0f3460;
+    --text: #cdd6f4;
+    --text-dim: #6c7086;
+    --border: #45475a;
+    --accent: #e94560;
+    --accent2: #533483;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Segoe UI', 'SF Pro', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+}
+
+.header {
+    text-align: center;
+    padding: 32px 20px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.header h1 {
+    font-size: 28px;
+    background: linear-gradient(135deg, #e94560, #533483);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+}
+
+.header p {
+    color: var(--text-dim);
+    font-size: 14px;
+}
+
+.main {
+    display: flex;
+    gap: 0;
+    max-width: 1400px;
+    margin: 0 auto;
+    min-height: calc(100vh - 120px);
+}
+
+/* ── Left Panel: Color Controls ─────────────── */
+.controls {
+    width: 420px;
+    min-width: 380px;
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 120px);
+    border-right: 1px solid var(--border);
+}
+
+.section-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    margin: 24px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.section-title:first-child { margin-top: 0; }
+
+.color-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: background 0.15s;
+    margin-bottom: 2px;
+}
+
+.color-row:hover { background: var(--bg2); }
+
+.color-row label {
+    flex: 1;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.color-row .example {
+    font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 13px;
+    min-width: 80px;
+    text-align: right;
+}
+
+.color-row input[type="color"] {
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    padding: 0;
+}
+
+.color-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+.color-row input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+
+.color-row .bold-toggle {
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.15s;
+}
+
+.color-row .bold-toggle.active {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+}
+
+.color-row .italic-toggle {
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-style: italic;
+    transition: all 0.15s;
+}
+
+.color-row .italic-toggle.active {
+    background: var(--accent2);
+    color: white;
+    border-color: var(--accent2);
+}
+
+/* ── Right Panel: Preview ─────────────── */
+.preview-panel {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.preview-header h2 { font-size: 16px; color: var(--text); }
+
+.btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.btn {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+}
+
+.btn:hover { background: var(--bg3); border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: white; border-color: var(--accent); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.save-install { background: #45a049; color: white; border-color: #45a049; font-weight: 600; }
+.btn.save-install:hover { filter: brightness(1.15); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Build log */
+.build-log {
+    display: none;
+    background: #0d0d0d;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    margin: 10px 0;
+    max-height: 300px;
+    overflow: hidden;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+}
+.build-log.visible { display: block; }
+.build-log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+}
+.build-log-header button { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 0 4px; }
+.build-log-body { padding: 8px 12px; max-height: 250px; overflow-y: auto; line-height: 1.6; color: #b0b0b0; }
+.build-log-body .log-line { white-space: pre-wrap; word-break: break-all; }
+.build-log-body .log-line.success { color: #45a049; }
+.build-log-body .log-line.error { color: #e06c75; }
+.build-log-body .log-line.info { color: var(--accent); }
+.build-log-spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.code-preview {
+    flex: 1;
+    background: #1e1e1e;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 15px;
+    line-height: 1.7;
+    overflow: auto;
+    white-space: pre;
+    tab-size: 4;
+}
+
+.code-preview .line { display: block; }
+
+.output-area {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    min-height: 160px;
+    max-height: 240px;
+    overflow: auto;
+}
+
+.output-area h3 { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.output-area pre { font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace; font-size: 12px; color: #98c379; white-space: pre-wrap; word-break: break-all; }
+
+/* Toast */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #45a049;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 999;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+@media (max-width: 900px) {
+    .main { flex-direction: column; }
+    .controls { width: 100%; max-height: 50vh; border-right: none; border-bottom: 1px solid var(--border); }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🎨 Xell Color Customizer</h1>
+    <p>Pick your colors, see them live, then apply to VS Code</p>
+</div>
+
+<div class="main">
+    <div class="controls" id="controls"></div>
+
+    <div class="preview-panel">
+        <div class="preview-header">
+            <h2>Live Preview</h2>
+            <div id="modeBanner" style="font-size:12px; color: var(--text-dim); margin-bottom: 4px;"></div>
+            <div class="btn-group">
+                <button class="btn" onclick="resetDefaults()">Reset Defaults</button>
+                <button class="btn" onclick="copyExtensionTS()">Copy extension.ts</button>
+                <button class="btn primary" onclick="copySettings()">📋 Copy VS Code Settings</button>
+                <button class="btn save-install" id="saveBtn" onclick="saveAndInstall()">🚀 Save &amp; Install</button>
+            </div>
+            <div class="build-log" id="buildLog">
+                <div class="build-log-header">
+                    <span><span class="build-log-spinner" id="buildSpinner"></span><span id="buildLogTitle">Build Output</span></span>
+                    <button onclick="closeBuildLog()" title="Close">✕</button>
+                </div>
+                <div class="build-log-body" id="buildLogBody"></div>
+            </div>
+        </div>
+
+        <div class="code-preview" id="codePreview"></div>
+
+        <div class="output-area">
+            <h3>Generated Settings JSON</h3>
+            <pre id="outputJson"></pre>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast">Copied to clipboard!</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// Xell Color Customizer — Frontend
+// Tokens loaded from token_data.json
+// ══════════════════════════════════════════════════════════
+
+let TOKEN_GROUPS = [];
+const state = {};
+
+// ── Build UI ──
+
+function buildControls() {
+    const container = document.getElementById('controls');
+    container.innerHTML = '';
+    TOKEN_GROUPS.forEach(group => {
+        const title = document.createElement('div');
+        title.className = 'section-title';
+        title.textContent = group.title;
+        container.appendChild(title);
+        group.tokens.forEach(token => {
+            const row = document.createElement('div');
+            row.className = 'color-row';
+            const s = state[token.id];
+
+            const input = document.createElement('input');
+            input.type = 'color';
+            input.value = s.color;
+            input.addEventListener('input', e => {
+                state[token.id].color = e.target.value;
+                updatePreview(); updateOutput(); updateExample(token.id);
+            });
+
+            const label = document.createElement('label');
+            label.textContent = token.label;
+            label.addEventListener('click', () => input.click());
+
+            const example = document.createElement('span');
+            example.className = 'example';
+            example.id = `example-${token.id}`;
+            example.textContent = token.example;
+            example.style.color = s.color;
+            example.style.fontWeight = s.bold ? 'bold' : 'normal';
+            example.style.fontStyle = s.italic ? 'italic' : 'normal';
+
+            const boldBtn = document.createElement('button');
+            boldBtn.className = 'bold-toggle' + (s.bold ? ' active' : '');
+            boldBtn.textContent = 'B';
+            boldBtn.title = 'Toggle bold';
+            boldBtn.addEventListener('click', () => {
+                state[token.id].bold = !state[token.id].bold;
+                boldBtn.classList.toggle('active');
+                updatePreview(); updateOutput(); updateExample(token.id);
+            });
+
+            const italicBtn = document.createElement('button');
+            italicBtn.className = 'italic-toggle' + (s.italic ? ' active' : '');
+            italicBtn.textContent = 'I';
+            italicBtn.title = 'Toggle italic';
+            italicBtn.addEventListener('click', () => {
+                state[token.id].italic = !state[token.id].italic;
+                italicBtn.classList.toggle('active');
+                updatePreview(); updateOutput(); updateExample(token.id);
+            });
+
+            row.appendChild(input);
+            row.appendChild(label);
+            row.appendChild(example);
+            row.appendChild(boldBtn);
+            row.appendChild(italicBtn);
+            container.appendChild(row);
+        });
+    });
+}
+
+function updateExample(tokenId) {
+    const el = document.getElementById(`example-${tokenId}`);
+    if (!el) return;
+    const s = state[tokenId];
+    el.style.color = s.color;
+    el.style.fontWeight = s.bold ? 'bold' : 'normal';
+    el.style.fontStyle = s.italic ? 'italic' : 'normal';
+}
+
+// ── Live Preview (Xell code) ──
+
+const PREVIEW_CODE = [
+    { text: "# Factorial with recursion", type: "line_number_sign" },
+    { text: "", type: null },
+    { parts: [
+        { text: "-->", type: "comment_begin" }, { text: " A block comment ", type: "block_arrow" },
+        { text: "<--", type: "comment_end" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "fn", type: "declaration_function" }, { text: " ", type: null },
+        { text: "factorial", type: "function_definition" }, { text: "(", type: "round_brackets" },
+        { text: "n", type: "parameter" }, { text: ")", type: "round_brackets" },
+        { text: ":", type: "scope_open" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "if", type: "control_flow" }, { text: " ", type: null },
+        { text: "n", type: "identifier" }, { text: " ", type: null },
+        { text: "<=", type: "comparison" }, { text: " ", type: null },
+        { text: "1", type: "numeric" }, { text: ":", type: "scope_open" },
+    ]},
+    { parts: [
+        { text: "        ", type: null },
+        { text: "give", type: "declaration" }, { text: " ", type: null },
+        { text: "1", type: "numeric" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: ";", type: "block_close" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "give", type: "declaration" }, { text: " ", type: null },
+        { text: "n", type: "identifier" }, { text: " ", type: null },
+        { text: "*", type: "arithmetic" }, { text: " ", type: null },
+        { text: "factorial", type: "function_call" }, { text: "(", type: "round_brackets" },
+        { text: "n", type: "identifier" }, { text: " ", type: null },
+        { text: "-", type: "arithmetic" }, { text: " ", type: null },
+        { text: "1", type: "numeric" }, { text: ")", type: "round_brackets" },
+    ]},
+    { parts: [
+        { text: ";", type: "block_close" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "name", type: "identifier" }, { text: " ", type: null },
+        { text: "=", type: "assignment" }, { text: " ", type: null },
+        { text: "\"", type: "string_double" },
+        { text: "World", type: "string_double" },
+        { text: "\"", type: "string_double" },
+    ]},
+    { parts: [
+        { text: "print", type: "io_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "\"", type: "string_double" },
+        { text: "Hello ", type: "string_double" },
+        { text: "{", type: "interpolation_begin" },
+        { text: "name", type: "identifier" },
+        { text: "}", type: "interpolation_end" },
+        { text: "!", type: "string_double" },
+        { text: "\"", type: "string_double" },
+        { text: ")", type: "round_brackets" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "result", type: "identifier" }, { text: " ", type: null },
+        { text: "=", type: "assignment" }, { text: " ", type: null },
+        { text: "factorial", type: "function_call" }, { text: "(", type: "round_brackets" },
+        { text: "10", type: "numeric" }, { text: ")", type: "round_brackets" },
+    ]},
+    { parts: [
+        { text: "print", type: "io_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "\"", type: "string_double" },
+        { text: "10! = ", type: "string_double" },
+        { text: "{", type: "interpolation_begin" },
+        { text: "result", type: "identifier" },
+        { text: "}", type: "interpolation_end" },
+        { text: "\"", type: "string_double" },
+        { text: ")", type: "round_brackets" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "config", type: "identifier" }, { text: " ", type: null },
+        { text: "=", type: "assignment" }, { text: " ", type: null },
+        { text: "{", type: "curly_brackets" },
+        { text: "\"host\"", type: "string_double" }, { text: ":", type: "scope_open" },
+        { text: " ", type: null },
+        { text: "\"localhost\"", type: "string_double" }, { text: ",", type: "comma" },
+        { text: " ", type: null },
+        { text: "\"port\"", type: "string_double" }, { text: ":", type: "scope_open" },
+        { text: " ", type: null },
+        { text: "8080", type: "numeric" },
+        { text: "}", type: "curly_brackets" },
+    ]},
+    { parts: [
+        { text: "print", type: "io_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "config", type: "identifier" },
+        { text: "->", type: "access" },
+        { text: "host", type: "identifier" },
+        { text: ")", type: "round_brackets" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "ok", type: "identifier" }, { text: " ", type: null },
+        { text: "=", type: "assignment" }, { text: " ", type: null },
+        { text: "not", type: "logical" }, { text: " ", type: null },
+        { text: "false", type: "boolean" }, { text: " ", type: null },
+        { text: "and", type: "logical" }, { text: " ", type: null },
+        { text: "true", type: "boolean" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "items", type: "identifier" }, { text: " ", type: null },
+        { text: "=", type: "assignment" }, { text: " ", type: null },
+        { text: "[", type: "square_brackets" },
+        { text: "1", type: "numeric" }, { text: ",", type: "comma" },
+        { text: " ", type: null },
+        { text: "2", type: "numeric" }, { text: ",", type: "comma" },
+        { text: " ", type: null },
+        { text: "3", type: "numeric" },
+        { text: "]", type: "square_brackets" },
+    ]},
+    { parts: [
+        { text: "push", type: "collection_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "items", type: "identifier" }, { text: ",", type: "comma" },
+        { text: " ", type: null },
+        { text: "4", type: "numeric" },
+        { text: ")", type: "round_brackets" },
+    ]},
+    { parts: [
+        { text: "print", type: "io_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "len", type: "type_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "items", type: "identifier" },
+        { text: ")", type: "round_brackets" },
+        { text: ")", type: "round_brackets" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "for", type: "control_flow" }, { text: " ", type: null },
+        { text: "i", type: "loop_variable" }, { text: " ", type: null },
+        { text: "in", type: "control_loop" }, { text: " ", type: null },
+        { text: "range", type: "collection_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "1", type: "numeric" }, { text: ",", type: "comma" },
+        { text: " ", type: null },
+        { text: "5", type: "numeric" }, { text: ")", type: "round_brackets" },
+        { text: ":", type: "scope_open" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "x", type: "identifier" }, { text: " ", type: null },
+        { text: "=", type: "assignment" }, { text: " ", type: null },
+        { text: "floor", type: "math_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "3.14", type: "numeric" }, { text: ")", type: "round_brackets" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "print", type: "io_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "\"", type: "string_double" },
+        { text: "{", type: "interpolation_begin" },
+        { text: "i", type: "identifier" },
+        { text: "}", type: "interpolation_end" },
+        { text: ": ", type: "string_double" },
+        { text: "{", type: "interpolation_begin" },
+        { text: "x", type: "identifier" },
+        { text: "}", type: "interpolation_end" },
+        { text: "\"", type: "string_double" },
+        { text: ")", type: "round_brackets" },
+    ]},
+    { parts: [
+        { text: ";", type: "block_close" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "bring", type: "control_import" }, { text: " ", type: null },
+        { text: "math", type: "module_name" },
+    ]},
+    { parts: [
+        { text: "from", type: "control_import" }, { text: " ", type: null },
+        { text: "os", type: "module_name" }, { text: " ", type: null },
+        { text: "bring", type: "control_import" }, { text: " ", type: null },
+        { text: "cwd", type: "os_builtins" },
+    ]},
+    { parts: [
+        { text: "print", type: "io_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "cwd", type: "os_builtins" }, { text: "(", type: "round_brackets" },
+        { text: ")", type: "round_brackets" },
+        { text: ")", type: "round_brackets" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "msg", type: "identifier" }, { text: " ", type: null },
+        { text: "=", type: "assignment" }, { text: " ", type: null },
+        { text: "\"", type: "string_double" },
+        { text: "tab:", type: "string_double" },
+        { text: "\\t", type: "character_escape" },
+        { text: "newline:", type: "string_double" },
+        { text: "\\n", type: "character_escape" },
+        { text: "\"", type: "string_double" },
+    ]},
+    { parts: [
+        { text: "val", type: "identifier" }, { text: " ", type: null },
+        { text: "=", type: "assignment" }, { text: " ", type: null },
+        { text: "none", type: "language_none" },
+    ]},
+    { parts: [
+        { text: "if", type: "control_flow" }, { text: " ", type: null },
+        { text: "val", type: "identifier" }, { text: " ", type: null },
+        { text: "is", type: "comparison_word" }, { text: " ", type: null },
+        { text: "none", type: "language_none" }, { text: ":", type: "scope_open" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "print", type: "io_builtins" }, { text: "(", type: "round_brackets" },
+        { text: "\"", type: "string_double" },
+        { text: "empty", type: "string_double" },
+        { text: "\"", type: "string_double" },
+        { text: ")", type: "round_brackets" },
+        { text: ".", type: "statement_end" },
+    ]},
+    { parts: [
+        { text: ";", type: "block_close" },
+    ]},
+];
+
+function updatePreview() {
+    const container = document.getElementById('codePreview');
+    container.innerHTML = '';
+    PREVIEW_CODE.forEach(line => {
+        const lineEl = document.createElement('span');
+        lineEl.className = 'line';
+        if (line.parts) {
+            line.parts.forEach(part => {
+                const span = document.createElement('span');
+                span.textContent = part.text;
+                if (part.type && state[part.type]) {
+                    const s = state[part.type];
+                    span.style.color = s.color;
+                    span.style.fontWeight = s.bold ? 'bold' : 'normal';
+                    span.style.fontStyle = s.italic ? 'italic' : 'normal';
+                }
+                lineEl.appendChild(span);
+            });
+            lineEl.appendChild(document.createTextNode('\n'));
+        } else if (line.type && state[line.type]) {
+            const s = state[line.type];
+            lineEl.style.color = s.color;
+            lineEl.style.fontWeight = s.bold ? 'bold' : 'normal';
+            lineEl.style.fontStyle = s.italic ? 'italic' : 'normal';
+            lineEl.textContent = line.text + '\n';
+        } else {
+            lineEl.textContent = (line.text || ' ') + '\n';
+        }
+        container.appendChild(lineEl);
+    });
+}
+
+// ── Generate Output ──
+
+function generateRules() {
+    const rules = [];
+    TOKEN_GROUPS.forEach(group => {
+        group.tokens.forEach(token => {
+            const s = state[token.id];
+            const settings = { foreground: s.color };
+            const styles = [];
+            if (s.bold) styles.push('bold');
+            if (s.italic) styles.push('italic');
+            if (styles.length) settings.fontStyle = styles.join(' ');
+            rules.push({ scope: token.scope, settings });
+        });
+    });
+    return rules;
+}
+
+function generateSettingsJSON() {
+    return JSON.stringify({ "editor.tokenColorCustomizations": { textMateRules: generateRules() } }, null, 2);
+}
+
+function generateExtensionTS() {
+    const rules = generateRules();
+    let out = 'const XELL_TOKEN_RULES = [\n';
+    rules.forEach(rule => {
+        const parts = [`foreground: '${rule.settings.foreground}'`];
+        if (rule.settings.fontStyle) parts.push(`fontStyle: '${rule.settings.fontStyle}'`);
+        out += `    { scope: '${rule.scope}', settings: { ${parts.join(', ')} } },\n`;
+    });
+    out += '];';
+    return out;
+}
+
+function updateOutput() { document.getElementById('outputJson').textContent = generateSettingsJSON(); }
+
+// ── Actions ──
+
+function copySettings() {
+    navigator.clipboard.writeText(generateSettingsJSON()).then(() => showToast('VS Code settings copied!'));
+}
+
+function copyExtensionTS() {
+    navigator.clipboard.writeText(generateExtensionTS()).then(() => showToast('extension.ts rules copied!'));
+}
+
+async function saveToExtension(install) {
+    const rules = generateRules();
+    const payload = { rules };
+    if (install) return saveToExtensionStream(payload);
+    try {
+        const res = await fetch('/api/save-install', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'ok') { showToast(data.message || 'Colors saved!'); checkBackendMode(); }
+        else showToast(data.message || 'Save failed', true);
+    } catch (e) {
+        showToast('⚠ Backend not running. Copied VS Code settings to clipboard.', true);
+        navigator.clipboard.writeText(generateSettingsJSON());
+    }
+}
+
+function openBuildLog() {
+    const log = document.getElementById('buildLog');
+    document.getElementById('buildLogBody').innerHTML = '';
+    document.getElementById('buildSpinner').style.display = 'inline-block';
+    document.getElementById('buildLogTitle').textContent = 'Building...';
+    log.classList.add('visible');
+}
+
+function closeBuildLog() { document.getElementById('buildLog').classList.remove('visible'); }
+
+function addBuildLine(text) {
+    const body = document.getElementById('buildLogBody');
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    if (text.startsWith('✅')) line.classList.add('success');
+    else if (text.startsWith('❌')) line.classList.add('error');
+    else if (text.startsWith('📝') || text.startsWith('🔨') || text.startsWith('🔄')) line.classList.add('info');
+    line.textContent = text;
+    body.appendChild(line);
+    body.scrollTop = body.scrollHeight;
+}
+
+function finishBuildLog(success) {
+    document.getElementById('buildSpinner').style.display = 'none';
+    document.getElementById('buildLogTitle').textContent = success ? '✅ Build Complete' : '❌ Build Failed';
+}
+
+async function saveToExtensionStream(payload) {
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.disabled = true;
+    openBuildLog();
+    try {
+        const res = await fetch('/api/save-install-stream', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalResult = null;
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split('\n\n');
+            buffer = parts.pop();
+            for (const part of parts) {
+                if (!part.trim()) continue;
+                const lines = part.split('\n');
+                let eventType = 'message', eventData = '';
+                for (const l of lines) {
+                    if (l.startsWith('event: ')) eventType = l.slice(7);
+                    else if (l.startsWith('data: ')) eventData = l.slice(6);
+                }
+                if (eventType === 'log') addBuildLine(eventData);
+                else if (eventType === 'done') {
+                    try { finalResult = JSON.parse(eventData); } catch (e) {}
+                    finishBuildLog(finalResult && finalResult.status === 'ok');
+                    if (finalResult?.status === 'ok') showToast(finalResult.message || 'Done!');
+                    else showToast(finalResult?.message || 'Build finished with errors', true);
+                    break;
+                } else if (eventType === 'error') {
+                    addBuildLine('❌ ' + eventData);
+                    finishBuildLog(false);
+                    showToast('Error: ' + eventData, true);
+                }
+            }
+        }
+        if (!finalResult) { addBuildLine('⚠ Stream ended'); finishBuildLog(false); }
+        checkBackendMode();
+    } catch (e) {
+        closeBuildLog();
+        showToast('⚠ Backend not running. Copied settings to clipboard.', true);
+        navigator.clipboard.writeText(generateSettingsJSON());
+    } finally { saveBtn.disabled = false; }
+}
+
+function saveAndInstall() { saveToExtension(true); }
+
+async function checkBackendMode() {
+    try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const btn = document.getElementById('saveBtn');
+        const banner = document.getElementById('modeBanner');
+        if (data.dev_mode) {
+            btn.innerHTML = '🚀 Save &amp; Install';
+            if (banner) banner.textContent = '🔧 Dev mode — saves to extension.ts';
+        } else {
+            btn.innerHTML = '💾 Save to VS Code';
+            if (banner) banner.textContent = '📦 User mode — saves to VS Code settings.json';
+        }
+    } catch (e) {
+        const banner = document.getElementById('modeBanner');
+        if (banner) banner.textContent = '⚠ Backend not detected. Use Copy buttons.';
+    }
+}
+
+function resetDefaults() {
+    TOKEN_GROUPS.forEach(g => g.tokens.forEach(t => {
+        state[t.id] = { color: t.color, bold: t.bold, italic: t.italic };
+    }));
+    buildControls(); updatePreview(); updateOutput();
+}
+
+function showToast(msg, isError) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.style.background = isError ? '#e06c75' : '#45a049';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), isError ? 4000 : 2000);
+}
+
+// ── Init ──
+
+let SCOPE_TO_ID = {};
+
+function rebuildScopeMap() {
+    SCOPE_TO_ID = {};
+    TOKEN_GROUPS.forEach(g => g.tokens.forEach(t => { SCOPE_TO_ID[t.scope] = t.id; }));
+}
+
+async function loadCurrentRules() {
+    try {
+        const res = await fetch('/api/current-rules');
+        const data = await res.json();
+        if (data.rules && data.rules.length > 0) {
+            let applied = 0;
+            data.rules.forEach(rule => {
+                const id = SCOPE_TO_ID[rule.scope];
+                if (id && state[id]) {
+                    state[id].color = rule.foreground || state[id].color;
+                    const fs = rule.fontStyle || '';
+                    state[id].bold = fs.includes('bold');
+                    state[id].italic = fs.includes('italic');
+                    applied++;
+                }
+            });
+            if (applied > 0) {
+                buildControls(); updatePreview(); updateOutput();
+                showToast(`Loaded ${applied} color rules`);
+            }
+        }
+    } catch (e) { /* Server not running */ }
+}
+
+async function loadTokenData() {
+    const urls = ['/api/token-data', 'token_data.json'];
+    for (const url of urls) {
+        try {
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data) && data.length > 0) { TOKEN_GROUPS = data; return; }
+            }
+        } catch (e) { /* next */ }
+    }
+}
+
+async function init() {
+    await loadTokenData();
+    TOKEN_GROUPS.forEach(g => g.tokens.forEach(t => {
+        state[t.id] = { color: t.color, bold: t.bold, italic: t.italic };
+    }));
+    rebuildScopeMap();
+    buildControls(); updatePreview(); updateOutput();
+    checkBackendMode();
+    await loadCurrentRules();
+}
+
+init();
+</script>
+</body>
+</html>

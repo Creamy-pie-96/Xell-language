@@ -1,0 +1,402 @@
+[
+  {
+    "title": "Comments",
+    "tokens": [
+      {
+        "id": "block_arrow",
+        "scope": "comment.block.arrow.xell",
+        "color": "#98c379",
+        "bold": false,
+        "italic": false,
+        "label": "--> block comment <--",
+        "example": "--> ... <--"
+      },
+      {
+        "id": "line_number_sign",
+        "scope": "comment.line.number-sign.xell",
+        "color": "#5c6370",
+        "bold": false,
+        "italic": true,
+        "label": "# line comment",
+        "example": "# note"
+      },
+      {
+        "id": "comment_begin",
+        "scope": "punctuation.definition.comment.begin.xell",
+        "color": "#98c379",
+        "bold": false,
+        "italic": false,
+        "label": "Comment start (-->)",
+        "example": "-->"
+      },
+      {
+        "id": "comment_end",
+        "scope": "punctuation.definition.comment.end.xell",
+        "color": "#98c379",
+        "bold": false,
+        "italic": false,
+        "label": "Comment end (<--)",
+        "example": "<--"
+      }
+    ]
+  },
+  {
+    "title": "Literals & Constants",
+    "tokens": [
+      {
+        "id": "character_escape",
+        "scope": "constant.character.escape.xell",
+        "color": "#d19a66",
+        "bold": false,
+        "italic": false,
+        "label": "Escape chars (\\n, \\t)",
+        "example": "\\n"
+      },
+      {
+        "id": "boolean",
+        "scope": "constant.language.boolean.xell",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "Boolean (true/false)",
+        "example": "true"
+      },
+      {
+        "id": "language_none",
+        "scope": "constant.language.none.xell",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "none",
+        "example": "none"
+      },
+      {
+        "id": "numeric",
+        "scope": "constant.numeric.xell",
+        "color": "#d19a66",
+        "bold": false,
+        "italic": false,
+        "label": "Numbers",
+        "example": "42, 3.14"
+      }
+    ]
+  },
+  {
+    "title": "Strings",
+    "tokens": [
+      {
+        "id": "string_double",
+        "scope": "string.quoted.double.xell",
+        "color": "#98c379",
+        "bold": false,
+        "italic": false,
+        "label": "String literal",
+        "example": "\"hello\""
+      },
+      {
+        "id": "interpolation_begin",
+        "scope": "punctuation.definition.interpolation.begin.xell",
+        "color": "#c678dd",
+        "bold": true,
+        "italic": false,
+        "label": "Interpolation start {",
+        "example": "{"
+      },
+      {
+        "id": "interpolation_end",
+        "scope": "punctuation.definition.interpolation.end.xell",
+        "color": "#c678dd",
+        "bold": true,
+        "italic": false,
+        "label": "Interpolation end }",
+        "example": "}"
+      }
+    ]
+  },
+  {
+    "title": "Keywords",
+    "tokens": [
+      {
+        "id": "control_flow",
+        "scope": "keyword.control.flow.xell",
+        "color": "#c678dd",
+        "bold": true,
+        "italic": false,
+        "label": "Control flow (if/elif/else/for/while)",
+        "example": "if"
+      },
+      {
+        "id": "control_loop",
+        "scope": "keyword.control.loop.xell",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "Loop keywords (in/range)",
+        "example": "in"
+      },
+      {
+        "id": "control_import",
+        "scope": "keyword.control.import.xell",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "Import keywords (bring/from/as)",
+        "example": "bring"
+      },
+      {
+        "id": "declaration",
+        "scope": "keyword.declaration.xell",
+        "color": "#c678dd",
+        "bold": true,
+        "italic": false,
+        "label": "Declaration (fn/give/of)",
+        "example": "fn"
+      },
+      {
+        "id": "declaration_function",
+        "scope": "keyword.declaration.function.xell",
+        "color": "#c678dd",
+        "bold": true,
+        "italic": false,
+        "label": "fn keyword in definition",
+        "example": "fn"
+      }
+    ]
+  },
+  {
+    "title": "Operators",
+    "tokens": [
+      {
+        "id": "logical",
+        "scope": "keyword.operator.logical.xell",
+        "color": "#56b6c2",
+        "bold": false,
+        "italic": false,
+        "label": "Logical (and/or/not)",
+        "example": "and"
+      },
+      {
+        "id": "comparison_word",
+        "scope": "keyword.operator.comparison.word.xell",
+        "color": "#56b6c2",
+        "bold": false,
+        "italic": false,
+        "label": "Comparison words (is/eq/ne/gt/lt/ge/le)",
+        "example": "is"
+      },
+      {
+        "id": "comparison",
+        "scope": "keyword.operator.comparison.xell",
+        "color": "#56b6c2",
+        "bold": false,
+        "italic": false,
+        "label": "Comparison symbols (==/!=/</>)",
+        "example": "=="
+      },
+      {
+        "id": "assignment",
+        "scope": "keyword.operator.assignment.xell",
+        "color": "#56b6c2",
+        "bold": false,
+        "italic": false,
+        "label": "Assignment (=)",
+        "example": "="
+      },
+      {
+        "id": "arithmetic",
+        "scope": "keyword.operator.arithmetic.xell",
+        "color": "#56b6c2",
+        "bold": false,
+        "italic": false,
+        "label": "Arithmetic (+/-/*/%)",
+        "example": "+"
+      },
+      {
+        "id": "access",
+        "scope": "keyword.operator.access.xell",
+        "color": "#e5c07b",
+        "bold": false,
+        "italic": false,
+        "label": "Map access (->)",
+        "example": "->"
+      }
+    ]
+  },
+  {
+    "title": "Functions & Builtins",
+    "tokens": [
+      {
+        "id": "function_definition",
+        "scope": "entity.name.function.definition.xell",
+        "color": "#61afef",
+        "bold": true,
+        "italic": false,
+        "label": "Function name (definition)",
+        "example": "fn greet("
+      },
+      {
+        "id": "function_call",
+        "scope": "entity.name.function.call.xell",
+        "color": "#61afef",
+        "bold": false,
+        "italic": false,
+        "label": "Function call",
+        "example": "greet("
+      },
+      {
+        "id": "io_builtins",
+        "scope": "support.function.io.xell",
+        "color": "#e5c07b",
+        "bold": false,
+        "italic": false,
+        "label": "I/O builtins (print/assert)",
+        "example": "print("
+      },
+      {
+        "id": "type_builtins",
+        "scope": "support.function.type.xell",
+        "color": "#e5c07b",
+        "bold": false,
+        "italic": false,
+        "label": "Type builtins (type/str/num/len)",
+        "example": "len("
+      },
+      {
+        "id": "collection_builtins",
+        "scope": "support.function.collection.xell",
+        "color": "#e5c07b",
+        "bold": false,
+        "italic": false,
+        "label": "Collection builtins (push/pop/keys/...)",
+        "example": "push("
+      },
+      {
+        "id": "math_builtins",
+        "scope": "support.function.math.xell",
+        "color": "#d19a66",
+        "bold": false,
+        "italic": false,
+        "label": "Math builtins (floor/ceil/round/abs/mod)",
+        "example": "floor("
+      },
+      {
+        "id": "os_builtins",
+        "scope": "support.function.os.xell",
+        "color": "#e06c75",
+        "bold": false,
+        "italic": false,
+        "label": "OS builtins (mkdir/rm/ls/read/write/...)",
+        "example": "mkdir("
+      }
+    ]
+  },
+  {
+    "title": "Variables & Parameters",
+    "tokens": [
+      {
+        "id": "parameter",
+        "scope": "variable.parameter.xell",
+        "color": "#e06c75",
+        "bold": false,
+        "italic": true,
+        "label": "Function parameter",
+        "example": "fn add(a, b)"
+      },
+      {
+        "id": "loop_variable",
+        "scope": "variable.other.loop.xell",
+        "color": "#e06c75",
+        "bold": false,
+        "italic": false,
+        "label": "Loop variable",
+        "example": "for i in"
+      },
+      {
+        "id": "identifier",
+        "scope": "variable.other.xell",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Identifier",
+        "example": "myVar"
+      },
+      {
+        "id": "module_name",
+        "scope": "entity.name.module.xell",
+        "color": "#61afef",
+        "bold": false,
+        "italic": false,
+        "label": "Module name",
+        "example": "from math bring ..."
+      }
+    ]
+  },
+  {
+    "title": "Punctuation",
+    "tokens": [
+      {
+        "id": "scope_open",
+        "scope": "punctuation.definition.scope.open.xell",
+        "color": "#e5c07b",
+        "bold": true,
+        "italic": false,
+        "label": "Scope open (:)",
+        "example": ":"
+      },
+      {
+        "id": "block_close",
+        "scope": "punctuation.terminator.block.xell",
+        "color": "#e5c07b",
+        "bold": true,
+        "italic": false,
+        "label": "Block close (;)",
+        "example": ";"
+      },
+      {
+        "id": "statement_end",
+        "scope": "punctuation.terminator.statement.xell",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Statement end (.)",
+        "example": "."
+      },
+      {
+        "id": "comma",
+        "scope": "punctuation.separator.comma.xell",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Comma",
+        "example": ","
+      },
+      {
+        "id": "round_brackets",
+        "scope": "punctuation.bracket.round.xell",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Parentheses",
+        "example": "()"
+      },
+      {
+        "id": "square_brackets",
+        "scope": "punctuation.bracket.square.xell",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Square brackets",
+        "example": "[]"
+      },
+      {
+        "id": "curly_brackets",
+        "scope": "punctuation.bracket.curly.xell",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Curly brackets",
+        "example": "{}"
+      }
+    ]
+  }
+]

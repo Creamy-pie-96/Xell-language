@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Background rounded rectangle -->
+  <rect x="4" y="4" width="120" height="120" rx="16" ry="16" fill="#1A1A2E"/>
+  <rect x="4" y="4" width="120" height="120" rx="16" ry="16" fill="none" stroke="#E94560" stroke-width="3"/>
+
+  <!-- "Xel" text -->
+  <text x="64" y="58" font-family="Consolas, 'Courier New', monospace" font-size="40" font-weight="bold" fill="#E94560" text-anchor="middle" dominant-baseline="middle">Xel</text>
+
+  <!-- Small code icon: colon-semicolon -->
+  <text x="64" y="98" font-family="Consolas, 'Courier New', monospace" font-size="22" fill="#0F3460" text-anchor="middle" dominant-baseline="middle">: ;</text>
+
+  <!-- Interpolation brace accent -->
+  <text x="100" y="36" font-family="Consolas, monospace" font-size="18" font-weight="bold" fill="#533483">{}</text>
+</svg>

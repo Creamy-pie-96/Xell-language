@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/scriptit.dir/ScriptIt.cpp.o CMakeFiles/scriptit.dir/home/DATA/CODE/code/pythonic/src/pythonicDispatchStubs.cpp.o -o scriptit  -lm 

@@ -1,0 +1,19 @@
+{
+  "hidesExplorerArrows": false,
+  "file": "file",
+  "fileExtensions": {
+    "xel": "_xell_script",
+    "nxel": "_xell_notebook"
+  },
+  "iconDefinitions": {
+    "file": {
+      "iconPath": ""
+    },
+    "_xell_script": {
+      "iconPath": "../images/xel-icon.svg"
+    },
+    "_xell_notebook": {
+      "iconPath": "../images/nxel-icon.svg"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Background rounded rectangle with notebook vibe -->
+  <rect x="4" y="4" width="120" height="120" rx="16" ry="16" fill="#16213E"/>
+  <rect x="4" y="4" width="120" height="120" rx="16" ry="16" fill="none" stroke="#533483" stroke-width="3"/>
+
+  <!-- Notebook lines (representing cells) -->
+  <line x1="20" y1="36" x2="108" y2="36" stroke="#2A2A4A" stroke-width="1.5"/>
+  <line x1="20" y1="56" x2="108" y2="56" stroke="#2A2A4A" stroke-width="1.5"/>
+  <line x1="20" y1="76" x2="108" y2="76" stroke="#2A2A4A" stroke-width="1.5"/>
+  <line x1="20" y1="96" x2="108" y2="96" stroke="#2A2A4A" stroke-width="1.5"/>
+
+  <!-- Play triangle (execute cell) -->
+  <polygon points="22,40 22,52 32,46" fill="#E94560"/>
+  <polygon points="22,60 22,72 32,66" fill="#0F3460"/>
+
+  <!-- "NXel" text -->
+  <text x="72" y="68" font-family="Consolas, 'Courier New', monospace" font-size="28" font-weight="bold" fill="#533483" text-anchor="middle" dominant-baseline="middle">NXel</text>
+
+  <!-- Small cell indicator dots -->
+  <circle cx="26" cy="86" r="3" fill="#E94560"/>
+  <circle cx="26" cy="106" r="3" fill="#0F3460"/>
+</svg>

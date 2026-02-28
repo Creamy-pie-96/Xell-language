@@ -1,0 +1,152 @@
+{
+  "Function Definition": {
+    "prefix": "fn",
+    "body": [
+      "fn ${1:name}(${2:params}) :",
+      "    ${3:# body}",
+      ";"
+    ],
+    "description": "Define a new function"
+  },
+  "Function with Give": {
+    "prefix": "fnr",
+    "body": [
+      "fn ${1:name}(${2:params}) :",
+      "    give ${3:expression}",
+      ";"
+    ],
+    "description": "Define a function that gives back a value"
+  },
+  "If Statement": {
+    "prefix": "if",
+    "body": [
+      "if ${1:condition} :",
+      "    ${2:# body}",
+      ";"
+    ],
+    "description": "If conditional block"
+  },
+  "If-Else": {
+    "prefix": "ife",
+    "body": [
+      "if ${1:condition} :",
+      "    ${2:# then}",
+      ";",
+      "else :",
+      "    ${3:# else}",
+      ";"
+    ],
+    "description": "If-else conditional block"
+  },
+  "If-Elif-Else": {
+    "prefix": "ifee",
+    "body": [
+      "if ${1:condition} :",
+      "    ${2:# body}",
+      ";",
+      "elif ${3:condition2} :",
+      "    ${4:# body2}",
+      ";",
+      "else :",
+      "    ${5:# else}",
+      ";"
+    ],
+    "description": "If-elif-else block"
+  },
+  "For Loop": {
+    "prefix": "for",
+    "body": [
+      "for ${1:item} in ${2:collection} :",
+      "    ${3:# body}",
+      ";"
+    ],
+    "description": "For-in loop over collection"
+  },
+  "For Range Loop": {
+    "prefix": "forr",
+    "body": [
+      "for ${1:i} in range(${2:n}) :",
+      "    ${3:# body}",
+      ";"
+    ],
+    "description": "For loop with range(n)"
+  },
+  "While Loop": {
+    "prefix": "while",
+    "body": [
+      "while ${1:condition} :",
+      "    ${2:# body}",
+      ";"
+    ],
+    "description": "While loop"
+  },
+  "Assignment": {
+    "prefix": "var",
+    "body": "${1:name} = ${2:value}",
+    "description": "Assign a value to a variable"
+  },
+  "Print": {
+    "prefix": "pr",
+    "body": "print(${1:expression})",
+    "description": "Print a value"
+  },
+  "Give (Return)": {
+    "prefix": "give",
+    "body": "give ${1:expression}",
+    "description": "Give back a value from a function"
+  },
+  "Bring (Import)": {
+    "prefix": "bring",
+    "body": "bring ${1:name} from \"${2:./file.xel}\"",
+    "description": "Bring names from another file"
+  },
+  "Bring All": {
+    "prefix": "bringa",
+    "body": "bring * from \"${1:./file.xel}\"",
+    "description": "Bring all names from another file"
+  },
+  "Bring As": {
+    "prefix": "bringas",
+    "body": "bring ${1:name} from \"${2:./file.xel}\" as ${3:alias}",
+    "description": "Bring a name with an alias"
+  },
+  "Map Literal": {
+    "prefix": "map",
+    "body": [
+      "{",
+      "    ${1:key}: ${2:value}",
+      "}"
+    ],
+    "description": "Create a map literal"
+  },
+  "List Literal": {
+    "prefix": "list",
+    "body": "[${1:items}]",
+    "description": "Create a list literal"
+  },
+  "Run Command": {
+    "prefix": "run",
+    "body": "run(\"${1:command}\")",
+    "description": "Run an external command"
+  },
+  "Run Capture": {
+    "prefix": "runc",
+    "body": "${1:result} = run_capture(\"${2:command}\")",
+    "description": "Run and capture output of a command"
+  },
+  "Mkdir": {
+    "prefix": "mkdir",
+    "body": "mkdir(\"${1:path}\")",
+    "description": "Create a directory"
+  },
+  "Read File": {
+    "prefix": "readf",
+    "body": "${1:content} = read(\"${2:file}\")",
+    "description": "Read file contents"
+  },
+  "Write File": {
+    "prefix": "writef",
+    "body": "write(\"${1:file}\", ${2:data})",
+    "description": "Write data to a file"
+  }
+}
