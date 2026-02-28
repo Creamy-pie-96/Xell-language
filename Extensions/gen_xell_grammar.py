@@ -1,27 +1,30 @@
 #!/usr/bin/env python3
 """
-gen_grammar.py — Dynamic grammar generator for Xell
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+gen_xell_grammar.py — Fully dynamic grammar & token generator for Xell
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Single source of truth: the C++ source files.
 
 Reads:
-  - src/lexer/token.hpp      → keywords, operators
-  - src/builtins/*.hpp        → builtin function names
-  - src/interpreter/interpreter.hpp → runtime info
+  - src/lexer/token.hpp          → keyword names from TokenType enum
+  - src/builtins/builtins_*.hpp  → builtin function names from t["name"] patterns
 
 Generates:
   - Extensions/xell-vscode/syntaxes/xell.tmLanguage.json
+  - Extensions/xell-vscode/color_customizer/token_data.json
 
 Usage:
-    python3 Extensions/gen_grammar.py
-    python3 Extensions/gen_grammar.py --check   # verify grammar is up-to-date
+    python3 Extensions/gen_xell_grammar.py              # generate grammar files
+    python3 Extensions/gen_xell_grammar.py --check      # verify files are up-to-date
+    python3 Extensions/gen_xell_grammar.py --install     # generate + build + install extension
 """
 
 import re
 import json
 import sys
-import os
+import subprocess
+import shutil
+import glob as globmod
 from pathlib import Path
 from collections import OrderedDict
 
@@ -35,6 +38,7 @@ BUILTINS_DIR = SRC_DIR / "builtins"
 
 VSCODE_DIR = SCRIPT_DIR / "xell-vscode"
 TMLANG_OUT = VSCODE_DIR / "syntaxes" / "xell.tmLanguage.json"
+TOKEN_DATA_OUT = VSCODE_DIR / "color_customizer" / "token_data.json"
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -46,65 +50,84 @@ def read_file(path):
         return f.read()
 
 
-def extract_keywords(src):
-    """Extract keywords from TokenType enum in token.hpp.
-    Looks for entries like FN, GIVE, IF, etc. that map to keywords."""
-    keywords = []
-    # Match keyword-like enum entries
-    keyword_map = {
-        "FN": "fn", "GIVE": "give", "IF": "if", "ELIF": "elif",
-        "ELSE": "else", "FOR": "for", "WHILE": "while", "IN": "in",
-        "BRING": "bring", "FROM": "from", "AS": "as",
-        "AND": "and", "OR": "or", "NOT": "not",
-        "IS": "is", "EQ": "eq", "NE": "ne", "GT": "gt", "LT": "lt",
-        "GE": "ge", "LE": "le", "OF": "of",
-        "TRUE_KW": "true", "FALSE_KW": "false", "NONE_KW": "none",
-    }
-    for enum_name, kw in keyword_map.items():
-        if enum_name in src:
-            keywords.append(kw)
-    return sorted(set(keywords))
+def extract_enum_names(src):
+    """Extract all TokenType enum names from token.hpp."""
+    m = re.search(r'enum\s+class\s+TokenType\s*\{(.*?)\}', src, re.DOTALL)
+    if not m:
+        return []
+    body = m.group(1)
+    names = re.findall(r'\b([A-Z][A-Z_0-9]+)\b', body)
+    return names
 
 
-def extract_builtins_from_files():
-    """Extract builtin function names from src/builtins/ headers."""
-    builtins = set()
-    if not BUILTINS_DIR.exists():
-        return sorted(builtins)
-    for hpp in BUILTINS_DIR.glob("*.hpp"):
-        content = read_file(hpp)
-        # Match registry.register("name", ...) patterns
-        for m in re.finditer(r'register\s*\(\s*"(\w+)"', content):
-            builtins.add(m.group(1))
-        # Also match table["name"] = ... patterns
-        for m in re.finditer(r'table\s*\[\s*"(\w+)"\s*\]', content):
-            builtins.add(m.group(1))
-    return sorted(builtins)
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 2. CLASSIFY EXTRACTED DATA
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-CONTROL_KEYWORDS = {"if", "elif", "else", "for", "while"}
-LOOP_KEYWORDS = {"in", "range"}
-IMPORT_KEYWORDS = {"bring", "from", "as"}
-DECL_KEYWORDS = {"fn", "give", "of"}
-LOGICAL_WORD_OPS = {"and", "or", "not"}
-COMPARISON_WORD_OPS = {"is", "eq", "ne", "gt", "lt", "ge", "le"}
-CONSTANTS = {"true", "false", "none"}
-
-IO_BUILTINS = {"print", "assert"}
-TYPE_BUILTINS = {"type", "str", "num", "len"}
-COLLECTION_BUILTINS = {"push", "pop", "keys", "values", "range", "set", "has"}
-MATH_BUILTINS = {"floor", "ceil", "round", "abs", "mod"}
-OS_BUILTINS = {
-    "mkdir", "rm", "cp", "mv", "exists", "is_file", "is_dir", "ls",
-    "read", "write", "append", "file_size", "cwd", "cd",
-    "abspath", "basename", "dirname", "ext",
-    "env_get", "env_set", "env_unset", "env_has",
-    "run", "run_capture", "pid"
+# Map from TokenType enum → lowercase keyword (only for actual keywords)
+KEYWORD_ENUM_MAP = {
+    "FN": "fn", "GIVE": "give", "IF": "if", "ELIF": "elif",
+    "ELSE": "else", "FOR": "for", "WHILE": "while", "IN": "in",
+    "BRING": "bring", "FROM": "from", "AS": "as",
+    "AND": "and", "OR": "or", "NOT": "not",
+    "IS": "is", "EQ": "eq", "NE": "ne", "GT": "gt", "LT": "lt",
+    "GE": "ge", "LE": "le", "OF": "of",
+    "TRUE_KW": "true", "FALSE_KW": "false", "NONE_KW": "none",
 }
+
+
+def extract_keywords_dynamic(src):
+    """Extract keywords by finding which enum names match our keyword map."""
+    enum_names = extract_enum_names(src)
+    keywords = []
+    for name in enum_names:
+        if name in KEYWORD_ENUM_MAP:
+            keywords.append(KEYWORD_ENUM_MAP[name])
+    return keywords
+
+
+def extract_builtins_from_file(filepath):
+    """Extract builtin names from a single builtins_*.hpp file."""
+    content = read_file(filepath)
+    builtins = []
+    for m in re.finditer(r't\s*\[\s*"(\w+)"\s*\]', content):
+        builtins.append(m.group(1))
+    return builtins
+
+
+def extract_all_builtins():
+    """Extract builtins from each builtins_*.hpp, categorized by filename."""
+    categories = {}
+    if not BUILTINS_DIR.exists():
+        return categories
+    for hpp in sorted(BUILTINS_DIR.glob("builtins_*.hpp")):
+        cat = hpp.stem.replace("builtins_", "")
+        names = extract_builtins_from_file(hpp)
+        if names:
+            categories[cat] = names
+    return categories
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 2. CLASSIFY KEYWORDS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CONTROL_KW = {"if", "elif", "else", "for", "while"}
+IMPORT_KW = {"bring", "from", "as"}
+DECL_KW = {"fn", "give", "of"}
+LOGICAL_KW = {"and", "or", "not"}
+COMPARISON_KW = {"is", "eq", "ne", "gt", "lt", "ge", "le"}
+LOOP_KW = {"in"}
+CONSTANT_KW = {"true", "false", "none"}
+
+
+def classify_keywords(keywords):
+    result = {
+        "control": sorted(k for k in keywords if k in CONTROL_KW),
+        "import": sorted(k for k in keywords if k in IMPORT_KW),
+        "declaration": sorted(k for k in keywords if k in DECL_KW),
+        "logical": sorted(k for k in keywords if k in LOGICAL_KW),
+        "comparison": sorted(k for k in keywords if k in COMPARISON_KW),
+        "loop": sorted(k for k in keywords if k in LOOP_KW),
+        "constants": sorted(k for k in keywords if k in CONSTANT_KW),
+    }
+    return result
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -112,53 +135,38 @@ OS_BUILTINS = {
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def word_alt(words):
-    """Build a \\b(word1|word2|...)\\b alternation."""
+    """Build \\b(word1|word2|...)\\b alternation, longest first."""
     return "\\b(" + "|".join(sorted(words, key=lambda w: (-len(w), w))) + ")\\b"
 
 
-def build_tmlanguage(keywords, builtins):
-    """Build the complete tmLanguage JSON for Xell."""
+def build_tmlanguage(kw_classes, builtin_cats):
     grammar = OrderedDict()
     grammar["$schema"] = "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json"
     grammar["name"] = "Xell"
     grammar["scopeName"] = "source.xell"
     grammar["fileTypes"] = ["xel", "nxel"]
     grammar["comment"] = (
-        "AUTO-GENERATED by gen_grammar.py — DO NOT EDIT MANUALLY. "
-        "Change the parser sources and re-run: python3 Extensions/gen_grammar.py"
+        "AUTO-GENERATED by gen_xell_grammar.py — DO NOT EDIT MANUALLY. "
+        "Re-run: python3 Extensions/gen_xell_grammar.py"
     )
 
-    grammar["patterns"] = [
-        {"include": "#block-comment"},
-        {"include": "#line-comment"},
-        {"include": "#strings"},
-        {"include": "#function-definition"},
-        {"include": "#for-loop"},
-        {"include": "#for-in-loop"},
-        {"include": "#bring-statement"},
-        {"include": "#control-keywords"},
-        {"include": "#declaration-keywords"},
-        {"include": "#import-keywords"},
-        {"include": "#logical-operators"},
-        {"include": "#comparison-word-operators"},
-        {"include": "#boolean-constants"},
-        {"include": "#none-constant"},
-        {"include": "#io-builtins"},
-        {"include": "#type-builtins"},
-        {"include": "#collection-builtins"},
-        {"include": "#math-builtins"},
-        {"include": "#os-builtins"},
-        {"include": "#arrow-access"},
-        {"include": "#comparison-operators"},
-        {"include": "#assignment-operator"},
-        {"include": "#arithmetic-operators"},
-        {"include": "#numbers"},
-        {"include": "#function-call"},
-        {"include": "#semicolon-terminator"},
-        {"include": "#dot-terminator"},
-        {"include": "#punctuation"},
-        {"include": "#identifiers"},
+    includes = [
+        "#block-comment", "#line-comment", "#strings",
+        "#function-definition", "#for-loop", "#for-in-loop", "#bring-statement",
+        "#declaration-keywords", "#control-keywords", "#loop-keywords",
+        "#import-keywords", "#logical-operators", "#comparison-word-operators",
+        "#boolean-constants", "#none-constant",
     ]
+    for cat in sorted(builtin_cats.keys()):
+        includes.append(f"#{cat}-builtins")
+    includes += [
+        "#arrow-access", "#comparison-operators", "#increment-operators",
+        "#assignment-operator", "#arithmetic-operators",
+        "#numbers", "#method-call", "#function-call",
+        "#semicolon-terminator", "#dot-terminator",
+        "#punctuation", "#identifiers",
+    ]
+    grammar["patterns"] = [{"include": inc} for inc in includes]
 
     repo = OrderedDict()
 
@@ -177,24 +185,27 @@ def build_tmlanguage(keywords, builtins):
 
     # Strings with interpolation
     repo["strings"] = {
-        "name": "string.quoted.double.xell",
-        "begin": "\"",
-        "end": "\"",
-        "patterns": [
-            {
-                "name": "meta.interpolation.xell",
-                "begin": "\\{",
-                "end": "\\}",
-                "beginCaptures": {"0": {"name": "punctuation.definition.interpolation.begin.xell"}},
-                "endCaptures": {"0": {"name": "punctuation.definition.interpolation.end.xell"}},
-                "patterns": [{"include": "source.xell"}]
-            },
-            {"name": "constant.character.escape.xell", "match": "\\\\."}
-        ]
+        "patterns": [{
+            "name": "string.quoted.double.xell",
+            "begin": "\"",
+            "end": "\"",
+            "patterns": [
+                {
+                    "name": "string.interpolation.xell",
+                    "begin": "\\{",
+                    "end": "\\}",
+                    "beginCaptures": {"0": {"name": "punctuation.section.interpolation.begin.xell"}},
+                    "endCaptures": {"0": {"name": "punctuation.section.interpolation.end.xell"}},
+                    "patterns": [{"include": "source.xell"}]
+                },
+                {"name": "constant.character.escape.xell", "match": "\\\\."}
+            ]
+        }]
     }
 
     # Function definition
     repo["function-definition"] = {
+        "comment": "fn name(param1, param2):",
         "patterns": [{
             "name": "meta.function.definition.xell",
             "begin": "\\b(fn)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
@@ -202,12 +213,10 @@ def build_tmlanguage(keywords, builtins):
                 "1": {"name": "keyword.declaration.function.xell"},
                 "2": {"name": "entity.name.function.definition.xell"},
             },
-            "end": "\\)",
+            "end": "\\)\\s*(:|\\.)",
+            "endCaptures": {"1": {"name": "punctuation.definition.function.xell"}},
             "patterns": [
-                {
-                    "name": "variable.parameter.xell",
-                    "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b"
-                },
+                {"name": "variable.parameter.xell", "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b"},
                 {"name": "punctuation.separator.parameter.xell", "match": ","},
             ]
         }]
@@ -215,6 +224,7 @@ def build_tmlanguage(keywords, builtins):
 
     # For loop
     repo["for-loop"] = {
+        "comment": "for i in range(...)",
         "patterns": [{
             "match": "\\b(for)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s+(in)\\s+(range)\\b",
             "captures": {
@@ -228,6 +238,7 @@ def build_tmlanguage(keywords, builtins):
 
     # For-in loop
     repo["for-in-loop"] = {
+        "comment": "for item in collection",
         "patterns": [{
             "match": "\\b(for)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s+(in)\\b",
             "captures": {
@@ -240,125 +251,168 @@ def build_tmlanguage(keywords, builtins):
 
     # Bring statement
     repo["bring-statement"] = {
+        "comment": "bring name from 'file' as alias",
         "patterns": [{
-            "match": "\\b(from)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s+(bring)\\b",
+            "match": "\\b(bring)\\s+(.+?)\\s+(from)\\b",
             "captures": {
                 "1": {"name": "keyword.control.import.xell"},
-                "2": {"name": "entity.name.module.xell"},
                 "3": {"name": "keyword.control.import.xell"},
             }
         }]
     }
 
-    # Keywords
-    repo["control-keywords"] = {
-        "name": "keyword.control.flow.xell",
-        "match": word_alt(CONTROL_KEYWORDS)
-    }
-    repo["declaration-keywords"] = {
-        "name": "keyword.declaration.xell",
-        "match": word_alt(DECL_KEYWORDS)
-    }
-    repo["import-keywords"] = {
-        "name": "keyword.control.import.xell",
-        "match": word_alt(IMPORT_KEYWORDS)
-    }
-    repo["logical-operators"] = {
-        "name": "keyword.operator.logical.xell",
-        "match": word_alt(LOGICAL_WORD_OPS)
-    }
-    repo["comparison-word-operators"] = {
-        "name": "keyword.operator.comparison.word.xell",
-        "match": word_alt(COMPARISON_WORD_OPS)
-    }
+    # Keyword groups
+    if kw_classes["declaration"]:
+        repo["declaration-keywords"] = {
+            "comment": f"Declaration: {', '.join(kw_classes['declaration'])}",
+            "patterns": [
+                {"name": "keyword.declaration.function.xell", "match": "\\b(fn)\\b"},
+                {"name": "keyword.control.return.xell", "match": "\\b(give)\\b"},
+                {"name": "keyword.other.special.xell", "match": "\\b(of)\\b"},
+            ]
+        }
+    if kw_classes["control"]:
+        repo["control-keywords"] = {
+            "comment": f"Control: {', '.join(kw_classes['control'])}",
+            "patterns": [
+                {"name": "keyword.control.flow.xell", "match": word_alt(kw_classes["control"])}
+            ]
+        }
+    if kw_classes["loop"]:
+        repo["loop-keywords"] = {
+            "comment": f"Loop: {', '.join(kw_classes['loop'])}",
+            "patterns": [
+                {"name": "keyword.control.loop.xell", "match": word_alt(kw_classes["loop"] + ["range"])}
+            ]
+        }
+    if kw_classes["import"]:
+        repo["import-keywords"] = {
+            "comment": f"Import: {', '.join(kw_classes['import'])}",
+            "patterns": [
+                {"name": "keyword.control.import.xell", "match": word_alt(kw_classes["import"])}
+            ]
+        }
+    if kw_classes["logical"]:
+        repo["logical-operators"] = {
+            "comment": f"Logical: {', '.join(kw_classes['logical'])}",
+            "patterns": [
+                {"name": "keyword.operator.logical.xell", "match": word_alt(kw_classes["logical"])}
+            ]
+        }
+    if kw_classes["comparison"]:
+        repo["comparison-word-operators"] = {
+            "comment": f"Comparison words: {', '.join(kw_classes['comparison'])}",
+            "patterns": [
+                {"name": "keyword.operator.comparison.word.xell", "match": word_alt(kw_classes["comparison"])}
+            ]
+        }
 
     # Constants
-    repo["boolean-constants"] = {
-        "name": "constant.language.boolean.xell",
-        "match": "\\b(true|false)\\b"
-    }
-    repo["none-constant"] = {
-        "name": "constant.language.none.xell",
-        "match": "\\bnone\\b"
+    bools = [k for k in kw_classes["constants"] if k in ("true", "false")]
+    if bools:
+        repo["boolean-constants"] = {
+            "patterns": [
+                {"name": "constant.language.boolean.true.xell", "match": "\\btrue\\b"},
+                {"name": "constant.language.boolean.false.xell", "match": "\\bfalse\\b"},
+            ]
+        }
+    if "none" in kw_classes["constants"]:
+        repo["none-constant"] = {
+            "patterns": [
+                {"name": "constant.language.none.xell", "match": "\\bnone\\b"}
+            ]
+        }
+
+    # Builtin categories — dynamically generated
+    SCOPE_MAP = {
+        "io": "support.function.builtin.xell",
+        "util": "support.function.builtin.xell",
+        "type": "support.type.conversion.xell",
+        "collection": "support.function.builtin.xell",
+        "math": "support.function.math.xell",
+        "os": "support.function.builtin.os.xell",
     }
 
-    # Builtins by category
-    repo["io-builtins"] = {
-        "match": "\\b(" + "|".join(sorted(IO_BUILTINS)) + ")\\s*(?=\\()",
-        "name": "support.function.io.xell"
-    }
-    repo["type-builtins"] = {
-        "match": "\\b(" + "|".join(sorted(TYPE_BUILTINS)) + ")\\s*(?=\\()",
-        "name": "support.function.type.xell"
-    }
-    repo["collection-builtins"] = {
-        "match": "\\b(" + "|".join(sorted(COLLECTION_BUILTINS)) + ")\\s*(?=\\()",
-        "name": "support.function.collection.xell"
-    }
-    repo["math-builtins"] = {
-        "match": "\\b(" + "|".join(sorted(MATH_BUILTINS)) + ")\\s*(?=\\()",
-        "name": "support.function.math.xell"
-    }
-    repo["os-builtins"] = {
-        "match": "\\b(" + "|".join(sorted(OS_BUILTINS)) + ")\\s*(?=\\()",
-        "name": "support.function.os.xell"
-    }
+    for cat in sorted(builtin_cats.keys()):
+        names = sorted(builtin_cats[cat])
+        scope = SCOPE_MAP.get(cat, f"support.function.{cat}.xell")
+        repo[f"{cat}-builtins"] = {
+            "comment": f"{cat.upper()} builtins: {', '.join(names)}",
+            "patterns": [{
+                "name": scope,
+                "match": "\\b(" + "|".join(names) + ")\\b(?=\\s*\\()"
+            }]
+        }
 
     # Operators
     repo["arrow-access"] = {
-        "name": "keyword.operator.access.xell",
-        "match": "->"
+        "comment": "-> map key access operator",
+        "patterns": [{"name": "keyword.operator.access.xell", "match": "->"}]
     }
     repo["comparison-operators"] = {
-        "name": "keyword.operator.comparison.xell",
-        "match": "==|!=|<=|>=|<|>"
+        "patterns": [{"name": "keyword.operator.comparison.xell", "match": "==|!=|<=|>=|<|>"}]
+    }
+    repo["increment-operators"] = {
+        "patterns": [{"name": "keyword.operator.increment.xell", "match": "\\+\\+|--"}]
     }
     repo["assignment-operator"] = {
-        "name": "keyword.operator.assignment.xell",
-        "match": "="
+        "patterns": [{"name": "keyword.operator.assignment.xell", "match": "="}]
     }
     repo["arithmetic-operators"] = {
-        "name": "keyword.operator.arithmetic.xell",
-        "match": "[+\\-*/%]"
+        "patterns": [{"name": "keyword.operator.arithmetic.xell", "match": "\\+|-|\\*|/|%"}]
     }
 
     # Numbers
     repo["numbers"] = {
-        "name": "constant.numeric.xell",
-        "match": "\\b\\d+(\\.\\d+)?\\b"
+        "patterns": [
+            {"name": "constant.numeric.float.xell", "match": "(?<![a-zA-Z_\\.])\\d+\\.\\d+"},
+            {"name": "constant.numeric.integer.xell", "match": "(?<![a-zA-Z_\\.])\\d+(?!\\.\\d)"},
+        ]
+    }
+
+    # Method call
+    repo["method-call"] = {
+        "comment": ".name( — method call via dot",
+        "patterns": [{
+            "match": "\\.([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+            "captures": {"1": {"name": "entity.name.function.method.xell"}}
+        }]
     }
 
     # Function call
     repo["function-call"] = {
-        "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
-        "captures": {"1": {"name": "entity.name.function.call.xell"}}
+        "comment": "name( — function call",
+        "patterns": [{
+            "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+            "captures": {"1": {"name": "entity.name.function.call.xell"}}
+        }]
     }
 
     # Terminators
     repo["semicolon-terminator"] = {
-        "name": "punctuation.terminator.block.xell",
-        "match": ";"
+        "patterns": [{"name": "punctuation.terminator.block.xell", "match": "^\\s*;\\s*$"}]
     }
     repo["dot-terminator"] = {
-        "name": "punctuation.terminator.statement.xell",
-        "match": "\\."
+        "patterns": [{"name": "punctuation.terminator.statement.xell", "match": "\\.(?=\\s*$|\\s*#)"}]
     }
 
     # Punctuation
     repo["punctuation"] = {
         "patterns": [
-            {"name": "punctuation.definition.scope.open.xell", "match": ":"},
             {"name": "punctuation.bracket.round.xell", "match": "[()]"},
             {"name": "punctuation.bracket.square.xell", "match": "[\\[\\]]"},
             {"name": "punctuation.bracket.curly.xell", "match": "[{}]"},
             {"name": "punctuation.separator.comma.xell", "match": ","},
+            {"name": "punctuation.separator.colon.xell", "match": ":"},
         ]
     }
 
     # Identifiers
     repo["identifiers"] = {
-        "name": "variable.other.xell",
-        "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+        "comment": "Catch-all: remaining identifiers → variable color",
+        "patterns": [
+            {"name": "variable.other.xell", "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"}
+        ]
     }
 
     grammar["repository"] = repo
@@ -366,46 +420,376 @@ def build_tmlanguage(keywords, builtins):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 4. MAIN
+# 4. GENERATE token_data.json FOR CUSTOMIZER
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DEFAULT_COLORS = {
+    "comment.block.arrow.xell": "#98c379",
+    "comment.line.number-sign.xell": "#5c6370",
+    "punctuation.definition.comment.begin.xell": "#98c379",
+    "punctuation.definition.comment.end.xell": "#98c379",
+    "constant.character.escape.xell": "#d19a66",
+    "constant.language.boolean.true.xell": "#c678dd",
+    "constant.language.boolean.false.xell": "#c678dd",
+    "constant.language.none.xell": "#c678dd",
+    "constant.numeric.float.xell": "#d19a66",
+    "constant.numeric.integer.xell": "#d19a66",
+    "string.quoted.double.xell": "#98c379",
+    "string.interpolation.xell": "#d19a66",
+    "punctuation.section.interpolation.begin.xell": "#c678dd",
+    "punctuation.section.interpolation.end.xell": "#c678dd",
+    "entity.name.function.call.xell": "#00ffff",
+    "entity.name.function.definition.xell": "#00ffff",
+    "entity.name.function.method.xell": "#00ffff",
+    "support.function.builtin.xell": "#00ffff",
+    "support.function.builtin.os.xell": "#00ffff",
+    "support.function.math.xell": "#00ffff",
+    "support.type.conversion.xell": "#008080",
+    "keyword.control.flow.xell": "#e06c75",
+    "keyword.control.loop.xell": "#e06c75",
+    "keyword.control.import.xell": "#e06c75",
+    "keyword.control.return.xell": "#e5c07b",
+    "keyword.declaration.function.xell": "#e5c07b",
+    "keyword.other.special.xell": "#e5c07b",
+    "keyword.operator.arithmetic.xell": "#c678dd",
+    "keyword.operator.assignment.xell": "#c678dd",
+    "keyword.operator.comparison.xell": "#c678dd",
+    "keyword.operator.comparison.word.xell": "#c678dd",
+    "keyword.operator.logical.xell": "#c678dd",
+    "keyword.operator.increment.xell": "#c678dd",
+    "keyword.operator.access.xell": "#61afef",
+    "punctuation.bracket.round.xell": "#abb2bf",
+    "punctuation.bracket.square.xell": "#abb2bf",
+    "punctuation.bracket.curly.xell": "#abb2bf",
+    "punctuation.separator.colon.xell": "#abb2bf",
+    "punctuation.separator.comma.xell": "#abb2bf",
+    "punctuation.terminator.block.xell": "#abb2bf",
+    "punctuation.terminator.statement.xell": "#abb2bf",
+    "variable.other.xell": "#eeeeee",
+    "variable.other.loop.xell": "#eeeeee",
+    "variable.parameter.xell": "#eeeeee",
+    "meta.function.definition.xell": "#eeeeee",
+}
+
+DEFAULT_STYLES = {
+    "comment.line.number-sign.xell": "italic",
+    "keyword.control.flow.xell": "bold",
+    "keyword.control.loop.xell": "bold",
+    "keyword.control.import.xell": "bold",
+    "keyword.control.return.xell": "bold",
+    "keyword.declaration.function.xell": "bold",
+    "keyword.other.special.xell": "bold",
+    "keyword.operator.access.xell": "bold",
+    "punctuation.section.interpolation.begin.xell": "bold",
+    "punctuation.section.interpolation.end.xell": "bold",
+}
+
+
+def _tok(id_, scope, label, example):
+    color = DEFAULT_COLORS.get(scope, "#eeeeee")
+    style = DEFAULT_STYLES.get(scope, "")
+    bold = "bold" in style
+    italic = "italic" in style
+    return {
+        "id": id_,
+        "scope": scope,
+        "color": color,
+        "bold": bold,
+        "italic": italic,
+        "label": label,
+        "example": example,
+    }
+
+
+def build_token_data(kw_classes, builtin_cats):
+    groups = []
+
+    # --- Comments ---
+    groups.append({
+        "title": "Comments",
+        "tokens": [
+            _tok("block_arrow", "comment.block.arrow.xell", "--> block comment <--", "--> ... <--"),
+            _tok("line_number_sign", "comment.line.number-sign.xell", "# line comment", "# note"),
+            _tok("comment_begin", "punctuation.definition.comment.begin.xell", "Comment start (-->)", "-->"),
+            _tok("comment_end", "punctuation.definition.comment.end.xell", "Comment end (<--)", "<--"),
+        ]
+    })
+
+    # --- Literals & Constants ---
+    groups.append({
+        "title": "Literals & Constants",
+        "tokens": [
+            _tok("character_escape", "constant.character.escape.xell", "Escape chars (\\n, \\t)", "\\n"),
+            _tok("boolean_true", "constant.language.boolean.true.xell", "Boolean true", "true"),
+            _tok("boolean_false", "constant.language.boolean.false.xell", "Boolean false", "false"),
+            _tok("language_none", "constant.language.none.xell", "none", "none"),
+            _tok("numeric_float", "constant.numeric.float.xell", "Float numbers", "3.14"),
+            _tok("numeric_int", "constant.numeric.integer.xell", "Integer numbers", "42"),
+        ]
+    })
+
+    # --- Strings ---
+    groups.append({
+        "title": "Strings",
+        "tokens": [
+            _tok("string_double", "string.quoted.double.xell", "String literal", '"hello"'),
+            _tok("interpolation", "string.interpolation.xell", "String interpolation", '"{name}"'),
+            _tok("interpolation_begin", "punctuation.section.interpolation.begin.xell", "Interpolation start {", "{"),
+            _tok("interpolation_end", "punctuation.section.interpolation.end.xell", "Interpolation end }", "}"),
+        ]
+    })
+
+    # --- Functions ---
+    groups.append({
+        "title": "Functions",
+        "tokens": [
+            _tok("fn_call", "entity.name.function.call.xell", "Function call", "myFunc()"),
+            _tok("fn_def", "entity.name.function.definition.xell", "Function definition name", "fn greet():"),
+            _tok("fn_method", "entity.name.function.method.xell", "Method call", ".method()"),
+        ]
+    })
+
+    # --- Built-in Functions (dynamically from categories) ---
+    builtin_tokens = []
+    core_names = []
+    for cat in ("io", "util", "collection"):
+        if cat in builtin_cats:
+            core_names.extend(builtin_cats[cat])
+    if core_names:
+        builtin_tokens.append(
+            _tok("builtin_core", "support.function.builtin.xell",
+                 f"Core builtins ({', '.join(sorted(core_names))})",
+                 ", ".join(sorted(core_names)[:5]) + ("..." if len(core_names) > 5 else ""))
+        )
+    if "type" in builtin_cats:
+        builtin_tokens.append(
+            _tok("builtin_type", "support.type.conversion.xell",
+                 f"Type builtins ({', '.join(sorted(builtin_cats['type']))})",
+                 ", ".join(sorted(builtin_cats["type"])))
+        )
+    if "math" in builtin_cats:
+        builtin_tokens.append(
+            _tok("builtin_math", "support.function.math.xell",
+                 f"Math builtins ({', '.join(sorted(builtin_cats['math']))})",
+                 ", ".join(sorted(builtin_cats["math"])))
+        )
+    if "os" in builtin_cats:
+        builtin_tokens.append(
+            _tok("builtin_os", "support.function.builtin.os.xell",
+                 f"OS builtins ({', '.join(sorted(builtin_cats['os'])[:8])}...)",
+                 ", ".join(sorted(builtin_cats["os"])[:5]) + "...")
+        )
+    for cat in sorted(builtin_cats.keys()):
+        if cat not in ("io", "util", "collection", "type", "math", "os"):
+            builtin_tokens.append(
+                _tok(f"builtin_{cat}", f"support.function.{cat}.xell",
+                     f"{cat.title()} builtins ({', '.join(sorted(builtin_cats[cat]))})",
+                     ", ".join(sorted(builtin_cats[cat])[:3]))
+            )
+    if builtin_tokens:
+        groups.append({"title": "Built-in Functions", "tokens": builtin_tokens})
+
+    # --- Keywords ---
+    kw_tokens = []
+    if kw_classes["control"]:
+        kw_tokens.append(_tok("kw_control", "keyword.control.flow.xell",
+                              f"Control flow ({', '.join(kw_classes['control'])})",
+                              " ".join(kw_classes["control"])))
+    if kw_classes["loop"]:
+        kw_tokens.append(_tok("kw_loop", "keyword.control.loop.xell",
+                              f"Loop ({', '.join(kw_classes['loop'])})",
+                              "in, range"))
+    if kw_classes["import"]:
+        kw_tokens.append(_tok("kw_import", "keyword.control.import.xell",
+                              f"Import ({', '.join(kw_classes['import'])})",
+                              " ".join(kw_classes["import"])))
+    kw_tokens.append(_tok("kw_return", "keyword.control.return.xell", "Return (give)", "give"))
+    kw_tokens.append(_tok("kw_fn", "keyword.declaration.function.xell", "Function declaration (fn)", "fn"))
+    kw_tokens.append(_tok("kw_special", "keyword.other.special.xell", "Special (of)", "of"))
+    if kw_tokens:
+        groups.append({"title": "Keywords", "tokens": kw_tokens})
+
+    # --- Operators ---
+    groups.append({
+        "title": "Operators",
+        "tokens": [
+            _tok("op_arithmetic", "keyword.operator.arithmetic.xell", "Arithmetic (+, -, *, /, %)", "+ - * / %"),
+            _tok("op_assignment", "keyword.operator.assignment.xell", "Assignment (=)", "="),
+            _tok("op_comparison", "keyword.operator.comparison.xell", "Comparison (==, !=, <, >, <=, >=)", "== !="),
+            _tok("op_comparison_word", "keyword.operator.comparison.word.xell",
+                 f"Word comparison ({', '.join(kw_classes.get('comparison', []))})",
+                 " ".join(kw_classes.get("comparison", [])[:4])),
+            _tok("op_logical", "keyword.operator.logical.xell",
+                 f"Logical ({', '.join(kw_classes.get('logical', []))})",
+                 " ".join(kw_classes.get("logical", []))),
+            _tok("op_increment", "keyword.operator.increment.xell", "Increment/Decrement (++, --)", "++ --"),
+            _tok("op_access", "keyword.operator.access.xell", "Map access (->)", "->"),
+        ]
+    })
+
+    # --- Punctuation ---
+    groups.append({
+        "title": "Punctuation",
+        "tokens": [
+            _tok("bracket_round", "punctuation.bracket.round.xell", "Parentheses ( )", "( )"),
+            _tok("bracket_square", "punctuation.bracket.square.xell", "Brackets [ ]", "[ ]"),
+            _tok("bracket_curly", "punctuation.bracket.curly.xell", "Braces { }", "{ }"),
+            _tok("sep_colon", "punctuation.separator.colon.xell", "Colon :", ":"),
+            _tok("sep_comma", "punctuation.separator.comma.xell", "Comma ,", ","),
+            _tok("term_block", "punctuation.terminator.block.xell", "Block end (;)", ";"),
+            _tok("term_statement", "punctuation.terminator.statement.xell", "Statement end (.)", "."),
+        ]
+    })
+
+    # --- Variables ---
+    groups.append({
+        "title": "Variables",
+        "tokens": [
+            _tok("var_other", "variable.other.xell", "Variable", "myVar"),
+            _tok("var_loop", "variable.other.loop.xell", "Loop variable", "i"),
+            _tok("var_param", "variable.parameter.xell", "Function parameter", "(param)"),
+        ]
+    })
+
+    return groups
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 5. AUTO-INSTALL EXTENSION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def install_extension():
+    """Build, package, and install the VS Code extension."""
+    ext_dir = VSCODE_DIR
+
+    def run(cmd, cwd=None):
+        print(f"  → {cmd}")
+        result = subprocess.run(cmd, shell=True, cwd=cwd or str(ext_dir),
+                                capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"  ✗ FAILED: {result.stderr.strip()}")
+            return False
+        return True
+
+    print("\n[install] Building and installing VS Code extension...")
+
+    # 1. npm install
+    print("[install] Step 1: npm install")
+    if not run("npm install"):
+        return False
+
+    # 2. TypeScript compile
+    print("[install] Step 2: TypeScript compile")
+    if not run("npx tsc -b"):
+        return False
+
+    # 3. Convert SVG icon to PNG if needed
+    icon_svg = ext_dir / "images" / "icon.svg"
+    icon_png = ext_dir / "images" / "icon.png"
+    if icon_svg.exists() and (not icon_png.exists() or
+            icon_svg.stat().st_mtime > icon_png.stat().st_mtime):
+        print("[install] Step 3: Converting icon SVG → PNG")
+        if shutil.which("convert"):
+            run(f'convert -background none -density 300 "{icon_svg}" -resize 256x256 "{icon_png}"',
+                cwd=str(ext_dir / "images"))
+        else:
+            print("  ⚠ ImageMagick 'convert' not found — skipping PNG generation")
+
+    # 4. Package with vsce
+    print("[install] Step 4: Packaging extension")
+    # Remove old .vsix files
+    for old in ext_dir.glob("*.vsix"):
+        old.unlink()
+    if not run("npx @vscode/vsce package --allow-missing-repository"):
+        return False
+
+    # 5. Install into VS Code
+    vsix_files = list(ext_dir.glob("*.vsix"))
+    if not vsix_files:
+        print("  ✗ No .vsix file found after packaging!")
+        return False
+    vsix = vsix_files[0]
+    print(f"[install] Step 5: Installing {vsix.name}")
+    code_cmd = "code"
+    if not shutil.which(code_cmd):
+        code_cmd = "code-insiders"
+    if not shutil.which(code_cmd):
+        print("  ✗ 'code' command not found — install manually with:")
+        print(f"    code --install-extension {vsix}")
+        return False
+    if not run(f'{code_cmd} --install-extension "{vsix}"'):
+        return False
+
+    print(f"\n[install] ✅ Extension installed! Reload VS Code to activate.")
+    return True
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 6. MAIN
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def main():
     check_mode = "--check" in sys.argv
+    install_mode = "--install" in sys.argv
 
-    # Read sources
-    if TOKEN_HPP.exists():
-        token_src = read_file(TOKEN_HPP)
-        keywords = extract_keywords(token_src)
-    else:
-        print(f"Warning: {TOKEN_HPP} not found, using defaults")
-        keywords = []
+    if not TOKEN_HPP.exists():
+        print(f"ERROR: {TOKEN_HPP} not found!")
+        sys.exit(1)
 
-    builtins = extract_builtins_from_files()
+    token_src = read_file(TOKEN_HPP)
+    keywords = extract_keywords_dynamic(token_src)
+    kw_classes = classify_keywords(keywords)
+    builtin_cats = extract_all_builtins()
 
-    print(f"[gen_grammar] Keywords: {keywords}")
-    print(f"[gen_grammar] Builtins: {builtins}")
+    all_builtins = []
+    for cat, names in sorted(builtin_cats.items()):
+        all_builtins.extend(names)
 
-    # Generate grammar
-    grammar = build_tmlanguage(keywords, builtins)
-    new_json = json.dumps(grammar, indent=2) + "\n"
+    print(f"[gen_grammar] Extracted from C++ sources:")
+    print(f"  Keywords:  {len(keywords)} → {keywords}")
+    print(f"  Builtins:  {len(all_builtins)} across {len(builtin_cats)} categories")
+    for cat, names in sorted(builtin_cats.items()):
+        print(f"    {cat:12s}: {names}")
+
+    grammar = build_tmlanguage(kw_classes, builtin_cats)
+    grammar_json = json.dumps(grammar, indent=2) + "\n"
+
+    token_data = build_token_data(kw_classes, builtin_cats)
+    token_json = json.dumps(token_data, indent=2) + "\n"
 
     if check_mode:
-        if TMLANG_OUT.exists():
-            existing = read_file(TMLANG_OUT)
-            if existing == new_json:
-                print("[gen_grammar] ✓ Grammar is up-to-date")
-                sys.exit(0)
+        ok = True
+        for path, new_content, name in [
+            (TMLANG_OUT, grammar_json, "tmLanguage"),
+            (TOKEN_DATA_OUT, token_json, "token_data"),
+        ]:
+            if path.exists():
+                existing = read_file(path)
+                if existing == new_content:
+                    print(f"[gen_grammar] ✓ {name} is up-to-date")
+                else:
+                    print(f"[gen_grammar] ✗ {name} is out-of-date — run gen_xell_grammar.py")
+                    ok = False
             else:
-                print("[gen_grammar] ✗ Grammar is out-of-date — run gen_grammar.py to update")
-                sys.exit(1)
-        else:
-            print(f"[gen_grammar] ✗ {TMLANG_OUT} not found")
-            sys.exit(1)
+                print(f"[gen_grammar] ✗ {path} not found")
+                ok = False
+        sys.exit(0 if ok else 1)
     else:
         TMLANG_OUT.parent.mkdir(parents=True, exist_ok=True)
         with open(TMLANG_OUT, "w") as f:
-            f.write(new_json)
+            f.write(grammar_json)
         print(f"[gen_grammar] ✓ Wrote {TMLANG_OUT}")
+
+        TOKEN_DATA_OUT.parent.mkdir(parents=True, exist_ok=True)
+        with open(TOKEN_DATA_OUT, "w") as f:
+            f.write(token_json)
+        print(f"[gen_grammar] ✓ Wrote {TOKEN_DATA_OUT}")
+
+        print(f"\n[gen_grammar] Done! Generated grammar with {len(keywords)} keywords and {len(all_builtins)} builtins.")
+
+        if install_mode:
+            if not install_extension():
+                sys.exit(1)
 
 
 if __name__ == "__main__":

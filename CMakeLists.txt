@@ -21,6 +21,14 @@ target_include_directories(xell_lib PUBLIC src)
 add_executable(xell src/main.cpp)
 target_link_libraries(xell xell_lib)
 
+# ---- Install target (sudo make install) ----
+install(TARGETS xell DESTINATION bin)
+
+# Install customizer data to share directory
+install(DIRECTORY Extensions/xell-vscode/color_customizer/
+    DESTINATION share/xell/color_customizer
+    FILES_MATCHING PATTERN "*.py" PATTERN "*.html" PATTERN "*.json")
+
 # ---- Tests ----
 enable_testing()
 
@@ -43,3 +51,7 @@ add_test(NAME interpreter_test COMMAND interpreter_test)
 add_executable(os_test test/os_test.cpp)
 target_link_libraries(os_test xell_lib)
 add_test(NAME os_test COMMAND os_test)
+
+add_executable(bring_test test/bring_test.cpp)
+target_link_libraries(bring_test xell_lib)
+add_test(NAME bring_test COMMAND bring_test)

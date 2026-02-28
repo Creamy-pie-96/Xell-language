@@ -91,6 +91,20 @@ namespace xell
         /// Parent accessor (for debugging / testing)
         Environment *parent() const { return parent_; }
 
+        /// Collect all variable names visible from this scope (walks up chain)
+        std::vector<std::string> allNames() const
+        {
+            std::vector<std::string> names;
+            const Environment *env = this;
+            while (env)
+            {
+                for (auto &kv : env->vars_)
+                    names.push_back(kv.first);
+                env = env->parent_;
+            }
+            return names;
+        }
+
     private:
         std::unordered_map<std::string, XObject> vars_;
         Environment *parent_;

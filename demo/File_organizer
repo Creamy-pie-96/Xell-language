@@ -1,0 +1,759 @@
+#!/bin/bash
+
+# Images
+Images=(png jpg jpeg gif bmp tiff svg webp heic raw cr2 nef arw dng)
+
+# Documents
+Docs=(txt md log pdf doc docx ppt pptx xls xlsx csv epub mobi azw3 html css xml json yaml yml rtf)
+
+# Archives / Compressed
+Archives=(zip rar 7z tar gz bz2 tgz iso dmg apk)
+
+# Audio
+Audio=(mp3 wav flac aac ogg m4a wma aiff)
+
+# Video
+Video=(mp4 mkv avi mov flv webm mpg mpeg 3gp wmv)
+
+# Scripts / Programming
+Scripts=(sh py js java cpp c rb php go rs ts tsx jsx swift kotlin cs lua pl sql)
+
+# Fonts
+Fonts=(ttf otf woff woff2)
+
+# System / Config
+System=(exe bin dll deb rpm dmg app bak tmp env conf ini)
+
+# Design / Media Project
+Design=(psd ai sketch xd fig prproj aep audproj)
+
+# Others / Others
+Others=(torrent log dat csv json xml yaml yml html css)
+
+x=1
+sorted_files=()  # Track files we sorted for safe cleanup
+
+create_test()
+{
+    local file_types=("Images" "Docs" "Archives" "Audio" \
+                      "Video" "Scripts" "Fonts" "System" \
+                      "Design" "Others")
+    local sample=("sample1" "sample2" "sample3" "sample4" "sample5" "sample6" "sample7" "sample8" "sample9" "sample0")
+
+    test_dir="$(pwd)/test_dir"
+    mkdir -p "$test_dir"
+
+    for f in "${file_types[@]}"; do
+        declare -n ref="$f"
+        for ext in "${ref[@]::3}"; do
+            for sm in "${sample[@]::3}"; do
+                touch "$test_dir/${sm}.${ext}"
+            done
+        done
+    done
+    echo "Created test files in $test_dir"
+}
+
+create_test_recursive()
+{
+    local depth="$1"
+    local file_types=("Images" "Docs" "Scripts" "Audio" "Video")
+
+    test_dir="$(pwd)/test_dir_recursive"
+    mkdir -p "$test_dir"
+
+    # Create files in root
+    for f in "${file_types[@]::2}"; do
+        declare -n ref="$f"
+        ext="${ref[0]}"
+        touch "$test_dir/root_${f,,}.$ext"
+    done
+
+    # Create nested structure
+    if [[ $depth -ge 1 ]]; then
+        mkdir -p "$test_dir/subdir1"
+        touch "$test_dir/subdir1/sub1_file.py"
+        touch "$test_dir/subdir1/sub1_image.png"
+        touch "$test_dir/subdir1/sub1_audio.mp3"
+    fi
+
+    if [[ $depth -ge 2 ]]; then
+        mkdir -p "$test_dir/subdir1/subdir2"
+        touch "$test_dir/subdir1/subdir2/deep_doc.pdf"
+        touch "$test_dir/subdir1/subdir2/deep_video.mp4"
+
+        mkdir -p "$test_dir/another_dir"
+        touch "$test_dir/another_dir/another_script.js"
+        touch "$test_dir/another_dir/another_image.jpg"
+    fi
+
+    if [[ $depth -ge 3 ]]; then
+        mkdir -p "$test_dir/subdir1/subdir2/subdir3"
+        touch "$test_dir/subdir1/subdir2/subdir3/very_deep.cpp"
+        touch "$test_dir/subdir1/subdir2/subdir3/very_deep_doc.txt"
+    fi
+
+    echo "Created recursive test structure with depth $depth in $test_dir"
+}
+
+create_dir()
+{
+    local dir="$1"
+    if [[ -d "$dir" ]]; then
+        echo "$x. I noticed the directory already exists: $dir" >> "$logger"
+    else
+        echo "$x. I'm creating a new directory: $dir" >> "$logger"
+        mkdir -p "$dir"
+        if [[ $? -eq 0 ]]; then
+            echo "$x. Successfully created the directory!" >> "$logger"
+        else
+            echo "$x. Oops! I couldn't create the directory: $dir" >> "$logger"
+        fi
+        ((x++))
+    fi
+}
+
+select_files_all()
+{
+    all_file_type=("Images" "Docs" "Archives" "Audio" \
+                   "Video" "Scripts" "Fonts" "System" \
+                   "Design" "Others")
+}
+
+select_files_user()
+{
+    local file_name="$1"
+    local index="$2"
+    all_file_type[index]="$file_name"
+}
+
+# MODULAR: Remember existing directory structure
+remember_file_structure()
+{
+    local base_dir="$1"
+    local depth="$2"
+    local exclude_dir="${3:-}"  # Optional: directory to exclude
+
+    old_dirs=()
+
+    echo "$x. I'm scanning for existing directories to remember..." >> "$logger"
+    ((x++))
+
+    # Get the basename of exclude_dir if provided
+    local exclude_basename=""
+    if [[ -n "$exclude_dir" ]]; then
+        exclude_basename=$(basename "$exclude_dir")
+    fi
+
+    # Find all directories, excluding What_I_did, category dirs, and dedicated dir
+    while IFS= read -r dir; do
+        dir_name=$(basename "$dir")
+        if [[ "$dir" != "$base_dir" && 
+              "$dir_name" != "What_I_did" &&
+              "$dir_name" != "$exclude_basename" &&
+              ! "$dir_name" =~ ^(Images|Docs|Archives|Audio|Video|Scripts|Fonts|System|Design|Others)$ ]]; then
+            old_dirs+=("$dir")
+        fi
+    done < <(find "$base_dir" -maxdepth $((depth + 1)) -type d)
+
+    if [[ ${#old_dirs[@]} -gt 0 ]]; then
+        echo "$x. I've remembered ${#old_dirs[@]} directories from your original structure" >> "$logger"
+        for dir in "${old_dirs[@]}"; do
+            echo "   - $dir" >> "$logger"
+        done
+        ((x++))
+    else
+        echo "$x. No subdirectories found to remember" >> "$logger"
+        ((x++))
+    fi
+}
+
+# MODULAR: Recreate directory structure in destination
+recreate_structure()
+{
+    local source_base="$1"
+    local dest_base="$2"
+
+    echo "$x. I'm recreating your directory structure in: $dest_base" >> "$logger"
+    ((x++))
+
+    for old_dir in "${old_dirs[@]}"; do
+        # Get relative path from source
+        rel_path="${old_dir#$source_base/}"
+        new_dir="$dest_base/$rel_path"
+
+        mkdir -p "$new_dir"
+        echo "$x. Recreated: $rel_path" >> "$logger"
+        ((x++))
+    done
+}
+
+# MODULAR: Safe cleanup - only delete files we sorted
+cleanup_sorted_files()
+{
+    if [[ ${#sorted_files[@]} -eq 0 ]]; then
+        echo "$x. No files to clean up" >> "$logger"
+        ((x++))
+        return
+    fi
+
+    echo "$x. I'm now cleaning up the files I've sorted (${#sorted_files[@]} files)..." >> "$logger"
+    ((x++))
+
+    local deleted_count=0
+    for file in "${sorted_files[@]}"; do
+        if [[ -f "$file" ]]; then
+            rm "$file"
+            if [[ $? -eq 0 ]]; then
+                ((deleted_count++))
+            else
+                echo "$x. I couldn't delete: $file" >> "$logger"
+                ((x++))
+            fi
+        fi
+    done
+
+    echo "$x. I've cleaned up $deleted_count sorted files" >> "$logger"
+    ((x++))
+}
+
+# MODULAR: Clean up old directories (only empty ones now)
+cleanup_old_dirs()
+{
+    local base_dir="$1"
+
+    echo "$x. I'm cleaning up empty directories..." >> "$logger"
+    ((x++))
+
+    # Find and delete empty directories
+    local deleted_dirs=$(find "$base_dir" -mindepth 1 -type d -empty -delete -print 2>/dev/null | wc -l)
+
+    if [[ $deleted_dirs -gt 0 ]]; then
+        echo "$x. I removed $deleted_dirs empty directories" >> "$logger"
+    else
+        echo "$x. No empty directories to remove" >> "$logger"
+    fi
+    ((x++))
+
+    echo "$x. Cleanup complete! Your directory is now organized and clean" >> "$logger"
+    ((x++))
+}
+
+# MODULAR: Move What_I_did to dedicated directory
+move_log_to_dedicated()
+{
+    local source_log_path="$1"
+    local dedicated_dir="$2"
+
+    if [[ -d "$source_log_path" ]]; then
+        echo "$x. I'm moving the log folder to your dedicated directory..." >> "$logger"
+        ((x++))
+
+        # Close and reopen logger in dedicated dir
+        local new_logger_path="$dedicated_dir/What_I_did"
+        local new_logger="$new_logger_path/what_i_did.log"
+
+        # Copy current log content
+        mkdir -p "$new_logger_path"
+        cp "$logger" "$new_logger"
+
+        # Update logger path for future writes
+        logger="$new_logger"
+        logger_path="$new_logger_path"
+
+        echo "$x. Log successfully moved to dedicated directory!" >> "$logger"
+        ((x++))
+
+        # Remove old log directory
+        rm -rf "$source_log_path"
+    fi
+}
+
+# MODULAR: Core sorting function
+sort_files()
+{
+    local target_dir="$1"
+    local sort_parent="${2:-$target_dir}"
+    local use_copy="${3:-false}"
+
+    shopt -s nullglob
+
+    local operation="moving"
+    [[ "$use_copy" == true ]] && operation="copying"
+
+    echo "$x. I'm starting to sort files in: $target_dir" >> "$logger"
+    if [[ "$sort_parent" != "$target_dir" ]]; then
+        echo "$x. I'll organize them into: $sort_parent" >> "$logger"
+    fi
+    echo "$x. I'll be $operation files to keep things organized" >> "$logger"
+    ((x++))
+
+    for f_type_name in "${all_file_type[@]}"
+    do
+        declare -n f_type="$f_type_name"
+
+        # Check if ANY files of this type exist
+        local files_exist=false
+        for ext in "${f_type[@]}"
+        do
+            for file in "$target_dir"/*."$ext"
+            do
+                if [[ -f "$file" ]]; then
+                    files_exist=true
+                    break 2
+                fi
+            done
+        done
+
+        # Only process if files exist
+        if [[ "$files_exist" == true ]]; then
+            target_path="$sort_parent/$f_type_name"
+            create_dir "${target_path}"
+
+            local file_count=0
+            for ext in "${f_type[@]}"
+            do
+                for file in "$target_dir"/*."$ext"
+                do
+                    if [[ -f "$file" ]]; then
+                        if [[ "$use_copy" == true ]]; then
+                            cp "$file" "$target_path/"
+                        else
+                            # Track this file for cleanup if moving
+                            sorted_files+=("$file")
+                            mv "$file" "$target_path/"
+                        fi
+
+                        if [[ $? -eq 0 ]]; then
+                            ((file_count++))
+                        else
+                            echo "$x. I had trouble ${operation} $file" >> "$logger"
+                            ((x++))
+                        fi
+                    fi
+                done
+            done
+
+            if [[ $file_count -gt 0 ]]; then
+                echo "$x. I organized $file_count file(s) into $f_type_name/" >> "$logger"
+                ((x++))
+            fi
+        else
+            echo "$x. I didn't find any $f_type_name files here, so I'm skipping this category" >> "$logger"
+            ((x++))
+        fi
+    done
+}
+
+# MODE 1: Sort single directory
+mode1_sort()
+{
+    local base_dir="$1"
+    local use_dedicated="$2"
+    local dedicated_dir="$3"
+
+    echo "$x. === MODE 1: Single Directory Sort ===" >> "$logger"
+    ((x++))
+
+    if [[ "$use_dedicated" == true ]]; then
+        echo "$x. I'll create a dedicated organized folder for you" >> "$logger"
+        ((x++))
+        sort_files "$base_dir" "$dedicated_dir" true
+        move_log_to_dedicated "$logger_path" "$dedicated_dir"
+    else
+        remember_file_structure "$base_dir" 1
+        sort_files "$base_dir" "$base_dir" false
+        cleanup_sorted_files
+        cleanup_old_dirs "$base_dir"
+    fi
+}
+
+# MODE 2: Recursive local sort
+mode2_sort()
+{
+    local base_dir="$1"
+    local depth="$2"
+    local use_dedicated="$3"
+    local dedicated_dir="$4"
+
+    echo "$x. === MODE 2: Recursive Local Sort (Depth: $depth) ===" >> "$logger"
+    ((x++))
+
+    if [[ "$use_dedicated" == true ]]; then
+        echo "$x. I'm recreating your directory structure in a dedicated folder" >> "$logger"
+        ((x++))
+
+        # Remember structure, excluding the dedicated dir itself
+        remember_file_structure "$base_dir" "$depth" "$dedicated_dir"
+        recreate_structure "$base_dir" "$dedicated_dir"
+
+        # Sort each directory
+        echo "$x. Now I'll sort each directory independently..." >> "$logger"
+        ((x++))
+
+        # Process base directory
+        sort_files "$base_dir" "$dedicated_dir" true
+
+        # Process each subdirectory
+        for old_dir in "${old_dirs[@]}"; do
+            rel_path="${old_dir#$base_dir/}"
+            dest_dir="$dedicated_dir/$rel_path"
+
+            echo "$x. Sorting directory: $rel_path" >> "$logger"
+            ((x++))
+            sort_files "$old_dir" "$dest_dir" true
+        done
+
+        move_log_to_dedicated "$logger_path" "$dedicated_dir"
+    else
+        echo "$x. I'll sort each directory in place" >> "$logger"
+        ((x++))
+
+        # Find all directories up to specified depth
+        while IFS= read -r dir; do
+            if [[ ! "$dir" =~ (Images|Docs|Archives|Audio|Video|Scripts|Fonts|System|Design|Others)$ ]]; then
+                echo "$x. Processing: $dir" >> "$logger"
+                ((x++))
+                sort_files "$dir" "$dir" false
+            fi
+        done < <(find "$base_dir" -maxdepth $((depth + 1)) -type d)
+
+        cleanup_sorted_files
+        cleanup_old_dirs "$base_dir"
+    fi
+}
+
+# MODE 3: Recursive collect and sort
+mode3_sort()
+{
+    local base_dir="$1"
+    local depth="$2"
+    local use_dedicated="$3"
+    local dedicated_dir="$4"
+
+    echo "$x. === MODE 3: Recursive Collect & Sort (Depth: $depth) ===" >> "$logger"
+    ((x++))
+
+    shopt -s nullglob
+
+    if [[ "$use_dedicated" == true ]]; then
+        # DEDICATED DIR MODE: Collect files DIRECTLY to dedicated dir
+        echo "$x. I'll collect all files directly into your dedicated organized folder" >> "$logger"
+        ((x++))
+
+        echo "$x. Scanning subdirectories and collecting files to dedicated dir..." >> "$logger"
+        ((x++))
+
+        local collected_count=0
+        for f_type_name in "${all_file_type[@]}"
+        do
+            declare -n f_type="$f_type_name"
+
+            for ext in "${f_type[@]}"
+            do
+                while IFS= read -r file; do
+                    if [[ -f "$file" ]]; then
+                        filename=$(basename "$file")
+                        file_dir=$(dirname "$file")
+
+                        # Handle duplicates by adding parent dir prefix
+                        temp_name="$filename"
+                        counter=1
+                        while [[ -e "$dedicated_dir/$temp_name" ]]; do
+                            parent_name=$(basename "$file_dir")
+                            temp_name="${parent_name}_${filename}"
+                            if [[ -e "$dedicated_dir/$temp_name" ]]; then
+                                temp_name="${parent_name}_${counter}_${filename}"
+                                ((counter++))
+                            fi
+                        done
+
+                        cp "$file" "$dedicated_dir/$temp_name"
+
+                        if [[ $? -eq 0 ]]; then
+                            ((collected_count++))
+                            if [[ $((collected_count % 50)) -eq 0 ]]; then
+                                echo "$x. Collected $collected_count files so far..." >> "$logger"
+                                ((x++))
+                            fi
+                        else
+                            echo "$x. Failed to collect: $file" >> "$logger"
+                            ((x++))
+                        fi
+                    fi
+                done < <(find "$base_dir" -maxdepth $((depth + 1)) -name "*.${ext}" -type f)
+            done
+        done
+
+        echo "$x. Finished collecting $collected_count files to dedicated directory" >> "$logger"
+        ((x++))
+
+        # Now sort all collected files in dedicated_dir
+        echo "$x. Now sorting all collected files in the dedicated directory..." >> "$logger"
+        ((x++))
+        sort_files "$dedicated_dir" "$dedicated_dir" false
+
+        move_log_to_dedicated "$logger_path" "$dedicated_dir"
+
+    else
+        # CLEAN MODE: Collect to base_dir, then sort
+        remember_file_structure "$base_dir" "$depth"
+        echo "$x. I'll collect all files to the main directory and organize them" >> "$logger"
+        ((x++))
+
+        echo "$x. Scanning subdirectories and collecting files..." >> "$logger"
+        ((x++))
+
+        for f_type_name in "${all_file_type[@]}"
+        do
+            declare -n f_type="$f_type_name"
+
+            for ext in "${f_type[@]}"
+            do
+                while IFS= read -r file; do
+                    if [[ -f "$file" ]]; then
+                        file_dir=$(dirname "$file")
+
+                        # Only collect if file is NOT in base_dir
+                        if [[ "$file_dir" != "$base_dir" ]]; then
+                            filename=$(basename "$file")
+
+                            # Handle duplicates
+                            if [[ -e "$base_dir/$filename" ]]; then
+                                parent_name=$(basename "$file_dir")
+                                filename="${parent_name}_${filename}"
+                            fi
+
+                            # Track for cleanup
+                            sorted_files+=("$file")
+                            mv "$file" "$base_dir/$filename"
+
+                            if [[ $? -eq 0 ]]; then
+                                echo "$x. Collected: $file" >> "$logger"
+                                ((x++))
+                            fi
+                        fi
+                    fi
+                done < <(find "$base_dir" -maxdepth $((depth + 1)) -name "*.${ext}" -type f)
+            done
+        done
+
+        # Sort all collected files
+        echo "$x. Now sorting all collected files..." >> "$logger"
+        ((x++))
+        sort_files "$base_dir" "$base_dir" false
+
+        cleanup_sorted_files
+        cleanup_old_dirs "$base_dir"
+    fi
+}
+
+_starting_f()
+{
+    read -p "Enter directory (Keep empty if current directory) : " _file_path
+    _file_path=${_file_path:-$(pwd)}
+
+    if [[ -z "$_file_path" ]]
+    then
+        echo "Invalid directory name"
+        exit 1
+    elif [[ ! -d "$_file_path" ]]
+    then
+        echo "Directory does not exists"
+        exit 1
+    fi
+
+    logger_path="$_file_path/What_I_did"
+    mkdir -p "$logger_path"
+    logger="$logger_path/what_i_did.log"
+    echo "===== Reiko File Organizer Log - $(date) =====" > "$logger"
+    echo "" >> "$logger"
+
+    read -p "Enter file types (e.g., Images Docs) (Keep empty if default): " _file_type_input
+    _file_type_input=${_file_type_input:-"All"}
+
+    IFS=' ' read -r -a _file_type <<< "$_file_type_input"
+
+    echo "$x. You've selected these file types to organize:" >> "$logger"
+    ((x++))
+
+    if [[ ${_file_type[0]} == "All" ]]
+    then
+        echo "   - All file types" >> "$logger"
+        select_files_all
+    else
+        i=0
+        for f_t in ${_file_type[@]}
+        do
+            echo "   - $f_t" >> "$logger"
+            select_files_user "$f_t" "$i"
+            ((i++))
+        done
+    fi
+
+    echo "" >> "$logger"
+
+    # Ask for sort mode
+    echo ""
+    echo "Select sort mode:"
+    echo "  1) Sort only files in target directory (default)"
+    echo "  2) Recursive: Sort each subdirectory independently"
+    echo "  3) Recursive: Collect all files to main directory and sort"
+    read -p "Enter mode (1/2/3): " sort_mode
+    sort_mode=${sort_mode:-1}
+
+    # Ask for depth if recursive
+    local depth=1
+    if [[ $sort_mode -eq 2 || $sort_mode -eq 3 ]]; then
+        read -p "Enter maximum depth (1-10): " depth
+        depth=${depth:-1}
+
+        if [[ ! $depth =~ ^[0-9]+$ ]] || [[ $depth -lt 1 || $depth -gt 10 ]]; then
+            echo "Invalid depth. Using depth=1"
+            depth=1
+        fi
+    fi
+
+    # Ask for clean vs dedicated for ALL modes
+    echo ""
+    echo "Sort organization:"
+    echo "  1) Clean sort (organize in place, remove sorted files from original locations)"
+    echo "  2) Dedicated directory (create new organized folder, keep originals)"
+    read -p "Enter option (1/2): " org_option
+    org_option=${org_option:-1}
+
+    local use_dedicated=false
+    local dedicated_dir=""
+
+    if [[ $org_option -eq 2 ]]; then
+        use_dedicated=true
+        read -p "Enter dedicated directory name (empty for 'sorted_with_reiko_organizer'): " dedicated_dir
+        dedicated_dir=${dedicated_dir:-"sorted_with_reiko_organizer"}
+        dedicated_dir="$_file_path/$dedicated_dir"
+
+        mkdir -p "$dedicated_dir"
+    fi
+
+    # Execute appropriate mode
+    case $sort_mode in
+        1)
+            mode1_sort "$_file_path" "$use_dedicated" "$dedicated_dir"
+            ;;
+        2)
+            mode2_sort "$_file_path" "$depth" "$use_dedicated" "$dedicated_dir"
+            ;;
+        3)
+            mode3_sort "$_file_path" "$depth" "$use_dedicated" "$dedicated_dir"
+            ;;
+        *)
+            echo "Invalid mode. Using default (Mode 1)"
+            mode1_sort "$_file_path" "$use_dedicated" "$dedicated_dir"
+            ;;
+    esac
+
+    echo "" >> "$logger"
+    echo "$x. All done! Your files are beautifully organized 🎉" >> "$logger"
+    echo "===== End of Log =====" >> "$logger"
+    echo ""
+    echo "Sorting complete! Check the log at: $logger"
+    exit 0
+}
+
+# Command line argument handling
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Reiko File Organizer"
+    echo ""
+    echo "Usage: organize [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --help, -h              Show this help message"
+    echo "  -test                   Create simple test files"
+    echo "  --test                  Create test files and prompt to sort"
+    echo "  -test-recursive [depth] Create recursive test (default depth=2)"
+    echo "  --test-recursive [depth] Create recursive test and prompt"
+    echo ""
+    echo "Sort Modes:"
+    echo "  Mode 1: Sort files in single directory"
+    echo "  Mode 2: Recursively sort each subdirectory independently"
+    echo "  Mode 3: Collect all files and sort together"
+    echo ""
+    echo "Organization Options:"
+    echo "  Clean Sort: Organize in place, safely remove sorted files"
+    echo "  Dedicated Dir: Create organized copy, keep all originals"
+    echo ""
+    exit 0
+fi
+
+if [[ "$1" == "-test" ]]; then
+    create_test
+    exit 0
+fi
+
+if [[ "$1" == "--test" ]]; then
+    create_test
+    echo "Test files created."
+    read -p "Do you want to sort the test files now? (y/n): " sort_confirm
+    if [[ "$sort_confirm" =~ ^[Yy]$ ]]; then
+        _file_path="$(pwd)/test_dir"
+        logger_path="$_file_path/What_I_did"
+        mkdir -p "$logger_path"
+        logger="$logger_path/what_i_did.log"
+        echo "===== Reiko File Organizer Log - $(date) =====" > "$logger"
+        x=1
+        select_files_all
+        mode1_sort "$_file_path" false ""
+        echo "Sorting complete."
+    else
+        echo "Sorting skipped."
+    fi
+    exit 0
+fi
+
+if [[ "$1" == "-test-recursive" ]]; then
+    depth=${2:-2}
+    create_test_recursive "$depth"
+    exit 0
+fi
+
+if [[ "$1" == "--test-recursive" ]]; then
+    depth=${2:-2}
+    create_test_recursive "$depth"
+    echo "Recursive test files created."
+    echo ""
+    echo "Select test mode:"
+    echo "  1) Mode 1: Sort only root directory"
+    echo "  2) Mode 2: Sort each subdirectory independently"
+    echo "  3) Mode 3: Collect all files to root and sort"
+    read -p "Enter mode (1/2/3): " test_mode
+    test_mode=${test_mode:-2}
+
+    if [[ "$test_mode" =~ ^[123]$ ]]; then
+        _file_path="$(pwd)/test_dir_recursive"
+        logger_path="$_file_path/What_I_did"
+        mkdir -p "$logger_path"
+        logger="$logger_path/what_i_did.log"
+        echo "===== Reiko File Organizer Log - $(date) =====" > "$logger"
+        x=1
+        select_files_all
+
+        case $test_mode in
+            1)
+                mode1_sort "$_file_path" false ""
+                ;;
+            2)
+                mode2_sort "$_file_path" "$depth" false ""
+                ;;
+            3)
+                mode3_sort "$_file_path" "$depth" false ""
+                ;;
+        esac
+
+        echo "Sorting complete. Check the results!"
+    else
+        echo "Invalid mode. Skipping sort."
+    fi
+    exit 0
+fi
+
+# If no arguments, run interactive mode
+_starting_f

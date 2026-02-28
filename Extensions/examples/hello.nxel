@@ -11,7 +11,7 @@
     {
       "id": "cell-welcome",
       "type": "markdown",
-      "source": "# Welcome to Xell Notebooks! 🎉\n\nThis is a `.nxel` notebook. Run each cell with **Shift+Enter**.\n\n- Code cells contain Xell code\n- Markdown cells contain rich text\n- State persists between cells",
+      "source": "# Welcome to Xell Notebooks! \n\nThis is a `.nxel` notebook. Run each cell with **Shift+Enter**.\n\n- Code cells contain Xell code\n- Markdown cells contain rich text\n- State persists between cells",
       "outputs": [],
       "execution_count": null,
       "metadata": {}
@@ -87,7 +87,7 @@
     {
       "id": "cell-end",
       "type": "markdown",
-      "source": "---\n\n✅ **That's the basics!** Explore more with OS builtins (`mkdir`, `read`, `write`, `ls`, `run`...) and the full standard library.",
+      "source": "---\n\n **That's the basics!** Explore more with OS builtins (`mkdir`, `read`, `write`, `ls`, `run`...) and the full standard library.",
       "outputs": [],
       "execution_count": null,
       "metadata": {}

@@ -97,12 +97,16 @@ namespace xell
     // Block: parse statements until ';'
     // ============================================================
 
-    std::vector<StmtPtr> Parser::parseBlock()
+    std::vector<StmtPtr> Parser::parseBlock(bool stopAtElifElse)
     {
         std::vector<StmtPtr> stmts;
         skipNewlines();
         while (!check(TokenType::SEMICOLON) && !isAtEnd())
         {
+            // If we're inside an if/elif block, also stop when we see elif/else
+            if (stopAtElifElse &&
+                (check(TokenType::ELIF) || check(TokenType::ELSE)))
+                break;
             stmts.push_back(parseStatement());
             skipNewlines();
         }
@@ -198,8 +202,15 @@ namespace xell
 
         ExprPtr condition = parseExpression();
         consume(TokenType::COLON, "Expected ':' after if condition");
-        auto body = parseBlock();
-        consume(TokenType::SEMICOLON, "Expected ';' to close if block");
+        auto body = parseBlock(true); // stop at elif/else too
+
+        // Consume optional ';' between branches
+        bool hadSemicolon = false;
+        if (check(TokenType::SEMICOLON))
+        {
+            advance();
+            hadSemicolon = true;
+        }
 
         // Parse elif clauses
         std::vector<ElifClause> elifs;
@@ -210,8 +221,18 @@ namespace xell
             advance(); // consume ELIF
             ExprPtr elifCond = parseExpression();
             consume(TokenType::COLON, "Expected ':' after elif condition");
-            auto elifBody = parseBlock();
-            consume(TokenType::SEMICOLON, "Expected ';' to close elif block");
+            auto elifBody = parseBlock(true); // stop at elif/else too
+
+            // Consume optional ';' between branches
+            if (check(TokenType::SEMICOLON))
+            {
+                advance();
+                hadSemicolon = true;
+            }
+            else
+            {
+                hadSemicolon = false;
+            }
 
             ElifClause clause;
             clause.condition = std::move(elifCond);
@@ -227,8 +248,21 @@ namespace xell
         {
             advance(); // consume ELSE
             consume(TokenType::COLON, "Expected ':' after else");
-            elseBody = parseBlock();
-            consume(TokenType::SEMICOLON, "Expected ';' to close else block");
+            elseBody = parseBlock(false); // normal block, no elif/else after this
+
+            // The ';' after the else block is the final closer
+            if (!hadSemicolon || check(TokenType::SEMICOLON))
+            {
+                consume(TokenType::SEMICOLON, "Expected ';' to close if/elif/else block");
+            }
+        }
+        else
+        {
+            // No else clause — if we didn't consume a ';' yet, need one now
+            if (!hadSemicolon)
+            {
+                consume(TokenType::SEMICOLON, "Expected ';' to close if block");
+            }
         }
 
         return std::make_unique<IfStmt>(
@@ -703,11 +737,24 @@ namespace xell
         int ln = current().line;
         advance(); // consume {
 
+        // Helper: parse a map key (IDENTIFIER or STRING)
+        auto parseKey = [this]() -> std::string
+        {
+            if (check(TokenType::IDENTIFIER))
+                return advance().value;
+            if (check(TokenType::STRING))
+                return advance().value;
+            throw ParseError(
+                "Expected map key (identifier or string), got " +
+                    tokenTypeToString(current().type) + " ('" + current().value + "')",
+                current().line);
+        };
+
         std::vector<std::pair<std::string, ExprPtr>> entries;
         skipNewlines();
         if (!check(TokenType::RBRACE))
         {
-            std::string key = consume(TokenType::IDENTIFIER, "Expected map key (identifier)").value;
+            std::string key = parseKey();
             consume(TokenType::COLON, "Expected ':' after map key");
             skipNewlines();
             ExprPtr value = parseExpression();
@@ -719,7 +766,7 @@ namespace xell
                 skipNewlines();
                 if (check(TokenType::RBRACE))
                     break; // trailing comma
-                key = consume(TokenType::IDENTIFIER, "Expected map key (identifier)").value;
+                key = parseKey();
                 consume(TokenType::COLON, "Expected ':' after map key");
                 skipNewlines();
                 value = parseExpression();

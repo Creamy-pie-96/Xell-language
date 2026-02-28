@@ -1,22 +1,83 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- Background rounded rectangle with notebook vibe -->
-  <rect x="4" y="4" width="120" height="120" rx="16" ry="16" fill="#16213E"/>
-  <rect x="4" y="4" width="120" height="120" rx="16" ry="16" fill="none" stroke="#533483" stroke-width="3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="nbBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2a2d3e"/>
+      <stop offset="100%" style="stop-color:#1a1c2e"/>
+    </linearGradient>
+    <linearGradient id="cg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff"/>
+      <stop offset="50%" style="stop-color:#0099cc"/>
+      <stop offset="100%" style="stop-color:#005577"/>
+    </linearGradient>
+    <linearGradient id="cg2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#33eeff"/>
+      <stop offset="100%" style="stop-color:#004466"/>
+    </linearGradient>
+    <linearGradient id="cg3" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" style="stop-color:#66f0ff"/>
+      <stop offset="100%" style="stop-color:#0077aa"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="shadow"><feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.5"/></filter>
+  </defs>
 
-  <!-- Notebook lines (representing cells) -->
-  <line x1="20" y1="36" x2="108" y2="36" stroke="#2A2A4A" stroke-width="1.5"/>
-  <line x1="20" y1="56" x2="108" y2="56" stroke="#2A2A4A" stroke-width="1.5"/>
-  <line x1="20" y1="76" x2="108" y2="76" stroke="#2A2A4A" stroke-width="1.5"/>
-  <line x1="20" y1="96" x2="108" y2="96" stroke="#2A2A4A" stroke-width="1.5"/>
+  <!-- Notebook body -->
+  <rect x="24" y="8" width="96" height="112" rx="6" ry="6" fill="url(#nbBg)" stroke="#3a3d4e" stroke-width="1.5" filter="url(#shadow)"/>
 
-  <!-- Play triangle (execute cell) -->
-  <polygon points="22,40 22,52 32,46" fill="#E94560"/>
-  <polygon points="22,60 22,72 32,66" fill="#0F3460"/>
+  <!-- Page curl (top-right corner) -->
+  <path d="M108,8 L108,28 Q108,22 114,20 L120,18 Q114,8 108,8 Z" fill="#3a3d4e" stroke="#4a4d5e" stroke-width="0.5"/>
+  <path d="M108,8 L120,18 L108,28 Z" fill="#2a2d3e" opacity="0.5"/>
 
-  <!-- "NXel" text -->
-  <text x="72" y="68" font-family="Consolas, 'Courier New', monospace" font-size="28" font-weight="bold" fill="#533483" text-anchor="middle" dominant-baseline="middle">NXel</text>
+  <!-- Grid lines on notebook -->
+  <line x1="32" y1="32" x2="112" y2="32" stroke="#3a3d4e" stroke-width="0.3" opacity="0.5"/>
+  <line x1="32" y1="44" x2="112" y2="44" stroke="#3a3d4e" stroke-width="0.3" opacity="0.5"/>
+  <line x1="32" y1="56" x2="112" y2="56" stroke="#3a3d4e" stroke-width="0.3" opacity="0.5"/>
+  <line x1="32" y1="68" x2="112" y2="68" stroke="#3a3d4e" stroke-width="0.3" opacity="0.5"/>
+  <line x1="32" y1="80" x2="112" y2="80" stroke="#3a3d4e" stroke-width="0.3" opacity="0.5"/>
 
-  <!-- Small cell indicator dots -->
-  <circle cx="26" cy="86" r="3" fill="#E94560"/>
-  <circle cx="26" cy="106" r="3" fill="#0F3460"/>
+  <!-- Ring binding (left side) -->
+  <ellipse cx="24" cy="30" rx="6" ry="4" fill="none" stroke="#555" stroke-width="2"/>
+  <ellipse cx="24" cy="52" rx="6" ry="4" fill="none" stroke="#555" stroke-width="2"/>
+  <ellipse cx="24" cy="74" rx="6" ry="4" fill="none" stroke="#555" stroke-width="2"/>
+  <ellipse cx="24" cy="96" rx="6" ry="4" fill="none" stroke="#555" stroke-width="2"/>
+
+  <!-- Colored tabs on left -->
+  <rect x="16" y="36" width="10" height="8" rx="2" fill="#0088ff"/>
+  <rect x="16" y="58" width="10" height="8" rx="2" fill="#00ccdd"/>
+  <rect x="16" y="80" width="10" height="8" rx="2" fill="#aabbcc"/>
+
+  <!-- Crystal X (scaled down, centered on notebook) -->
+  <g transform="translate(68, 48) scale(0.35)">
+    <!-- Top blade -->
+    <polygon points="0,-60 -7,0 0,-5 7,0" fill="url(#cg3)" filter="url(#glow)"/>
+    <polygon points="0,-60 0,-5 7,0" fill="#006688" opacity="0.7"/>
+    <!-- Bottom blade -->
+    <polygon points="0,60 -7,0 0,5 7,0" fill="url(#cg3)" filter="url(#glow)"/>
+    <polygon points="0,60 0,5 -7,0" fill="#006688" opacity="0.7"/>
+    <!-- Left blade -->
+    <polygon points="-60,0 0,-7 -5,0 0,7" fill="url(#cg1)" filter="url(#glow)"/>
+    <polygon points="-60,0 -5,0 0,7" fill="#004466" opacity="0.7"/>
+    <!-- Right blade -->
+    <polygon points="60,0 0,-7 5,0 0,7" fill="url(#cg2)" filter="url(#glow)"/>
+    <polygon points="60,0 5,0 0,-7" fill="#004466" opacity="0.7"/>
+    <!-- Center diamond -->
+    <polygon points="0,-5 5,0 0,5 -5,0" fill="#009dbb" opacity="0.8"/>
+    <!-- Vertex glow -->
+    <circle cx="0" cy="-60" r="3" fill="#66f0ff" filter="url(#glow)"/>
+    <circle cx="0" cy="60" r="3" fill="#66f0ff" filter="url(#glow)"/>
+    <circle cx="-60" cy="0" r="3" fill="#66f0ff" filter="url(#glow)"/>
+    <circle cx="60" cy="0" r="3" fill="#66f0ff" filter="url(#glow)"/>
+    <!-- Edge wireframe -->
+    <line x1="0" y1="-60" x2="-7" y2="0" stroke="#00eeff" stroke-width="1" opacity="0.5"/>
+    <line x1="0" y1="-60" x2="7" y2="0" stroke="#00eeff" stroke-width="1" opacity="0.5"/>
+    <line x1="-60" y1="0" x2="0" y2="-7" stroke="#00eeff" stroke-width="1" opacity="0.5"/>
+    <line x1="-60" y1="0" x2="0" y2="7" stroke="#00eeff" stroke-width="1" opacity="0.5"/>
+    <line x1="60" y1="0" x2="0" y2="-7" stroke="#00eeff" stroke-width="1" opacity="0.5"/>
+    <line x1="60" y1="0" x2="0" y2="7" stroke="#00eeff" stroke-width="1" opacity="0.5"/>
+    <line x1="0" y1="60" x2="-7" y2="0" stroke="#00eeff" stroke-width="1" opacity="0.5"/>
+    <line x1="0" y1="60" x2="7" y2="0" stroke="#00eeff" stroke-width="1" opacity="0.5"/>
+  </g>
+
+  <!-- .NXEL text -->
+  <text x="68" y="108" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="14" font-weight="700" fill="#ccd6e0" text-anchor="middle" letter-spacing="1">.NXEL</text>
 </svg>

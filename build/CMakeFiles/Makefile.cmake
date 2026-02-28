@@ -47,4 +47,5 @@ set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/xobject_test.dir/DependInfo.cmake"
   "CMakeFiles/interpreter_test.dir/DependInfo.cmake"
   "CMakeFiles/os_test.dir/DependInfo.cmake"
+  "CMakeFiles/bring_test.dir/DependInfo.cmake"
   )

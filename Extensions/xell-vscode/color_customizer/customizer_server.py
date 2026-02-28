@@ -94,38 +94,102 @@ class CustomizerHandler(SimpleHTTPRequestHandler):
             })
         elif parsed.path == "/api/current-rules":
             self._handle_current_rules()
+        elif parsed.path == "/api/token-data":
+            self._handle_token_data()
         else:
             super().do_GET()
 
     def _handle_current_rules(self):
-        """Read current XELL_TOKEN_RULES from extension.ts and return them."""
-        if not EXTENSION_TS or not os.path.exists(EXTENSION_TS):
-            self._send_json({"rules": [], "source": "none"})
-            return
-        try:
-            with open(EXTENSION_TS, "r") as f:
-                content = f.read()
-            pattern = r"const XELL_TOKEN_RULES = \[(.*?)\];"
-            match = re.search(pattern, content, re.DOTALL)
-            if not match:
-                self._send_json({"rules": [], "source": "not-found"})
-                return
-            block = match.group(1)
-            rules = []
-            entry_pattern = r"\{\s*scope:\s*'([^']+)',\s*settings:\s*\{([^}]+)\}\s*\}"
-            for m in re.finditer(entry_pattern, block):
-                scope = m.group(1)
-                settings_str = m.group(2)
-                fg_match = re.search(r"foreground:\s*'([^']+)'", settings_str)
-                fs_match = re.search(r"fontStyle:\s*'([^']+)'", settings_str)
-                rules.append({
-                    "scope": scope,
-                    "foreground": fg_match.group(1) if fg_match else "#ffffff",
-                    "fontStyle": fs_match.group(1) if fs_match else "",
-                })
-            self._send_json({"rules": rules, "source": EXTENSION_TS})
-        except Exception as e:
-            self._send_json({"rules": [], "source": "error", "error": str(e)})
+        """Read current token color rules. DEV MODE: from extension.ts. USER MODE: from VS Code settings.json."""
+        # ── DEV MODE: read from extension.ts ──
+        if EXTENSION_TS and os.path.exists(EXTENSION_TS):
+            try:
+                with open(EXTENSION_TS, "r") as f:
+                    content = f.read()
+                pattern = r"const XELL_TOKEN_RULES = \[(.*?)\];"
+                match = re.search(pattern, content, re.DOTALL)
+                if match:
+                    block = match.group(1)
+                    rules = []
+                    entry_pattern = r"\{\s*scope:\s*'([^']+)',\s*settings:\s*\{([^}]+)\}\s*\}"
+                    for m in re.finditer(entry_pattern, block):
+                        scope = m.group(1)
+                        settings_str = m.group(2)
+                        fg_match = re.search(r"foreground:\s*'([^']+)'", settings_str)
+                        fs_match = re.search(r"fontStyle:\s*'([^']+)'", settings_str)
+                        rules.append({
+                            "scope": scope,
+                            "foreground": fg_match.group(1) if fg_match else "#ffffff",
+                            "fontStyle": fs_match.group(1) if fs_match else "",
+                        })
+                    self._send_json({"rules": rules, "source": "extension.ts"})
+                    return
+            except Exception:
+                pass
+
+        # ── USER MODE: read .xell rules from VS Code settings.json ──
+        if VSCODE_SETTINGS and os.path.exists(VSCODE_SETTINGS):
+            try:
+                with open(VSCODE_SETTINGS, "r") as f:
+                    content = f.read()
+                # Parse with relaxed JSON (VS Code allows trailing commas)
+                import ast
+                # Use regex to extract textMateRules entries
+                rules = []
+                # Find the textMateRules block
+                tm_match = re.search(r'"textMateRules"\s*:\s*\[', content)
+                if tm_match:
+                    start = tm_match.end()
+                    depth = 1
+                    end = start
+                    for i in range(start, len(content)):
+                        if content[i] == '[': depth += 1
+                        elif content[i] == ']':
+                            depth -= 1
+                            if depth == 0:
+                                end = i
+                                break
+                    rules_block = content[start:end]
+                    # Extract each rule: { "scope": "...", "settings": { "foreground": "...", ... } }
+                    rule_pattern = r'"scope"\s*:\s*"([^"]+)"'
+                    fg_pattern = r'"foreground"\s*:\s*"([^"]+)"'
+                    fs_pattern = r'"fontStyle"\s*:\s*"([^"]+)"'
+                    # Split by scope entries
+                    scope_iter = re.finditer(rule_pattern, rules_block)
+                    for scope_match in scope_iter:
+                        scope = scope_match.group(1)
+                        # Only load .xell rules, skip .scriptit and others
+                        if not scope.endswith('.xell'):
+                            continue
+                        # Find settings block after this scope
+                        rest = rules_block[scope_match.end():]
+                        fg_m = re.search(fg_pattern, rest[:200])
+                        fs_m = re.search(fs_pattern, rest[:200])
+                        rules.append({
+                            "scope": scope,
+                            "foreground": fg_m.group(1) if fg_m else "#ffffff",
+                            "fontStyle": fs_m.group(1) if fs_m else "",
+                        })
+                if rules:
+                    self._send_json({"rules": rules, "source": "settings.json"})
+                    return
+            except Exception:
+                pass
+
+        self._send_json({"rules": [], "source": "none"})
+
+    def _handle_token_data(self):
+        """Serve token_data.json explicitly."""
+        token_file = os.path.join(SCRIPT_DIR, "token_data.json")
+        if os.path.exists(token_file):
+            try:
+                with open(token_file, "r") as f:
+                    data = json.load(f)
+                self._send_json(data)
+            except Exception as e:
+                self._send_json({"error": str(e)})
+        else:
+            self.send_error(404, "token_data.json not found")
 
     # ── OPTIONS (CORS) ──
     def do_OPTIONS(self):

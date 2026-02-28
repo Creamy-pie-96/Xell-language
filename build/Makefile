@@ -95,6 +95,51 @@ rebuild_cache:
 rebuild_cache/fast: rebuild_cache
 .PHONY : rebuild_cache/fast
 
+# Special rule for the target list_install_components
+list_install_components:
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Available install components are: \"Unspecified\""
+.PHONY : list_install_components
+
+# Special rule for the target list_install_components
+list_install_components/fast: list_install_components
+.PHONY : list_install_components/fast
+
+# Special rule for the target install
+install: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Install the project..."
+	/usr/bin/cmake -P cmake_install.cmake
+.PHONY : install
+
+# Special rule for the target install
+install/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Install the project..."
+	/usr/bin/cmake -P cmake_install.cmake
+.PHONY : install/fast
+
+# Special rule for the target install/local
+install/local: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Installing only the local directory..."
+	/usr/bin/cmake -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
+.PHONY : install/local
+
+# Special rule for the target install/local
+install/local/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Installing only the local directory..."
+	/usr/bin/cmake -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
+.PHONY : install/local/fast
+
+# Special rule for the target install/strip
+install/strip: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Installing the project stripped..."
+	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
+.PHONY : install/strip
+
+# Special rule for the target install/strip
+install/strip/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Installing the project stripped..."
+	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
+.PHONY : install/strip/fast
+
 # The main all target
 all: cmake_check_build_system
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/DATA/CODE/code/Xell/build/CMakeFiles /home/DATA/CODE/code/Xell/build//CMakeFiles/progress.marks
@@ -216,6 +261,19 @@ os_test: cmake_check_build_system
 os_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/os_test.dir/build.make CMakeFiles/os_test.dir/build
 .PHONY : os_test/fast
+
+#=============================================================================
+# Target rules for targets named bring_test
+
+# Build rule for target.
+bring_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 bring_test
+.PHONY : bring_test
+
+# fast build rule for target.
+bring_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bring_test.dir/build.make CMakeFiles/bring_test.dir/build
+.PHONY : bring_test/fast
 
 src/interpreter/interpreter.o: src/interpreter/interpreter.cpp.o
 .PHONY : src/interpreter/interpreter.o
@@ -409,6 +467,30 @@ src/parser/parser.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/parser/parser.cpp.s
 .PHONY : src/parser/parser.cpp.s
 
+test/bring_test.o: test/bring_test.cpp.o
+.PHONY : test/bring_test.o
+
+# target to build an object file
+test/bring_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bring_test.dir/build.make CMakeFiles/bring_test.dir/test/bring_test.cpp.o
+.PHONY : test/bring_test.cpp.o
+
+test/bring_test.i: test/bring_test.cpp.i
+.PHONY : test/bring_test.i
+
+# target to preprocess a source file
+test/bring_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bring_test.dir/build.make CMakeFiles/bring_test.dir/test/bring_test.cpp.i
+.PHONY : test/bring_test.cpp.i
+
+test/bring_test.s: test/bring_test.cpp.s
+.PHONY : test/bring_test.s
+
+# target to generate assembly for a file
+test/bring_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/bring_test.dir/build.make CMakeFiles/bring_test.dir/test/bring_test.cpp.s
+.PHONY : test/bring_test.cpp.s
+
 test/error_test.o: test/error_test.cpp.o
 .PHONY : test/error_test.o
 
@@ -536,8 +618,13 @@ help:
 	@echo "... clean"
 	@echo "... depend"
 	@echo "... edit_cache"
+	@echo "... install"
+	@echo "... install/local"
+	@echo "... install/strip"
+	@echo "... list_install_components"
 	@echo "... rebuild_cache"
 	@echo "... test"
+	@echo "... bring_test"
 	@echo "... error_test"
 	@echo "... interpreter_test"
 	@echo "... os_test"
@@ -569,6 +656,9 @@ help:
 	@echo "... src/parser/parser.o"
 	@echo "... src/parser/parser.i"
 	@echo "... src/parser/parser.s"
+	@echo "... test/bring_test.o"
+	@echo "... test/bring_test.i"
+	@echo "... test/bring_test.s"
 	@echo "... test/error_test.o"
 	@echo "... test/error_test.i"
 	@echo "... test/error_test.s"

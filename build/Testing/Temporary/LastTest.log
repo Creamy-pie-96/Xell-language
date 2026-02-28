@@ -1,0 +1,688 @@
+Start testing: Mar 01 01:34 +06
+----------------------------------------------------------
+1/6 Testing: parser_test
+1/6 Test: parser_test
+Command: "/home/DATA/CODE/code/Xell/build/parser_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"parser_test" start time: Mar 01 01:34 +06
+Output:
+----------------------------------------------------------
+
+===== Xell Lexer Tests =====
+  [32mPASS[0m: lexer: simple tokens
+  [32mPASS[0m: lexer: all keywords
+  [32mPASS[0m: lexer: all operators
+  [32mPASS[0m: lexer: string with interpolation
+  [32mPASS[0m: lexer: numbers
+  [32mPASS[0m: lexer: newlines collapsed
+  [32mPASS[0m: lexer: single-line comment
+  [32mPASS[0m: lexer: multi-line comment
+  [32mPASS[0m: lexer: arrow vs comment
+  [32mPASS[0m: lexer: newlines in brackets
+  [32mPASS[0m: lexer: ! standalone
+  [32mPASS[0m: lexer: ++ token
+  [32mPASS[0m: lexer: -- token
+  [32mPASS[0m: lexer: -- vs --> comment
+  [32mPASS[0m: lexer: escape sequences
+
+===== Parser: Literals =====
+  [32mPASS[0m: parse: number literal
+  [32mPASS[0m: parse: float literal
+  [32mPASS[0m: parse: string literal
+  [32mPASS[0m: parse: bool true
+  [32mPASS[0m: parse: bool false
+  [32mPASS[0m: parse: none literal
+  [32mPASS[0m: parse: identifier
+
+===== Parser: Assignment =====
+  [32mPASS[0m: parse: simple assignment
+  [32mPASS[0m: parse: string assignment
+  [32mPASS[0m: parse: bool assignment
+  [32mPASS[0m: parse: expression assignment
+
+===== Parser: Arithmetic =====
+  [32mPASS[0m: parse: addition
+  [32mPASS[0m: parse: operator precedence
+  [32mPASS[0m: parse: grouped expression
+  [32mPASS[0m: parse: subtraction and division
+  [32mPASS[0m: parse: unary 'not' keyword
+  [32mPASS[0m: parse: unary '!' operator
+  [32mPASS[0m: parse: unary minus
+
+===== Parser: Increment / Decrement =====
+  [32mPASS[0m: parse: prefix ++
+  [32mPASS[0m: parse: prefix --
+  [32mPASS[0m: parse: postfix ++
+  [32mPASS[0m: parse: postfix --
+  [32mPASS[0m: parse: ++ inside while loop
+
+===== Parser: Comparison & Logical =====
+  [32mPASS[0m: parse: ==
+  [32mPASS[0m: parse: 'is' keyword
+  [32mPASS[0m: parse: 'eq' keyword
+  [32mPASS[0m: parse: 'ne' keyword
+  [32mPASS[0m: parse: 'gt' keyword
+  [32mPASS[0m: parse: 'lt' keyword
+  [32mPASS[0m: parse: 'ge' keyword
+  [32mPASS[0m: parse: 'le' keyword
+  [32mPASS[0m: parse: 'and'
+  [32mPASS[0m: parse: 'or'
+  [32mPASS[0m: parse: complex logical precedence
+  [32mPASS[0m: parse: ! in if condition
+
+===== Parser: Lists & Maps =====
+  [32mPASS[0m: parse: list literal
+  [32mPASS[0m: parse: empty list
+  [32mPASS[0m: parse: nested list
+  [32mPASS[0m: parse: map literal
+  [32mPASS[0m: parse: empty map
+  [32mPASS[0m: parse: multiline map
+  [32mPASS[0m: parse: mixed list types
+
+===== Parser: Function Calls =====
+  [32mPASS[0m: parse: call no args
+  [32mPASS[0m: parse: call with args
+  [32mPASS[0m: parse: call with expression args
+  [32mPASS[0m: parse: paren-less call single arg
+  [32mPASS[0m: parse: paren-less call multi args
+  [32mPASS[0m: parse: paren-less call identifier
+  [32mPASS[0m: parse: nested call
+  [32mPASS[0m: parse: call result assignment
+
+===== Parser: Access =====
+  [32mPASS[0m: parse: index access
+  [32mPASS[0m: parse: member access ->
+  [32mPASS[0m: parse: chained ->[]
+  [32mPASS[0m: parse: string index access
+
+===== Parser: Control Flow =====
+  [32mPASS[0m: parse: simple if
+  [32mPASS[0m: parse: if/else
+  [32mPASS[0m: parse: if/elif/else
+  [32mPASS[0m: parse: if with logical
+
+===== Parser: Loops =====
+  [32mPASS[0m: parse: for loop
+  [32mPASS[0m: parse: for with call iterable
+  [32mPASS[0m: parse: while loop
+
+===== Parser: Functions =====
+  [32mPASS[0m: parse: fn def no params
+  [32mPASS[0m: parse: fn def with params
+  [32mPASS[0m: parse: fn def with give
+  [32mPASS[0m: parse: fn def give no value
+
+===== Parser: Bring =====
+  [32mPASS[0m: parse: bring all
+  [32mPASS[0m: parse: bring named
+  [32mPASS[0m: parse: bring with aliases
+
+===== Parser: Complex =====
+  [32mPASS[0m: parse: multiple statements
+  [32mPASS[0m: parse: dot-terminated statements
+  [32mPASS[0m: parse: nested if/for
+  [32mPASS[0m: parse: comments ignored
+  [32mPASS[0m: parse: string interpolation
+  [32mPASS[0m: parse: full program
+
+============================================
+  Total: 89  |  [32mPassed: 89[0m  |  [31mFailed: 0[0m
+============================================
+
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"parser_test" end time: Mar 01 01:34 +06
+"parser_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/6 Testing: error_test
+2/6 Test: error_test
+Command: "/home/DATA/CODE/code/Xell/build/error_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"error_test" start time: Mar 01 01:34 +06
+Output:
+----------------------------------------------------------
+
+===== Error Construction & Metadata =====
+  PASS: XellError: construction
+  PASS: LexerError: construction
+  PASS: ParseError: construction
+  PASS: TypeError: construction
+  PASS: UndefinedVariableError: construction
+  PASS: UndefinedFunctionError: construction
+  PASS: IndexError: construction
+  PASS: KeyError: construction
+  PASS: DivisionByZeroError: construction
+  PASS: OverflowError: construction
+  PASS: ArityError: construction
+  PASS: BringError: construction
+  PASS: FileNotFoundError: construction
+  PASS: IOError: construction
+  PASS: ProcessError: construction
+  PASS: ConversionError: construction
+  PASS: EnvError: construction
+  PASS: RecursionError: construction
+  PASS: AssertionError: construction
+  PASS: NotImplementedError: construction
+
+===== Catch Hierarchy =====
+  PASS: LexerError caught as LexerError
+  PASS: LexerError caught as XellError
+  PASS: LexerError caught as std::runtime_error
+  PASS: ParseError caught as ParseError
+  PASS: ParseError caught as XellError
+  PASS: TypeError caught as XellError
+  PASS: UndefinedVariableError caught as XellError
+  PASS: UndefinedFunctionError caught as XellError
+  PASS: IndexError caught as XellError
+  PASS: KeyError caught as XellError
+  PASS: DivisionByZeroError caught as XellError
+  PASS: ArityError caught as XellError
+  PASS: BringError caught as XellError
+  PASS: FileNotFoundError caught as XellError
+  PASS: IOError caught as XellError
+  PASS: ProcessError caught as XellError
+  PASS: ConversionError caught as XellError
+  PASS: EnvError caught as XellError
+  PASS: RecursionError caught as XellError
+  PASS: AssertionError caught as XellError
+  PASS: NotImplementedError caught as XellError
+  PASS: OverflowError caught as XellError
+
+===== Lexer Error Integration =====
+  PASS: lexer: unterminated string → LexerError
+  PASS: lexer: unterminated string on line 3 → correct line
+  PASS: lexer: unexpected character → LexerError
+  PASS: lexer: unexpected character $ → LexerError
+  PASS: lexer: unexpected character ~ → LexerError
+  PASS: lexer: LexerError is also catchable as XellError
+
+===== Parser Error Integration =====
+  PASS: parser: missing ':' after if → ParseError
+  PASS: parser: missing ';' to close if → ParseError
+  PASS: parser: missing ')' after args → ParseError
+  PASS: parser: missing ']' after list → ParseError
+  PASS: parser: missing '}' after map → ParseError
+  PASS: parser: missing '(' after fn name → ParseError
+  PASS: parser: missing 'from' in bring → ParseError
+  PASS: parser: unexpected token → ParseError
+  PASS: parser: missing ':' after while → ParseError
+  PASS: parser: missing 'in' in for → ParseError
+  PASS: parser: ParseError is also catchable as XellError
+  PASS: parser: ParseError carries correct line number
+
+===== Error Specificity =====
+  PASS: specific catch before generic: LexerError vs XellError
+  PASS: specific catch before generic: ParseError vs XellError
+  PASS: specific catch before generic: TypeError vs XellError
+  PASS: specific catch before generic: IndexError vs XellError
+  PASS: generic XellError catches all derived errors
+
+===== Message Format =====
+  PASS: all errors follow [XELL ERROR] Line N format
+  PASS: what() contains category and detail
+
+============================================
+  Total: 67  |  Passed: 67  |  Failed: 0
+============================================
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"error_test" end time: Mar 01 01:34 +06
+"error_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/6 Testing: xobject_test
+3/6 Test: xobject_test
+Command: "/home/DATA/CODE/code/Xell/build/xobject_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"xobject_test" start time: Mar 01 01:34 +06
+Output:
+----------------------------------------------------------
+
+===== XObject Construction =====
+  PASS: none: default constructor
+  PASS: none: makeNone
+  PASS: number: integer
+  PASS: number: float
+  PASS: number: zero
+  PASS: number: negative
+  PASS: bool: true
+  PASS: bool: false
+  PASS: string: lvalue
+  PASS: string: rvalue
+  PASS: string: empty
+  PASS: list: empty
+  PASS: list: with elements
+  PASS: map: empty
+  PASS: map: with entries
+  PASS: function
+  PASS: xtype_name strings
+
+===== Reference Counting =====
+  PASS: initial ref count is 1
+  PASS: copy increments ref count
+  PASS: copy assignment increments ref count
+  PASS: move leaves source null (no leak)
+  PASS: move assignment
+  PASS: ref count drops to zero → freed
+  PASS: many copies then destroy
+  PASS: self-assignment is safe
+  PASS: re-assign releases old value
+
+===== Truthiness =====
+  PASS: none is falsy
+  PASS: false is falsy
+  PASS: true is truthy
+  PASS: 0 is falsy
+  PASS: non-zero number is truthy
+  PASS: negative number is truthy
+  PASS: empty string is falsy
+  PASS: non-empty string is truthy
+  PASS: empty list is falsy
+  PASS: non-empty list is truthy
+  PASS: empty map is falsy
+  PASS: non-empty map is truthy
+  PASS: function is always truthy
+
+===== toString =====
+  PASS: none → "none"
+  PASS: integer number → no decimal
+  PASS: zero → "0"
+  PASS: negative integer → "-5"
+  PASS: float number → has decimal
+  PASS: bool true → "true"
+  PASS: bool false → "false"
+  PASS: string → itself
+  PASS: empty list → "[]"
+  PASS: list of numbers → "[1, 2, 3]"
+  PASS: list with strings → quoted strings
+  PASS: empty map → "{}"
+  PASS: map → key: value format
+  PASS: function → "<fn name>"
+
+===== Equality =====
+  PASS: none == none
+  PASS: number == same number
+  PASS: number != different number
+  PASS: bool == same bool
+  PASS: bool != different bool
+  PASS: string == same string
+  PASS: string != different string
+  PASS: different types are never equal
+  PASS: same XData pointer → equal
+  PASS: list == same elements
+  PASS: list != different elements
+  PASS: list != different size
+  PASS: map == same entries
+  PASS: map != different values
+  PASS: map != different keys
+  PASS: function equality is identity
+
+===== Deep Clone =====
+  PASS: clone none
+  PASS: clone number is independent
+  PASS: clone string is independent
+  PASS: clone list is deep
+  PASS: clone map is deep
+  PASS: clone preserves equality
+
+===== XMap =====
+  PASS: map: set and get
+  PASS: map: overwrite existing key
+  PASS: map: preserves insertion order
+  PASS: map: const get
+
+===== Mutable Access =====
+  PASS: asStringMut: modify in place
+  PASS: asListMut: push_back
+  PASS: asMapMut: add entries
+
+===== Edge Cases =====
+  PASS: nested list of lists
+  PASS: map containing list
+  PASS: list containing map
+  PASS: shared list: copy shares data, clone is independent
+  PASS: large number of allocations and frees
+  PASS: rapid create-destroy cycle (no leak)
+  PASS: moved-from XObject is safe to destroy
+  PASS: moved-from XObject is none-like
+
+===== Leak Detection =====
+  PASS: liveAllocations starts at 0 after reset
+  PASS: liveAllocations tracks correctly
+
+============================================
+  Total: 92  |  Passed: 92  |  Failed: 0
+============================================
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"xobject_test" end time: Mar 01 01:34 +06
+"xobject_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/6 Testing: interpreter_test
+4/6 Test: interpreter_test
+Command: "/home/DATA/CODE/code/Xell/build/interpreter_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"interpreter_test" start time: Mar 01 01:34 +06
+Output:
+----------------------------------------------------------
+
+===== Basic Expressions & Print =====
+  PASS: print number
+  PASS: print string
+  PASS: print bool true
+  PASS: print bool false
+  PASS: print none
+  PASS: print multiple args
+  PASS: arithmetic: add
+  PASS: arithmetic: subtract
+  PASS: arithmetic: multiply
+  PASS: arithmetic: divide
+  PASS: arithmetic: complex expression
+  PASS: arithmetic: parenthesized
+  PASS: unary minus
+  PASS: string concatenation with +
+  PASS: string + number auto-converts
+  PASS: list concatenation
+  PASS: comparison: ==
+  PASS: comparison: !=
+  PASS: comparison: > < >= <=
+  PASS: logical: and
+  PASS: logical: or
+  PASS: logical: not
+  PASS: short-circuit and: returns last truthy or first falsy
+  PASS: short-circuit or: returns first truthy
+  PASS: paren-less print call
+
+===== Variables & Assignment =====
+  PASS: simple assignment and read
+  PASS: re-assignment
+  PASS: multiple variables
+  PASS: variable in expression
+  PASS: assign expression result
+  PASS: prefix increment
+  PASS: postfix increment
+  PASS: prefix decrement
+  PASS: postfix decrement
+
+===== Conditionals =====
+  PASS: if true
+  PASS: if false — no output
+  PASS: if-else: takes else branch
+  PASS: if-elif-else
+  PASS: if with comparison expression
+  PASS: nested if
+  PASS: if: truthiness of number
+  PASS: if: truthiness of string
+  PASS: multiple elif branches
+
+===== For Loops =====
+  PASS: for over list literal
+  PASS: for over range
+  PASS: for over range(start, end)
+  PASS: for with accumulator
+  PASS: for over variable list
+  PASS: nested for loops
+  PASS: for over empty list
+
+===== While Loops =====
+  PASS: while countdown
+  PASS: while false — never executes
+  PASS: while with accumulator
+
+===== Functions =====
+  PASS: simple function definition and call
+  PASS: function with parameter
+  PASS: function with give (return)
+  PASS: function returns none by default
+  PASS: function with multiple params
+  PASS: function calling another function
+  PASS: early give (return)
+  PASS: give with no value → none
+
+===== Scoping =====
+  PASS: global variable accessible in function
+  PASS: function can modify global variable
+  PASS: function local does not leak
+  PASS: if-block scope does not leak
+  PASS: for-block scope does not leak
+  PASS: while-block scope does not leak
+  PASS: nested function scope
+  PASS: parameter shadows global
+
+===== Recursion =====
+  PASS: factorial
+  PASS: fibonacci
+  PASS: recursion depth limit
+
+===== Lists =====
+  PASS: list literal
+  PASS: empty list
+  PASS: list index access
+  PASS: list negative index
+  PASS: len of list
+  PASS: push and pop
+  PASS: set list element
+  PASS: list index out of bounds
+
+===== Maps =====
+  PASS: map literal
+  PASS: map index access with string key
+  PASS: map arrow access
+  PASS: keys and values
+  PASS: has() builtin
+  PASS: set map entry
+  PASS: map key not found
+
+===== String Operations =====
+  PASS: string length
+  PASS: string index
+  PASS: string negative index
+  PASS: string concatenation
+
+===== Built-in Functions =====
+  PASS: type()
+  PASS: str() conversion
+  PASS: num() conversion
+  PASS: assert passes
+  PASS: assert fails
+  PASS: assert with message
+  PASS: range with step
+  PASS: range reverse
+
+===== Error Handling =====
+  PASS: undefined variable
+  PASS: type error: subtract strings
+  PASS: division by zero
+  PASS: arity error: too few args
+  PASS: arity error: too many args
+  PASS: type error: call non-function
+  PASS: index error: string out of range
+  PASS: type error: for non-list
+  PASS: conversion error: bad num()
+
+===== Complex Programs =====
+  PASS: FizzBuzz
+  PASS: build a list with function
+  PASS: counter with while
+  PASS: function as value: pass to variable, call later
+  PASS: map as config object
+  PASS: recursive sum of list
+  PASS: higher-order: map function over list
+  PASS: power function
+
+===== String Interpolation =====
+  PASS: simple variable interpolation
+  PASS: expression interpolation
+  PASS: multiple interpolations
+  PASS: no interpolation when no braces
+
+============================================
+  Total: 120  |  Passed: 120  |  Failed: 0
+============================================
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"interpreter_test" end time: Mar 01 01:34 +06
+"interpreter_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/6 Testing: os_test
+5/6 Test: os_test
+Command: "/home/DATA/CODE/code/Xell/build/os_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"os_test" start time: Mar 01 01:34 +06
+Output:
+----------------------------------------------------------
+============================================
+  Xell OS Abstraction Layer Tests
+============================================
+
+--- Section 1: Filesystem — Directories ---
+  PASS: make_dir creates single dir
+  PASS: make_dir creates nested dirs
+  PASS: make_dir is no-op if already exists
+  PASS: remove_path removes empty dir
+  PASS: remove_path removes dir recursively
+  PASS: remove_path throws on non-existent
+  PASS: list_dir lists children names
+  PASS: list_dir_full lists full paths
+  PASS: list_dir throws on non-existent
+  PASS: list_dir throws on file
+
+--- Section 2: Filesystem — Files ---
+  PASS: write_file + read_file roundtrip
+  PASS: write_file creates parent dirs
+  PASS: write_file overwrites existing
+  PASS: append_file appends to existing
+  PASS: append_file creates new file
+  PASS: read_file throws on non-existent
+  PASS: read_file throws on directory
+  PASS: file_size returns correct size
+  PASS: file_size throws on non-existent
+  PASS: is_file returns true for file
+  PASS: is_dir returns true for directory
+  PASS: path_exists returns false for non-existent
+
+--- Section 3: Filesystem — Copy/Move/Paths ---
+  PASS: copy_path copies a file
+  PASS: copy_path copies a directory recursively
+  PASS: copy_path throws on non-existent source
+  PASS: move_path moves a file
+  PASS: move_path throws on non-existent source
+  PASS: absolute_path returns absolute
+  PASS: file_name extracts filename
+  PASS: parent_path extracts parent
+  PASS: extension extracts extension
+  PASS: cwd returns non-empty
+  PASS: change_dir + cwd round-trip
+  PASS: change_dir throws on non-existent
+  PASS: change_dir throws on file
+
+--- Section 4: Environment Variables ---
+  PASS: env_get returns empty for unset var
+  PASS: env_has returns false for unset var
+  PASS: env_set + env_get round-trip
+  PASS: env_has returns true after set
+  PASS: env_set overwrites existing
+  PASS: env_unset removes variable
+  PASS: env_get reads system PATH
+
+--- Section 5: Process Execution ---
+  PASS: run returns 0 for successful command
+  PASS: run returns non-zero for failing command
+  PASS: run executes complex command
+  PASS: run_capture captures stdout
+  PASS: run_capture captures multi-line stdout
+  PASS: run_capture captures stderr
+  PASS: run_capture returns exit code from failed command
+  PASS: run_capture with command that produces no output
+  PASS: run_capture works with pipes
+  PASS: run with file creation side effect
+  PASS: run_capture with env var
+  PASS: get_pid returns positive number
+
+--- Section 6: Edge Cases ---
+  PASS: write + read empty file
+  PASS: write + read file with special chars
+  PASS: write + read binary-ish content
+  PASS: list_dir on empty directory
+  PASS: file_name of root-like path
+  PASS: extension of dotfile
+  PASS: make_dir with trailing slash
+
+============================================
+  Total: 61  |  Passed: 61  |  Failed: 0
+============================================
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"os_test" end time: Mar 01 01:34 +06
+"os_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/6 Testing: bring_test
+6/6 Test: bring_test
+Command: "/home/DATA/CODE/code/Xell/build/bring_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"bring_test" start time: Mar 01 01:34 +06
+Output:
+----------------------------------------------------------
+============================================
+  Bring (Import) System Tests
+============================================
+
+===== Bring: Named Imports =====
+  PASS: bring single function
+  PASS: bring single variable
+  PASS: bring multiple names
+  PASS: bring mixed functions and variables
+  PASS: bring from math_utils
+
+===== Bring: Aliases =====
+  PASS: bring with single alias
+  PASS: bring with multiple aliases
+  PASS: bring variable with alias
+  PASS: partial aliases (fewer aliases than names)
+
+===== Bring: Wildcard (*) =====
+  PASS: bring * imports all names
+  PASS: bring * from math_utils
+
+===== Bring: Nested Paths =====
+  PASS: bring from subdirectory
+  PASS: bring * from subdirectory
+
+===== Bring: Usage Patterns =====
+  PASS: use brought function in expression
+  PASS: brought function as argument to another
+  PASS: bring into function scope
+  PASS: multiple bring statements
+  PASS: bring does not leak unimported names
+
+===== Bring: Error Cases =====
+  PASS: bring from nonexistent file
+  PASS: bring nonexistent name
+  PASS: circular import detection
+
+============================================
+  Total: 21  |  Passed: 21  |  Failed: 0
+============================================
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"bring_test" end time: Mar 01 01:34 +06
+"bring_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 01 01:34 +06

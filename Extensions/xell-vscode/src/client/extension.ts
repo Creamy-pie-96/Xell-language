@@ -20,7 +20,59 @@ let notebookController: XellNotebookController;
 // Injected into editor.tokenColorCustomizations so they
 // work with ANY theme the user has selected.
 const XELL_TOKEN_RULES = [
+    // Comments
+    { scope: 'comment.block.arrow.xell', settings: { foreground: '#98c379' } },
+    { scope: 'comment.line.number-sign.xell', settings: { foreground: '#5c6370', fontStyle: 'italic' } },
+    { scope: 'punctuation.definition.comment.begin.xell', settings: { foreground: '#98c379' } },
+    { scope: 'punctuation.definition.comment.end.xell', settings: { foreground: '#98c379' } },
+    // Literals & Constants
+    { scope: 'constant.character.escape.xell', settings: { foreground: '#d19a66' } },
+    { scope: 'constant.language.boolean.true.xell', settings: { foreground: '#c678dd' } },
+    { scope: 'constant.language.boolean.false.xell', settings: { foreground: '#c678dd' } },
+    { scope: 'constant.language.none.xell', settings: { foreground: '#c678dd' } },
+    { scope: 'constant.numeric.float.xell', settings: { foreground: '#d19a66' } },
+    { scope: 'constant.numeric.integer.xell', settings: { foreground: '#d19a66' } },
+    // Strings
+    { scope: 'string.quoted.double.xell', settings: { foreground: '#98c379' } },
+    { scope: 'string.interpolation.xell', settings: { foreground: '#d19a66' } },
+    { scope: 'punctuation.section.interpolation.begin.xell', settings: { foreground: '#c678dd', fontStyle: 'bold' } },
+    { scope: 'punctuation.section.interpolation.end.xell', settings: { foreground: '#c678dd', fontStyle: 'bold' } },
+    // Functions
+    { scope: 'entity.name.function.call.xell', settings: { foreground: '#00ffff' } },
+    { scope: 'entity.name.function.definition.xell', settings: { foreground: '#00ffff' } },
+    { scope: 'entity.name.function.method.xell', settings: { foreground: '#00ffff' } },
+    // Builtins
+    { scope: 'support.function.builtin.xell', settings: { foreground: '#00ffff' } },
+    { scope: 'support.function.builtin.os.xell', settings: { foreground: '#00ffff' } },
+    { scope: 'support.function.math.xell', settings: { foreground: '#00ffff' } },
+    { scope: 'support.type.conversion.xell', settings: { foreground: '#008080' } },
+    // Keywords
     { scope: 'keyword.control.flow.xell', settings: { foreground: '#e06c75', fontStyle: 'bold' } },
+    { scope: 'keyword.control.loop.xell', settings: { foreground: '#e06c75', fontStyle: 'bold' } },
+    { scope: 'keyword.control.import.xell', settings: { foreground: '#e06c75', fontStyle: 'bold' } },
+    { scope: 'keyword.control.return.xell', settings: { foreground: '#e5c07b', fontStyle: 'bold' } },
+    { scope: 'keyword.declaration.function.xell', settings: { foreground: '#e5c07b', fontStyle: 'bold' } },
+    { scope: 'keyword.other.special.xell', settings: { foreground: '#e5c07b', fontStyle: 'bold' } },
+    // Operators
+    { scope: 'keyword.operator.arithmetic.xell', settings: { foreground: '#c678dd' } },
+    { scope: 'keyword.operator.assignment.xell', settings: { foreground: '#c678dd' } },
+    { scope: 'keyword.operator.comparison.xell', settings: { foreground: '#c678dd' } },
+    { scope: 'keyword.operator.comparison.word.xell', settings: { foreground: '#c678dd' } },
+    { scope: 'keyword.operator.logical.xell', settings: { foreground: '#c678dd' } },
+    { scope: 'keyword.operator.increment.xell', settings: { foreground: '#c678dd' } },
+    { scope: 'keyword.operator.access.xell', settings: { foreground: '#61afef', fontStyle: 'bold' } },
+    // Punctuation
+    { scope: 'punctuation.bracket.round.xell', settings: { foreground: '#abb2bf' } },
+    { scope: 'punctuation.bracket.square.xell', settings: { foreground: '#abb2bf' } },
+    { scope: 'punctuation.bracket.curly.xell', settings: { foreground: '#abb2bf' } },
+    { scope: 'punctuation.separator.colon.xell', settings: { foreground: '#abb2bf' } },
+    { scope: 'punctuation.separator.comma.xell', settings: { foreground: '#abb2bf' } },
+    { scope: 'punctuation.terminator.block.xell', settings: { foreground: '#abb2bf' } },
+    { scope: 'punctuation.terminator.statement.xell', settings: { foreground: '#abb2bf' } },
+    // Variables
+    { scope: 'variable.other.xell', settings: { foreground: '#eeeeee' } },
+    { scope: 'variable.other.loop.xell', settings: { foreground: '#eeeeee' } },
+    { scope: 'variable.parameter.xell', settings: { foreground: '#eeeeee' } },
 ];
 
 /**

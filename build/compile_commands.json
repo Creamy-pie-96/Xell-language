@@ -1,80 +1,86 @@
 [
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o -c /home/DATA/CODE/code/Xell/src/lexer/lexer.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o -c /home/DATA/CODE/code/Xell/src/lexer/lexer.cpp",
   "file": "/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp",
   "output": "CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o -c /home/DATA/CODE/code/Xell/src/parser/parser.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o -c /home/DATA/CODE/code/Xell/src/parser/parser.cpp",
   "file": "/home/DATA/CODE/code/Xell/src/parser/parser.cpp",
   "output": "CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o -c /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o -c /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp",
   "file": "/home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp",
   "output": "CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o -c /home/DATA/CODE/code/Xell/src/interpreter/interpreter.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o -c /home/DATA/CODE/code/Xell/src/interpreter/interpreter.cpp",
   "file": "/home/DATA/CODE/code/Xell/src/interpreter/interpreter.cpp",
   "output": "CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/os/fs.cpp.o -c /home/DATA/CODE/code/Xell/src/os/fs.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/os/fs.cpp.o -c /home/DATA/CODE/code/Xell/src/os/fs.cpp",
   "file": "/home/DATA/CODE/code/Xell/src/os/fs.cpp",
   "output": "CMakeFiles/xell_lib.dir/src/os/fs.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/os/env.cpp.o -c /home/DATA/CODE/code/Xell/src/os/env.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/os/env.cpp.o -c /home/DATA/CODE/code/Xell/src/os/env.cpp",
   "file": "/home/DATA/CODE/code/Xell/src/os/env.cpp",
   "output": "CMakeFiles/xell_lib.dir/src/os/env.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/os/process.cpp.o -c /home/DATA/CODE/code/Xell/src/os/process.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/os/process.cpp.o -c /home/DATA/CODE/code/Xell/src/os/process.cpp",
   "file": "/home/DATA/CODE/code/Xell/src/os/process.cpp",
   "output": "CMakeFiles/xell_lib.dir/src/os/process.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell.dir/src/main.cpp.o -c /home/DATA/CODE/code/Xell/src/main.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/xell.dir/src/main.cpp.o -c /home/DATA/CODE/code/Xell/src/main.cpp",
   "file": "/home/DATA/CODE/code/Xell/src/main.cpp",
   "output": "CMakeFiles/xell.dir/src/main.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/parser_test.dir/test/parser_test.cpp.o -c /home/DATA/CODE/code/Xell/test/parser_test.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/parser_test.dir/test/parser_test.cpp.o -c /home/DATA/CODE/code/Xell/test/parser_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/parser_test.cpp",
   "output": "CMakeFiles/parser_test.dir/test/parser_test.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/error_test.dir/test/error_test.cpp.o -c /home/DATA/CODE/code/Xell/test/error_test.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/error_test.dir/test/error_test.cpp.o -c /home/DATA/CODE/code/Xell/test/error_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/error_test.cpp",
   "output": "CMakeFiles/error_test.dir/test/error_test.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xobject_test.dir/test/xobject_test.cpp.o -c /home/DATA/CODE/code/Xell/test/xobject_test.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/xobject_test.dir/test/xobject_test.cpp.o -c /home/DATA/CODE/code/Xell/test/xobject_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/xobject_test.cpp",
   "output": "CMakeFiles/xobject_test.dir/test/xobject_test.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.o -c /home/DATA/CODE/code/Xell/test/interpreter_test.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.o -c /home/DATA/CODE/code/Xell/test/interpreter_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/interpreter_test.cpp",
   "output": "CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.o"
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
-  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/os_test.dir/test/os_test.cpp.o -c /home/DATA/CODE/code/Xell/test/os_test.cpp",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/os_test.dir/test/os_test.cpp.o -c /home/DATA/CODE/code/Xell/test/os_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/os_test.cpp",
   "output": "CMakeFiles/os_test.dir/test/os_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/bring_test.dir/test/bring_test.cpp.o -c /home/DATA/CODE/code/Xell/test/bring_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/bring_test.cpp",
+  "output": "CMakeFiles/bring_test.dir/test/bring_test.cpp.o"
 }
 ]

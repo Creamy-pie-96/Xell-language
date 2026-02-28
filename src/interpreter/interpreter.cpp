@@ -7,6 +7,44 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <fstream>
+
+// Portable dirname — returns directory part of a path (no <filesystem> needed)
+static std::string parentDir(const std::string &path)
+{
+    auto pos = path.find_last_of("/\\");
+    if (pos == std::string::npos)
+        return ".";
+    return path.substr(0, pos);
+}
+
+// Portable canonical-ish path resolution (no <filesystem> needed)
+static std::string resolvePath(const std::string &base, const std::string &relative)
+{
+    if (!relative.empty() && (relative[0] == '/' || (relative.size() > 1 && relative[1] == ':')))
+        return relative; // absolute path
+    return parentDir(base) + "/" + relative;
+}
+
+// Portable realpath (POSIX realpath, Windows _fullpath)
+static std::string canonicalPath(const std::string &path)
+{
+#ifdef _WIN32
+    char buf[_MAX_PATH];
+    if (_fullpath(buf, path.c_str(), _MAX_PATH))
+        return buf;
+    return path;
+#else
+    char *resolved = ::realpath(path.c_str(), nullptr);
+    if (resolved)
+    {
+        std::string result(resolved);
+        ::free(resolved);
+        return result;
+    }
+    return path; // fallback if file doesn't exist yet
+#endif
+}
 
 namespace xell
 {
@@ -27,6 +65,8 @@ namespace xell
         currentEnv_ = &globalEnv_;
         output_.clear();
         callDepth_ = 0;
+        importedFiles_.clear();
+        importedModules_.clear();
         registerBuiltins();
     }
 
@@ -74,9 +114,7 @@ namespace xell
         if (auto *p = dynamic_cast<const ExprStmt *>(stmt))
             return execExprStmt(p);
         if (auto *p = dynamic_cast<const BringStmt *>(stmt))
-        {
-            throw NotImplementedError("bring", p->line);
-        }
+            return execBring(p);
     }
 
     void Interpreter::execBlock(const std::vector<StmtPtr> &stmts, Environment &env)
@@ -183,6 +221,100 @@ namespace xell
     void Interpreter::execExprStmt(const ExprStmt *node)
     {
         eval(node->expr.get());
+    }
+
+    // ========================================================================
+    // Bring (import)
+    // ========================================================================
+
+    void Interpreter::execBring(const BringStmt *node)
+    {
+        // 1. Resolve the file path relative to the current source file
+        std::string rawPath = node->path;
+        std::string resolvedPath;
+        if (sourceFile_.empty())
+            resolvedPath = canonicalPath(rawPath);
+        else
+            resolvedPath = canonicalPath(resolvePath(sourceFile_, rawPath));
+
+        // 2. Check for circular imports
+        if (importedFiles_.count(resolvedPath))
+            throw BringError("Circular import detected: '" + rawPath + "'", node->line);
+
+        // 3. Read the source file
+        std::ifstream f(resolvedPath);
+        if (!f.is_open())
+            throw BringError("Cannot open file '" + rawPath + "' (resolved to '" + resolvedPath + "')", node->line);
+        std::ostringstream ss;
+        ss << f.rdbuf();
+        std::string source = ss.str();
+
+        // 4. Lex → Parse into a module that we keep alive
+        auto mod = std::make_unique<ImportedModule>();
+        mod->interp = std::make_unique<Interpreter>();
+        mod->interp->sourceFile_ = resolvedPath;
+        // Share the circular-import guard (pass current set + this file)
+        mod->interp->importedFiles_ = importedFiles_;
+        mod->interp->importedFiles_.insert(resolvedPath);
+
+        try
+        {
+            Lexer lexer(source);
+            auto tokens = lexer.tokenize();
+            Parser parser(tokens);
+            mod->program = parser.parse();
+            mod->interp->run(mod->program);
+        }
+        catch (const XellError &e)
+        {
+            throw BringError("Error in '" + rawPath + "': " + e.what(), node->line);
+        }
+
+        // 5. Extract names from the child's global environment
+        Environment &childEnv = mod->interp->globals();
+
+        if (node->bringAll)
+        {
+            // bring * from "file" — bring everything
+            auto names = childEnv.allNames();
+            for (const auto &name : names)
+            {
+                // Skip builtins (they're already registered in our env)
+                if (builtins_.count(name))
+                    continue;
+                try
+                {
+                    XObject val = childEnv.get(name, node->line);
+                    currentEnv_->define(name, std::move(val));
+                }
+                catch (...)
+                {
+                    // skip inaccessible names
+                }
+            }
+        }
+        else
+        {
+            // bring name1, name2 from "file" [as alias1, alias2]
+            for (size_t i = 0; i < node->names.size(); ++i)
+            {
+                const std::string &name = node->names[i];
+                std::string alias = (i < node->aliases.size()) ? node->aliases[i] : name;
+
+                try
+                {
+                    XObject val = childEnv.get(name, node->line);
+                    currentEnv_->define(alias, std::move(val));
+                }
+                catch (const UndefinedVariableError &)
+                {
+                    throw BringError("Name '" + name + "' not found in '" + rawPath + "'", node->line);
+                }
+            }
+        }
+
+        // 6. Keep the module alive so AST pointers & closureEnvs stay valid
+        importedModules_.push_back(std::move(mod));
     }
 
     // ========================================================================

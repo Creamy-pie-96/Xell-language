@@ -1,0 +1,1 @@
+{"version":3,"file":"hover.d.ts","sourceRoot":"","sources":["../../src/server/hover.ts"],"names":[],"mappings":"AAIA,MAAM,WAAW,UAAU;IACvB,SAAS,EAAE,MAAM,CAAC;IAClB,MAAM,EAAE,MAAM,CAAC;IACf,MAAM,CAAC,EAAE,MAAM,EAAE,CAAC;CACrB;AAED,eAAO,MAAM,UAAU,EAAE,MAAM,CAAC,MAAM,EAAE,UAAU,CAwNjD,CAAC"}
