@@ -54,6 +54,7 @@ namespace xell
         MINUS,
         STAR,
         SLASH,
+        PERCENT, // %
 
         // Increment / decrement
         PLUS_PLUS,   // ++
@@ -92,7 +93,6 @@ namespace xell
         EOF_TOKEN
     };
 
-
     inline const std::unordered_map<int, std::string> &tokenTypeNames()
     {
         static const std::unordered_map<int, std::string> map = {
@@ -127,6 +127,7 @@ namespace xell
             {(int)TokenType::MINUS, "MINUS"},
             {(int)TokenType::STAR, "STAR"},
             {(int)TokenType::SLASH, "SLASH"},
+            {(int)TokenType::PERCENT, "PERCENT"},
             {(int)TokenType::PLUS_PLUS, "PLUS_PLUS"},
             {(int)TokenType::MINUS_MINUS, "MINUS_MINUS"},
             {(int)TokenType::EQUAL, "EQUAL"},
@@ -163,7 +164,6 @@ namespace xell
             return it->second;
         return "UNKNOWN";
     }
-
 
     struct Token
     {

@@ -1,4 +1,6 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o"
+  "CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o.d"
   "CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o"
   "CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o.d"
   "CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o"

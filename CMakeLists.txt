@@ -10,6 +10,7 @@ add_library(xell_lib
     src/lexer/lexer.cpp
     src/parser/parser.cpp
     src/interpreter/xobject.cpp
+    src/interpreter/interpreter.cpp
 )
 target_include_directories(xell_lib PUBLIC src)
 
@@ -31,3 +32,7 @@ add_test(NAME error_test COMMAND error_test)
 add_executable(xobject_test test/xobject_test.cpp)
 target_link_libraries(xobject_test xell_lib)
 add_test(NAME xobject_test COMMAND xobject_test)
+
+add_executable(interpreter_test test/interpreter_test.cpp)
+target_link_libraries(interpreter_test xell_lib)
+add_test(NAME interpreter_test COMMAND interpreter_test)

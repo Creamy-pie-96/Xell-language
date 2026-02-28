@@ -8,6 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/DATA/CODE/code/Xell/src/interpreter/interpreter.cpp" "CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o" "gcc" "CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o.d"
   "/home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp" "CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o" "gcc" "CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o.d"
   "/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp" "CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o" "gcc" "CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o.d"
   "/home/DATA/CODE/code/Xell/src/parser/parser.cpp" "CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o" "gcc" "CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o.d"

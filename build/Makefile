@@ -191,6 +191,43 @@ xobject_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xobject_test.dir/build.make CMakeFiles/xobject_test.dir/build
 .PHONY : xobject_test/fast
 
+#=============================================================================
+# Target rules for targets named interpreter_test
+
+# Build rule for target.
+interpreter_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 interpreter_test
+.PHONY : interpreter_test
+
+# fast build rule for target.
+interpreter_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/interpreter_test.dir/build.make CMakeFiles/interpreter_test.dir/build
+.PHONY : interpreter_test/fast
+
+src/interpreter/interpreter.o: src/interpreter/interpreter.cpp.o
+.PHONY : src/interpreter/interpreter.o
+
+# target to build an object file
+src/interpreter/interpreter.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
+.PHONY : src/interpreter/interpreter.cpp.o
+
+src/interpreter/interpreter.i: src/interpreter/interpreter.cpp.i
+.PHONY : src/interpreter/interpreter.i
+
+# target to preprocess a source file
+src/interpreter/interpreter.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.i
+.PHONY : src/interpreter/interpreter.cpp.i
+
+src/interpreter/interpreter.s: src/interpreter/interpreter.cpp.s
+.PHONY : src/interpreter/interpreter.s
+
+# target to generate assembly for a file
+src/interpreter/interpreter.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.s
+.PHONY : src/interpreter/interpreter.cpp.s
+
 src/interpreter/xobject.o: src/interpreter/xobject.cpp.o
 .PHONY : src/interpreter/xobject.o
 
@@ -311,6 +348,30 @@ test/error_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/error_test.dir/build.make CMakeFiles/error_test.dir/test/error_test.cpp.s
 .PHONY : test/error_test.cpp.s
 
+test/interpreter_test.o: test/interpreter_test.cpp.o
+.PHONY : test/interpreter_test.o
+
+# target to build an object file
+test/interpreter_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/interpreter_test.dir/build.make CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.o
+.PHONY : test/interpreter_test.cpp.o
+
+test/interpreter_test.i: test/interpreter_test.cpp.i
+.PHONY : test/interpreter_test.i
+
+# target to preprocess a source file
+test/interpreter_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/interpreter_test.dir/build.make CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.i
+.PHONY : test/interpreter_test.cpp.i
+
+test/interpreter_test.s: test/interpreter_test.cpp.s
+.PHONY : test/interpreter_test.s
+
+# target to generate assembly for a file
+test/interpreter_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/interpreter_test.dir/build.make CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.s
+.PHONY : test/interpreter_test.cpp.s
+
 test/parser_test.o: test/parser_test.cpp.o
 .PHONY : test/parser_test.o
 
@@ -369,10 +430,14 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... test"
 	@echo "... error_test"
+	@echo "... interpreter_test"
 	@echo "... parser_test"
 	@echo "... xell"
 	@echo "... xell_lib"
 	@echo "... xobject_test"
+	@echo "... src/interpreter/interpreter.o"
+	@echo "... src/interpreter/interpreter.i"
+	@echo "... src/interpreter/interpreter.s"
 	@echo "... src/interpreter/xobject.o"
 	@echo "... src/interpreter/xobject.i"
 	@echo "... src/interpreter/xobject.s"
@@ -388,6 +453,9 @@ help:
 	@echo "... test/error_test.o"
 	@echo "... test/error_test.i"
 	@echo "... test/error_test.s"
+	@echo "... test/interpreter_test.o"
+	@echo "... test/interpreter_test.i"
+	@echo "... test/interpreter_test.s"
 	@echo "... test/parser_test.o"
 	@echo "... test/parser_test.i"
 	@echo "... test/parser_test.s"

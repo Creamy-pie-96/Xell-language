@@ -379,6 +379,13 @@ namespace xell
                 continue;
             }
 
+            if (c == '%')
+            {
+                tokens.emplace_back(TokenType::PERCENT, "%", tokenLine);
+                advance();
+                continue;
+            }
+
             // = and ==
             if (c == '=')
             {

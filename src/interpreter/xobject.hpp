@@ -18,25 +18,27 @@
 //   Our approach: one enum check + static_cast. Zero abstraction cost.
 //
 // Why not std::shared_ptr?
-//   Atomic ref counting is unnecessary — Xell is single-threaded.
-//   A plain uint32_t ref count avoids the atomic overhead entirely.
+//   shared_ptr's control block is heavier (weak count, deleter, allocator).
+//   We use a single atomic<uint32_t> for thread-safe ref counting with
+//   minimal overhead — no weak refs, no virtual deleter.
 //
 // Memory layout:
 //
 //   XObject  (stack, 8 bytes)
 //   ┌──────────┐
 //   │  data_*  │──→  XData  (heap)
-//   └──────────┘     ┌──────────────────┐
-//                    │ refCount (uint32) │
-//                    │ type     (XType)  │
-//                    │ payload  (void*)  │──→ actual data (double*, string*, etc.)
-//                    └──────────────────┘
+//   └──────────┘     ┌─────────────────────────┐
+//                    │ refCount (atomic uint32) │
+//                    │ type     (XType)         │
+//                    │ payload  (void*)         │──→ actual data
+//                    └─────────────────────────┘
 //
 // =============================================================================
 
 #include <string>
 #include <vector>
 #include <memory>
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <unordered_map>
@@ -47,6 +49,7 @@ namespace xell
     // Forward declarations
     class XObject;
     struct Stmt;
+    class Environment;
 
     // ========================================================================
     // XType — the type tag enum
@@ -89,15 +92,19 @@ namespace xell
 
     /// A user-defined function captured at definition time.
     /// Holds a raw pointer to the AST body (owned by the Program, outlives this).
+    /// closureEnv captures the lexical scope for lexical scoping.
     struct XFunction
     {
         std::string name;
         std::vector<std::string> params;
         const std::vector<std::unique_ptr<Stmt>> *body; // non-owning pointer to AST
+        Environment *closureEnv;                        // lexical scope at definition
 
         XFunction(std::string name, std::vector<std::string> params,
-                  const std::vector<std::unique_ptr<Stmt>> *body)
-            : name(std::move(name)), params(std::move(params)), body(body) {}
+                  const std::vector<std::unique_ptr<Stmt>> *body,
+                  Environment *closureEnv = nullptr)
+            : name(std::move(name)), params(std::move(params)),
+              body(body), closureEnv(closureEnv) {}
     };
 
     // ========================================================================
@@ -106,7 +113,7 @@ namespace xell
 
     struct XData
     {
-        uint32_t refCount;
+        std::atomic<uint32_t> refCount;
         XType type;
         void *payload; // points to the type-specific data
 
@@ -150,10 +157,11 @@ namespace xell
         /// map from existing XMap
         static XObject makeMap(XMap &&map);
 
-        /// function
+        /// function (closureEnv = lexical scope at definition site)
         static XObject makeFunction(const std::string &name,
                                     const std::vector<std::string> &params,
-                                    const std::vector<std::unique_ptr<Stmt>> *body);
+                                    const std::vector<std::unique_ptr<Stmt>> *body,
+                                    Environment *closureEnv = nullptr);
 
         // ---- Default constructor → none ----
 

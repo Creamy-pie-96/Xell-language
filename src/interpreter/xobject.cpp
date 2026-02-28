@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 #include <cassert>
+#include <atomic>
 
 namespace xell
 {
@@ -11,10 +12,10 @@ namespace xell
     // Global allocation counter (debug / test only)
     // ========================================================================
 
-    static int64_t g_liveAllocs = 0;
+    static std::atomic<int64_t> g_liveAllocs{0};
 
-    int64_t XObject::liveAllocations() { return g_liveAllocs; }
-    void XObject::resetAllocationCounter() { g_liveAllocs = 0; }
+    int64_t XObject::liveAllocations() { return g_liveAllocs.load(std::memory_order_relaxed); }
+    void XObject::resetAllocationCounter() { g_liveAllocs.store(0, std::memory_order_relaxed); }
 
     // ========================================================================
     // xtype_name — human-readable type tag
@@ -94,7 +95,7 @@ namespace xell
 
     static XData *allocData(XType type, void *payload)
     {
-        g_liveAllocs++;
+        g_liveAllocs.fetch_add(1, std::memory_order_relaxed);
         return new XData(type, payload);
     }
 
@@ -187,9 +188,10 @@ namespace xell
 
     XObject XObject::makeFunction(const std::string &name,
                                   const std::vector<std::string> &params,
-                                  const std::vector<std::unique_ptr<Stmt>> *body)
+                                  const std::vector<std::unique_ptr<Stmt>> *body,
+                                  Environment *closureEnv)
     {
-        XFunction *p = new XFunction(name, params, body);
+        XFunction *p = new XFunction(name, params, body, closureEnv);
         return XObject(allocData(XType::FUNCTION, p));
     }
 
@@ -214,7 +216,7 @@ namespace xell
     void XObject::retain()
     {
         if (data_)
-            data_->refCount++;
+            data_->refCount.fetch_add(1, std::memory_order_relaxed);
     }
 
     void XObject::release()
@@ -222,12 +224,12 @@ namespace xell
         if (!data_)
             return;
 
-        data_->refCount--;
-        if (data_->refCount == 0)
+        if (data_->refCount.fetch_sub(1, std::memory_order_acq_rel) == 1)
         {
+            // Old value was 1 → now 0, we own the last reference
             freePayload(data_->type, data_->payload);
             delete data_;
-            g_liveAllocs--;
+            g_liveAllocs.fetch_sub(1, std::memory_order_relaxed);
         }
         data_ = nullptr;
     }
@@ -401,7 +403,7 @@ namespace xell
         case XType::FUNCTION:
         {
             const auto &fn = asFunction();
-            return makeFunction(fn.name, fn.params, fn.body);
+            return makeFunction(fn.name, fn.params, fn.body, fn.closureEnv);
         }
         }
         return makeNone();
@@ -549,7 +551,7 @@ namespace xell
 
     uint32_t XObject::refCount() const
     {
-        return data_ ? data_->refCount : 0;
+        return data_ ? data_->refCount.load(std::memory_order_relaxed) : 0;
     }
 
 } // namespace xell

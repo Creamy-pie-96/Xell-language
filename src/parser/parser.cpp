@@ -471,7 +471,7 @@ namespace xell
     ExprPtr Parser::parseMultiplication()
     {
         auto left = parseUnary();
-        while (check(TokenType::STAR) || check(TokenType::SLASH))
+        while (check(TokenType::STAR) || check(TokenType::SLASH) || check(TokenType::PERCENT))
         {
             int ln = current().line;
             std::string op = current().value;
