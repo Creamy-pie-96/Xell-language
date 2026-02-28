@@ -363,11 +363,11 @@
       ]
     },
     "os-builtins": {
-      "comment": "OS builtins: abspath, append, basename, cd, cp, cwd, dirname, env_get, env_has, env_set, env_unset, exists, ext, file_size, is_dir, is_file, ls, mkdir, mv, pid, read, rm, run, run_capture, write",
+      "comment": "OS builtins: abspath, append, basename, cd, cp, cwd, dirname, env_get, env_has, env_set, env_unset, exists, exit_code, ext, file_size, is_dir, is_file, ls, mkdir, mv, pid, read, rm, run, run_capture, set_e, unset_e, write",
       "patterns": [
         {
           "name": "support.function.builtin.os.xell",
-          "match": "\\b(abspath|append|basename|cd|cp|cwd|dirname|env_get|env_has|env_set|env_unset|exists|ext|file_size|is_dir|is_file|ls|mkdir|mv|pid|read|rm|run|run_capture|write)\\b(?=\\s*\\()"
+          "match": "\\b(abspath|append|basename|cd|cp|cwd|dirname|env_get|env_has|env_set|env_unset|exists|exit_code|ext|file_size|is_dir|is_file|ls|mkdir|mv|pid|read|rm|run|run_capture|set_e|unset_e|write)\\b(?=\\s*\\()"
         }
       ]
     },

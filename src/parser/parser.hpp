@@ -60,6 +60,9 @@ namespace xell
 
         // Expressions (precedence climbing)
         ExprPtr parseExpression();
+        ExprPtr parseShellOr();  // ||
+        ExprPtr parseShellAnd(); // &&
+        ExprPtr parsePipe();     // |
         ExprPtr parseLogicalOr();
         ExprPtr parseLogicalAnd();
         ExprPtr parseEquality();

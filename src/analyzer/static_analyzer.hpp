@@ -47,12 +47,13 @@ namespace xell
                 // Math
                 "floor", "ceil", "round", "abs", "mod",
                 // OS
-                "read_file", "write_file", "append_file", "file_exists",
-                "list_dir", "make_dir", "remove_path", "rename_path",
-                "file_size", "cwd", "chdir", "path_join", "path_parent",
-                "path_filename", "path_extension", "path_stem", "is_file",
-                "is_dir", "getenv", "setenv", "unsetenv", "exec", "shell",
-                "pid", "platform", "exit_program"};
+                "mkdir", "rm", "cp", "mv", "exists", "is_file", "is_dir",
+                "ls", "read", "write", "append", "file_size",
+                "cwd", "cd", "abspath", "basename", "dirname", "ext",
+                "env_get", "env_set", "env_unset", "env_has",
+                "run", "run_capture", "pid",
+                // Shell control
+                "set_e", "unset_e", "exit_code"};
 
             // Common misspellings → correct name
             typoMap_ = {

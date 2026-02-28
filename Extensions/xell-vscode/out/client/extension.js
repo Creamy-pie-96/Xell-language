@@ -188,7 +188,8 @@ function activate(context) {
         const clientOptions = {
             documentSelector: [
                 { scheme: 'file', language: 'xell' },
-                { scheme: 'untitled', language: 'xell' }
+                { scheme: 'untitled', language: 'xell' },
+                { scheme: 'vscode-notebook-cell', language: 'xell' }
             ],
             synchronize: {
                 configurationSection: 'xell',

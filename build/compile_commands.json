@@ -82,5 +82,11 @@
   "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/bring_test.dir/test/bring_test.cpp.o -c /home/DATA/CODE/code/Xell/test/bring_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/bring_test.cpp",
   "output": "CMakeFiles/bring_test.dir/test/bring_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/shell_test.dir/test/shell_test.cpp.o -c /home/DATA/CODE/code/Xell/test/shell_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/shell_test.cpp",
+  "output": "CMakeFiles/shell_test.dir/test/shell_test.cpp.o"
 }
 ]

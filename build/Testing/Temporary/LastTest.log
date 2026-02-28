@@ -1,10 +1,10 @@
-Start testing: Mar 01 03:44 +06
+Start testing: Mar 01 05:16 +06
 ----------------------------------------------------------
-1/6 Testing: parser_test
-1/6 Test: parser_test
+1/7 Testing: parser_test
+1/7 Test: parser_test
 Command: "/home/DATA/CODE/code/Xell/build/parser_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"parser_test" start time: Mar 01 03:44 +06
+"parser_test" start time: Mar 01 05:16 +06
 Output:
 ----------------------------------------------------------
 
@@ -130,18 +130,18 @@ Output:
 ============================================
 
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"parser_test" end time: Mar 01 03:44 +06
+"parser_test" end time: Mar 01 05:16 +06
 "parser_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-2/6 Testing: error_test
-2/6 Test: error_test
+2/7 Testing: error_test
+2/7 Test: error_test
 Command: "/home/DATA/CODE/code/Xell/build/error_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"error_test" start time: Mar 01 03:44 +06
+"error_test" start time: Mar 01 05:16 +06
 Output:
 ----------------------------------------------------------
 
@@ -228,18 +228,18 @@ Output:
   Total: 67  |  Passed: 67  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"error_test" end time: Mar 01 03:44 +06
+"error_test" end time: Mar 01 05:16 +06
 "error_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-3/6 Testing: xobject_test
-3/6 Test: xobject_test
+3/7 Testing: xobject_test
+3/7 Test: xobject_test
 Command: "/home/DATA/CODE/code/Xell/build/xobject_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"xobject_test" start time: Mar 01 03:44 +06
+"xobject_test" start time: Mar 01 05:16 +06
 Output:
 ----------------------------------------------------------
 
@@ -359,18 +359,18 @@ Output:
   Total: 92  |  Passed: 92  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"xobject_test" end time: Mar 01 03:44 +06
+"xobject_test" end time: Mar 01 05:16 +06
 "xobject_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-4/6 Testing: interpreter_test
-4/6 Test: interpreter_test
+4/7 Testing: interpreter_test
+4/7 Test: interpreter_test
 Command: "/home/DATA/CODE/code/Xell/build/interpreter_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"interpreter_test" start time: Mar 01 03:44 +06
+"interpreter_test" start time: Mar 01 05:16 +06
 Output:
 ----------------------------------------------------------
 
@@ -540,18 +540,18 @@ Output:
   Total: 130  |  Passed: 130  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.02 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"interpreter_test" end time: Mar 01 03:44 +06
+"interpreter_test" end time: Mar 01 05:16 +06
 "interpreter_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-5/6 Testing: os_test
-5/6 Test: os_test
+5/7 Testing: os_test
+5/7 Test: os_test
 Command: "/home/DATA/CODE/code/Xell/build/os_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"os_test" start time: Mar 01 03:44 +06
+"os_test" start time: Mar 01 05:16 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -638,15 +638,15 @@ Output:
 Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"os_test" end time: Mar 01 03:44 +06
+"os_test" end time: Mar 01 05:16 +06
 "os_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-6/6 Testing: bring_test
-6/6 Test: bring_test
+6/7 Testing: bring_test
+6/7 Test: bring_test
 Command: "/home/DATA/CODE/code/Xell/build/bring_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"bring_test" start time: Mar 01 03:44 +06
+"bring_test" start time: Mar 01 05:16 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -693,8 +693,78 @@ Output:
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"bring_test" end time: Mar 01 03:44 +06
+"bring_test" end time: Mar 01 05:16 +06
 "bring_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Mar 01 03:44 +06
+7/7 Testing: shell_test
+7/7 Test: shell_test
+Command: "/home/DATA/CODE/code/Xell/build/shell_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"shell_test" start time: Mar 01 05:16 +06
+Output:
+----------------------------------------------------------
+done
+recovered
+yes
+recovered
+done
+final
+hello
+done
+============================================
+  Shell Chaining Tests
+============================================
+  PASS: pipe: basic string concat
+  PASS: pipe: multi-stage chain
+  PASS: pipe: with variables
+  PASS: pipe: type error on non-strings
+  PASS: pipe: build and run_capture
+  PASS: &&: success runs right
+  PASS: &&: failure skips right
+  PASS: &&: with numbers (0=success)
+  PASS: &&: with non-zero (fail)
+  PASS: &&: short-circuit on failure
+  PASS: ||: success skips right
+  PASS: ||: failure runs right
+  PASS: ||: with numbers (0=success)
+  PASS: ||: with non-zero (fail)
+  PASS: ||: short-circuit on success
+  PASS: &&/||: and-then-or chain
+  PASS: &&/||: or-then-and chain
+  PASS: grouping: (a && b) || c
+  PASS: grouping: (a || b) && c
+  PASS: grouping: nested ((a && b) || c) && d
+  PASS: exit_code: after success
+  PASS: exit_code: after failure
+  PASS: set_e: stops on failure
+  PASS: set_e: allows success
+  PASS: unset_e: resumes normal
+  PASS: set_e: with run_capture
+  PASS: exit_code: updates on each run
+  PASS: pipe+run: build and execute pipeline
+  PASS: pipe+&&: pipeline then chain
+  PASS: shell && vs logical and
+  PASS: shell || vs logical or
+  PASS: &&: with run_capture map
+  PASS: ||: with run_capture map
+  PASS: precedence: | higher than &&
+  PASS: precedence: && higher than ||
+  PASS: precedence: logical and/or still work
+  PASS: lexer: | token
+  PASS: lexer: && token
+  PASS: lexer: || token
+  PASS: lexer: single & is error
+
+============================================
+  Total: 40  |  Passed: 40  |  Failed: 0
+============================================
+<end of output>
+Test time =   0.05 sec
+----------------------------------------------------------
+Test Passed.
+"shell_test" end time: Mar 01 05:16 +06
+"shell_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 01 05:16 +06

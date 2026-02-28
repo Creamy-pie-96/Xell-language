@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.o -o interpreter_test  libxell_lib.a 

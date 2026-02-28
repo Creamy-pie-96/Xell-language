@@ -19,11 +19,12 @@
 
 #include "builtin_registry.hpp"
 #include "../os/os.hpp"
+#include "../interpreter/shell_state.hpp"
 
 namespace xell
 {
 
-    inline void registerOSBuiltins(BuiltinTable &t)
+    inline void registerOSBuiltins(BuiltinTable &t, ShellState &shellState)
     {
         // =================================================================
         // Filesystem builtins
@@ -372,7 +373,7 @@ namespace xell
         // =================================================================
 
         // ---- run(command) — returns exit code --------------------------------
-        t["run"] = [](std::vector<XObject> &args, int line) -> XObject
+        t["run"] = [&shellState](std::vector<XObject> &args, int line) -> XObject
         {
             if (args.size() != 1)
                 throw ArityError("run", 1, (int)args.size(), line);
@@ -380,8 +381,16 @@ namespace xell
                 throw TypeError("run() expects a string command", line);
             try
             {
-                int code = os::run(args[0].asString());
+                std::string cmd = args[0].asString();
+                int code = os::run(cmd);
+                shellState.lastExitCode = code;
+                if (shellState.exitOnError && code != 0)
+                    throw CommandFailedError(cmd, code, line);
                 return XObject::makeNumber(static_cast<double>(code));
+            }
+            catch (const CommandFailedError &)
+            {
+                throw; // re-throw set_e failures
             }
             catch (const ProcessError &e)
             {
@@ -390,7 +399,7 @@ namespace xell
         };
 
         // ---- run_capture(command) — returns map {exit_code, stdout, stderr} --
-        t["run_capture"] = [](std::vector<XObject> &args, int line) -> XObject
+        t["run_capture"] = [&shellState](std::vector<XObject> &args, int line) -> XObject
         {
             if (args.size() != 1)
                 throw ArityError("run_capture", 1, (int)args.size(), line);
@@ -398,12 +407,20 @@ namespace xell
                 throw TypeError("run_capture() expects a string command", line);
             try
             {
-                auto result = os::run_capture(args[0].asString());
+                std::string cmd = args[0].asString();
+                auto result = os::run_capture(cmd);
+                shellState.lastExitCode = result.exitCode;
                 XMap m;
                 m.set("exit_code", XObject::makeNumber(static_cast<double>(result.exitCode)));
                 m.set("stdout", XObject::makeString(std::move(result.stdoutOutput)));
                 m.set("stderr", XObject::makeString(std::move(result.stderrOutput)));
+                if (shellState.exitOnError && result.exitCode != 0)
+                    throw CommandFailedError(cmd, result.exitCode, line);
                 return XObject::makeMap(std::move(m));
+            }
+            catch (const CommandFailedError &)
+            {
+                throw;
             }
             catch (const ProcessError &e)
             {
@@ -417,6 +434,36 @@ namespace xell
             if (!args.empty())
                 throw ArityError("pid", 0, (int)args.size(), line);
             return XObject::makeNumber(static_cast<double>(os::get_pid()));
+        };
+
+        // =================================================================
+        // Shell control builtins
+        // =================================================================
+
+        // ---- set_e() — enable exit-on-error mode (like bash set -e) --------
+        t["set_e"] = [&shellState](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (!args.empty())
+                throw ArityError("set_e", 0, (int)args.size(), line);
+            shellState.exitOnError = true;
+            return XObject::makeNone();
+        };
+
+        // ---- unset_e() — disable exit-on-error mode -------------------------
+        t["unset_e"] = [&shellState](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (!args.empty())
+                throw ArityError("unset_e", 0, (int)args.size(), line);
+            shellState.exitOnError = false;
+            return XObject::makeNone();
+        };
+
+        // ---- exit_code() — returns the last command's exit code -------------
+        t["exit_code"] = [&shellState](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (!args.empty())
+                throw ArityError("exit_code", 0, (int)args.size(), line);
+            return XObject::makeNumber(static_cast<double>(shellState.lastExitCode));
         };
     }
 

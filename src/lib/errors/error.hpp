@@ -247,4 +247,17 @@ namespace xell
                         "'" + feature + "' is not yet implemented", line) {}
     };
 
+    // ---- 3n. Command failure (set_e mode) -----------------------------------
+
+    /// Raised when a command exits non-zero and set_e() is active.
+    class CommandFailedError : public XellError
+    {
+    public:
+        CommandFailedError(const std::string &command, int exitCode, int line)
+            : XellError("CommandFailed",
+                        "command exited with code " + std::to_string(exitCode) +
+                            (command.empty() ? "" : ": " + command),
+                        line) {}
+    };
+
 } // namespace xell

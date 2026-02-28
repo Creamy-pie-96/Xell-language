@@ -90,7 +90,7 @@ namespace xell
     void Interpreter::registerBuiltins()
     {
         builtins_.clear();
-        registerAllBuiltins(builtins_, output_);
+        registerAllBuiltins(builtins_, output_, shellState_);
     }
 
     // ========================================================================
@@ -425,6 +425,68 @@ namespace xell
     XObject Interpreter::evalBinary(const BinaryExpr *node)
     {
         const std::string &op = node->op;
+
+        // ================================================================
+        // Shell pipe operator: "cmd1" | "cmd2"  →  "cmd1 | cmd2"
+        // Builds a pipeline string by concatenating with " | "
+        // ================================================================
+        if (op == "|")
+        {
+            XObject left = eval(node->left.get());
+            XObject right = eval(node->right.get());
+            if (!left.isString() || !right.isString())
+                throw TypeError("pipe operator '|' requires string operands (command strings), got " +
+                                    std::string(xtype_name(left.type())) + " and " +
+                                    std::string(xtype_name(right.type())),
+                                node->line);
+            return XObject::makeString(left.asString() + " | " + right.asString());
+        }
+
+        // ================================================================
+        // Shell AND: expr1 && expr2
+        //   - If left is a number: 0 = success → eval right; non-0 = fail → return left
+        //   - If left is a map with "exit_code": use that exit code
+        //   - Otherwise: truthy → eval right; falsy → return left
+        // ================================================================
+        if (op == "&&")
+        {
+            XObject left = eval(node->left.get());
+
+            bool isSuccess = false;
+            if (left.isNumber())
+                isSuccess = (left.asNumber() == 0.0);
+            else if (left.isMap() && left.asMap().get("exit_code"))
+                isSuccess = (left.asMap().get("exit_code")->asNumber() == 0.0);
+            else
+                isSuccess = left.truthy();
+
+            if (isSuccess)
+                return eval(node->right.get());
+            return left;
+        }
+
+        // ================================================================
+        // Shell OR: expr1 || expr2
+        //   - If left is a number: 0 = success → return left; non-0 = fail → eval right
+        //   - If left is a map with "exit_code": use that exit code
+        //   - Otherwise: truthy → return left; falsy → eval right
+        // ================================================================
+        if (op == "||")
+        {
+            XObject left = eval(node->left.get());
+
+            bool isSuccess = false;
+            if (left.isNumber())
+                isSuccess = (left.asNumber() == 0.0);
+            else if (left.isMap() && left.asMap().get("exit_code"))
+                isSuccess = (left.asMap().get("exit_code")->asNumber() == 0.0);
+            else
+                isSuccess = left.truthy();
+
+            if (!isSuccess)
+                return eval(node->right.get());
+            return left;
+        }
 
         // Short-circuit logical operators
         if (op == "and")

@@ -1,7 +1,6 @@
 # =============================================================================
 # File Organizer — written in Xell
 # =============================================================================
-# A port of the Bash "Reiko File Organizer" to Xell.
 #
 # Features:
 #   - Categorizes files by extension (Images, Docs, Archives, Audio, etc.)
@@ -29,15 +28,15 @@ categories = {
     "System":   ["exe", "bin", "dll", "deb", "rpm", "bak", "tmp", "env", "conf", "ini"],
     "Design":   ["psd", "ai", "sketch", "xd", "fig", "prproj", "aep"]
 }
-;
 
-# Build a reverse lookup: extension → category name
+# Build a reverse lookup: ".ext" → category name (with dot prefix)
 ext_to_category = {}
 category_names = keys(categories)
 for cat_name in category_names:
-    ext_list = categories->cat_name
+    ext_list = categories[cat_name]
     for e in ext_list:
-        set(ext_to_category, e, cat_name)
+        # Store with dot prefix so we can match ext() output directly
+        set(ext_to_category, ".{e}", cat_name)
     ;
 ;
 
@@ -65,38 +64,15 @@ fn save_log(log_path):
     write(log_path, content)
 ;
 
-fn get_ext_lower(filename):
-    --> Get the extension without the dot, lowercased <--
-    raw_ext = ext(filename)
-    # ext() returns ".txt" — strip the leading dot
-    if len(raw_ext) > 1:
-        give raw_ext
-    ;
-    give ""
-;
-
 fn classify_file(filename):
     --> Given a filename, return its category name or "Others" <--
-    file_ext = get_ext_lower(filename)
+    file_ext = ext(filename)
     if file_ext eq "":
         give "Others"
     ;
-    # Strip leading dot if present
-    if len(file_ext) > 0:
-        # ext() returns ".png" — we need "png"
-        # Check first char
-        first_char = file_ext
-        # Use run_capture to strip dot (Xell doesn't have string slicing yet)
-        result = run_capture("echo '{file_ext}' | sed 's/^\\.//'" )
-        clean_ext = result->"stdout"
-        # Trim trailing newline
-        result2 = run_capture("echo -n '{clean_ext}' | tr -d '\\n'")
-        clean_ext = result2->"stdout"
-    ;
-
-    # Look up in our reverse map
-    if has(ext_to_category, clean_ext):
-        give ext_to_category->clean_ext
+    # ext() returns ".png" — look it up directly in our map
+    if has(ext_to_category, file_ext):
+        give ext_to_category[file_ext]
     ;
     give "Others"
 ;
@@ -111,7 +87,7 @@ fn create_test_files(base_dir):
 
     # Create 3 samples for the first 3 extensions of each category
     for cat_name in category_names:
-        ext_list = categories->cat_name
+        ext_list = categories[cat_name]
         count = 0
         for e in ext_list:
             if count >= 3:
@@ -182,7 +158,7 @@ fn sort_directory(target_dir):
 
         # Track per-category counts
         if has(category_counts, category):
-            old_count = category_counts->category
+            old_count = category_counts[category]
             set(category_counts, category, old_count + 1)
         ;
         if not has(category_counts, category):
@@ -196,7 +172,7 @@ fn sort_directory(target_dir):
     log("Summary:")
     cat_keys = keys(category_counts)
     for ck in cat_keys:
-        cnt = category_counts->ck
+        cnt = category_counts[ck]
         log("  {ck}: {cnt} file(s)")
     ;
     log_plain("")

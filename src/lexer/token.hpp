@@ -89,6 +89,11 @@ namespace xell
         COLON,     // :
         SEMICOLON, // ;
 
+        // Shell operators
+        PIPE,      // |
+        AMP_AMP,   // &&
+        PIPE_PIPE, // ||
+
         // Special
         IDENTIFIER,
         NEWLINE,
@@ -153,6 +158,9 @@ namespace xell
             {(int)TokenType::COMMA, "COMMA"},
             {(int)TokenType::COLON, "COLON"},
             {(int)TokenType::SEMICOLON, "SEMICOLON"},
+            {(int)TokenType::PIPE, "PIPE"},
+            {(int)TokenType::AMP_AMP, "AMP_AMP"},
+            {(int)TokenType::PIPE_PIPE, "PIPE_PIPE"},
             {(int)TokenType::IDENTIFIER, "IDENTIFIER"},
             {(int)TokenType::NEWLINE, "NEWLINE"},
             {(int)TokenType::EOF_TOKEN, "EOF"},

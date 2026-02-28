@@ -1,0 +1,16 @@
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/xell_lib.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/xell.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/parser_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/error_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/xobject_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/interpreter_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/os_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/bring_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/shell_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/edit_cache.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/rebuild_cache.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/list_install_components.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/install.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/install/local.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/install/strip.dir

@@ -55,3 +55,7 @@ add_test(NAME os_test COMMAND os_test)
 add_executable(bring_test test/bring_test.cpp)
 target_link_libraries(bring_test xell_lib)
 add_test(NAME bring_test COMMAND bring_test)
+
+add_executable(shell_test test/shell_test.cpp)
+target_link_libraries(shell_test xell_lib)
+add_test(NAME shell_test COMMAND shell_test)

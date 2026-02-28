@@ -275,6 +275,19 @@ bring_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bring_test.dir/build.make CMakeFiles/bring_test.dir/build
 .PHONY : bring_test/fast
 
+#=============================================================================
+# Target rules for targets named shell_test
+
+# Build rule for target.
+shell_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 shell_test
+.PHONY : shell_test
+
+# fast build rule for target.
+shell_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/shell_test.dir/build.make CMakeFiles/shell_test.dir/build
+.PHONY : shell_test/fast
+
 src/interpreter/interpreter.o: src/interpreter/interpreter.cpp.o
 .PHONY : src/interpreter/interpreter.o
 
@@ -587,6 +600,30 @@ test/parser_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/parser_test.dir/build.make CMakeFiles/parser_test.dir/test/parser_test.cpp.s
 .PHONY : test/parser_test.cpp.s
 
+test/shell_test.o: test/shell_test.cpp.o
+.PHONY : test/shell_test.o
+
+# target to build an object file
+test/shell_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/shell_test.dir/build.make CMakeFiles/shell_test.dir/test/shell_test.cpp.o
+.PHONY : test/shell_test.cpp.o
+
+test/shell_test.i: test/shell_test.cpp.i
+.PHONY : test/shell_test.i
+
+# target to preprocess a source file
+test/shell_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/shell_test.dir/build.make CMakeFiles/shell_test.dir/test/shell_test.cpp.i
+.PHONY : test/shell_test.cpp.i
+
+test/shell_test.s: test/shell_test.cpp.s
+.PHONY : test/shell_test.s
+
+# target to generate assembly for a file
+test/shell_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/shell_test.dir/build.make CMakeFiles/shell_test.dir/test/shell_test.cpp.s
+.PHONY : test/shell_test.cpp.s
+
 test/xobject_test.o: test/xobject_test.cpp.o
 .PHONY : test/xobject_test.o
 
@@ -629,6 +666,7 @@ help:
 	@echo "... interpreter_test"
 	@echo "... os_test"
 	@echo "... parser_test"
+	@echo "... shell_test"
 	@echo "... xell"
 	@echo "... xell_lib"
 	@echo "... xobject_test"
@@ -671,6 +709,9 @@ help:
 	@echo "... test/parser_test.o"
 	@echo "... test/parser_test.i"
 	@echo "... test/parser_test.s"
+	@echo "... test/shell_test.o"
+	@echo "... test/shell_test.i"
+	@echo "... test/shell_test.s"
 	@echo "... test/xobject_test.o"
 	@echo "... test/xobject_test.i"
 	@echo "... test/xobject_test.s"

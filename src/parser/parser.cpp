@@ -496,7 +496,52 @@ namespace xell
 
     ExprPtr Parser::parseExpression()
     {
-        return parseLogicalOr();
+        return parseShellOr();
+    }
+
+    // ---- Shell OR: expr || expr  (lowest new level) ----
+
+    ExprPtr Parser::parseShellOr()
+    {
+        auto left = parseShellAnd();
+        while (check(TokenType::PIPE_PIPE))
+        {
+            int ln = current().line;
+            advance();
+            auto right = parseShellAnd();
+            left = std::make_unique<BinaryExpr>(std::move(left), "||", std::move(right), ln);
+        }
+        return left;
+    }
+
+    // ---- Shell AND: expr && expr ----
+
+    ExprPtr Parser::parseShellAnd()
+    {
+        auto left = parsePipe();
+        while (check(TokenType::AMP_AMP))
+        {
+            int ln = current().line;
+            advance();
+            auto right = parsePipe();
+            left = std::make_unique<BinaryExpr>(std::move(left), "&&", std::move(right), ln);
+        }
+        return left;
+    }
+
+    // ---- Pipe: expr | expr  (highest new level) ----
+
+    ExprPtr Parser::parsePipe()
+    {
+        auto left = parseLogicalOr();
+        while (check(TokenType::PIPE))
+        {
+            int ln = current().line;
+            advance();
+            auto right = parseLogicalOr();
+            left = std::make_unique<BinaryExpr>(std::move(left), "|", std::move(right), ln);
+        }
+        return left;
     }
 
     ExprPtr Parser::parseLogicalOr()

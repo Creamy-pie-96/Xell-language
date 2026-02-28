@@ -185,7 +185,8 @@ export function activate(context: vscode.ExtensionContext) {
         const clientOptions: LanguageClientOptions = {
             documentSelector: [
                 { scheme: 'file', language: 'xell' },
-                { scheme: 'untitled', language: 'xell' }
+                { scheme: 'untitled', language: 'xell' },
+                { scheme: 'vscode-notebook-cell', language: 'xell' }
             ],
             synchronize: {
                 configurationSection: 'xell',

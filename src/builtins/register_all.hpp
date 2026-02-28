@@ -20,22 +20,26 @@
 #include "builtins_collection.hpp"
 #include "builtins_util.hpp"
 #include "builtins_os.hpp"
+#include "../interpreter/shell_state.hpp"
 
 namespace xell
 {
 
     /// Registers every built-in function into the given table.
-    /// @param t      The interpreter's builtin table.
-    /// @param output Reference to the interpreter's captured output vector
-    ///               (needed by IO builtins like print).
-    inline void registerAllBuiltins(BuiltinTable &t, std::vector<std::string> &output)
+    /// @param t          The interpreter's builtin table.
+    /// @param output     Reference to the interpreter's captured output vector
+    ///                   (needed by IO builtins like print).
+    /// @param shellState Reference to the interpreter's shell state
+    ///                   (needed by OS builtins for set_e / exit_code).
+    inline void registerAllBuiltins(BuiltinTable &t, std::vector<std::string> &output,
+                                    ShellState &shellState)
     {
         registerIOBuiltins(t, output);
         registerMathBuiltins(t);
         registerTypeBuiltins(t);
         registerCollectionBuiltins(t);
         registerUtilBuiltins(t);
-        registerOSBuiltins(t);
+        registerOSBuiltins(t, shellState);
     }
 
 } // namespace xell

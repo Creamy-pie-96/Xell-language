@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/parser_test.dir/test/parser_test.cpp.o -o parser_test  libxell_lib.a 

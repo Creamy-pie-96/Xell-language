@@ -17,6 +17,7 @@
 
 #include "environment.hpp"
 #include "xobject.hpp"
+#include "shell_state.hpp"
 #include "../builtins/builtin_registry.hpp"
 #include "../parser/ast.hpp"
 #include "../lib/errors/error.hpp"
@@ -72,7 +73,11 @@ namespace xell
         /// Access to global environment (testing / REPL)
         Environment &globals() { return globalEnv_; }
 
+        /// Access to shell state (for builtins)
+        ShellState &shellState() { return shellState_; }
+
     private:
+        ShellState shellState_;
         Environment globalEnv_;
         Environment *currentEnv_;
         std::vector<std::string> output_;

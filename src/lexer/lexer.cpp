@@ -529,6 +529,39 @@ namespace xell
                 continue;
             }
 
+            // | and ||
+            if (c == '|')
+            {
+                if (peek(1) == '|')
+                {
+                    tokens.emplace_back(TokenType::PIPE_PIPE, "||", tokenLine);
+                    advance();
+                    advance();
+                }
+                else
+                {
+                    tokens.emplace_back(TokenType::PIPE, "|", tokenLine);
+                    advance();
+                }
+                continue;
+            }
+
+            // &&
+            if (c == '&')
+            {
+                if (peek(1) == '&')
+                {
+                    tokens.emplace_back(TokenType::AMP_AMP, "&&", tokenLine);
+                    advance();
+                    advance();
+                }
+                else
+                {
+                    throw LexerError("Unexpected character '&' (did you mean '&&'?)", tokenLine);
+                }
+                continue;
+            }
+
             // Unknown character
             throw LexerError("Unexpected character '" + std::string(1, c) + "'", tokenLine);
         }
