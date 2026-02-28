@@ -1,0 +1,487 @@
+[
+  {
+    "title": "Comments",
+    "tokens": [
+      {
+        "id": "block_arrow",
+        "scope": "comment.block.arrow.scriptit",
+        "color": "#98c379",
+        "bold": false,
+        "italic": false,
+        "label": "--> block comment <--",
+        "example": "--> ... <--"
+      },
+      {
+        "id": "line_number-sign",
+        "scope": "comment.line.number-sign.scriptit",
+        "color": "#5c6370",
+        "bold": false,
+        "italic": true,
+        "label": "# line comment",
+        "example": "# note"
+      },
+      {
+        "id": "comment_begin",
+        "scope": "punctuation.definition.comment.begin.scriptit",
+        "color": "#98c379",
+        "bold": false,
+        "italic": false,
+        "label": "Comment start (-->)",
+        "example": "-->"
+      },
+      {
+        "id": "comment_end",
+        "scope": "punctuation.definition.comment.end.scriptit",
+        "color": "#98c379",
+        "bold": false,
+        "italic": false,
+        "label": "Comment end (<--)",
+        "example": "<--"
+      }
+    ]
+  },
+  {
+    "title": "Literals & Constants",
+    "tokens": [
+      {
+        "id": "character_escape",
+        "scope": "constant.character.escape.scriptit",
+        "color": "#d19a66",
+        "bold": false,
+        "italic": false,
+        "label": "Escape chars (\\n, \\t)",
+        "example": "\\n"
+      },
+      {
+        "id": "boolean_false",
+        "scope": "constant.language.boolean.false.scriptit",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "False",
+        "example": "False"
+      },
+      {
+        "id": "boolean_true",
+        "scope": "constant.language.boolean.true.scriptit",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "True",
+        "example": "True"
+      },
+      {
+        "id": "language_none",
+        "scope": "constant.language.none.scriptit",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "None",
+        "example": "None"
+      },
+      {
+        "id": "numeric_float",
+        "scope": "constant.numeric.float.scriptit",
+        "color": "#d19a66",
+        "bold": false,
+        "italic": false,
+        "label": "Float numbers",
+        "example": "3.14"
+      },
+      {
+        "id": "numeric_integer",
+        "scope": "constant.numeric.integer.scriptit",
+        "color": "#d19a66",
+        "bold": false,
+        "italic": false,
+        "label": "Integer numbers",
+        "example": "42"
+      },
+      {
+        "id": "quoted_double",
+        "scope": "string.quoted.double.scriptit",
+        "color": "#98c379",
+        "bold": false,
+        "italic": false,
+        "label": "Strings (double quote)",
+        "example": "\"hello\""
+      },
+      {
+        "id": "quoted_single",
+        "scope": "string.quoted.single.scriptit",
+        "color": "#98c379",
+        "bold": false,
+        "italic": false,
+        "label": "Strings (single quote)",
+        "example": "'hi'"
+      }
+    ]
+  },
+  {
+    "title": "Functions & Methods",
+    "tokens": [
+      {
+        "id": "function_call",
+        "scope": "entity.name.function.call.scriptit",
+        "color": "#00ffff",
+        "bold": false,
+        "italic": false,
+        "label": "Function call",
+        "example": "add"
+      },
+      {
+        "id": "function_definition",
+        "scope": "entity.name.function.definition.scriptit",
+        "color": "#00ffff",
+        "bold": false,
+        "italic": false,
+        "label": "Function definition name",
+        "example": "myFunc"
+      },
+      {
+        "id": "function_forward",
+        "scope": "entity.name.function.forward.scriptit",
+        "color": "#00ffff",
+        "bold": false,
+        "italic": false,
+        "label": "Forward declaration",
+        "example": "myFunc"
+      },
+      {
+        "id": "function_method",
+        "scope": "entity.name.function.method.scriptit",
+        "color": "#00ffff",
+        "bold": false,
+        "italic": false,
+        "label": "Method call (.push, .pop)",
+        "example": ".push"
+      },
+      {
+        "id": "function_builtin",
+        "scope": "support.function.builtin.scriptit",
+        "color": "#00ffff",
+        "bold": false,
+        "italic": false,
+        "label": "Builtin (print, len, input)",
+        "example": "print"
+      },
+      {
+        "id": "function_math",
+        "scope": "support.function.math.scriptit",
+        "color": "#00ffff",
+        "bold": false,
+        "italic": false,
+        "label": "Math (sin, cos, sqrt)",
+        "example": "sqrt"
+      },
+      {
+        "id": "type_conversion",
+        "scope": "support.type.conversion.scriptit",
+        "color": "#008080",
+        "bold": false,
+        "italic": false,
+        "label": "Type conversion (int, str, graph)",
+        "example": "int()"
+      }
+    ]
+  },
+  {
+    "title": "Keywords",
+    "tokens": [
+      {
+        "id": "control_context",
+        "scope": "keyword.control.context.scriptit",
+        "color": "#e06c75",
+        "bold": true,
+        "italic": false,
+        "label": "with, as",
+        "example": "with"
+      },
+      {
+        "id": "control_flow",
+        "scope": "keyword.control.flow.scriptit",
+        "color": "#e06c75",
+        "bold": true,
+        "italic": false,
+        "label": "Control (if, else, for, while, break)",
+        "example": "if"
+      },
+      {
+        "id": "control_loop",
+        "scope": "keyword.control.loop.scriptit",
+        "color": "#e06c75",
+        "bold": true,
+        "italic": false,
+        "label": "Loop (in, range, from, to, step)",
+        "example": "for"
+      },
+      {
+        "id": "control_return",
+        "scope": "keyword.control.return.scriptit",
+        "color": "#e5c07b",
+        "bold": true,
+        "italic": false,
+        "label": "give (return)",
+        "example": "give"
+      },
+      {
+        "id": "declaration_function",
+        "scope": "keyword.declaration.function.scriptit",
+        "color": "#e5c07b",
+        "bold": true,
+        "italic": false,
+        "label": "fn keyword",
+        "example": "fn"
+      },
+      {
+        "id": "other_special",
+        "scope": "keyword.other.special.scriptit",
+        "color": "#e5c07b",
+        "bold": true,
+        "italic": false,
+        "label": "let, be, new, are, of",
+        "example": "let"
+      },
+      {
+        "id": "modifier_reference",
+        "scope": "storage.modifier.reference.scriptit",
+        "color": "#e5c07b",
+        "bold": true,
+        "italic": false,
+        "label": "@ reference",
+        "example": "@"
+      },
+      {
+        "id": "type_var",
+        "scope": "storage.type.var.scriptit",
+        "color": "#FFFFFF",
+        "bold": true,
+        "italic": false,
+        "label": "var keyword",
+        "example": "var"
+      }
+    ]
+  },
+  {
+    "title": "Operators",
+    "tokens": [
+      {
+        "id": "operator_arithmetic",
+        "scope": "keyword.operator.arithmetic.scriptit",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "Arithmetic (+, -, *, /)",
+        "example": "+"
+      },
+      {
+        "id": "assignment_compound",
+        "scope": "keyword.operator.assignment.compound.scriptit",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "Compound (+=, -=, *=)",
+        "example": "+="
+      },
+      {
+        "id": "operator_assignment",
+        "scope": "keyword.operator.assignment.scriptit",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "Assignment (=)",
+        "example": "="
+      },
+      {
+        "id": "operator_comparison",
+        "scope": "keyword.operator.comparison.scriptit",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "Comparison (==, !=, <, >)",
+        "example": "=="
+      },
+      {
+        "id": "operator_edge",
+        "scope": "keyword.operator.edge.scriptit",
+        "color": "#61afef",
+        "bold": true,
+        "italic": false,
+        "label": "Edge / Arrow (->, <->, ---)",
+        "example": "->"
+      },
+      {
+        "id": "operator_increment",
+        "scope": "keyword.operator.increment.scriptit",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "Increment (++, --)",
+        "example": "++"
+      },
+      {
+        "id": "operator_logical",
+        "scope": "keyword.operator.logical.scriptit",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "Logical (and, or, not)",
+        "example": "and"
+      },
+      {
+        "id": "logical_symbol",
+        "scope": "keyword.operator.logical.symbol.scriptit",
+        "color": "#c678dd",
+        "bold": false,
+        "italic": false,
+        "label": "Logical symbols (&&, ||)",
+        "example": "&&"
+      }
+    ]
+  },
+  {
+    "title": "Punctuation",
+    "tokens": [
+      {
+        "id": "bracket_curly",
+        "scope": "punctuation.bracket.curly.scriptit",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Curly braces { }",
+        "example": "{}"
+      },
+      {
+        "id": "bracket_round",
+        "scope": "punctuation.bracket.round.scriptit",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Parentheses ( )",
+        "example": "()"
+      },
+      {
+        "id": "bracket_square",
+        "scope": "punctuation.bracket.square.scriptit",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Square brackets [ ]",
+        "example": "[]"
+      },
+      {
+        "id": "definition_function",
+        "scope": "punctuation.definition.function.scriptit",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Function def punctuation",
+        "example": ":"
+      },
+      {
+        "id": "separator_colon",
+        "scope": "punctuation.separator.colon.scriptit",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Colon",
+        "example": ":"
+      },
+      {
+        "id": "separator_comma",
+        "scope": "punctuation.separator.comma.scriptit",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Comma",
+        "example": ","
+      },
+      {
+        "id": "separator_parameter",
+        "scope": "punctuation.separator.parameter.scriptit",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Parameter comma",
+        "example": ","
+      },
+      {
+        "id": "terminator_block",
+        "scope": "punctuation.terminator.block.scriptit",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Semicolon (block end)",
+        "example": ";"
+      },
+      {
+        "id": "terminator_statement",
+        "scope": "punctuation.terminator.statement.scriptit",
+        "color": "#abb2bf",
+        "bold": false,
+        "italic": false,
+        "label": "Dot (statement end)",
+        "example": "."
+      }
+    ]
+  },
+  {
+    "title": "Variables & Parameters",
+    "tokens": [
+      {
+        "id": "other_declaration",
+        "scope": "variable.other.declaration.scriptit",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Declaration (after var)",
+        "example": "x"
+      },
+      {
+        "id": "other_loop",
+        "scope": "variable.other.loop.scriptit",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Loop variable",
+        "example": "i"
+      },
+      {
+        "id": "other_reference",
+        "scope": "variable.other.reference.scriptit",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Reference variable",
+        "example": "@x"
+      },
+      {
+        "id": "variable_other",
+        "scope": "variable.other.scriptit",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Variables",
+        "example": "name"
+      },
+      {
+        "id": "parameter_reference",
+        "scope": "variable.parameter.reference.scriptit",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Reference parameters",
+        "example": "@x"
+      },
+      {
+        "id": "variable_parameter",
+        "scope": "variable.parameter.scriptit",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Function parameters",
+        "example": "a, b"
+      }
+    ]
+  }
+]

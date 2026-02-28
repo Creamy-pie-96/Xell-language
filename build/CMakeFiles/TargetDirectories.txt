@@ -4,6 +4,7 @@
 /home/DATA/CODE/code/Xell/build/CMakeFiles/error_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/xobject_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/interpreter_test.dir
+/home/DATA/CODE/code/Xell/build/CMakeFiles/os_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/edit_cache.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/rebuild_cache.dir

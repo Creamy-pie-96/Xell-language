@@ -19,6 +19,7 @@
 #include "builtins_type.hpp"
 #include "builtins_collection.hpp"
 #include "builtins_util.hpp"
+#include "builtins_os.hpp"
 
 namespace xell
 {
@@ -34,6 +35,7 @@ namespace xell
         registerTypeBuiltins(t);
         registerCollectionBuiltins(t);
         registerUtilBuiltins(t);
+        registerOSBuiltins(t);
     }
 
 } // namespace xell

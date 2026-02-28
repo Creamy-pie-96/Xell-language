@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScriptIt — Color Customizer</title>
+<style>
+:root {
+    --bg: #1e1e2e;
+    --bg2: #282840;
+    --bg3: #313150;
+    --text: #cdd6f4;
+    --text-dim: #6c7086;
+    --border: #45475a;
+    --accent: #89b4fa;
+    --accent2: #f5c2e7;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Segoe UI', 'SF Pro', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+}
+
+.header {
+    text-align: center;
+    padding: 32px 20px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.header h1 {
+    font-size: 28px;
+    background: linear-gradient(135deg, #89b4fa, #f5c2e7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+}
+
+.header p {
+    color: var(--text-dim);
+    font-size: 14px;
+}
+
+.main {
+    display: flex;
+    gap: 0;
+    max-width: 1400px;
+    margin: 0 auto;
+    min-height: calc(100vh - 120px);
+}
+
+/* ── Left Panel: Color Controls ─────────────── */
+.controls {
+    width: 420px;
+    min-width: 380px;
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 120px);
+    border-right: 1px solid var(--border);
+}
+
+.section-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    margin: 24px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.section-title:first-child { margin-top: 0; }
+
+.color-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: background 0.15s;
+    margin-bottom: 2px;
+}
+
+.color-row:hover {
+    background: var(--bg2);
+}
+
+.color-row label {
+    flex: 1;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.color-row .example {
+    font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 13px;
+    min-width: 80px;
+    text-align: right;
+}
+
+.color-row input[type="color"] {
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    padding: 0;
+}
+
+.color-row input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 2px;
+}
+
+.color-row input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: 4px;
+}
+
+.color-row .bold-toggle {
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.15s;
+}
+
+.color-row .bold-toggle.active {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+}
+
+.color-row .italic-toggle {
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-style: italic;
+    transition: all 0.15s;
+}
+
+.color-row .italic-toggle.active {
+    background: var(--accent2);
+    color: var(--bg);
+    border-color: var(--accent2);
+}
+
+/* ── Right Panel: Preview ─────────────── */
+.preview-panel {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.preview-header h2 {
+    font-size: 16px;
+    color: var(--text);
+}
+
+.btn-group {
+    display: flex;
+    gap: 8px;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+}
+
+.btn:hover {
+    background: var(--bg3);
+    border-color: var(--accent);
+}
+
+.btn.primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+.btn.primary:hover {
+    filter: brightness(1.1);
+}
+
+.btn.save-install {
+    background: #45a049;
+    color: white;
+    border-color: #45a049;
+    font-weight: 600;
+}
+
+.btn.save-install:hover {
+    filter: brightness(1.15);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Build log panel */
+.build-log {
+    display: none;
+    background: #0d0d0d;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    margin: 10px 0;
+    padding: 0;
+    max-height: 300px;
+    overflow: hidden;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+}
+.build-log.visible { display: block; }
+.build-log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+}
+.build-log-header button {
+    background: none;
+    border: none;
+    color: var(--fg2);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+}
+.build-log-header button:hover { color: var(--fg); }
+.build-log-body {
+    padding: 8px 12px;
+    max-height: 250px;
+    overflow-y: auto;
+    line-height: 1.6;
+    color: #b0b0b0;
+}
+.build-log-body .log-line { white-space: pre-wrap; word-break: break-all; }
+.build-log-body .log-line.success { color: #45a049; }
+.build-log-body .log-line.error { color: #e06c75; }
+.build-log-body .log-line.info { color: var(--accent); }
+.build-log-spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid var(--accent);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.code-preview {
+    flex: 1;
+    background: #1e1e1e;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 15px;
+    line-height: 1.7;
+    overflow: auto;
+    white-space: pre;
+    tab-size: 4;
+}
+
+.code-preview .line {
+    display: block;
+}
+
+.output-area {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    min-height: 160px;
+    max-height: 240px;
+    overflow: auto;
+}
+
+.output-area h3 {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.output-area pre {
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+    color: #98c379;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* ── Toast ─────────────── */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #45a049;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 999;
+}
+
+.toast.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* ── Scrollbar ─────────────── */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ── Responsive ─────────────── */
+@media (max-width: 900px) {
+    .main {
+        flex-direction: column;
+    }
+    .controls {
+        width: 100%;
+        max-height: 50vh;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🎨 ScriptIt Color Customizer</h1>
+    <p>Pick your colors, see them live, then copy the settings into VS Code</p>
+</div>
+
+<div class="main">
+    <!-- Left: Color Controls -->
+    <div class="controls" id="controls"></div>
+
+    <!-- Right: Preview -->
+    <div class="preview-panel">
+        <div class="preview-header">
+            <h2>Live Preview</h2>
+            <div id="modeBanner" style="font-size:12px; color: var(--text-dim); margin-bottom: 4px;"></div>
+            <div id="installPathRow" style="display:none; margin-bottom:8px; flex-direction:column; gap:6px;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <label style="font-size:12px; color: var(--text-dim); white-space:nowrap;">install.py path:</label>
+                    <input id="installPyPath" type="text" placeholder="/path/to/install.py"
+                        style="flex:1; background:var(--bg2); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 8px; font-size:12px; font-family:monospace;">
+                    <button class="btn" onclick="openFileBrowser()" style="font-size:11px; padding:4px 10px;">📂 Browse</button>
+                    <button class="btn" onclick="applyInstallPy()" style="font-size:11px; padding:4px 10px; background:#45a049; color:white; border-color:#45a049;">✓ Apply</button>
+                </div>
+                <div id="fileBrowserPanel" style="display:none; background:var(--bg2); border:1px solid var(--border); border-radius:6px; max-height:250px; overflow-y:auto; padding:4px;">
+                    <div id="fileBrowserPath" style="font-size:11px; color:var(--accent); padding:4px 8px; border-bottom:1px solid var(--border); font-family:monospace;"></div>
+                    <div id="fileBrowserList"></div>
+                </div>
+            </div>
+            <div class="btn-group">
+                <button class="btn" onclick="resetDefaults()">Reset Defaults</button>
+                <button class="btn" onclick="copyExtensionTS()">Copy extension.ts</button>
+                <button class="btn primary" onclick="copySettings()">📋 Copy VS Code Settings</button>
+                <button class="btn save-install" id="saveBtn" onclick="saveAndInstall()">🚀 Save &amp; Install</button>
+                <button class="btn" id="toggleModeBtn" onclick="toggleInstallPath()" style="font-size:11px; padding:6px 10px;" title="Provide install.py path to enable dev mode save">⚙</button>
+            </div>
+
+            <!-- Build Log Panel -->
+            <div class="build-log" id="buildLog">
+                <div class="build-log-header">
+                    <span><span class="build-log-spinner" id="buildSpinner"></span><span id="buildLogTitle">Build Output</span></span>
+                    <button onclick="closeBuildLog()" title="Close">✕</button>
+                </div>
+                <div class="build-log-body" id="buildLogBody"></div>
+            </div>
+        </div>
+
+        <div class="code-preview" id="codePreview"></div>
+
+        <div class="output-area">
+            <h3>Generated Settings JSON</h3>
+            <pre id="outputJson"></pre>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast">Copied to clipboard!</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// Token definitions — DYNAMICALLY LOADED from token_data.json
+// Generated by: python3 scripts/gen_grammar.py
+// Source of truth: scriptit_types.hpp + scriptit_builtins.hpp
+// ══════════════════════════════════════════════════════════
+
+// Will be populated from token_data.json (or fallback to inline defaults)
+let TOKEN_GROUPS = [];
+
+// Current state (populated in init() after loading token_data.json)
+const state = {};
+
+// ══════════════════════════════════════════════════════════
+// Build UI
+// ══════════════════════════════════════════════════════════
+
+function buildControls() {
+    const container = document.getElementById('controls');
+    container.innerHTML = '';
+
+    TOKEN_GROUPS.forEach(group => {
+        const title = document.createElement('div');
+        title.className = 'section-title';
+        title.textContent = group.title;
+        container.appendChild(title);
+
+        group.tokens.forEach(token => {
+            const row = document.createElement('div');
+            row.className = 'color-row';
+
+            const s = state[token.id];
+
+            // Color picker
+            const input = document.createElement('input');
+            input.type = 'color';
+            input.value = s.color;
+            input.addEventListener('input', e => {
+                state[token.id].color = e.target.value;
+                updatePreview();
+                updateOutput();
+                updateExample(token.id);
+            });
+
+            // Label
+            const label = document.createElement('label');
+            label.textContent = token.label;
+            label.addEventListener('click', () => input.click());
+
+            // Example text
+            const example = document.createElement('span');
+            example.className = 'example';
+            example.id = `example-${token.id}`;
+            example.textContent = token.example;
+            example.style.color = s.color;
+            example.style.fontWeight = s.bold ? 'bold' : 'normal';
+            example.style.fontStyle = s.italic ? 'italic' : 'normal';
+
+            // Bold toggle
+            const boldBtn = document.createElement('button');
+            boldBtn.className = 'bold-toggle' + (s.bold ? ' active' : '');
+            boldBtn.textContent = 'B';
+            boldBtn.title = 'Toggle bold';
+            boldBtn.addEventListener('click', () => {
+                state[token.id].bold = !state[token.id].bold;
+                boldBtn.classList.toggle('active');
+                updatePreview();
+                updateOutput();
+                updateExample(token.id);
+            });
+
+            // Italic toggle
+            const italicBtn = document.createElement('button');
+            italicBtn.className = 'italic-toggle' + (s.italic ? ' active' : '');
+            italicBtn.textContent = 'I';
+            italicBtn.title = 'Toggle italic';
+            italicBtn.addEventListener('click', () => {
+                state[token.id].italic = !state[token.id].italic;
+                italicBtn.classList.toggle('active');
+                updatePreview();
+                updateOutput();
+                updateExample(token.id);
+            });
+
+            row.appendChild(input);
+            row.appendChild(label);
+            row.appendChild(example);
+            row.appendChild(boldBtn);
+            row.appendChild(italicBtn);
+
+            container.appendChild(row);
+        });
+    });
+}
+
+function updateExample(tokenId) {
+    const el = document.getElementById(`example-${tokenId}`);
+    if (!el) return;
+    const s = state[tokenId];
+    el.style.color = s.color;
+    el.style.fontWeight = s.bold ? 'bold' : 'normal';
+    el.style.fontStyle = s.italic ? 'italic' : 'normal';
+}
+
+// ══════════════════════════════════════════════════════════
+// Live Preview
+// ══════════════════════════════════════════════════════════
+
+const PREVIEW_CODE = [
+    { text: "# Calculate factorial recursively", type: "line_number-sign" },
+    { text: "", type: null },
+    { parts: [
+        { text: "-->", type: "comment_begin" }, { text: " Forward-declare greet ", type: "block_arrow" },
+        { text: "<--", type: "comment_end" },
+    ]},
+    { parts: [
+        { text: "fn", type: "declaration_function" }, { text: " ", type: null },
+        { text: "greet", type: "function_forward" }, { text: "(", type: "bracket_round" },
+        { text: "who", type: "variable_parameter" }, { text: ")", type: "bracket_round" },
+        { text: ".", type: "terminator_statement" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "fn", type: "declaration_function" }, { text: " ", type: null },
+        { text: "factorial", type: "function_definition" }, { text: "(", type: "bracket_round" },
+        { text: "n", type: "variable_parameter" }, { text: ")", type: "bracket_round" },
+        { text: ":", type: "definition_function" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "if", type: "control_flow" }, { text: " ", type: null },
+        { text: "n", type: "variable_other" }, { text: " ", type: null },
+        { text: "==", type: "operator_comparison" }, { text: " ", type: null },
+        { text: "0", type: "numeric_integer" }, { text: " ", type: null },
+        { text: "or", type: "operator_logical" }, { text: " ", type: null },
+        { text: "n", type: "variable_other" }, { text: " ", type: null },
+        { text: "==", type: "operator_comparison" }, { text: " ", type: null },
+        { text: "None", type: "language_none" }, { text: ":", type: "separator_colon" },
+    ]},
+    { parts: [
+        { text: "        ", type: null },
+        { text: "give", type: "control_return" }, { text: "(", type: "bracket_round" },
+        { text: "1", type: "numeric_integer" }, { text: ")", type: "bracket_round" },
+        { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: ";", type: "terminator_block" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "give", type: "control_return" }, { text: "(", type: "bracket_round" },
+        { text: "n", type: "variable_other" }, { text: " ", type: null },
+        { text: "*", type: "operator_arithmetic" }, { text: " ", type: null },
+        { text: "factorial", type: "function_call" }, { text: "(", type: "bracket_round" },
+        { text: "n", type: "variable_other" }, { text: " ", type: null },
+        { text: "-", type: "operator_arithmetic" }, { text: " ", type: null },
+        { text: "1", type: "numeric_integer" }, { text: ")", type: "bracket_round" },
+        { text: ")", type: "bracket_round" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: ";", type: "terminator_block" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "fn", type: "declaration_function" }, { text: " ", type: null },
+        { text: "swap", type: "function_definition" }, { text: "(", type: "bracket_round" },
+        { text: "@", type: "modifier_reference" },
+        { text: "a", type: "parameter_reference" }, { text: ",", type: "separator_parameter" },
+        { text: " ", type: null },
+        { text: "@", type: "modifier_reference" },
+        { text: "b", type: "parameter_reference" }, { text: ")", type: "bracket_round" },
+        { text: ":", type: "definition_function" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "var", type: "type_var" }, { text: " ", type: null },
+        { text: "tmp", type: "other_declaration" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "@", type: "modifier_reference" },
+        { text: "a", type: "other_reference" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "@", type: "modifier_reference" },
+        { text: "a", type: "other_reference" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "@", type: "modifier_reference" },
+        { text: "b", type: "other_reference" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "@", type: "modifier_reference" },
+        { text: "b", type: "other_reference" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "tmp", type: "variable_other" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: ";", type: "terminator_block" },
+    ]},
+    { text: "", type: null },
+    { text: "--> Main program <--", type: "block_arrow" },
+    { parts: [
+        { text: "var", type: "type_var" }, { text: " ", type: null },
+        { text: "name", type: "other_declaration" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "input", type: "function_builtin" }, { text: "(", type: "bracket_round" },
+        { text: '"Enter name: "', type: "quoted_double" },
+        { text: ")", type: "bracket_round" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "var", type: "type_var" }, { text: " ", type: null },
+        { text: "msg", type: "other_declaration" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "'hello '", type: "quoted_single" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "var", type: "type_var" }, { text: " ", type: null },
+        { text: "result", type: "other_declaration" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "factorial", type: "function_call" }, { text: "(", type: "bracket_round" },
+        { text: "5", type: "numeric_integer" }, { text: ")", type: "bracket_round" },
+        { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "var", type: "type_var" }, { text: " ", type: null },
+        { text: "angle", type: "other_declaration" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "sqrt", type: "function_math" }, { text: "(", type: "bracket_round" },
+        { text: "2.0", type: "numeric_float" }, { text: ")", type: "bracket_round" },
+        { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "var", type: "type_var" }, { text: " ", type: null },
+        { text: "items", type: "other_declaration" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "[", type: "bracket_square" },
+        { text: "1", type: "numeric_integer" }, { text: ",", type: "separator_comma" },
+        { text: " ", type: null },
+        { text: "2", type: "numeric_integer" }, { text: ",", type: "separator_comma" },
+        { text: " ", type: null },
+        { text: "3", type: "numeric_integer" },
+        { text: "]", type: "bracket_square" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "var", type: "type_var" }, { text: " ", type: null },
+        { text: "lookup", type: "other_declaration" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "{", type: "bracket_curly" },
+        { text: '"a"', type: "quoted_double" }, { text: ":", type: "separator_colon" },
+        { text: " ", type: null },
+        { text: "1", type: "numeric_integer" }, { text: ",", type: "separator_comma" },
+        { text: " ", type: null },
+        { text: '"b"', type: "quoted_double" }, { text: ":", type: "separator_colon" },
+        { text: " ", type: null },
+        { text: "2", type: "numeric_integer" },
+        { text: "}", type: "bracket_curly" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "var", type: "type_var" }, { text: " ", type: null },
+        { text: "ok", type: "other_declaration" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "not", type: "operator_logical" }, { text: " ", type: null },
+        { text: "False", type: "boolean_false" }, { text: " ", type: null },
+        { text: "&&", type: "logical_symbol" }, { text: " ", type: null },
+        { text: "True", type: "boolean_true" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "var", type: "type_var" }, { text: " ", type: null },
+        { text: "g", type: "other_declaration" }, { text: " ", type: null },
+        { text: "=", type: "operator_assignment" }, { text: " ", type: null },
+        { text: "graph", type: "type_conversion" }, { text: "(", type: "bracket_round" },
+        { text: "4", type: "numeric_integer" }, { text: ")", type: "bracket_round" },
+        { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "g", type: "variable_other" }, { text: ".", type: null },
+        { text: "add_edge", type: "function_method" }, { text: "(", type: "bracket_round" },
+        { text: "0", type: "numeric_integer" }, { text: " ", type: null },
+        { text: "->", type: "operator_edge" }, { text: " ", type: null },
+        { text: "1", type: "numeric_integer" }, { text: ")", type: "bracket_round" },
+        { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "g", type: "variable_other" }, { text: ".", type: null },
+        { text: "add_edge", type: "function_method" }, { text: "(", type: "bracket_round" },
+        { text: "1", type: "numeric_integer" }, { text: " ", type: null },
+        { text: "<->", type: "operator_edge" }, { text: " ", type: null },
+        { text: "2", type: "numeric_integer" }, { text: ")", type: "bracket_round" },
+        { text: ".", type: "terminator_statement" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "with", type: "control_context" }, { text: " ", type: null },
+        { text: "open", type: "function_builtin" }, { text: "(", type: "bracket_round" },
+        { text: '"data.txt"', type: "quoted_double" },
+        { text: ")", type: "bracket_round" }, { text: " ", type: null },
+        { text: "as", type: "control_context" }, { text: " ", type: null },
+        { text: "f", type: "variable_other" }, { text: ":", type: "separator_colon" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "print", type: "function_builtin" }, { text: "(", type: "bracket_round" },
+        { text: "f", type: "variable_other" },
+        { text: ")", type: "bracket_round" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: ";", type: "terminator_block" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "for", type: "control_flow" }, { text: " ", type: null },
+        { text: "i", type: "other_loop" }, { text: " ", type: null },
+        { text: "in", type: "control_loop" }, { text: " ", type: null },
+        { text: "range", type: "control_loop" }, { text: "(", type: "bracket_round" },
+        { text: "from", type: "control_loop" }, { text: " ", type: null },
+        { text: "1", type: "numeric_integer" }, { text: " ", type: null },
+        { text: "to", type: "control_loop" }, { text: " ", type: null },
+        { text: "5", type: "numeric_integer" }, { text: ")", type: "bracket_round" },
+        { text: ":", type: "separator_colon" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "let", type: "other_special" }, { text: " ", type: null },
+        { text: "flag", type: "variable_other" }, { text: " ", type: null },
+        { text: "be", type: "other_special" }, { text: " ", type: null },
+        { text: "True", type: "boolean_true" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "result", type: "variable_other" }, { text: " ", type: null },
+        { text: "+=", type: "assignment_compound" }, { text: " ", type: null },
+        { text: "i", type: "variable_other" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "i", type: "variable_other" },
+        { text: "++", type: "operator_increment" }, { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "print", type: "function_builtin" }, { text: "(", type: "bracket_round" },
+        { text: "name", type: "variable_other" }, { text: ",", type: "separator_comma" },
+        { text: " ", type: null },
+        { text: '"', type: "quoted_double" },
+        { text: "\\n", type: "character_escape" },
+        { text: '"', type: "quoted_double" }, { text: ",", type: "separator_comma" },
+        { text: " ", type: null },
+        { text: "int", type: "type_conversion" }, { text: "(", type: "bracket_round" },
+        { text: "i", type: "variable_other" }, { text: ")", type: "bracket_round" },
+        { text: ")", type: "bracket_round" },
+        { text: ".", type: "terminator_statement" },
+    ]},
+    { parts: [
+        { text: ";", type: "terminator_block" },
+    ]},
+];
+
+function updatePreview() {
+    const container = document.getElementById('codePreview');
+    container.innerHTML = '';
+
+    PREVIEW_CODE.forEach(line => {
+        const lineEl = document.createElement('span');
+        lineEl.className = 'line';
+
+        if (line.parts) {
+            line.parts.forEach(part => {
+                const span = document.createElement('span');
+                span.textContent = part.text;
+                if (part.type && state[part.type]) {
+                    const s = state[part.type];
+                    span.style.color = s.color;
+                    span.style.fontWeight = s.bold ? 'bold' : 'normal';
+                    span.style.fontStyle = s.italic ? 'italic' : 'normal';
+                }
+                lineEl.appendChild(span);
+            });
+        } else if (line.type && state[line.type]) {
+            const s = state[line.type];
+            lineEl.style.color = s.color;
+            lineEl.style.fontWeight = s.bold ? 'bold' : 'normal';
+            lineEl.style.fontStyle = s.italic ? 'italic' : 'normal';
+            lineEl.textContent = line.text;
+        } else {
+            lineEl.textContent = line.text || ' ';
+        }
+
+        lineEl.textContent += '\n';
+        // Re-add children if parts were used
+        if (line.parts) {
+            lineEl.textContent = '';
+            line.parts.forEach(part => {
+                const span = document.createElement('span');
+                span.textContent = part.text;
+                if (part.type && state[part.type]) {
+                    const s = state[part.type];
+                    span.style.color = s.color;
+                    span.style.fontWeight = s.bold ? 'bold' : 'normal';
+                    span.style.fontStyle = s.italic ? 'italic' : 'normal';
+                }
+                lineEl.appendChild(span);
+            });
+            lineEl.appendChild(document.createTextNode('\n'));
+        }
+
+        container.appendChild(lineEl);
+    });
+}
+
+// ══════════════════════════════════════════════════════════
+// Generate Output
+// ══════════════════════════════════════════════════════════
+
+function generateRules() {
+    const rules = [];
+    TOKEN_GROUPS.forEach(group => {
+        group.tokens.forEach(token => {
+            const s = state[token.id];
+            const settings = { foreground: s.color };
+            const styles = [];
+            if (s.bold) styles.push('bold');
+            if (s.italic) styles.push('italic');
+            if (styles.length) settings.fontStyle = styles.join(' ');
+            rules.push({ scope: token.scope, settings });
+        });
+    });
+    return rules;
+}
+
+function generateSettingsJSON() {
+    const rules = generateRules();
+    return JSON.stringify({
+        "editor.tokenColorCustomizations": {
+            textMateRules: rules
+        }
+    }, null, 2);
+}
+
+function generateExtensionTS() {
+    const rules = generateRules();
+    let out = 'const SCRIPTIT_TOKEN_RULES = [\n';
+    rules.forEach(rule => {
+        const parts = [`foreground: '${rule.settings.foreground}'`];
+        if (rule.settings.fontStyle) parts.push(`fontStyle: '${rule.settings.fontStyle}'`);
+        out += `    { scope: '${rule.scope}', settings: { ${parts.join(', ')} } },\n`;
+    });
+    out += '];';
+    return out;
+}
+
+function updateOutput() {
+    document.getElementById('outputJson').textContent = generateSettingsJSON();
+}
+
+// ══════════════════════════════════════════════════════════
+// Actions
+// ══════════════════════════════════════════════════════════
+
+function copySettings() {
+    navigator.clipboard.writeText(generateSettingsJSON()).then(() => showToast('VS Code settings copied!'));
+}
+
+function copyExtensionTS() {
+    navigator.clipboard.writeText(generateExtensionTS()).then(() => showToast('extension.ts rules copied!'));
+}
+
+async function saveToExtension(install) {
+    const rules = generateRules();
+    const payload = { rules };
+
+    // If user provided an install.py path, include it
+    const ipInput = document.getElementById('installPyPath');
+    if (ipInput && ipInput.value.trim()) {
+        payload.install_py = ipInput.value.trim();
+    }
+
+    // Use the streaming endpoint for Save & Install
+    if (install) {
+        return saveToExtensionStream(payload);
+    }
+
+    // Non-install save: use the regular endpoint
+    try {
+        const res = await fetch('/api/save-install', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            showToast(data.message || 'Colors saved!');
+            checkBackendMode();
+        } else {
+            showToast(data.message || 'Save failed', true);
+        }
+    } catch (e) {
+        if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+            showToast('⚠ Backend not running. Open via: scriptit --customize\nCopied VS Code settings to clipboard instead.', true);
+            navigator.clipboard.writeText(generateSettingsJSON());
+        } else {
+            showToast('Error: ' + e.message, true);
+        }
+    }
+}
+
+// ── Streaming Save & Install ──
+function openBuildLog() {
+    const log = document.getElementById('buildLog');
+    const body = document.getElementById('buildLogBody');
+    const spinner = document.getElementById('buildSpinner');
+    const title = document.getElementById('buildLogTitle');
+    body.innerHTML = '';
+    spinner.style.display = 'inline-block';
+    title.textContent = 'Building...';
+    log.classList.add('visible');
+}
+
+function closeBuildLog() {
+    document.getElementById('buildLog').classList.remove('visible');
+}
+
+function addBuildLine(text) {
+    const body = document.getElementById('buildLogBody');
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    if (text.startsWith('✅')) line.classList.add('success');
+    else if (text.startsWith('❌')) line.classList.add('error');
+    else if (text.startsWith('📝') || text.startsWith('🔨') || text.startsWith('🔄')) line.classList.add('info');
+    line.textContent = text;
+    body.appendChild(line);
+    body.scrollTop = body.scrollHeight;
+}
+
+function finishBuildLog(success) {
+    const spinner = document.getElementById('buildSpinner');
+    const title = document.getElementById('buildLogTitle');
+    spinner.style.display = 'none';
+    title.textContent = success ? '✅ Build Complete' : '❌ Build Failed';
+}
+
+async function saveToExtensionStream(payload) {
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.disabled = true;
+    openBuildLog();
+
+    try {
+        const res = await fetch('/api/save-install-stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            addBuildLine('❌ Server error: ' + res.statusText);
+            finishBuildLog(false);
+            saveBtn.disabled = false;
+            return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalResult = null;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            // Parse SSE events from the buffer
+            const parts = buffer.split('\n\n');
+            buffer = parts.pop(); // keep incomplete event in buffer
+
+            for (const part of parts) {
+                if (!part.trim()) continue;
+                const lines = part.split('\n');
+                let eventType = 'message';
+                let eventData = '';
+
+                for (const l of lines) {
+                    if (l.startsWith('event: ')) eventType = l.slice(7);
+                    else if (l.startsWith('data: ')) eventData = l.slice(6);
+                }
+
+                if (eventType === 'log') {
+                    addBuildLine(eventData);
+                } else if (eventType === 'done') {
+                    try { finalResult = JSON.parse(eventData); } catch (e) {}
+                    addBuildLine('');
+                    finishBuildLog(finalResult && finalResult.status === 'ok');
+                    if (finalResult && finalResult.status === 'ok') {
+                        showToast(finalResult.message || 'Done!');
+                        // Re-sync UI with saved rules so user can edit & save again
+                        await loadCurrentRules();
+                    } else {
+                        showToast(finalResult?.message || 'Build finished with errors', true);
+                    }
+                    // Break out of the read loop — stream is done
+                    break;
+                } else if (eventType === 'error') {
+                    addBuildLine('❌ ' + eventData);
+                    finishBuildLog(false);
+                    showToast('Error: ' + eventData, true);
+                }
+            }
+        }
+
+        // If we never got a "done" event
+        if (!finalResult) {
+            addBuildLine('⚠ Stream ended without completion signal');
+            finishBuildLog(false);
+        }
+
+        checkBackendMode();
+
+    } catch (e) {
+        if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+            closeBuildLog();
+            showToast('⚠ Backend not running. Open via: scriptit --customize\nCopied VS Code settings to clipboard instead.', true);
+            navigator.clipboard.writeText(generateSettingsJSON());
+        } else {
+            addBuildLine('❌ ' + e.message);
+            finishBuildLog(false);
+            showToast('Error: ' + e.message, true);
+        }
+    } finally {
+        saveBtn.disabled = false;
+    }
+}
+
+function saveAndInstall() {
+    saveToExtension(true);
+}
+
+function toggleInstallPath() {
+    const row = document.getElementById('installPathRow');
+    if (row) row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+}
+
+async function openFileBrowser(dir) {
+    const panel = document.getElementById('fileBrowserPanel');
+    panel.style.display = 'block';
+    dir = dir || document.getElementById('installPyPath').value.trim() || '~';
+    try {
+        const res = await fetch('/api/browse?dir=' + encodeURIComponent(dir));
+        const data = await res.json();
+        if (data.error) { showToast(data.error, true); return; }
+
+        document.getElementById('fileBrowserPath').textContent = data.dir;
+
+        const list = document.getElementById('fileBrowserList');
+        list.innerHTML = '';
+        data.entries.forEach(entry => {
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:4px 8px; cursor:pointer; font-size:12px; font-family:monospace; border-radius:3px;';
+            item.onmouseenter = () => item.style.background = 'var(--bg3)';
+            item.onmouseleave = () => item.style.background = 'transparent';
+
+            if (entry.type === 'dir') {
+                item.textContent = '📁 ' + entry.name;
+                item.style.color = 'var(--accent)';
+                item.onclick = () => openFileBrowser(entry.path);
+            } else {
+                item.textContent = '📄 ' + entry.name;
+                item.style.color = entry.name === 'install.py' ? '#50fa7b' : 'var(--text)';
+                if (entry.name === 'install.py') item.style.fontWeight = 'bold';
+                item.onclick = () => {
+                    document.getElementById('installPyPath').value = entry.path;
+                    panel.style.display = 'none';
+                    showToast('Selected: ' + entry.path);
+                };
+            }
+            list.appendChild(item);
+        });
+    } catch (e) {
+        showToast('Browse error: ' + e.message, true);
+    }
+}
+
+async function applyInstallPy() {
+    const path = document.getElementById('installPyPath').value.trim();
+    if (!path) { showToast('Please enter the path to install.py', true); return; }
+
+    // Send a test save with install_py to switch the backend to dev mode
+    try {
+        const res = await fetch('/api/save-install', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rules: generateRules(), install_py: path })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            showToast(data.message || 'Switched to dev mode!');
+            checkBackendMode();
+        } else {
+            showToast(data.message || 'Failed', true);
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, true);
+    }
+}
+
+// Check backend mode and update UI
+let _backendStatus = null;
+async function checkBackendMode() {
+    try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        _backendStatus = data;
+        const btn = document.getElementById('saveBtn');
+        const banner = document.getElementById('modeBanner');
+        if (btn) {
+            if (data.dev_mode) {
+                btn.innerHTML = '🚀 Save &amp; Install';
+                btn.title = 'Saves to extension.ts and rebuilds the extension';
+                if (banner) banner.textContent = '🔧 Dev mode — saves to extension.ts';
+            } else {
+                btn.innerHTML = '💾 Save to VS Code';
+                btn.title = 'Saves colors directly to VS Code settings.json';
+                if (banner) banner.textContent = '📦 User mode — saves to VS Code settings.json';
+            }
+        }
+    } catch (e) {
+        // Backend not running — button stays as-is
+        const banner = document.getElementById('modeBanner');
+        if (banner) banner.textContent = '⚠ Backend not detected. Use Copy buttons or launch via: scriptit --customize';
+    }
+}
+
+function resetDefaults() {
+    TOKEN_GROUPS.forEach(g => g.tokens.forEach(t => {
+        state[t.id] = { color: t.color, bold: t.bold, italic: t.italic };
+    }));
+    buildControls();
+    updatePreview();
+    updateOutput();
+}
+
+function showToast(msg, isError) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.style.background = isError ? '#e06c75' : '#45a049';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), isError ? 4000 : 2000);
+}
+
+// ══════════════════════════════════════════════════════════
+// Init
+// ══════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════
+// Init — load token data dynamically, then build UI
+// ══════════════════════════════════════════════════════════
+
+// Build a scope → token id lookup
+let SCOPE_TO_ID = {};
+
+function rebuildScopeMap() {
+    SCOPE_TO_ID = {};
+    TOKEN_GROUPS.forEach(g => g.tokens.forEach(t => { SCOPE_TO_ID[t.scope] = t.id; }));
+}
+
+async function loadCurrentRules() {
+    try {
+        const res = await fetch('/api/current-rules');
+        const data = await res.json();
+        if (data.rules && data.rules.length > 0) {
+            let applied = 0;
+            data.rules.forEach(rule => {
+                const id = SCOPE_TO_ID[rule.scope];
+                if (id && state[id]) {
+                    state[id].color = rule.foreground || state[id].color;
+                    const fs = rule.fontStyle || '';
+                    state[id].bold = fs.includes('bold');
+                    state[id].italic = fs.includes('italic');
+                    applied++;
+                }
+            });
+            if (applied > 0) {
+                buildControls();
+                updatePreview();
+                updateOutput();
+                const src = data.source || 'unknown';
+                const short = src.length > 50 ? '...' + src.slice(-50) : src;
+                showToast(`Loaded ${applied} color rules from ${short}`);
+            }
+        }
+    } catch (e) {
+        // Server not running or no rules — use defaults silently
+    }
+}
+
+async function loadTokenData() {
+    // Try loading from the backend API first, then from a relative path
+    const urls = ['/api/token-data', 'token_data.json'];
+    for (const url of urls) {
+        try {
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    TOKEN_GROUPS = data;
+                    console.log(`Loaded ${TOKEN_GROUPS.length} token groups from ${url}`);
+                    return;
+                }
+            }
+        } catch (e) {
+            // Try next URL
+        }
+    }
+    console.warn('Could not load token_data.json — no token groups available');
+}
+
+async function init() {
+    // 1. Load token definitions dynamically
+    await loadTokenData();
+
+    // 2. Initialize state from loaded defaults
+    TOKEN_GROUPS.forEach(g => g.tokens.forEach(t => {
+        state[t.id] = { color: t.color, bold: t.bold, italic: t.italic };
+    }));
+
+    // 3. Build scope lookup map
+    rebuildScopeMap();
+
+    // 4. Build UI
+    buildControls();
+    updatePreview();
+    updateOutput();
+    checkBackendMode();
+
+    // 5. Load any saved rules from the backend
+    await loadCurrentRules();
+}
+
+// Start!
+init();
+</script>
+
+</body>
+</html>

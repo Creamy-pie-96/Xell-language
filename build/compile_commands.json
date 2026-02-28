@@ -25,6 +25,24 @@
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/os/fs.cpp.o -c /home/DATA/CODE/code/Xell/src/os/fs.cpp",
+  "file": "/home/DATA/CODE/code/Xell/src/os/fs.cpp",
+  "output": "CMakeFiles/xell_lib.dir/src/os/fs.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/os/env.cpp.o -c /home/DATA/CODE/code/Xell/src/os/env.cpp",
+  "file": "/home/DATA/CODE/code/Xell/src/os/env.cpp",
+  "output": "CMakeFiles/xell_lib.dir/src/os/env.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/os/process.cpp.o -c /home/DATA/CODE/code/Xell/src/os/process.cpp",
+  "file": "/home/DATA/CODE/code/Xell/src/os/process.cpp",
+  "output": "CMakeFiles/xell_lib.dir/src/os/process.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
   "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell.dir/src/main.cpp.o -c /home/DATA/CODE/code/Xell/src/main.cpp",
   "file": "/home/DATA/CODE/code/Xell/src/main.cpp",
   "output": "CMakeFiles/xell.dir/src/main.cpp.o"
@@ -52,5 +70,11 @@
   "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.o -c /home/DATA/CODE/code/Xell/test/interpreter_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/interpreter_test.cpp",
   "output": "CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/os_test.dir/test/os_test.cpp.o -c /home/DATA/CODE/code/Xell/test/os_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/os_test.cpp",
+  "output": "CMakeFiles/os_test.dir/test/os_test.cpp.o"
 }
 ]

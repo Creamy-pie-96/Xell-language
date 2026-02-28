@@ -206,6 +206,8 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_type.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_collection.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_util.hpp \
+ /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_os.hpp \
+ /home/DATA/CODE/code/Xell/src/interpreter/../builtins/../os/os.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../lexer/lexer.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../lexer/token.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../parser/parser.hpp \

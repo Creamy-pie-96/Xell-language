@@ -204,6 +204,19 @@ interpreter_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/interpreter_test.dir/build.make CMakeFiles/interpreter_test.dir/build
 .PHONY : interpreter_test/fast
 
+#=============================================================================
+# Target rules for targets named os_test
+
+# Build rule for target.
+os_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 os_test
+.PHONY : os_test
+
+# fast build rule for target.
+os_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/os_test.dir/build.make CMakeFiles/os_test.dir/build
+.PHONY : os_test/fast
+
 src/interpreter/interpreter.o: src/interpreter/interpreter.cpp.o
 .PHONY : src/interpreter/interpreter.o
 
@@ -300,6 +313,78 @@ src/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell.dir/build.make CMakeFiles/xell.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
+src/os/env.o: src/os/env.cpp.o
+.PHONY : src/os/env.o
+
+# target to build an object file
+src/os/env.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/os/env.cpp.o
+.PHONY : src/os/env.cpp.o
+
+src/os/env.i: src/os/env.cpp.i
+.PHONY : src/os/env.i
+
+# target to preprocess a source file
+src/os/env.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/os/env.cpp.i
+.PHONY : src/os/env.cpp.i
+
+src/os/env.s: src/os/env.cpp.s
+.PHONY : src/os/env.s
+
+# target to generate assembly for a file
+src/os/env.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/os/env.cpp.s
+.PHONY : src/os/env.cpp.s
+
+src/os/fs.o: src/os/fs.cpp.o
+.PHONY : src/os/fs.o
+
+# target to build an object file
+src/os/fs.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/os/fs.cpp.o
+.PHONY : src/os/fs.cpp.o
+
+src/os/fs.i: src/os/fs.cpp.i
+.PHONY : src/os/fs.i
+
+# target to preprocess a source file
+src/os/fs.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/os/fs.cpp.i
+.PHONY : src/os/fs.cpp.i
+
+src/os/fs.s: src/os/fs.cpp.s
+.PHONY : src/os/fs.s
+
+# target to generate assembly for a file
+src/os/fs.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/os/fs.cpp.s
+.PHONY : src/os/fs.cpp.s
+
+src/os/process.o: src/os/process.cpp.o
+.PHONY : src/os/process.o
+
+# target to build an object file
+src/os/process.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/os/process.cpp.o
+.PHONY : src/os/process.cpp.o
+
+src/os/process.i: src/os/process.cpp.i
+.PHONY : src/os/process.i
+
+# target to preprocess a source file
+src/os/process.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/os/process.cpp.i
+.PHONY : src/os/process.cpp.i
+
+src/os/process.s: src/os/process.cpp.s
+.PHONY : src/os/process.s
+
+# target to generate assembly for a file
+src/os/process.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/os/process.cpp.s
+.PHONY : src/os/process.cpp.s
+
 src/parser/parser.o: src/parser/parser.cpp.o
 .PHONY : src/parser/parser.o
 
@@ -372,6 +457,30 @@ test/interpreter_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/interpreter_test.dir/build.make CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.s
 .PHONY : test/interpreter_test.cpp.s
 
+test/os_test.o: test/os_test.cpp.o
+.PHONY : test/os_test.o
+
+# target to build an object file
+test/os_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/os_test.dir/build.make CMakeFiles/os_test.dir/test/os_test.cpp.o
+.PHONY : test/os_test.cpp.o
+
+test/os_test.i: test/os_test.cpp.i
+.PHONY : test/os_test.i
+
+# target to preprocess a source file
+test/os_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/os_test.dir/build.make CMakeFiles/os_test.dir/test/os_test.cpp.i
+.PHONY : test/os_test.cpp.i
+
+test/os_test.s: test/os_test.cpp.s
+.PHONY : test/os_test.s
+
+# target to generate assembly for a file
+test/os_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/os_test.dir/build.make CMakeFiles/os_test.dir/test/os_test.cpp.s
+.PHONY : test/os_test.cpp.s
+
 test/parser_test.o: test/parser_test.cpp.o
 .PHONY : test/parser_test.o
 
@@ -431,6 +540,7 @@ help:
 	@echo "... test"
 	@echo "... error_test"
 	@echo "... interpreter_test"
+	@echo "... os_test"
 	@echo "... parser_test"
 	@echo "... xell"
 	@echo "... xell_lib"
@@ -447,6 +557,15 @@ help:
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
+	@echo "... src/os/env.o"
+	@echo "... src/os/env.i"
+	@echo "... src/os/env.s"
+	@echo "... src/os/fs.o"
+	@echo "... src/os/fs.i"
+	@echo "... src/os/fs.s"
+	@echo "... src/os/process.o"
+	@echo "... src/os/process.i"
+	@echo "... src/os/process.s"
 	@echo "... src/parser/parser.o"
 	@echo "... src/parser/parser.i"
 	@echo "... src/parser/parser.s"
@@ -456,6 +575,9 @@ help:
 	@echo "... test/interpreter_test.o"
 	@echo "... test/interpreter_test.i"
 	@echo "... test/interpreter_test.s"
+	@echo "... test/os_test.o"
+	@echo "... test/os_test.i"
+	@echo "... test/os_test.s"
 	@echo "... test/parser_test.o"
 	@echo "... test/parser_test.i"
 	@echo "... test/parser_test.s"

@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/os_test.dir/test/os_test.cpp.o -o os_test  libxell_lib.a 

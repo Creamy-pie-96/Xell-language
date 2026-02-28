@@ -1,2 +1,2 @@
-/usr/bin/ar qc libxell_lib.a CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
+/usr/bin/ar qc libxell_lib.a CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o CMakeFiles/xell_lib.dir/src/os/fs.cpp.o CMakeFiles/xell_lib.dir/src/os/env.cpp.o CMakeFiles/xell_lib.dir/src/os/process.cpp.o
 /usr/bin/ranlib libxell_lib.a

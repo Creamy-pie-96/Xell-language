@@ -11,6 +11,9 @@ add_library(xell_lib
     src/parser/parser.cpp
     src/interpreter/xobject.cpp
     src/interpreter/interpreter.cpp
+    src/os/fs.cpp
+    src/os/env.cpp
+    src/os/process.cpp
 )
 target_include_directories(xell_lib PUBLIC src)
 
@@ -36,3 +39,7 @@ add_test(NAME xobject_test COMMAND xobject_test)
 add_executable(interpreter_test test/interpreter_test.cpp)
 target_link_libraries(interpreter_test xell_lib)
 add_test(NAME interpreter_test COMMAND interpreter_test)
+
+add_executable(os_test test/os_test.cpp)
+target_link_libraries(os_test xell_lib)
+add_test(NAME os_test COMMAND os_test)

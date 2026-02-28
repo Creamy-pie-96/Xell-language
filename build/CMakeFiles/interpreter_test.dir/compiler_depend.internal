@@ -3,6 +3,7 @@
 
 CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.o
  /home/DATA/CODE/code/Xell/test/interpreter_test.cpp
+ /home/DATA/CODE/code/Xell/src/builtins/builtin_registry.hpp
  /home/DATA/CODE/code/Xell/src/lib/errors/error.hpp
  /home/DATA/CODE/code/Xell/src/parser/ast.hpp
  /home/DATA/CODE/code/Xell/src/interpreter/environment.hpp

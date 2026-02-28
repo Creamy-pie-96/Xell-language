@@ -1,0 +1,48 @@
+{
+  "nsit_format": "1.0",
+  "metadata": {
+    "title": "Untitled",
+    "created": "2026-02-13T06:46:49.145552Z",
+    "modified": "2026-02-13T06:54:54.318341Z",
+    "kernel": "scriptit",
+    "kernel_version": "2.0"
+  },
+  "cells": [
+    {
+      "id": "b0f50c2e-5a26-4fc7-b28d-c6fbaad38149",
+      "type": "code",
+      "source": "var a = 10.\nprint(2*a)\nsin(a)\n--> This is comment\nthis is also one\n<--",
+      "outputs": [
+        {
+          "type": "stdout",
+          "text": "20\n-0.544021\n"
+        }
+      ],
+      "execution_count": 34,
+      "metadata": {},
+      "_running": false
+    },
+    {
+      "id": "cmlkj6wtse5zo1",
+      "type": "markdown",
+      "source": "# Next cell\n",
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {}
+    },
+    {
+      "id": "cmlkj79a1yazu8",
+      "type": "code",
+      "source": "cos(a)",
+      "outputs": [
+        {
+          "type": "stdout",
+          "text": "-0.839072\n"
+        }
+      ],
+      "execution_count": 35,
+      "metadata": {},
+      "_running": false
+    }
+  ]
+}

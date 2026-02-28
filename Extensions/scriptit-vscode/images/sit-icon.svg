@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Background rounded rectangle -->
+  <rect x="4" y="4" width="120" height="120" rx="16" ry="16" fill="#2D2D2D"/>
+  <rect x="4" y="4" width="120" height="120" rx="16" ry="16" fill="none" stroke="#569CD6" stroke-width="3"/>
+
+  <!-- "Si" text -->
+  <text x="64" y="58" font-family="Consolas, 'Courier New', monospace" font-size="48" font-weight="bold" fill="#569CD6" text-anchor="middle" dominant-baseline="middle">Si</text>
+
+  <!-- Small code icon: angle brackets -->
+  <text x="64" y="98" font-family="Consolas, 'Courier New', monospace" font-size="22" fill="#9CDCFE" text-anchor="middle" dominant-baseline="middle">&lt;/&gt;</text>
+
+  <!-- Dot accent (representing the . terminator) -->
+  <circle cx="100" cy="42" r="5" fill="#DCDCAA"/>
+</svg>

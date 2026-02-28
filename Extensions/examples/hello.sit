@@ -1,0 +1,23 @@
+--> hello.sit — A demo ScriptIt v2 program <--
+
+let name be "World".
+print("Hello " + name).
+--> hello.sit — A demo ScriptIt v2 program <--
+
+var nums = [1, 2, 3, 4, 5].
+print(nums)
+pprint(nums).
+var total = 0.
+for n in nums:
+    total = total + n.
+;
+print("Sum: " + str(total)).
+
+fn greet (who, me):
+    give("Welcome, " + who + "!" + me)
+;
+
+if a is not b : 
+
+print(greet("ScriptIt", "hehe")).
+;
