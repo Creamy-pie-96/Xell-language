@@ -1,5 +1,5 @@
 #include "lexer.hpp"
-#include <stdexcept>
+#include "../lib/errors/error.hpp"
 #include <sstream>
 #include <unordered_map>
 
@@ -234,8 +234,7 @@ namespace xell
 
         if (isAtEnd())
         {
-            throw std::runtime_error("[XELL ERROR] Line " + std::to_string(startLine) +
-                                     " — Unterminated string literal");
+            throw LexerError("Unterminated string literal", startLine);
         }
 
         advance(); // consume closing "
@@ -522,8 +521,7 @@ namespace xell
             }
 
             // Unknown character
-            throw std::runtime_error("[XELL ERROR] Line " + std::to_string(tokenLine) +
-                                     " — Unexpected character '" + std::string(1, c) + "'");
+            throw LexerError("Unexpected character '" + std::string(1, c) + "'", tokenLine);
         }
 
         // Remove trailing NEWLINE before EOF

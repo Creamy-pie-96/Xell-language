@@ -7,6 +7,7 @@
 
 #include "../src/lexer/lexer.hpp"
 #include "../src/parser/parser.hpp"
+#include "../src/lib/errors/error.hpp"
 #include <iostream>
 #include <string>
 #include <functional>

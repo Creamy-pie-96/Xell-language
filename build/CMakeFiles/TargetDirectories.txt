@@ -1,6 +1,8 @@
 /home/DATA/CODE/code/Xell/build/CMakeFiles/xell_lib.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/xell.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/parser_test.dir
+/home/DATA/CODE/code/Xell/build/CMakeFiles/error_test.dir
+/home/DATA/CODE/code/Xell/build/CMakeFiles/xobject_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/edit_cache.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/rebuild_cache.dir

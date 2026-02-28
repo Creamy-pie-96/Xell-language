@@ -5,6 +5,7 @@ CMakeFiles/parser_test.dir/test/parser_test.cpp.o
  /home/DATA/CODE/code/Xell/test/parser_test.cpp
  /home/DATA/CODE/code/Xell/src/lexer/lexer.hpp
  /home/DATA/CODE/code/Xell/src/lexer/token.hpp
+ /home/DATA/CODE/code/Xell/src/lib/errors/error.hpp
  /home/DATA/CODE/code/Xell/src/parser/ast.hpp
  /home/DATA/CODE/code/Xell/src/parser/parser.hpp
  /usr/include/alloca.h

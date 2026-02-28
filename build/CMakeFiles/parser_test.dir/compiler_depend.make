@@ -4,6 +4,7 @@
 CMakeFiles/parser_test.dir/test/parser_test.cpp.o: /home/DATA/CODE/code/Xell/test/parser_test.cpp \
   /home/DATA/CODE/code/Xell/src/lexer/lexer.hpp \
   /home/DATA/CODE/code/Xell/src/lexer/token.hpp \
+  /home/DATA/CODE/code/Xell/src/lib/errors/error.hpp \
   /home/DATA/CODE/code/Xell/src/parser/ast.hpp \
   /home/DATA/CODE/code/Xell/src/parser/parser.hpp \
   /usr/include/alloca.h \
@@ -266,6 +267,8 @@ CMakeFiles/parser_test.dir/test/parser_test.cpp.o: /home/DATA/CODE/code/Xell/tes
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/stddef.h:
 
+/usr/lib/gcc/x86_64-linux-gnu/13/include/stdarg.h:
+
 /usr/include/c++/13/pstl/execution_defs.h:
 
 /usr/include/c++/13/bits/basic_ios.tcc:
@@ -275,8 +278,6 @@ CMakeFiles/parser_test.dir/test/parser_test.cpp.o: /home/DATA/CODE/code/Xell/tes
 /usr/include/x86_64-linux-gnu/bits/struct_rwlock.h:
 
 /usr/include/c++/13/istream:
-
-/usr/include/c++/13/pstl/pstl_config.h:
 
 /usr/include/c++/13/functional:
 
@@ -416,6 +417,14 @@ CMakeFiles/parser_test.dir/test/parser_test.cpp.o: /home/DATA/CODE/code/Xell/tes
 
 /usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h:
 
+/usr/include/c++/13/compare:
+
+/usr/include/c++/13/system_error:
+
+/usr/include/c++/13/bits/string_view.tcc:
+
+/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h:
+
 /usr/include/c++/13/bits/cxxabi_forced.h:
 
 /usr/include/c++/13/bits/ptr_traits.h:
@@ -468,6 +477,14 @@ CMakeFiles/parser_test.dir/test/parser_test.cpp.o: /home/DATA/CODE/code/Xell/tes
 
 /usr/include/x86_64-linux-gnu/bits/fp-logb.h:
 
+/usr/include/c++/13/initializer_list:
+
+/usr/include/c++/13/tr1/bessel_function.tcc:
+
+/usr/include/c++/13/bits/basic_ios.h:
+
+/usr/include/x86_64-linux-gnu/bits/time64.h:
+
 /usr/include/c++/13/bits/cpp_type_traits.h:
 
 /usr/include/x86_64-linux-gnu/bits/types.h:
@@ -500,21 +517,13 @@ CMakeFiles/parser_test.dir/test/parser_test.cpp.o: /home/DATA/CODE/code/Xell/tes
 
 /usr/include/c++/13/bits/predefined_ops.h:
 
+/usr/include/c++/13/backward/auto_ptr.h:
+
 /usr/include/c++/13/bits/localefwd.h:
 
 /usr/include/c++/13/bits/streambuf_iterator.h:
 
 /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h:
-
-/usr/include/c++/13/backward/auto_ptr.h:
-
-/usr/include/c++/13/initializer_list:
-
-/usr/include/c++/13/tr1/bessel_function.tcc:
-
-/usr/include/c++/13/bits/basic_ios.h:
-
-/usr/include/x86_64-linux-gnu/bits/time64.h:
 
 /usr/include/c++/13/bits/hashtable_policy.h:
 
@@ -584,13 +593,7 @@ CMakeFiles/parser_test.dir/test/parser_test.cpp.o: /home/DATA/CODE/code/Xell/tes
 
 /usr/include/c++/13/ios:
 
-/usr/include/c++/13/compare:
-
-/usr/include/c++/13/system_error:
-
-/usr/include/c++/13/bits/string_view.tcc:
-
-/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h:
+/usr/include/c++/13/pstl/pstl_config.h:
 
 /usr/include/c++/13/stdexcept:
 
@@ -601,6 +604,8 @@ CMakeFiles/parser_test.dir/test/parser_test.cpp.o: /home/DATA/CODE/code/Xell/tes
 /usr/include/features-time64.h:
 
 /usr/include/c++/13/tr1/ell_integral.tcc:
+
+/home/DATA/CODE/code/Xell/src/lib/errors/error.hpp:
 
 /usr/include/c++/13/tr1/exp_integral.tcc:
 
@@ -777,5 +782,3 @@ CMakeFiles/parser_test.dir/test/parser_test.cpp.o: /home/DATA/CODE/code/Xell/tes
 /usr/include/x86_64-linux-gnu/sys/cdefs.h:
 
 /usr/include/x86_64-linux-gnu/sys/types.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/13/include/stdarg.h:

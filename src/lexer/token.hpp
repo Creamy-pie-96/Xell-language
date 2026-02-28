@@ -92,7 +92,6 @@ namespace xell
         EOF_TOKEN
     };
 
-    // ---- Map-based token type → string (extensible) ----------------------------
 
     inline const std::unordered_map<int, std::string> &tokenTypeNames()
     {
@@ -165,7 +164,6 @@ namespace xell
         return "UNKNOWN";
     }
 
-    // ---- Token struct -----------------------------------------------------------
 
     struct Token
     {

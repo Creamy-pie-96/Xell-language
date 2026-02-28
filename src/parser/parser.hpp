@@ -2,18 +2,12 @@
 
 #include "ast.hpp"
 #include "../lexer/token.hpp"
+#include "../lib/errors/error.hpp"
 #include <vector>
 #include <string>
-#include <stdexcept>
 
 namespace xell
 {
-
-    class ParseError : public std::runtime_error
-    {
-    public:
-        using std::runtime_error::runtime_error;
-    };
 
     class Parser
     {

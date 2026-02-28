@@ -165,6 +165,56 @@ parser_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/parser_test.dir/build.make CMakeFiles/parser_test.dir/build
 .PHONY : parser_test/fast
 
+#=============================================================================
+# Target rules for targets named error_test
+
+# Build rule for target.
+error_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 error_test
+.PHONY : error_test
+
+# fast build rule for target.
+error_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/error_test.dir/build.make CMakeFiles/error_test.dir/build
+.PHONY : error_test/fast
+
+#=============================================================================
+# Target rules for targets named xobject_test
+
+# Build rule for target.
+xobject_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 xobject_test
+.PHONY : xobject_test
+
+# fast build rule for target.
+xobject_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xobject_test.dir/build.make CMakeFiles/xobject_test.dir/build
+.PHONY : xobject_test/fast
+
+src/interpreter/xobject.o: src/interpreter/xobject.cpp.o
+.PHONY : src/interpreter/xobject.o
+
+# target to build an object file
+src/interpreter/xobject.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o
+.PHONY : src/interpreter/xobject.cpp.o
+
+src/interpreter/xobject.i: src/interpreter/xobject.cpp.i
+.PHONY : src/interpreter/xobject.i
+
+# target to preprocess a source file
+src/interpreter/xobject.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.i
+.PHONY : src/interpreter/xobject.cpp.i
+
+src/interpreter/xobject.s: src/interpreter/xobject.cpp.s
+.PHONY : src/interpreter/xobject.s
+
+# target to generate assembly for a file
+src/interpreter/xobject.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.s
+.PHONY : src/interpreter/xobject.cpp.s
+
 src/lexer/lexer.o: src/lexer/lexer.cpp.o
 .PHONY : src/lexer/lexer.o
 
@@ -237,6 +287,30 @@ src/parser/parser.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/src/parser/parser.cpp.s
 .PHONY : src/parser/parser.cpp.s
 
+test/error_test.o: test/error_test.cpp.o
+.PHONY : test/error_test.o
+
+# target to build an object file
+test/error_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/error_test.dir/build.make CMakeFiles/error_test.dir/test/error_test.cpp.o
+.PHONY : test/error_test.cpp.o
+
+test/error_test.i: test/error_test.cpp.i
+.PHONY : test/error_test.i
+
+# target to preprocess a source file
+test/error_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/error_test.dir/build.make CMakeFiles/error_test.dir/test/error_test.cpp.i
+.PHONY : test/error_test.cpp.i
+
+test/error_test.s: test/error_test.cpp.s
+.PHONY : test/error_test.s
+
+# target to generate assembly for a file
+test/error_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/error_test.dir/build.make CMakeFiles/error_test.dir/test/error_test.cpp.s
+.PHONY : test/error_test.cpp.s
+
 test/parser_test.o: test/parser_test.cpp.o
 .PHONY : test/parser_test.o
 
@@ -261,6 +335,30 @@ test/parser_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/parser_test.dir/build.make CMakeFiles/parser_test.dir/test/parser_test.cpp.s
 .PHONY : test/parser_test.cpp.s
 
+test/xobject_test.o: test/xobject_test.cpp.o
+.PHONY : test/xobject_test.o
+
+# target to build an object file
+test/xobject_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xobject_test.dir/build.make CMakeFiles/xobject_test.dir/test/xobject_test.cpp.o
+.PHONY : test/xobject_test.cpp.o
+
+test/xobject_test.i: test/xobject_test.cpp.i
+.PHONY : test/xobject_test.i
+
+# target to preprocess a source file
+test/xobject_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xobject_test.dir/build.make CMakeFiles/xobject_test.dir/test/xobject_test.cpp.i
+.PHONY : test/xobject_test.cpp.i
+
+test/xobject_test.s: test/xobject_test.cpp.s
+.PHONY : test/xobject_test.s
+
+# target to generate assembly for a file
+test/xobject_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xobject_test.dir/build.make CMakeFiles/xobject_test.dir/test/xobject_test.cpp.s
+.PHONY : test/xobject_test.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -270,9 +368,14 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... test"
+	@echo "... error_test"
 	@echo "... parser_test"
 	@echo "... xell"
 	@echo "... xell_lib"
+	@echo "... xobject_test"
+	@echo "... src/interpreter/xobject.o"
+	@echo "... src/interpreter/xobject.i"
+	@echo "... src/interpreter/xobject.s"
 	@echo "... src/lexer/lexer.o"
 	@echo "... src/lexer/lexer.i"
 	@echo "... src/lexer/lexer.s"
@@ -282,9 +385,15 @@ help:
 	@echo "... src/parser/parser.o"
 	@echo "... src/parser/parser.i"
 	@echo "... src/parser/parser.s"
+	@echo "... test/error_test.o"
+	@echo "... test/error_test.i"
+	@echo "... test/error_test.s"
 	@echo "... test/parser_test.o"
 	@echo "... test/parser_test.i"
 	@echo "... test/parser_test.s"
+	@echo "... test/xobject_test.o"
+	@echo "... test/xobject_test.i"
+	@echo "... test/xobject_test.s"
 .PHONY : help
 
 

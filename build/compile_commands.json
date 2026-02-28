@@ -13,6 +13,12 @@
 },
 {
   "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o -c /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp",
+  "file": "/home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp",
+  "output": "CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
   "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell.dir/src/main.cpp.o -c /home/DATA/CODE/code/Xell/src/main.cpp",
   "file": "/home/DATA/CODE/code/Xell/src/main.cpp",
   "output": "CMakeFiles/xell.dir/src/main.cpp.o"
@@ -22,5 +28,17 @@
   "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/parser_test.dir/test/parser_test.cpp.o -c /home/DATA/CODE/code/Xell/test/parser_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/parser_test.cpp",
   "output": "CMakeFiles/parser_test.dir/test/parser_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/error_test.dir/test/error_test.cpp.o -c /home/DATA/CODE/code/Xell/test/error_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/error_test.cpp",
+  "output": "CMakeFiles/error_test.dir/test/error_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xobject_test.dir/test/xobject_test.cpp.o -c /home/DATA/CODE/code/Xell/test/xobject_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/xobject_test.cpp",
+  "output": "CMakeFiles/xobject_test.dir/test/xobject_test.cpp.o"
 }
 ]

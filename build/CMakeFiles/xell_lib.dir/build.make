@@ -97,19 +97,35 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/xell_lib.dir/src/parser/parser.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/DATA/CODE/code/Xell/src/parser/parser.cpp -o CMakeFiles/xell_lib.dir/src/parser/parser.cpp.s
 
+CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o: CMakeFiles/xell_lib.dir/flags.make
+CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o: /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp
+CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o: CMakeFiles/xell_lib.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o -MF CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o.d -o CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o -c /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp
+
+CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp > CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.i
+
+CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp -o CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.s
+
 # Object files for target xell_lib
 xell_lib_OBJECTS = \
 "CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o" \
-"CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o"
+"CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o" \
+"CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o"
 
 # External object files for target xell_lib
 xell_lib_EXTERNAL_OBJECTS =
 
 libxell_lib.a: CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o
 libxell_lib.a: CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o
+libxell_lib.a: CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o
 libxell_lib.a: CMakeFiles/xell_lib.dir/build.make
 libxell_lib.a: CMakeFiles/xell_lib.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX static library libxell_lib.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX static library libxell_lib.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/xell_lib.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/xell_lib.dir/link.txt --verbose=$(VERBOSE)
 

@@ -9,6 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_library(xell_lib
     src/lexer/lexer.cpp
     src/parser/parser.cpp
+    src/interpreter/xobject.cpp
 )
 target_include_directories(xell_lib PUBLIC src)
 
@@ -22,3 +23,11 @@ enable_testing()
 add_executable(parser_test test/parser_test.cpp)
 target_link_libraries(parser_test xell_lib)
 add_test(NAME parser_test COMMAND parser_test)
+
+add_executable(error_test test/error_test.cpp)
+target_link_libraries(error_test xell_lib)
+add_test(NAME error_test COMMAND error_test)
+
+add_executable(xobject_test test/xobject_test.cpp)
+target_link_libraries(xobject_test xell_lib)
+add_test(NAME xobject_test COMMAND xobject_test)

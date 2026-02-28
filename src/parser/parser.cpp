@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include "../lib/errors/error.hpp"
 #include <sstream>
 #include <iostream>
 
@@ -56,7 +57,7 @@ namespace xell
                               ? "Expected " + tokenTypeToString(type) + " but got " +
                                     tokenTypeToString(current().type) + " ('" + current().value + "')"
                               : errorMsg;
-        throw ParseError("[XELL ERROR] Line " + std::to_string(current().line) + " — " + msg);
+        throw ParseError(msg, current().line);
     }
 
     void Parser::skipNewlines()
@@ -602,9 +603,9 @@ namespace xell
             return parsePostfix(std::make_unique<Identifier>(std::move(name), ln));
         }
 
-        throw ParseError("[XELL ERROR] Line " + std::to_string(current().line) +
-                         " — Unexpected token: " + tokenTypeToString(current().type) +
-                         " ('" + current().value + "')");
+        throw ParseError("Unexpected token: " + tokenTypeToString(current().type) +
+                             " ('" + current().value + "')",
+                         current().line);
     }
 
     // ============================================================
