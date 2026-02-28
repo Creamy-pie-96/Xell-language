@@ -3,6 +3,7 @@
 
 CMakeFiles/xell.dir/src/main.cpp.o
  /home/DATA/CODE/code/Xell/src/main.cpp
+ /home/DATA/CODE/code/Xell/src/analyzer/static_analyzer.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtin_registry.hpp
  /home/DATA/CODE/code/Xell/src/interpreter/environment.hpp
  /home/DATA/CODE/code/Xell/src/interpreter/interpreter.hpp

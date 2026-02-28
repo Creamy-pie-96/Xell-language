@@ -77,6 +77,16 @@ class XellNotebookController {
                 stdio: ['pipe', 'pipe', 'pipe'],
                 windowsHide: true,
             });
+            // Handle spawn errors (e.g. xell binary not found)
+            this.kernelProcess.on('error', (err) => {
+                console.error(`[Xell Kernel] Spawn error: ${err.message}`);
+            });
+            // If kernel exits immediately (e.g. --kernel not supported), handle it
+            this.kernelProcess.on('exit', (code) => {
+                if (code !== null && code !== 0) {
+                    console.error(`[Xell Kernel] Process exited with code ${code}`);
+                }
+            });
             // Read line-by-line from stdout
             this.rl = readline.createInterface({
                 input: this.kernelProcess.stdout,
@@ -101,12 +111,29 @@ class XellNotebookController {
         }
     }
     readLine() {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             if (!this.rl) {
                 resolve('');
                 return;
             }
-            this.rl.once('line', resolve);
+            const timer = setTimeout(() => {
+                resolve('{"status":"error","stderr":"Kernel did not respond in time"}');
+            }, 5000);
+            // Handle kernel process exit before responding
+            if (this.kernelProcess) {
+                this.kernelProcess.once('exit', () => {
+                    clearTimeout(timer);
+                    resolve('{"status":"error","stderr":"Kernel process exited"}');
+                });
+                this.kernelProcess.once('error', (err) => {
+                    clearTimeout(timer);
+                    resolve(`{"status":"error","stderr":"Kernel error: ${err.message}"}`);
+                });
+            }
+            this.rl.once('line', (line) => {
+                clearTimeout(timer);
+                resolve(line);
+            });
         });
     }
     listenForResponses() {

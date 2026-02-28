@@ -1,0 +1,68 @@
+# ═══════════════════════════════════════════════════════════
+# Collection Utilities Module
+# ═══════════════════════════════════════════════════════════
+
+fn map_list(lst, f):
+    result = []
+    for item in lst:
+        push(result, f(item))
+    ;
+    give result
+;
+
+fn filter_list(lst, pred):
+    result = []
+    for item in lst:
+        if pred(item):
+            push(result, item)
+        ;
+    ;
+    give result
+;
+
+fn reduce(lst, initial, f):
+    acc = initial
+    for item in lst:
+        acc = f(acc, item)
+    ;
+    give acc
+;
+
+fn find_first(lst, pred):
+    for item in lst:
+        if pred(item):
+            give item
+        ;
+    ;
+    give none
+;
+
+fn sum_list(lst):
+    total = 0
+    for item in lst:
+        total = total + item
+    ;
+    give total
+;
+
+fn reverse(lst):
+    result = []
+    i = len(lst) - 1
+    while i >= 0:
+        push(result, lst[i])
+        i = i - 1
+    ;
+    give result
+;
+
+fn zip_lists(a, b):
+    result = []
+    size = len(a)
+    if len(b) < size:
+        size = len(b)
+    ;
+    for i in range(0, size):
+        push(result, [a[i], b[i]])
+    ;
+    give result
+;

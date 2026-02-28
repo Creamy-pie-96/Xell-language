@@ -62,54 +62,32 @@ namespace xell
 
             printBanner();
 
-            std::string accumulated;
-            int depth = 0;
-
             while (true)
             {
-                std::string prompt = makePrompt(depth);
-                std::string line;
+                std::string prompt = makePrompt(0);
+                std::string contPrompt = makeContPrompt();
+                std::string input;
 
-                bool ok = editor_.readLine(prompt, line);
+                bool ok = editor_.readLine(prompt, contPrompt, input);
                 if (!ok)
                 {
                     // Ctrl+D — exit
-                    if (accumulated.empty())
-                    {
-                        terminal_.disableRawMode();
-                        std::cout << color::DIM << "Goodbye!" << color::RESET << std::endl;
-                        history_.save(historyPath_);
-                        return;
-                    }
-                    // Cancel multi-line
-                    accumulated.clear();
-                    depth = 0;
-                    continue;
+                    terminal_.disableRawMode();
+                    std::cout << color::DIM << "Goodbye!" << color::RESET << std::endl;
+                    history_.save(historyPath_);
+                    return;
                 }
 
-                if (line.empty() && accumulated.empty())
+                if (input.empty())
                     continue;
 
                 // Handle special REPL commands
-                if (accumulated.empty() && handleCommand(line))
+                if (handleCommand(input))
                     continue;
 
-                // Accumulate input
-                if (!accumulated.empty())
-                    accumulated += "\n";
-                accumulated += line;
-
-                // Count scope depth
-                depth = computeDepth(accumulated);
-
-                if (depth > 0)
-                    continue; // Need more input
-
-                // Execute the accumulated input
-                history_.add(accumulated);
-                execute(accumulated);
-                accumulated.clear();
-                depth = 0;
+                // Execute the input (can be multiline)
+                history_.add(input);
+                execute(input);
             }
         }
 
@@ -132,6 +110,7 @@ namespace xell
             banner += std::string(color::CYAN) + color::BOLD + "     ║\r\n";
             banner += std::string("  ╚═══════════════════════════════════════╝") + color::RESET + "\r\n";
             banner += std::string(color::DIM) + "  Type :help for commands, Ctrl+D to exit\r\n" + color::RESET;
+            banner += std::string(color::DIM) + "  Enter=newline  Shift/Alt+Enter=run\r\n" + color::RESET;
             banner += "\r\n";
             Terminal::write(banner);
         }
@@ -146,6 +125,11 @@ namespace xell
             }
             return std::string(color::CYAN) + color::BOLD + "xell" +
                    color::RESET + std::string(color::DIM) + " ▸ " + color::RESET;
+        }
+
+        std::string makeContPrompt()
+        {
+            return std::string(color::DIM) + "  ·· " + color::RESET;
         }
 
         /// Returns how many more `;` we need to close open `:` blocks
@@ -307,14 +291,16 @@ namespace xell
             Terminal::write(std::string(color::CYAN) + "    :vars     " + color::RESET + "Show defined variables\r\n");
             Terminal::write("\r\n");
             Terminal::write(std::string(color::BOLD) + "  Keyboard:\r\n" + color::RESET);
-            Terminal::write(std::string(color::DIM) + "    Tab       " + color::RESET + "Auto-complete\r\n");
-            Terminal::write(std::string(color::DIM) + "    ↑/↓       " + color::RESET + "History navigation\r\n");
-            Terminal::write(std::string(color::DIM) + "    Ctrl+C    " + color::RESET + "Cancel current input\r\n");
-            Terminal::write(std::string(color::DIM) + "    Ctrl+D    " + color::RESET + "Exit (on empty line)\r\n");
-            Terminal::write(std::string(color::DIM) + "    Ctrl+L    " + color::RESET + "Clear screen\r\n");
-            Terminal::write(std::string(color::DIM) + "    Ctrl+W    " + color::RESET + "Delete word backward\r\n");
-            Terminal::write(std::string(color::DIM) + "    Ctrl+U    " + color::RESET + "Delete to line start\r\n");
-            Terminal::write(std::string(color::DIM) + "    Ctrl+K    " + color::RESET + "Delete to line end\r\n");
+            Terminal::write(std::string(color::DIM) + "    Enter         " + color::RESET + "New line (multiline editing)\r\n");
+            Terminal::write(std::string(color::DIM) + "    Shift+Enter   " + color::RESET + "Execute code (or Alt+Enter)\r\n");
+            Terminal::write(std::string(color::DIM) + "    Tab           " + color::RESET + "Auto-complete\r\n");
+            Terminal::write(std::string(color::DIM) + "    ↑/↓           " + color::RESET + "Navigate lines or history\r\n");
+            Terminal::write(std::string(color::DIM) + "    ←/→           " + color::RESET + "Move cursor\r\n");
+            Terminal::write(std::string(color::DIM) + "    Ctrl+C        " + color::RESET + "Cancel current input\r\n");
+            Terminal::write(std::string(color::DIM) + "    Ctrl+D        " + color::RESET + "Exit (on empty buffer)\r\n");
+            Terminal::write(std::string(color::DIM) + "    Ctrl+L        " + color::RESET + "Clear screen\r\n");
+            Terminal::write(std::string(color::DIM) + "    Ctrl+W        " + color::RESET + "Delete word backward\r\n");
+            Terminal::write(std::string(color::DIM) + "    Ctrl+U/K      " + color::RESET + "Delete to line start/end\r\n");
             Terminal::write("\r\n");
         }
 

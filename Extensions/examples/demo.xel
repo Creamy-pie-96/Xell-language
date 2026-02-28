@@ -1,0 +1,396 @@
+# ═══════════════════════════════════════════════════════════
+# Xell — Full Language Feature Demo
+# ═══════════════════════════════════════════════════════════
+# Tests every language feature: variables, operators, control
+# flow, functions, break/continue, modules with aliases,
+# lists, maps, string interpolation, builtins, and more.
+# ═══════════════════════════════════════════════════════════
+
+# ── Module Imports (bring with aliases) ───────────────────
+
+bring square, factorial, fibonacci, is_even from "lib/math_utils.xel" as sq, fact, fib, even.
+bring max_val, clamp, PI from "lib/math_utils.xel".
+bring repeat, pad_left, join_list, contains from "lib/string_utils.xel".
+bring map_list, filter_list, reduce, find_first, sum_list, reverse from "lib/collections.xel".
+
+# ── 1. Variables & Arithmetic ─────────────────────────────
+
+print("═══ 1. Variables & Arithmetic ═══")
+x = 42
+y = 3.14
+name = "Xell"
+print("{name} says: x={x}, y={y}")
+print("x + y = {x + y}")
+print("x * 2 = {x * 2}")
+print("x / 7 = {x / 7}")
+print("x % 5 = {x % 5}")
+
+# ── 2. Increment/Decrement ───────────────────────────────
+
+print("")
+print("═══ 2. Increment/Decrement ═══")
+counter = 10
+counter++
+print("After ++: {counter}")
+counter--
+counter--
+print("After -- twice: {counter}")
+
+# ── 3. Boolean & Comparison ──────────────────────────────
+
+print("")
+print("═══ 3. Boolean & Comparison ═══")
+a = true
+b = false
+print("a and b = {a and b}")
+print("a or b = {a or b}")
+print("not a = {not a}")
+print("10 > 5 = {10 > 5}")
+print("10 == 10 = {10 == 10}")
+print("10 != 5 = {10 != 5}")
+
+# Word operators
+print("10 is 10 = {10 is 10}")
+print("3 gt 2 = {3 gt 2}")
+print("3 lt 5 = {3 lt 5}")
+print("3 ge 3 = {3 ge 3}")
+print("5 le 5 = {5 le 5}")
+print("1 eq 1 = {1 eq 1}")
+print("1 ne 2 = {1 ne 2}")
+
+# ── 4. Conditionals (if / elif / else) ───────────────────
+
+print("")
+print("═══ 4. Conditionals ═══")
+
+fn grade(score):
+    if score >= 90:
+        give "A"
+    elif score >= 80:
+        give "B"
+    elif score >= 70:
+        give "C"
+    elif score >= 60:
+        give "D"
+    else:
+        give "F"
+    ;
+;
+
+scores = [95, 82, 71, 55, 100]
+for s in scores:
+    print("Score {s} → {grade(s)}")
+;
+
+# ── 5. For Loops with break & continue ──────────────────
+
+print("")
+print("═══ 5. For Loops + Break/Continue ═══")
+
+# Find first even number > 5
+for i in range(1, 20):
+    if not even(i):
+        continue.
+    ;
+    if i > 5:
+        print("First even > 5: {i}")
+        break.
+    ;
+;
+
+# Skip multiples of 3
+print("Non-multiples of 3 up to 12:")
+for i in range(1, 13):
+    if i % 3 == 0:
+        continue.
+    ;
+    print("  {i}")
+;
+
+# ── 6. While Loop with break ─────────────────────────────
+
+print("")
+print("═══ 6. While Loops ═══")
+
+# Collatz sequence from 27
+n = 27
+steps = 0
+while n != 1:
+    if n % 2 == 0:
+        n = n / 2
+    else:
+        n = n * 3 + 1
+    ;
+    steps = steps + 1
+    if steps > 200:
+        print("Giving up after 200 steps!")
+        break.
+    ;
+;
+print("Collatz(27): {steps} steps")
+
+# ── 7. Functions ─────────────────────────────────────────
+
+print("")
+print("═══ 7. Functions ═══")
+
+fn greet(who, times):
+    for i in range(0, times):
+        print("Hello, {who}! (#{i + 1})")
+    ;
+;
+greet("Xell", 3)
+
+# Higher-order
+fn apply(f, val):
+    give f(val)
+;
+
+fn double(n):
+    give n * 2
+;
+
+print("apply(double, 21) = {apply(double, 21)}")
+
+# ── 8. Recursion ─────────────────────────────────────────
+
+print("")
+print("═══ 8. Recursion ═══")
+print("5! = {fact(5)}")
+print("10! = {fact(10)}")
+print("fib(10) = {fib(10)}")
+print("fib(20) = {fib(20)}")
+
+# ── 9. Lists ─────────────────────────────────────────────
+
+print("")
+print("═══ 9. Lists ═══")
+fruits = ["apple", "banana", "cherry", "date", "elderberry"]
+print("Fruits: {fruits}")
+print("Length: {len(fruits)}")
+print("First: {fruits[0]}")
+print("Last: {fruits[-1]}")
+
+push(fruits, "fig")
+print("After push: {fruits}")
+popped = pop(fruits)
+print("Popped: {popped}")
+
+# ── 10. Maps ─────────────────────────────────────────────
+
+print("")
+print("═══ 10. Maps ═══")
+config = {
+    "host": "localhost",
+    "port": 8080,
+    "debug": true
+}
+print("Host: {config->host}")
+print("Port: {config->port}")
+print("Debug: {config->debug}")
+print("Keys: {keys(config)}")
+print("Has 'port': {has(config, \"port\")}")
+
+# ── 11. String Interpolation & Operations ────────────────
+
+print("")
+print("═══ 11. Strings ═══")
+msg = "Hello, World!"
+print("String: {msg}")
+print("Length: {len(msg)}")
+print("First char: {msg[0]}")
+
+# Using imported string utils
+stars = repeat("★ ", 5)
+print("Stars: {stars}")
+padded = pad_left(42, 8, "0")
+print("Padded: {padded}")
+print("Contains 'World': {contains(msg, \"World\")}")
+print("Contains 'Xell': {contains(msg, \"Xell\")}")
+
+# ── 12. Imported Math (aliased) ──────────────────────────
+
+print("")
+print("═══ 12. Imported Math ═══")
+print("sq(7) = {sq(7)}")
+print("fact(6) = {fact(6)}")
+print("fib(15) = {fib(15)}")
+print("even(4) = {even(4)}")
+print("even(7) = {even(7)}")
+print("max_val(3, 9) = {max_val(3, 9)}")
+print("clamp(15, 0, 10) = {clamp(15, 0, 10)}")
+print("PI = {PI}")
+
+# ── 13. Collection Operations (imported) ─────────────────
+
+print("")
+print("═══ 13. Collection Operations ═══")
+
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# map (using imported sq as the function!)
+squared = map_list(numbers, sq)
+print("Squared: {squared}")
+
+# filter for even numbers
+evens = filter_list(numbers, even)
+print("Evens: {evens}")
+
+# reduce (sum)
+fn add(a, b):
+    give a + b
+;
+total = reduce(numbers, 0, add)
+print("Sum 1..10 = {total}")
+
+# find_first
+fn gt_five(n):
+    give n > 5
+;
+first_big = find_first(numbers, gt_five)
+print("First > 5: {first_big}")
+
+# sum
+print("sum_list: {sum_list(numbers)}")
+
+# reverse
+rev = reverse(numbers)
+print("Reversed: {rev}")
+
+# join
+items = ["Xell", "is", "awesome"]
+print("Joined: {join_list(items, \" \")}")
+
+# ── 14. Nested Loops with break/continue ─────────────────
+
+print("")
+print("═══ 14. Nested Loops ═══")
+
+# Find pairs that sum to 10
+print("Pairs that sum to 10:")
+for i in range(1, 10):
+    for j in range(i + 1, 10):
+        if i + j == 10:
+            print("  ({i}, {j})")
+            break.
+        ;
+        if i + j > 10:
+            break.
+        ;
+    ;
+;
+
+# ── 15. Complex Program: FizzBuzz ────────────────────────
+
+print("")
+print("═══ 15. FizzBuzz (1-20) ═══")
+for i in range(1, 21):
+    if i % 15 == 0:
+        print("{pad_left(i, 2, \" \")}: FizzBuzz")
+    elif i % 3 == 0:
+        print("{pad_left(i, 2, \" \")}: Fizz")
+    elif i % 5 == 0:
+        print("{pad_left(i, 2, \" \")}: Buzz")
+    else:
+        print("{pad_left(i, 2, \" \")}: {i}")
+    ;
+;
+
+# ── 16. Block Comments ──────────────────────────────────
+
+-->
+This is a multi-line block comment.
+It uses the arrow markers to open and close.
+All text here is ignored by the interpreter.
+<--
+
+# ── 17. Scope Isolation ──────────────────────────────────
+
+print("")
+print("═══ 17. Scope ═══")
+outer = "global"
+
+fn test_scope():
+    inner = "local"
+    print("Inside fn: outer={outer}, inner={inner}")
+;
+test_scope()
+print("Outside fn: outer={outer}")
+
+# ── 18. Error-Resilient Search ───────────────────────────
+
+print("")
+print("═══ 18. Search with Early Exit ═══")
+
+data = [10, 23, 7, 42, 88, 15, 99, 3]
+target = 42
+found = false
+idx = 0
+
+for i in range(0, len(data)):
+    if data[i] == target:
+        found = true
+        idx = i
+        break.
+    ;
+;
+
+if found:
+    print("Found {target} at index {idx}")
+else:
+    print("{target} not found")
+;
+
+# ── 19. Mini Sorting (Bubble Sort) ──────────────────────
+
+print("")
+print("═══ 19. Bubble Sort ═══")
+
+fn bubble_sort(lst):
+    n = len(lst)
+    for i in range(0, n):
+        swapped = false
+        for j in range(0, n - i - 1):
+            if lst[j] > lst[j + 1]:
+                temp = lst[j]
+                set(lst, j, lst[j + 1])
+                set(lst, j + 1, temp)
+                swapped = true
+            ;
+        ;
+        if not swapped:
+            break.
+        ;
+    ;
+    give lst
+;
+
+unsorted = [64, 34, 25, 12, 22, 11, 90]
+print("Before: {unsorted}")
+sorted_list = bubble_sort(unsorted)
+print("After:  {sorted_list}")
+
+# ── 20. Type System ──────────────────────────────────────
+
+print("")
+print("═══ 20. Type System ═══")
+print("type(42) = {type(42)}")
+print("type(3.14) = {type(3.14)}")
+print("type(\"hi\") = {type(\"hi\")}")
+print("type(true) = {type(true)}")
+print("type(none) = {type(none)}")
+print("type([1,2]) = {type([1,2])}")
+sample_map = {"a": 1}
+print("type(map) = {type(sample_map)}")
+
+# Type conversions
+print("str(42) = \"{str(42)}\"")
+print("num(\"3.14\") = {num(\"3.14\")}")
+
+# ── Done! ─────────────────────────────────────────────────
+
+print("")
+print("═══════════════════════════════════════════════════")
+print("  All 20 feature demos completed successfully!")
+print("  Xell Language v0.1.0 — Everything works!")
+print("═══════════════════════════════════════════════════")

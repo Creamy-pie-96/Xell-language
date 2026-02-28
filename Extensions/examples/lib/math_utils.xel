@@ -1,0 +1,66 @@
+# ═══════════════════════════════════════════════════════════
+# Math Utilities Module
+# ═══════════════════════════════════════════════════════════
+
+fn square(x):
+    give x * x
+;
+
+fn cube(x):
+    give x * x * x
+;
+
+fn factorial(n):
+    if n <= 1:
+        give 1
+    ;
+    give n * factorial(n - 1)
+;
+
+fn fibonacci(n):
+    if n <= 0:
+        give 0
+    ;
+    if n == 1:
+        give 1
+    ;
+    a = 0
+    b = 1
+    for i in range(2, n + 1):
+        temp = a + b
+        a = b
+        b = temp
+    ;
+    give b
+;
+
+fn is_even(n):
+    give n % 2 == 0
+;
+
+fn max_val(a, b):
+    if a > b:
+        give a
+    ;
+    give b
+;
+
+fn min_val(a, b):
+    if a < b:
+        give a
+    ;
+    give b
+;
+
+fn clamp(val, lo, hi):
+    if val < lo:
+        give lo
+    ;
+    if val > hi:
+        give hi
+    ;
+    give val
+;
+
+PI = 3.14159265
+E = 2.71828182

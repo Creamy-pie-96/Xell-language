@@ -43,7 +43,9 @@ namespace xell
         // Editing
         BACKSPACE,
         TAB,
-        ENTER,
+        ENTER,       // Plain Enter → newline in multiline mode
+        SHIFT_ENTER, // Shift+Enter or Alt+Enter → execute
+        ALT_ENTER,   // Alias for SHIFT_ENTER
 
         // Control
         CTRL_C,
@@ -197,12 +199,20 @@ namespace xell
             // Escape sequences
             if (c == 27)
             {
-                char seq[3];
+                char seq[6];
                 if (::read(STDIN_FILENO, &seq[0], 1) != 1)
                 {
                     ev.key = Key::UNKNOWN;
                     return ev;
                 }
+
+                // Alt+Enter: ESC followed by CR or LF
+                if (seq[0] == '\r' || seq[0] == '\n')
+                {
+                    ev.key = Key::SHIFT_ENTER;
+                    return ev;
+                }
+
                 if (seq[0] == '[')
                 {
                     if (::read(STDIN_FILENO, &seq[1], 1) != 1)
@@ -210,6 +220,142 @@ namespace xell
                         ev.key = Key::UNKNOWN;
                         return ev;
                     }
+
+                    // Kitty keyboard protocol: ESC[13;2u = Shift+Enter
+                    if (seq[1] == '1')
+                    {
+                        // Could be ESC[1~ (Home), ESC[13;2u (Shift+Enter), etc.
+                        char next;
+                        if (::read(STDIN_FILENO, &next, 1) != 1)
+                        {
+                            ev.key = Key::HOME;
+                            return ev;
+                        }
+                        if (next == '3')
+                        {
+                            // ESC[13... could be ESC[13;2u (Shift+Enter)
+                            char mod;
+                            if (::read(STDIN_FILENO, &mod, 1) != 1)
+                            {
+                                ev.key = Key::UNKNOWN;
+                                return ev;
+                            }
+                            if (mod == ';')
+                            {
+                                // Read modifier and terminator
+                                char modVal, term;
+                                if (::read(STDIN_FILENO, &modVal, 1) != 1 ||
+                                    ::read(STDIN_FILENO, &term, 1) != 1)
+                                {
+                                    ev.key = Key::UNKNOWN;
+                                    return ev;
+                                }
+                                if (term == 'u' && (modVal == '2' || modVal == '6'))
+                                {
+                                    // Shift+Enter (;2u) or Ctrl+Shift+Enter (;6u)
+                                    ev.key = Key::SHIFT_ENTER;
+                                    return ev;
+                                }
+                                ev.key = Key::UNKNOWN;
+                                return ev;
+                            }
+                            if (mod == '~')
+                            {
+                                // ESC[13~ — some terminals send this
+                                ev.key = Key::UNKNOWN;
+                                return ev;
+                            }
+                            ev.key = Key::UNKNOWN;
+                            return ev;
+                        }
+                        if (next == '~')
+                        {
+                            ev.key = Key::HOME;
+                            return ev;
+                        }
+                        if (next == ';')
+                        {
+                            // Modified key: ESC[1;Xm where X=modifier, m=direction
+                            char modVal, dir;
+                            if (::read(STDIN_FILENO, &modVal, 1) != 1 ||
+                                ::read(STDIN_FILENO, &dir, 1) != 1)
+                            {
+                                ev.key = Key::UNKNOWN;
+                                return ev;
+                            }
+                            // Just map direction, ignore modifier for now
+                            switch (dir)
+                            {
+                            case 'A':
+                                ev.key = Key::UP;
+                                return ev;
+                            case 'B':
+                                ev.key = Key::DOWN;
+                                return ev;
+                            case 'C':
+                                ev.key = Key::RIGHT;
+                                return ev;
+                            case 'D':
+                                ev.key = Key::LEFT;
+                                return ev;
+                            case 'H':
+                                ev.key = Key::HOME;
+                                return ev;
+                            case 'F':
+                                ev.key = Key::END;
+                                return ev;
+                            }
+                            ev.key = Key::UNKNOWN;
+                            return ev;
+                        }
+                        ev.key = Key::HOME;
+                        return ev;
+                    }
+
+                    // xterm modifyOtherKeys: ESC[27;2;13~ = Shift+Enter
+                    if (seq[1] == '2')
+                    {
+                        char next;
+                        if (::read(STDIN_FILENO, &next, 1) != 1)
+                        {
+                            ev.key = Key::UNKNOWN;
+                            return ev;
+                        }
+                        if (next == '7')
+                        {
+                            // ESC[27;... — modifyOtherKeys format
+                            char buf[10];
+                            int idx = 0;
+                            while (idx < 9)
+                            {
+                                if (::read(STDIN_FILENO, &buf[idx], 1) != 1)
+                                    break;
+                                if (buf[idx] == '~')
+                                {
+                                    buf[idx + 1] = 0;
+                                    break;
+                                }
+                                idx++;
+                            }
+                            // Check if it ends with ;13~ (Enter with modifier)
+                            std::string rest(buf, idx + 1);
+                            if (rest.find(";13~") != std::string::npos)
+                            {
+                                ev.key = Key::SHIFT_ENTER;
+                                return ev;
+                            }
+                            ev.key = Key::UNKNOWN;
+                            return ev;
+                        }
+                        if (next == '~')
+                        {
+                            ev.key = Key::UNKNOWN; // ESC[2~ = Insert
+                            return ev;
+                        }
+                        ev.key = Key::UNKNOWN;
+                        return ev;
+                    }
+
                     switch (seq[1])
                     {
                     case 'A':
@@ -233,15 +379,16 @@ namespace xell
                     case '3':
                     {
                         // Delete key: ESC [ 3 ~
-                        ssize_t r = ::read(STDIN_FILENO, &seq[2], 1);
+                        char tilde;
+                        ssize_t r = ::read(STDIN_FILENO, &tilde, 1);
                         (void)r;
                         ev.key = Key::DELETE_KEY;
                         return ev;
                     }
-                    case '1':
                     case '7':
                     {
-                        ssize_t r = ::read(STDIN_FILENO, &seq[2], 1);
+                        char tilde;
+                        ssize_t r = ::read(STDIN_FILENO, &tilde, 1);
                         (void)r;
                         ev.key = Key::HOME;
                         return ev;
@@ -249,9 +396,28 @@ namespace xell
                     case '4':
                     case '8':
                     {
-                        ssize_t r = ::read(STDIN_FILENO, &seq[2], 1);
+                        char tilde;
+                        ssize_t r = ::read(STDIN_FILENO, &tilde, 1);
                         (void)r;
                         ev.key = Key::END;
+                        return ev;
+                    }
+                    case '5':
+                    {
+                        // Page Up: ESC[5~ — ignore
+                        char tilde;
+                        ssize_t r = ::read(STDIN_FILENO, &tilde, 1);
+                        (void)r;
+                        ev.key = Key::UNKNOWN;
+                        return ev;
+                    }
+                    case '6':
+                    {
+                        // Page Down: ESC[6~ — ignore
+                        char tilde;
+                        ssize_t r = ::read(STDIN_FILENO, &tilde, 1);
+                        (void)r;
+                        ev.key = Key::UNKNOWN;
                         return ev;
                     }
                     }

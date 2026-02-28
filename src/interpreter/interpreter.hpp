@@ -36,6 +36,15 @@ namespace xell
         XObject value;
     };
 
+    // ---- Control-flow signals for break/continue ---------------------------
+
+    struct BreakSignal
+    {
+    };
+    struct ContinueSignal
+    {
+    };
+
     // ========================================================================
     // Interpreter
     // ========================================================================

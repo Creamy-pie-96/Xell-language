@@ -111,6 +111,10 @@ namespace xell
             return execFnDef(p);
         if (auto *p = dynamic_cast<const GiveStmt *>(stmt))
             return execGive(p);
+        if (auto *p = dynamic_cast<const BreakStmt *>(stmt))
+            throw BreakSignal{};
+        if (auto *p = dynamic_cast<const ContinueStmt *>(stmt))
+            throw ContinueSignal{};
         if (auto *p = dynamic_cast<const ExprStmt *>(stmt))
             return execExprStmt(p);
         if (auto *p = dynamic_cast<const BringStmt *>(stmt))
@@ -121,9 +125,17 @@ namespace xell
     {
         auto *savedEnv = currentEnv_;
         currentEnv_ = &env;
-        for (const auto &stmt : stmts)
+        try
         {
-            exec(stmt.get());
+            for (const auto &stmt : stmts)
+            {
+                exec(stmt.get());
+            }
+        }
+        catch (...)
+        {
+            currentEnv_ = savedEnv;
+            throw;
         }
         currentEnv_ = savedEnv;
     }
@@ -175,14 +187,33 @@ namespace xell
         auto *savedEnv = currentEnv_;
         currentEnv_ = &loopEnv;
 
-        const auto &list = iterable.asList();
-        for (size_t i = 0; i < list.size(); i++)
+        try
         {
-            loopEnv.define(node->varName, list[i]);
-            for (const auto &stmt : node->body)
+            const auto &list = iterable.asList();
+            for (size_t i = 0; i < list.size(); i++)
             {
-                exec(stmt.get());
+                loopEnv.define(node->varName, list[i]);
+                try
+                {
+                    for (const auto &stmt : node->body)
+                    {
+                        exec(stmt.get());
+                    }
+                }
+                catch (const BreakSignal &)
+                {
+                    break;
+                }
+                catch (const ContinueSignal &)
+                {
+                    continue;
+                }
             }
+        }
+        catch (...)
+        {
+            currentEnv_ = savedEnv;
+            throw;
         }
 
         currentEnv_ = savedEnv;
@@ -194,12 +225,31 @@ namespace xell
         auto *savedEnv = currentEnv_;
         currentEnv_ = &loopEnv;
 
-        while (eval(node->condition.get()).truthy())
+        try
         {
-            for (const auto &stmt : node->body)
+            while (eval(node->condition.get()).truthy())
             {
-                exec(stmt.get());
+                try
+                {
+                    for (const auto &stmt : node->body)
+                    {
+                        exec(stmt.get());
+                    }
+                }
+                catch (const BreakSignal &)
+                {
+                    break;
+                }
+                catch (const ContinueSignal &)
+                {
+                    continue;
+                }
             }
+        }
+        catch (...)
+        {
+            currentEnv_ = savedEnv;
+            throw;
         }
 
         currentEnv_ = savedEnv;

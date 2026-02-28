@@ -134,6 +134,20 @@ namespace xell
             return parseFnDef();
         if (type == TokenType::GIVE)
             return parseGiveStmt();
+        if (type == TokenType::BREAK)
+        {
+            int ln = current().line;
+            advance(); // consume break
+            consumeStatementEnd();
+            return std::make_unique<BreakStmt>(ln);
+        }
+        if (type == TokenType::CONTINUE)
+        {
+            int ln = current().line;
+            advance(); // consume continue
+            consumeStatementEnd();
+            return std::make_unique<ContinueStmt>(ln);
+        }
         if (type == TokenType::BRING)
             return parseBringStmt();
 

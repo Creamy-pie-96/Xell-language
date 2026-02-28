@@ -1126,6 +1126,174 @@ static void testInterpolation()
 }
 
 // ============================================================================
+// Section: Break & Continue
+// ============================================================================
+
+static void testBreakContinue()
+{
+    std::cout << "\n===== Break & Continue =====\n";
+
+    // -- break in for loop --
+    runTest("break in for loop", []()
+            {
+        auto out = runXell(
+            "for i in range(1, 10):\n"
+            "  if i == 4:\n"
+            "    break.\n"
+            "  ;\n"
+            "  print(i)\n"
+            ";");
+        XASSERT_EQ(out.size(), (size_t)3);
+        XASSERT_EQ(out[0], std::string("1"));
+        XASSERT_EQ(out[1], std::string("2"));
+        XASSERT_EQ(out[2], std::string("3")); });
+
+    runTest("break in while loop", []()
+            {
+        auto out = runXell(
+            "i = 0\n"
+            "while true:\n"
+            "  i = i + 1\n"
+            "  if i == 5:\n"
+            "    break.\n"
+            "  ;\n"
+            ";\n"
+            "print(i)");
+        XASSERT_EQ(out[0], std::string("5")); });
+
+    runTest("continue in for loop", []()
+            {
+        auto out = runXell(
+            "for i in range(1, 6):\n"
+            "  if i == 3:\n"
+            "    continue.\n"
+            "  ;\n"
+            "  print(i)\n"
+            ";");
+        XASSERT_EQ(out.size(), (size_t)4);
+        XASSERT_EQ(out[0], std::string("1"));
+        XASSERT_EQ(out[1], std::string("2"));
+        XASSERT_EQ(out[2], std::string("4"));
+        XASSERT_EQ(out[3], std::string("5")); });
+
+    runTest("continue in while loop", []()
+            {
+        auto out = runXell(
+            "i = 0\n"
+            "result = 0\n"
+            "while i < 10:\n"
+            "  i = i + 1\n"
+            "  if i % 2 == 0:\n"
+            "    continue.\n"
+            "  ;\n"
+            "  result = result + i\n"
+            ";\n"
+            "print(result)");
+        // sum of odd 1..10 = 1+3+5+7+9 = 25
+        XASSERT_EQ(out[0], std::string("25")); });
+
+    runTest("break only exits innermost loop", []()
+            {
+        auto out = runXell(
+            "for i in range(1, 4):\n"
+            "  for j in range(1, 4):\n"
+            "    if j == 2:\n"
+            "      break.\n"
+            "    ;\n"
+            "    print(\"{i},{j}\")\n"
+            "  ;\n"
+            ";");
+        // inner loop breaks at j==2 each time, so only j=1 prints
+        XASSERT_EQ(out.size(), (size_t)3);
+        XASSERT_EQ(out[0], std::string("1,1"));
+        XASSERT_EQ(out[1], std::string("2,1"));
+        XASSERT_EQ(out[2], std::string("3,1")); });
+
+    runTest("continue only affects innermost loop", []()
+            {
+        auto out = runXell(
+            "for i in range(1, 3):\n"
+            "  for j in range(1, 4):\n"
+            "    if j == 2:\n"
+            "      continue.\n"
+            "    ;\n"
+            "    print(\"{i},{j}\")\n"
+            "  ;\n"
+            ";");
+        // j==2 is skipped, so prints 1,1 1,3 2,1 2,3
+        XASSERT_EQ(out.size(), (size_t)4);
+        XASSERT_EQ(out[0], std::string("1,1"));
+        XASSERT_EQ(out[1], std::string("1,3"));
+        XASSERT_EQ(out[2], std::string("2,1"));
+        XASSERT_EQ(out[3], std::string("2,3")); });
+
+    runTest("break with accumulator", []()
+            {
+        auto out = runXell(
+            "sum = 0\n"
+            "for i in range(1, 100):\n"
+            "  sum = sum + i\n"
+            "  if sum > 10:\n"
+            "    break.\n"
+            "  ;\n"
+            ";\n"
+            "print(sum)");
+        // 1+2+3+4+5 = 15 > 10
+        XASSERT_EQ(out[0], std::string("15")); });
+
+    runTest("continue skips even numbers", []()
+            {
+        auto out = runXell(
+            "for i in range(1, 8):\n"
+            "  if i % 2 == 0:\n"
+            "    continue.\n"
+            "  ;\n"
+            "  print(i)\n"
+            ";");
+        XASSERT_EQ(out.size(), (size_t)4);
+        XASSERT_EQ(out[0], std::string("1"));
+        XASSERT_EQ(out[1], std::string("3"));
+        XASSERT_EQ(out[2], std::string("5"));
+        XASSERT_EQ(out[3], std::string("7")); });
+
+    runTest("break and continue together", []()
+            {
+        auto out = runXell(
+            "for i in range(1, 20):\n"
+            "  if i % 3 == 0:\n"
+            "    continue.\n"
+            "  ;\n"
+            "  if i > 10:\n"
+            "    break.\n"
+            "  ;\n"
+            "  print(i)\n"
+            ";");
+        // skip 3,6,9; break at 11; prints: 1,2,4,5,7,8,10
+        XASSERT_EQ(out.size(), (size_t)7);
+        XASSERT_EQ(out[0], std::string("1"));
+        XASSERT_EQ(out[1], std::string("2"));
+        XASSERT_EQ(out[2], std::string("4"));
+        XASSERT_EQ(out[3], std::string("5"));
+        XASSERT_EQ(out[4], std::string("7"));
+        XASSERT_EQ(out[5], std::string("8"));
+        XASSERT_EQ(out[6], std::string("10")); });
+
+    runTest("while break with found flag", []()
+            {
+        auto out = runXell(
+            "items = [\"a\", \"b\", \"c\", \"d\"]\n"
+            "found = false\n"
+            "for item in items:\n"
+            "  if item == \"c\":\n"
+            "    found = true\n"
+            "    break.\n"
+            "  ;\n"
+            ";\n"
+            "print(found)");
+        XASSERT_EQ(out[0], std::string("true")); });
+}
+
+// ============================================================================
 // main
 // ============================================================================
 
@@ -1146,6 +1314,7 @@ int main()
     testErrors();
     testComplexPrograms();
     testInterpolation();
+    testBreakContinue();
 
     std::cout << "\n============================================\n";
     std::cout << "  Total: " << (g_passed + g_failed)

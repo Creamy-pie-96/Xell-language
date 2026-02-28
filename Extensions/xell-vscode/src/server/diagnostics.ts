@@ -108,11 +108,19 @@ export class XellDiagnostics {
             if (!trimmed) continue;
 
             // [XELL ERROR] Line 14 — TypeError: cannot add number and list
-            let match = trimmed.match(/\[XELL\s+ERROR\]\s+Line\s+(\d+)\s*[—-]\s*(\w+):\s*(.+)/i);
+            // [XELL WARNING] Line 5 — Undefined name 'foo'
+            // [XELL HINT] Line 10 — some hint
+            let match = trimmed.match(/\[XELL\s+(ERROR|WARNING|HINT)\]\s+Line\s+(\d+)\s*[—-]\s*(?:(\w+):\s*)?(.+)/i);
             if (match) {
-                const lineNum = Math.max(0, parseInt(match[1]) - 1);
-                const message = `${match[2]}: ${match[3]}`;
-                diagnostics.push(this.createDiagnostic(lineNum, message, sourceLines, DiagnosticSeverity.Error));
+                const sevStr = match[1].toUpperCase();
+                const lineNum = Math.max(0, parseInt(match[2]) - 1);
+                const category = match[3] || '';
+                const detail = match[4];
+                const message = category ? `${category}: ${detail}` : detail;
+                const severity = sevStr === 'WARNING' ? DiagnosticSeverity.Warning :
+                                 sevStr === 'HINT' ? DiagnosticSeverity.Hint :
+                                 DiagnosticSeverity.Error;
+                diagnostics.push(this.createDiagnostic(lineNum, message, sourceLines, severity));
                 continue;
             }
 

@@ -81,8 +81,17 @@ documents.onDidClose(e => {
     documentSettings.delete(e.document.uri);
 });
 // ── Diagnostics ──────────────────────────────────────────
+const pendingValidations = new Map();
 documents.onDidChangeContent(change => {
-    validateTextDocument(change.document);
+    // Debounce: wait 300ms after last keystroke before validating
+    const uri = change.document.uri;
+    const prev = pendingValidations.get(uri);
+    if (prev)
+        clearTimeout(prev);
+    pendingValidations.set(uri, setTimeout(() => {
+        pendingValidations.delete(uri);
+        validateTextDocument(change.document);
+    }, 300));
 });
 async function validateTextDocument(textDocument) {
     const settings = await getDocumentSettings(textDocument.uri);

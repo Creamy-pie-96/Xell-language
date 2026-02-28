@@ -1,0 +1,54 @@
+# ═══════════════════════════════════════════════════════════
+# String Utilities Module
+# ═══════════════════════════════════════════════════════════
+
+fn repeat(s, n):
+    result = ""
+    for i in range(0, n):
+        result = result + s
+    ;
+    give result
+;
+
+fn pad_left(s, width, ch):
+    result = str(s)
+    while len(result) < width:
+        result = ch + result
+    ;
+    give result
+;
+
+fn join_list(items, sep):
+    result = ""
+    for i in range(0, len(items)):
+        if i > 0:
+            result = result + sep
+        ;
+        result = result + str(items[i])
+    ;
+    give result
+;
+
+fn contains(haystack, needle):
+    # Simple substring search
+    hlen = len(haystack)
+    nlen = len(needle)
+    if nlen > hlen:
+        give false
+    ;
+    for i in range(0, hlen - nlen + 1):
+        match = true
+        for j in range(0, nlen):
+            if haystack[i + j] != needle[j]:
+                match = false
+                break.
+            ;
+        ;
+        if match:
+            give true
+        ;
+    ;
+    give false
+;
+
+GREETING = "Hello from string_utils!"

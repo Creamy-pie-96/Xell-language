@@ -20,6 +20,8 @@ namespace xell
             {"for", TokenType::FOR},
             {"while", TokenType::WHILE},
             {"in", TokenType::IN},
+            {"break", TokenType::BREAK},
+            {"continue", TokenType::CONTINUE},
 
             // Import
             {"bring", TokenType::BRING},

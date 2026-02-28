@@ -26,6 +26,8 @@ namespace xell
         FOR,
         WHILE,
         IN,
+        BREAK,
+        CONTINUE,
 
         // Import keywords
         BRING,
@@ -109,6 +111,8 @@ namespace xell
             {(int)TokenType::FOR, "FOR"},
             {(int)TokenType::WHILE, "WHILE"},
             {(int)TokenType::IN, "IN"},
+            {(int)TokenType::BREAK, "BREAK"},
+            {(int)TokenType::CONTINUE, "CONTINUE"},
             {(int)TokenType::BRING, "BRING"},
             {(int)TokenType::FROM, "FROM"},
             {(int)TokenType::AS, "AS"},

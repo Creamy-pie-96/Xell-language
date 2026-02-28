@@ -1,10 +1,11 @@
 #pragma once
 
 // =============================================================================
-// LineEditor — single-line editor with cursor movement, word ops, etc.
+// LineEditor — multiline editor with cursor movement, word ops, etc.
 // =============================================================================
-// Manages a string buffer and cursor position. The REPL drives this by
-// feeding KeyEvents from Terminal and calling refresh() to redraw.
+// Manages a multiline string buffer with cursor navigation.
+// Enter = newline (add line), Shift+Enter or Alt+Enter = submit.
+// Arrow keys navigate within and between lines.
 // =============================================================================
 
 #include "terminal.hpp"
@@ -12,6 +13,7 @@
 #include "completer.hpp"
 #include <string>
 #include <vector>
+#include <algorithm>
 
 namespace xell
 {
@@ -22,12 +24,17 @@ namespace xell
         LineEditor(Terminal &term, History &hist, Completer &comp)
             : term_(term), history_(hist), completer_(comp) {}
 
-        /// Read a full line from the user. Returns false on EOF (Ctrl+D).
-        bool readLine(const std::string &prompt, std::string &result)
+        /// Read multiline input from the user.
+        /// Enter = newline, Shift+Enter or Alt+Enter = submit.
+        /// Returns false on EOF (Ctrl+D on empty buffer).
+        bool readLine(const std::string &prompt, const std::string &contPrompt, std::string &result)
         {
-            buf_.clear();
-            cursor_ = 0;
+            lines_.clear();
+            lines_.push_back("");
+            row_ = 0;
+            col_ = 0;
             prompt_ = prompt;
+            contPrompt_ = contPrompt;
             savedInput_.clear();
 
             refresh();
@@ -38,36 +45,52 @@ namespace xell
 
                 switch (ev.key)
                 {
-                case Key::ENTER:
+                case Key::SHIFT_ENTER:
+                case Key::ALT_ENTER:
+                    // Submit
                     Terminal::write("\r\n");
-                    result = buf_;
+                    result = joinLines();
                     history_.resetCursor();
                     return true;
 
+                case Key::ENTER:
+                    // Newline — add a new line
+                    insertNewline();
+                    break;
+
                 case Key::CTRL_D:
-                    if (buf_.empty())
+                    if (joinLines().empty())
                     {
                         Terminal::write("\r\n");
                         return false; // EOF
                     }
-                    // Delete char at cursor (like Delete key)
                     deleteAtCursor();
                     break;
 
                 case Key::CTRL_C:
-                    // Cancel current line
-                    buf_.clear();
-                    cursor_ = 0;
+                    // Cancel current input
+                    lines_.clear();
+                    lines_.push_back("");
+                    row_ = 0;
+                    col_ = 0;
                     Terminal::write("^C\r\n");
                     result.clear();
                     refresh();
                     break;
 
                 case Key::BACKSPACE:
-                    if (cursor_ > 0)
+                    if (col_ > 0)
                     {
-                        buf_.erase(cursor_ - 1, 1);
-                        cursor_--;
+                        lines_[row_].erase(col_ - 1, 1);
+                        col_--;
+                    }
+                    else if (row_ > 0)
+                    {
+                        // Merge with previous line
+                        col_ = lines_[row_ - 1].size();
+                        lines_[row_ - 1] += lines_[row_];
+                        lines_.erase(lines_.begin() + row_);
+                        row_--;
                     }
                     break;
 
@@ -76,67 +99,93 @@ namespace xell
                     break;
 
                 case Key::LEFT:
-                    if (cursor_ > 0)
-                        cursor_--;
+                    if (col_ > 0)
+                    {
+                        col_--;
+                    }
+                    else if (row_ > 0)
+                    {
+                        row_--;
+                        col_ = lines_[row_].size();
+                    }
                     break;
 
                 case Key::RIGHT:
-                    if (cursor_ < buf_.size())
-                        cursor_++;
+                    if (col_ < lines_[row_].size())
+                    {
+                        col_++;
+                    }
+                    else if (row_ < lines_.size() - 1)
+                    {
+                        row_++;
+                        col_ = 0;
+                    }
+                    break;
+
+                case Key::UP:
+                    if (row_ > 0)
+                    {
+                        // Move up within buffer
+                        row_--;
+                        col_ = std::min(col_, lines_[row_].size());
+                    }
+                    else
+                    {
+                        // At top line — navigate history
+                        if (savedInput_.empty() && !history_.entries().empty())
+                            savedInput_ = joinLines();
+                        std::string h;
+                        if (history_.up(h))
+                        {
+                            setContent(h);
+                        }
+                    }
+                    break;
+
+                case Key::DOWN:
+                    if (row_ < lines_.size() - 1)
+                    {
+                        // Move down within buffer
+                        row_++;
+                        col_ = std::min(col_, lines_[row_].size());
+                    }
+                    else
+                    {
+                        // At bottom line — navigate history
+                        std::string h;
+                        if (history_.down(h))
+                        {
+                            setContent(h.empty() ? savedInput_ : h);
+                        }
+                    }
                     break;
 
                 case Key::HOME:
                 case Key::CTRL_A:
-                    cursor_ = 0;
+                    col_ = 0;
                     break;
 
                 case Key::END:
                 case Key::CTRL_E:
-                    cursor_ = buf_.size();
+                    col_ = lines_[row_].size();
                     break;
-
-                case Key::UP:
-                {
-                    if (savedInput_.empty() && history_.entries().size() > 0)
-                        savedInput_ = buf_;
-                    std::string h;
-                    if (history_.up(h))
-                    {
-                        buf_ = h;
-                        cursor_ = buf_.size();
-                    }
-                    break;
-                }
-
-                case Key::DOWN:
-                {
-                    std::string h;
-                    if (history_.down(h))
-                    {
-                        buf_ = h.empty() ? savedInput_ : h;
-                        cursor_ = buf_.size();
-                    }
-                    break;
-                }
 
                 case Key::CTRL_U:
-                    // Delete from cursor to start
-                    buf_.erase(0, cursor_);
-                    cursor_ = 0;
+                    // Delete from cursor to start of current line
+                    lines_[row_].erase(0, col_);
+                    col_ = 0;
                     break;
 
                 case Key::CTRL_K:
-                    // Delete from cursor to end
-                    buf_.erase(cursor_);
+                    // Delete from cursor to end of current line
+                    lines_[row_].erase(col_);
                     break;
 
                 case Key::CTRL_W:
-                    // Delete word backward
                     deleteWordBackward();
                     break;
 
                 case Key::CTRL_L:
-                    // Clear screen, redraw
                     Terminal::clearScreen();
                     break;
 
@@ -145,8 +194,8 @@ namespace xell
                     break;
 
                 case Key::CHAR:
-                    buf_.insert(cursor_, 1, ev.ch);
-                    cursor_++;
+                    lines_[row_].insert(col_, 1, ev.ch);
+                    col_++;
                     break;
 
                 default:
@@ -157,58 +206,202 @@ namespace xell
             }
         }
 
-        /// Get current buffer content (for multi-line detection)
-        const std::string &buffer() const { return buf_; }
+        /// Overload for backward compatibility — single prompt, Enter=submit
+        bool readLine(const std::string &prompt, std::string &result)
+        {
+            return readLine(prompt, prompt, result);
+        }
+
+        /// Get current buffer content
+        std::string buffer() const { return joinLines(); }
 
     private:
         Terminal &term_;
         History &history_;
         Completer &completer_;
 
-        std::string buf_;
-        size_t cursor_ = 0;
+        std::vector<std::string> lines_;
+        size_t row_ = 0;
+        size_t col_ = 0;
         std::string prompt_;
+        std::string contPrompt_;
         std::string savedInput_;
 
-        void refresh()
+        std::string joinLines() const
         {
-            Terminal::clearLine();
-            Terminal::write(prompt_ + buf_);
-            // Move cursor back to the right position
-            int backSteps = (int)buf_.size() - (int)cursor_;
-            if (backSteps > 0)
-                Terminal::cursorBackward(backSteps);
+            std::string result;
+            for (size_t i = 0; i < lines_.size(); i++)
+            {
+                if (i > 0) result += '\n';
+                result += lines_[i];
+            }
+            return result;
+        }
+
+        void setContent(const std::string &text)
+        {
+            lines_.clear();
+            if (text.empty())
+            {
+                lines_.push_back("");
+            }
+            else
+            {
+                size_t start = 0;
+                while (start <= text.size())
+                {
+                    size_t nl = text.find('\n', start);
+                    if (nl == std::string::npos)
+                    {
+                        lines_.push_back(text.substr(start));
+                        break;
+                    }
+                    lines_.push_back(text.substr(start, nl - start));
+                    start = nl + 1;
+                }
+            }
+            row_ = lines_.size() - 1;
+            col_ = lines_[row_].size();
+        }
+
+        void insertNewline()
+        {
+            // Split current line at cursor
+            std::string after = lines_[row_].substr(col_);
+            lines_[row_].erase(col_);
+
+            // Auto-indent: copy leading whitespace from current line
+            std::string indent;
+            for (char c : lines_[row_])
+            {
+                if (c == ' ' || c == '\t')
+                    indent += c;
+                else
+                    break;
+            }
+
+            // If current line ends with ':', add extra indent
+            std::string trimmed = lines_[row_];
+            // Trim trailing spaces
+            while (!trimmed.empty() && (trimmed.back() == ' ' || trimmed.back() == '\t'))
+                trimmed.pop_back();
+            if (!trimmed.empty() && trimmed.back() == ':')
+                indent += "    ";
+
+            lines_.insert(lines_.begin() + row_ + 1, indent + after);
+            row_++;
+            col_ = indent.size();
         }
 
         void deleteAtCursor()
         {
-            if (cursor_ < buf_.size())
-                buf_.erase(cursor_, 1);
+            if (col_ < lines_[row_].size())
+            {
+                lines_[row_].erase(col_, 1);
+            }
+            else if (row_ < lines_.size() - 1)
+            {
+                // Merge next line into current
+                lines_[row_] += lines_[row_ + 1];
+                lines_.erase(lines_.begin() + row_ + 1);
+            }
+        }
+
+        void refresh()
+        {
+            // Move cursor to start of our edit area (row 0 of the buffer)
+            // We need to figure out how many display rows we've already drawn
+            // and move up to row 0.
+
+            // First: move up from current display position to first line
+            // The cursor should currently be on display row = row_
+            // (it was left there after last refresh)
+            if (lastDisplayLines_ > 0)
+            {
+                // Move up to first line of our edit area
+                int upToTop = lastCursorRow_;
+                if (upToTop > 0)
+                    Terminal::write("\033[" + std::to_string(upToTop) + "A");
+                Terminal::write("\r");
+                // Clear everything from here to end of screen
+                Terminal::write("\033[J");
+            }
+
+            // Draw all lines
+            for (size_t i = 0; i < lines_.size(); i++)
+            {
+                const std::string &p = (i == 0) ? prompt_ : contPrompt_;
+                Terminal::write(p + lines_[i]);
+                if (i < lines_.size() - 1)
+                    Terminal::write("\r\n");
+            }
+
+            // Remember state for next refresh
+            lastDisplayLines_ = lines_.size();
+            lastCursorRow_ = row_;
+
+            // Position cursor at (row_, col_)
+            // Currently at end of last line — move up to row_ if needed
+            int upMoves = (int)(lines_.size() - 1 - row_);
+            if (upMoves > 0)
+                Terminal::write("\033[" + std::to_string(upMoves) + "A");
+
+            // Move to correct column
+            const std::string &activePrompt = (row_ == 0) ? prompt_ : contPrompt_;
+            int promptLen = visibleLength(activePrompt);
+            Terminal::write("\r");
+            int targetCol = promptLen + (int)col_;
+            if (targetCol > 0)
+                Terminal::write("\033[" + std::to_string(targetCol) + "C");
+        }
+
+        size_t lastDisplayLines_ = 0;
+        size_t lastCursorRow_ = 0;
+
+        /// Calculate visible length of a string (ignoring ANSI escape codes)
+        static int visibleLength(const std::string &s)
+        {
+            int len = 0;
+            bool inEscape = false;
+            for (char c : s)
+            {
+                if (inEscape)
+                {
+                    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+                        inEscape = false;
+                    continue;
+                }
+                if (c == '\033')
+                {
+                    inEscape = true;
+                    continue;
+                }
+                len++;
+            }
+            return len;
         }
 
         void deleteWordBackward()
         {
-            if (cursor_ == 0)
+            if (col_ == 0)
                 return;
-            size_t end = cursor_;
-            // Skip trailing spaces
-            while (cursor_ > 0 && buf_[cursor_ - 1] == ' ')
-                cursor_--;
-            // Skip word chars
-            while (cursor_ > 0 && buf_[cursor_ - 1] != ' ')
-                cursor_--;
-            buf_.erase(cursor_, end - cursor_);
+            size_t end = col_;
+            while (col_ > 0 && lines_[row_][col_ - 1] == ' ')
+                col_--;
+            while (col_ > 0 && lines_[row_][col_ - 1] != ' ')
+                col_--;
+            lines_[row_].erase(col_, end - col_);
         }
 
-        /// Extract the word being typed at cursor position
         std::string wordAtCursor() const
         {
-            if (cursor_ == 0)
+            if (col_ == 0 || row_ >= lines_.size())
                 return "";
-            size_t start = cursor_;
-            while (start > 0 && isIdentChar(buf_[start - 1]))
+            const std::string &line = lines_[row_];
+            size_t start = col_;
+            while (start > 0 && isIdentChar(line[start - 1]))
                 start--;
-            return buf_.substr(start, cursor_ - start);
+            return line.substr(start, col_ - start);
         }
 
         static bool isIdentChar(char c)
@@ -222,9 +415,8 @@ namespace xell
             std::string prefix = wordAtCursor();
             if (prefix.empty())
             {
-                // Insert spaces for indent
-                buf_.insert(cursor_, "    ");
-                cursor_ += 4;
+                lines_[row_].insert(col_, "    ");
+                col_ += 4;
                 return;
             }
 
@@ -234,24 +426,21 @@ namespace xell
 
             if (matches.size() == 1)
             {
-                // Complete fully
                 std::string suffix = matches[0].substr(prefix.size());
-                buf_.insert(cursor_, suffix);
-                cursor_ += suffix.size();
+                lines_[row_].insert(col_, suffix);
+                col_ += suffix.size();
             }
             else
             {
-                // Complete common prefix
                 std::string common = Completer::commonPrefix(matches);
                 if (common.size() > prefix.size())
                 {
                     std::string suffix = common.substr(prefix.size());
-                    buf_.insert(cursor_, suffix);
-                    cursor_ += suffix.size();
+                    lines_[row_].insert(col_, suffix);
+                    col_ += suffix.size();
                 }
                 else
                 {
-                    // Show all matches
                     Terminal::write("\r\n");
                     for (size_t i = 0; i < matches.size(); i++)
                     {

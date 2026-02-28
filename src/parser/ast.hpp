@@ -201,6 +201,16 @@ namespace xell
         explicit GiveStmt(ExprPtr v, int ln = 0) : value(std::move(v)) { line = ln; }
     };
 
+    struct BreakStmt : Stmt
+    {
+        explicit BreakStmt(int ln = 0) { line = ln; }
+    };
+
+    struct ContinueStmt : Stmt
+    {
+        explicit ContinueStmt(int ln = 0) { line = ln; }
+    };
+
     struct BringStmt : Stmt
     {
         bool bringAll;                    // true for "bring * from ..."

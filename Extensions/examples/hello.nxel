@@ -3,7 +3,7 @@
   "metadata": {
     "title": "Hello Xell Notebook",
     "created": "2025-01-01T00:00:00Z",
-    "modified": "2025-01-01T00:00:00Z",
+    "modified": "2026-02-28T20:22:53.573Z",
     "kernel": "xell",
     "kernel_version": "0.1"
   },
@@ -61,7 +61,7 @@
     {
       "id": "cell-list-map",
       "type": "code",
-      "source": "# Lists\ncolors = [\"red\", \"green\", \"blue\"]\npush(colors, \"yellow\")\nprint(\"Colors: {colors}\")\nprint(\"Length: {len(colors)}\")\n\n# Maps\nuser = {\"name\": \"Alice\", \"age\": 30, \"role\": \"developer\"}\nprint(\"User: {user->name}, {user->role}\")",
+      "source": "# Lists\ncolors = [\"red\", \"green\", \"blue\"]\npush(colors, \"yellow\")\nprint(\"Colors: {colors}\")\nprint(\"Length: {len(colors)}\")\n\n# Maps\nuser = {\"name\": \"Alice\", \"age\": 30, \"role\": \"developer\"}\nprint(\"User: {user->name},{user->age}, {user->role}\")",
       "outputs": [
         {
           "type": "stdout",
