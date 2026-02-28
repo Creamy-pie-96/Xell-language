@@ -110,7 +110,7 @@ namespace xell
             banner += std::string(color::CYAN) + color::BOLD + "     ║\r\n";
             banner += std::string("  ╚═══════════════════════════════════════╝") + color::RESET + "\r\n";
             banner += std::string(color::DIM) + "  Type :help for commands, Ctrl+D to exit\r\n" + color::RESET;
-            banner += std::string(color::DIM) + "  Enter=newline  Shift/Alt+Enter=run\r\n" + color::RESET;
+            banner += std::string(color::DIM) + "  Enter=newline  Shift+Enter/empty line=run\r\n" + color::RESET;
             banner += "\r\n";
             Terminal::write(banner);
         }

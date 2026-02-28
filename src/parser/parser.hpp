@@ -9,11 +9,23 @@
 namespace xell
 {
 
+    /// A parse error collected during error-recovery parsing.
+    struct CollectedParseError
+    {
+        int line;
+        std::string message;
+    };
+
     class Parser
     {
     public:
         explicit Parser(const std::vector<Token> &tokens);
         Program parse();
+
+        /// Error-recovering parse: returns a partial AST + all parse errors.
+        /// Used by the linter so it can feed whatever parsed into static analysis
+        /// even when some statements are malformed.
+        Program parseLint(std::vector<CollectedParseError> &errors);
 
     private:
         std::vector<Token> tokens_;
@@ -28,6 +40,9 @@ namespace xell
         Token consume(TokenType type, const std::string &errorMsg = "");
         void skipNewlines();
         void consumeStatementEnd();
+
+        // Error recovery: skip tokens until a plausible statement boundary
+        void synchronize();
 
         // Check if a token type can start a primary expression
         bool canStartPrimary(TokenType type) const;

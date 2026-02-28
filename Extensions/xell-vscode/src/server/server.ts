@@ -34,6 +34,9 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { XellDiagnostics } from './diagnostics';
 import { XELL_KEYWORDS, XELL_BUILTINS, XELL_OS_BUILTINS, XELL_MATH, ALL_COMPLETIONS } from './completions';
 import { HOVER_INFO } from './hover';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 // ── Connection & Document Manager ────────────────────────
 
@@ -56,6 +59,27 @@ const defaultSettings: XellSettings = {
     maxNumberOfProblems: 100,
     enableLinting: true
 };
+
+function resolveXellPath(configured: string): string {
+    // If it's a full path that exists, use it
+    if (configured && configured !== 'xell') {
+        return configured;
+    }
+    const home = os.homedir();
+    const candidates = [
+        path.join(home, '.local', 'bin', 'xell'),
+        '/usr/local/bin/xell',
+        '/usr/bin/xell',
+    ];
+    for (const p of candidates) {
+        try {
+            if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+                return p;
+            }
+        } catch { /* ignore */ }
+    }
+    return configured;
+}
 
 let globalSettings: XellSettings = defaultSettings;
 const documentSettings: Map<string, Thenable<XellSettings>> = new Map();
@@ -258,7 +282,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 
     // Subprocess diagnostics
     if (diagnosticsEngine) {
-        const subprocessDiags = await diagnosticsEngine.validate(text, settings.xellPath);
+        const subprocessDiags = await diagnosticsEngine.validate(text, resolveXellPath(settings.xellPath));
         diagnostics.push(...subprocessDiags.slice(0, settings.maxNumberOfProblems - diagnostics.length));
     }
 

@@ -3,6 +3,8 @@
 // ═══════════════════════════════════════════════════════════
 
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 import * as vscode from 'vscode';
 import {
     LanguageClient,
@@ -74,6 +76,36 @@ const XELL_TOKEN_RULES = [
     { scope: 'variable.other.loop.xell', settings: { foreground: '#eeeeee' } },
     { scope: 'variable.parameter.xell', settings: { foreground: '#eeeeee' } },
 ];
+
+/**
+ * Find the xell binary: user config → common paths → PATH fallback.
+ */
+function findXellPath(): string {
+    const config = vscode.workspace.getConfiguration('xell');
+    const configured = config.get<string>('xellPath', '');
+    if (configured && configured !== 'xell') {
+        return configured;
+    }
+
+    // Search common install locations
+    const home = os.homedir();
+    const candidates = [
+        path.join(home, '.local', 'bin', 'xell'),
+        '/usr/local/bin/xell',
+        '/usr/bin/xell',
+    ];
+
+    for (const p of candidates) {
+        try {
+            if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+                return p;
+            }
+        } catch { /* ignore */ }
+    }
+
+    // Fallback to PATH lookup
+    return 'xell';
+}
 
 /**
  * Inject Xell token colors into the user's settings.
@@ -185,8 +217,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const filePath = editor.document.fileName;
-        const config = vscode.workspace.getConfiguration('xell');
-        const xellPath = config.get<string>('xellPath', 'xell');
+        const xellPath = findXellPath();
 
         editor.document.save().then(() => {
             const terminal = vscode.window.createTerminal('Xell');
@@ -206,8 +237,7 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        const config = vscode.workspace.getConfiguration('xell');
-        const xellPath = config.get<string>('xellPath', 'xell');
+        const xellPath = findXellPath();
 
         const terminal = vscode.window.createTerminal('Xell');
         terminal.show();

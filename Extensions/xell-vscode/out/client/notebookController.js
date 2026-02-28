@@ -45,6 +45,31 @@ exports.XellNotebookController = void 0;
 const vscode = __importStar(require("vscode"));
 const child_process_1 = require("child_process");
 const readline = __importStar(require("readline"));
+const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
+const os = __importStar(require("os"));
+function findXellPath() {
+    const config = vscode.workspace.getConfiguration('xell');
+    const configured = config.get('xellPath', '');
+    if (configured && configured !== 'xell') {
+        return configured;
+    }
+    const home = os.homedir();
+    const candidates = [
+        path.join(home, '.local', 'bin', 'xell'),
+        '/usr/local/bin/xell',
+        '/usr/bin/xell',
+    ];
+    for (const p of candidates) {
+        try {
+            if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+                return p;
+            }
+        }
+        catch { /* ignore */ }
+    }
+    return 'xell';
+}
 class XellNotebookController {
     constructor() {
         this.controllerId = 'xell-kernel';
@@ -70,8 +95,7 @@ class XellNotebookController {
         if (this.kernelProcess && this.kernelProcess.exitCode === null) {
             return true; // already running
         }
-        const config = vscode.workspace.getConfiguration('xell');
-        const xellPath = config.get('xellPath', 'xell');
+        const xellPath = findXellPath();
         try {
             this.kernelProcess = (0, child_process_1.spawn)(xellPath, ['--kernel'], {
                 stdio: ['pipe', 'pipe', 'pipe'],

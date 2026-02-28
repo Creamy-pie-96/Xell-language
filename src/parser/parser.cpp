@@ -94,6 +94,79 @@ namespace xell
     }
 
     // ============================================================
+    // Error-recovering parse (for linter)
+    // ============================================================
+
+    Program Parser::parseLint(std::vector<CollectedParseError> &errors)
+    {
+        Program program;
+        skipNewlines();
+        while (!isAtEnd())
+        {
+            try
+            {
+                program.statements.push_back(parseStatement());
+            }
+            catch (const ParseError &e)
+            {
+                errors.push_back({e.line(), e.detail()});
+                synchronize();
+            }
+            catch (const XellError &e)
+            {
+                errors.push_back({e.line(), e.detail()});
+                synchronize();
+            }
+            skipNewlines();
+        }
+        return program;
+    }
+
+    // ============================================================
+    // Error recovery: skip tokens until the next statement boundary
+    // ============================================================
+
+    void Parser::synchronize()
+    {
+        // Advance at least one token so we make progress
+        if (!isAtEnd())
+            advance();
+
+        while (!isAtEnd())
+        {
+            // If we just consumed a newline or dot (statement enders), stop
+            TokenType prev = tokens_[pos_ > 0 ? pos_ - 1 : 0].type;
+            if (prev == TokenType::NEWLINE || prev == TokenType::DOT ||
+                prev == TokenType::SEMICOLON)
+                return;
+
+            // If the current token can start a new statement, stop
+            TokenType cur = current().type;
+            switch (cur)
+            {
+            case TokenType::IF:
+            case TokenType::FOR:
+            case TokenType::WHILE:
+            case TokenType::FN:
+            case TokenType::GIVE:
+            case TokenType::BREAK:
+            case TokenType::CONTINUE:
+            case TokenType::BRING:
+                return;
+            case TokenType::IDENTIFIER:
+                // IDENT = ... is an assignment → new statement
+                if (peekToken(1).type == TokenType::EQUAL)
+                    return;
+                // IDENT followed by newline/dot/eof could be an expression stmt
+                // But let's just try it
+                return;
+            default:
+                advance();
+            }
+        }
+    }
+
+    // ============================================================
     // Block: parse statements until ';'
     // ============================================================
 

@@ -36,6 +36,8 @@ namespace xell
             prompt_ = prompt;
             contPrompt_ = contPrompt;
             savedInput_.clear();
+            lastDisplayLines_ = 0;
+            lastCursorRow_ = 0;
 
             refresh();
 
@@ -54,9 +56,28 @@ namespace xell
                     return true;
 
                 case Key::ENTER:
-                    // Newline — add a new line
+                {
+                    // Enter on an empty last line = submit (fallback for
+                    // terminals that can't distinguish Shift+Enter)
+                    std::string content = joinLines();
+                    bool isLastLine = (row_ == lines_.size() - 1);
+                    bool lineIsEmpty = lines_[row_].empty();
+                    bool hasContent = !content.empty() &&
+                                      content.find_first_not_of(" \t\n") != std::string::npos;
+                    if (isLastLine && lineIsEmpty && hasContent)
+                    {
+                        Terminal::write("\r\n");
+                        // Remove trailing empty line
+                        while (!lines_.empty() && lines_.back().empty())
+                            lines_.pop_back();
+                        result = joinLines();
+                        history_.resetCursor();
+                        return true;
+                    }
+                    // Otherwise: newline — add a new line
                     insertNewline();
                     break;
+                }
 
                 case Key::CTRL_D:
                     if (joinLines().empty())
@@ -232,7 +253,8 @@ namespace xell
             std::string result;
             for (size_t i = 0; i < lines_.size(); i++)
             {
-                if (i > 0) result += '\n';
+                if (i > 0)
+                    result += '\n';
                 result += lines_[i];
             }
             return result;
@@ -358,13 +380,15 @@ namespace xell
         size_t lastDisplayLines_ = 0;
         size_t lastCursorRow_ = 0;
 
-        /// Calculate visible length of a string (ignoring ANSI escape codes)
+        /// Calculate visible length of a string (ignoring ANSI escape codes
+        /// and counting multi-byte UTF-8 characters as single columns)
         static int visibleLength(const std::string &s)
         {
             int len = 0;
             bool inEscape = false;
-            for (char c : s)
+            for (size_t i = 0; i < s.size(); i++)
             {
+                unsigned char c = (unsigned char)s[i];
                 if (inEscape)
                 {
                     if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
@@ -376,6 +400,9 @@ namespace xell
                     inEscape = true;
                     continue;
                 }
+                // UTF-8: continuation bytes (10xxxxxx) don't count as visible
+                if ((c & 0xC0) == 0x80)
+                    continue;
                 len++;
             }
             return len;

@@ -39,6 +39,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 exports.deactivate = deactivate;
 const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
+const os = __importStar(require("os"));
 const vscode = __importStar(require("vscode"));
 const node_1 = require("vscode-languageclient/node");
 const notebookSerializer_1 = require("./notebookSerializer");
@@ -103,6 +105,33 @@ const XELL_TOKEN_RULES = [
     { scope: 'variable.other.loop.xell', settings: { foreground: '#eeeeee' } },
     { scope: 'variable.parameter.xell', settings: { foreground: '#eeeeee' } },
 ];
+/**
+ * Find the xell binary: user config → common paths → PATH fallback.
+ */
+function findXellPath() {
+    const config = vscode.workspace.getConfiguration('xell');
+    const configured = config.get('xellPath', '');
+    if (configured && configured !== 'xell') {
+        return configured;
+    }
+    // Search common install locations
+    const home = os.homedir();
+    const candidates = [
+        path.join(home, '.local', 'bin', 'xell'),
+        '/usr/local/bin/xell',
+        '/usr/bin/xell',
+    ];
+    for (const p of candidates) {
+        try {
+            if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+                return p;
+            }
+        }
+        catch { /* ignore */ }
+    }
+    // Fallback to PATH lookup
+    return 'xell';
+}
 /**
  * Inject Xell token colors into the user's settings.
  */
@@ -181,8 +210,7 @@ function activate(context) {
             return;
         }
         const filePath = editor.document.fileName;
-        const config = vscode.workspace.getConfiguration('xell');
-        const xellPath = config.get('xellPath', 'xell');
+        const xellPath = findXellPath();
         editor.document.save().then(() => {
             const terminal = vscode.window.createTerminal('Xell');
             terminal.show();
@@ -199,8 +227,7 @@ function activate(context) {
             vscode.window.showWarningMessage('No text selected.');
             return;
         }
-        const config = vscode.workspace.getConfiguration('xell');
-        const xellPath = config.get('xellPath', 'xell');
+        const xellPath = findXellPath();
         const terminal = vscode.window.createTerminal('Xell');
         terminal.show();
         terminal.sendText(`echo '${selection.replace(/'/g, "'\\''")}' | ${xellPath} --script`);

@@ -10,6 +10,31 @@
 import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'child_process';
 import * as readline from 'readline';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+
+function findXellPath(): string {
+    const config = vscode.workspace.getConfiguration('xell');
+    const configured = config.get<string>('xellPath', '');
+    if (configured && configured !== 'xell') {
+        return configured;
+    }
+    const home = os.homedir();
+    const candidates = [
+        path.join(home, '.local', 'bin', 'xell'),
+        '/usr/local/bin/xell',
+        '/usr/bin/xell',
+    ];
+    for (const p of candidates) {
+        try {
+            if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+                return p;
+            }
+        } catch { /* ignore */ }
+    }
+    return 'xell';
+}
 
 export class XellNotebookController {
     readonly controllerId = 'xell-kernel';
@@ -48,8 +73,7 @@ export class XellNotebookController {
             return true; // already running
         }
 
-        const config = vscode.workspace.getConfiguration('xell');
-        const xellPath = config.get<string>('xellPath', 'xell');
+        const xellPath = findXellPath();
 
         try {
             this.kernelProcess = spawn(xellPath, ['--kernel'], {

@@ -104,6 +104,12 @@ namespace xell
             if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
                 return false;
             rawEnabled_ = true;
+
+            // Enable kitty keyboard protocol (progressive enhancement, flags=1)
+            // This allows distinguishing Shift+Enter from plain Enter.
+            // Terminals that don't support it will silently ignore this.
+            write("\033[>1u");
+
             return true;
 #endif
         }
@@ -116,6 +122,8 @@ namespace xell
 #ifdef _WIN32
             // TODO
 #else
+            // Disable kitty keyboard protocol
+            write("\033[<u");
             tcsetattr(STDIN_FILENO, TCSAFLUSH, &origTermios_);
 #endif
             rawEnabled_ = false;

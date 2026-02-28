@@ -107,49 +107,58 @@ static std::string readStdin()
 
 static int lintSource(const std::string &source)
 {
-    // Shallow check: lex + parse + static analysis — no execution.
+    // Shallow check: lex + parse (with recovery) + static analysis — no execution.
     // This is fast and safe for the LSP to call on every keystroke.
+    int exitCode = 0;
+
+    // --- Step 1: Lex ---
+    std::vector<xell::Token> tokens;
     try
     {
         xell::Lexer lexer(source);
-        auto tokens = lexer.tokenize();
-        xell::Parser parser(tokens);
-        auto program = parser.parse();
-
-        // Static analysis: check for undefined names, typos, etc.
-        xell::StaticAnalyzer analyzer;
-        auto diagnostics = analyzer.analyze(program);
-
-        int exitCode = 0;
-        for (auto &d : diagnostics)
-        {
-            std::string prefix;
-            if (d.severity == "error")
-            {
-                prefix = "[XELL ERROR]";
-                exitCode = 1;
-            }
-            else if (d.severity == "warning")
-                prefix = "[XELL WARNING]";
-            else
-                prefix = "[XELL HINT]";
-
-            std::cerr << prefix << " Line " << d.line
-                      << " \xe2\x80\x94 " << d.message << "\n";
-        }
-
-        return exitCode;
+        tokens = lexer.tokenize();
     }
     catch (const xell::XellError &e)
     {
         std::cerr << e.what() << "\n";
         return 1;
     }
-    catch (const std::exception &e)
+
+    // --- Step 2: Parse with error recovery ---
+    std::vector<xell::CollectedParseError> parseErrors;
+    xell::Parser parser(tokens);
+    auto program = parser.parseLint(parseErrors);
+
+    // Emit parse errors
+    for (auto &pe : parseErrors)
     {
-        std::cerr << "[XELL ERROR] Line 1 — Fatal: " << e.what() << "\n";
-        return 1;
+        std::cerr << "[XELL ERROR] Line " << pe.line
+                  << " \xe2\x80\x94 ParseError: " << pe.message << "\n";
+        exitCode = 1;
     }
+
+    // --- Step 3: Static analysis on the partial AST ---
+    xell::StaticAnalyzer analyzer;
+    auto diagnostics = analyzer.analyze(program);
+
+    for (auto &d : diagnostics)
+    {
+        std::string prefix;
+        if (d.severity == "error")
+        {
+            prefix = "[XELL ERROR]";
+            exitCode = 1;
+        }
+        else if (d.severity == "warning")
+            prefix = "[XELL WARNING]";
+        else
+            prefix = "[XELL HINT]";
+
+        std::cerr << prefix << " Line " << d.line
+                  << " \xe2\x80\x94 " << d.message << "\n";
+    }
+
+    return exitCode;
 }
 
 static int checkFile(const std::string &path)
