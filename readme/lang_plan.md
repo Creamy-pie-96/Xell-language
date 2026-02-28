@@ -1,4 +1,4 @@
-Great call on C++. Let me think through this **fully and honestly** before we write a single line.
+Great call on C++. me think through this **fully and honestly** before we write a single line.
 
 ---
 
@@ -44,32 +44,37 @@ Bash/Powershell only gets involved when the user explicitly writes `run "git pus
 
 ## Full Language Spec (Locked)
 
-**Syntax style decision — Braces `{}`**
-Indentation-based (Python style) is nicer to write but produces INDENT/DEDENT tokens which are genuinely painful to implement correctly. Braces are simpler, unambiguous, and fine for a scripting language.
+**Syntax style decision — colon `:` and semicolon `;` and dot `.`**
+Indentation-based (Python style) is nicer to write but produces INDENT/DEDENT tokens which are genuinely painful to implement correctly. Braces are simpler, unambiguous, and fine for a scripting language. So we will impliment colon as the starting of a scope and semicolon as the end of it. and `.` or end of line will be treated as statement ending like we have semicolon in cpp.
 
 ```xsh
-let name = "john"
-let ports = [3000, 8080]
-let config = { host: "localhost", debug: true }
+name = "john"
+ports = [3000, 8080]
+config = { host: "localhost", debug: true }
 
-fn setup(project, version) {
-    mkdir "{project}/src"
-    mkdir "{project}/tests"
-    let path = "{project}/.config"
+fn setup(project, version) : 
+    mkdir "{project}/src" .
+    mkdir "{project}/tests" 
+    path = "{project}/.config" .
     return path
-}
+;
 
-if config.debug == true {
-    print "debug mode"
-} else {
+--> This is 
+    a multi line comment
+    <--
+    # this is single line comment
+if config->debug == true or config->host is "localhost" : --> look here i use "is keyword for if it is that also we can use eq,ne,ge,le,lt,gt,ne same way too<--
+    print "debug mode" .
+    ;
+ else :
     print "production"
-}
+;
 
-for port in ports {
-    print "starting on {port}"
-}
+for port in ports :
+    print "starting on {port}" 
+;
 
-let result = setup("my-app", "1.0")
+result = setup("my-app", "1.0")
 print result
 ```
 
@@ -89,7 +94,7 @@ print result
 - Member access: `config.host`, `list[0]`, `map["key"]`
 
 **Statements:**
-- `let x = expr`
+- `x = expr`
 - `x = expr` (reassign)
 - `if / else if / else`
 - `for item in list { }`
@@ -229,3 +234,5 @@ Parse `"{name}/src"` strings at runtime — find `{expr}` patterns, evaluate the
 | OOP | Never |
 
 ---
+
+**it's extention will be (.xel) and it's name is xell**

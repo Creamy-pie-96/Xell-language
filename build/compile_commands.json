@@ -1,0 +1,26 @@
+[
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o -c /home/DATA/CODE/code/Xell/src/lexer/lexer.cpp",
+  "file": "/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp",
+  "output": "CMakeFiles/xell_lib.dir/src/lexer/lexer.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o -c /home/DATA/CODE/code/Xell/src/parser/parser.cpp",
+  "file": "/home/DATA/CODE/code/Xell/src/parser/parser.cpp",
+  "output": "CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/xell.dir/src/main.cpp.o -c /home/DATA/CODE/code/Xell/src/main.cpp",
+  "file": "/home/DATA/CODE/code/Xell/src/main.cpp",
+  "output": "CMakeFiles/xell.dir/src/main.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/parser_test.dir/test/parser_test.cpp.o -c /home/DATA/CODE/code/Xell/test/parser_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/parser_test.cpp",
+  "output": "CMakeFiles/parser_test.dir/test/parser_test.cpp.o"
+}
+]
