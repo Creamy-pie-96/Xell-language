@@ -100,9 +100,9 @@ namespace xell
     enum class XType : uint8_t
     {
         NONE = 0,
-        INT,       // int64_t
-        FLOAT,     // double
-        COMPLEX,   // XComplex (a + bi)
+        INT,     // int64_t
+        FLOAT,   // double
+        COMPLEX, // XComplex (a + bi)
         BOOL,
         STRING,
         LIST,
@@ -255,8 +255,8 @@ namespace xell
         bool isInt() const;
         bool isFloat() const;
         bool isComplex() const;
-        bool isNumber() const;   // true for INT or FLOAT (backward compat)
-        bool isNumeric() const;  // true for INT, FLOAT, or COMPLEX
+        bool isNumber() const;  // true for INT or FLOAT (backward compat)
+        bool isNumeric() const; // true for INT, FLOAT, or COMPLEX
         bool isBool() const;
         bool isString() const;
         bool isList() const;
@@ -271,7 +271,7 @@ namespace xell
         int64_t asInt() const;
         double asFloat() const;
         const XComplex &asComplex() const;
-        double asNumber() const;   // returns double for INT or FLOAT (backward compat)
+        double asNumber() const; // returns double for INT or FLOAT (backward compat)
         bool asBool() const;
         const std::string &asString() const;
         std::string &asStringMut();
@@ -280,7 +280,7 @@ namespace xell
         const XTuple &asTuple() const;
         const XSet &asSet() const;
         XSet &asSetMut();
-        const XSet &asFrozenSet() const;  // same payload type but immutable
+        const XSet &asFrozenSet() const; // same payload type but immutable
         const XMap &asMap() const;
         XMap &asMapMut();
         const XFunction &asFunction() const;

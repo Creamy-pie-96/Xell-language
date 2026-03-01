@@ -101,7 +101,9 @@ namespace xell
                             int64_t i = std::stoll(s);
                             return XObject::makeInt(i);
                         }
-                        catch (...) {}
+                        catch (...)
+                        {
+                        }
                     }
                     double d = std::stod(s);
                     return XObject::makeFloat(d);

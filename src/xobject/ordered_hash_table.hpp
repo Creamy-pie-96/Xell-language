@@ -52,12 +52,12 @@ namespace xell
         };
 
     private:
-        std::vector<Node> pool_;         // node storage arena
-        std::vector<int32_t> buckets_;   // bucket[hash % capacity] → first node index
-        int32_t order_head_ = -1;        // first node in insertion order
-        int32_t order_tail_ = -1;        // last node in insertion order
-        int32_t free_head_ = -1;         // head of recycled-node free list
-        size_t live_count_ = 0;          // number of live entries
+        std::vector<Node> pool_;       // node storage arena
+        std::vector<int32_t> buckets_; // bucket[hash % capacity] → first node index
+        int32_t order_head_ = -1;      // first node in insertion order
+        int32_t order_tail_ = -1;      // last node in insertion order
+        int32_t free_head_ = -1;       // head of recycled-node free list
+        size_t live_count_ = 0;        // number of live entries
 
         Hash hasher_;
         KeyEqual equal_;
