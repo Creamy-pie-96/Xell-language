@@ -74,7 +74,7 @@ namespace xell
 
     bool Parser::canStartPrimary(TokenType type) const
     {
-        return type == TokenType::NUMBER || type == TokenType::STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS;
+        return type == TokenType::NUMBER || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS;
     }
 
     // ============================================================
@@ -152,6 +152,8 @@ namespace xell
             case TokenType::BREAK:
             case TokenType::CONTINUE:
             case TokenType::BRING:
+            case TokenType::TRY:
+            case TokenType::INCASE:
                 return;
             case TokenType::IDENTIFIER:
                 // IDENT = ... is an assignment → new statement
@@ -223,6 +225,53 @@ namespace xell
         }
         if (type == TokenType::BRING)
             return parseBringStmt();
+        if (type == TokenType::TRY)
+            return parseTryCatchStmt();
+        if (type == TokenType::INCASE)
+            return parseInCaseStmt();
+
+        // --- Augmented assignment: IDENTIFIER += EXPR etc ---
+        if (type == TokenType::IDENTIFIER &&
+            (peekToken(1).type == TokenType::PLUS_EQUAL ||
+             peekToken(1).type == TokenType::MINUS_EQUAL ||
+             peekToken(1).type == TokenType::STAR_EQUAL ||
+             peekToken(1).type == TokenType::SLASH_EQUAL ||
+             peekToken(1).type == TokenType::PERCENT_EQUAL))
+        {
+            std::string name = current().value;
+            int ln = current().line;
+            advance();               // consume identifier
+            Token opTok = advance(); // consume += etc.
+            // Map += to +, -= to -, etc.
+            std::string op;
+            switch (opTok.type)
+            {
+            case TokenType::PLUS_EQUAL:
+                op = "+";
+                break;
+            case TokenType::MINUS_EQUAL:
+                op = "-";
+                break;
+            case TokenType::STAR_EQUAL:
+                op = "*";
+                break;
+            case TokenType::SLASH_EQUAL:
+                op = "/";
+                break;
+            case TokenType::PERCENT_EQUAL:
+                op = "%";
+                break;
+            default:
+                op = "+";
+                break;
+            }
+            ExprPtr rhs = parseExpression();
+            // Desugar: x += expr → x = x + expr
+            ExprPtr lhs = std::make_unique<Identifier>(name, ln);
+            ExprPtr combined = std::make_unique<BinaryExpr>(std::move(lhs), op, std::move(rhs), ln);
+            consumeStatementEnd();
+            return std::make_unique<Assignment>(name, std::move(combined), ln);
+        }
 
         // --- Assignment: IDENTIFIER = EXPR ---
         if (type == TokenType::IDENTIFIER && peekToken(1).type == TokenType::EQUAL)
@@ -232,6 +281,52 @@ namespace xell
             advance(); // consume identifier
             advance(); // consume =
             return parseAssignment(name, ln);
+        }
+
+        // --- Destructuring assignment: a, b = [1, 2] ---
+        // Detect: IDENTIFIER COMMA IDENTIFIER ... EQUAL
+        if (type == TokenType::IDENTIFIER)
+        {
+            // Look ahead to see if this is a destructuring pattern
+            size_t look = pos_;
+            std::vector<std::string> names;
+            bool isDestructuring = false;
+            while (look < tokens_.size())
+            {
+                if (tokens_[look].type == TokenType::IDENTIFIER)
+                {
+                    names.push_back(tokens_[look].value);
+                    look++;
+                    if (look < tokens_.size() && tokens_[look].type == TokenType::COMMA)
+                    {
+                        look++;
+                        continue;
+                    }
+                    if (look < tokens_.size() && tokens_[look].type == TokenType::EQUAL)
+                    {
+                        isDestructuring = names.size() >= 2;
+                    }
+                    break;
+                }
+                break;
+            }
+            if (isDestructuring)
+            {
+                int ln = current().line;
+                // Consume all: ident, ident, ... = expr
+                names.clear();
+                names.push_back(current().value);
+                advance(); // first ident
+                while (check(TokenType::COMMA))
+                {
+                    advance(); // consume comma
+                    names.push_back(consume(TokenType::IDENTIFIER, "Expected identifier in destructuring").value);
+                }
+                consume(TokenType::EQUAL, "Expected '=' in destructuring assignment");
+                ExprPtr value = parseExpression();
+                consumeStatementEnd();
+                return std::make_unique<DestructuringAssignment>(std::move(names), std::move(value), ln);
+            }
         }
 
         // --- Expression statement (including paren-less calls) ---
@@ -406,13 +501,55 @@ namespace xell
         consume(TokenType::LPAREN, "Expected '(' after function name");
 
         std::vector<std::string> params;
+        std::vector<ExprPtr> defaults;
+        bool isVariadic = false;
+        std::string variadicName;
+
         if (!check(TokenType::RPAREN))
         {
-            params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name").value);
-            while (check(TokenType::COMMA))
+            // Check for variadic: ...name
+            if (check(TokenType::ELLIPSIS))
             {
-                advance(); // consume comma
-                params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name after ','").value);
+                advance(); // consume ...
+                variadicName = consume(TokenType::IDENTIFIER, "Expected parameter name after '...'").value;
+                isVariadic = true;
+            }
+            else
+            {
+                params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name").value);
+                // Check for default value
+                if (check(TokenType::EQUAL))
+                {
+                    advance(); // consume =
+                    defaults.push_back(parseExpression());
+                }
+                else
+                {
+                    defaults.push_back(nullptr);
+                }
+
+                while (check(TokenType::COMMA))
+                {
+                    advance(); // consume comma
+                    // Check for variadic: ...name
+                    if (check(TokenType::ELLIPSIS))
+                    {
+                        advance(); // consume ...
+                        variadicName = consume(TokenType::IDENTIFIER, "Expected parameter name after '...'").value;
+                        isVariadic = true;
+                        break; // variadic must be last
+                    }
+                    params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name after ','").value);
+                    if (check(TokenType::EQUAL))
+                    {
+                        advance(); // consume =
+                        defaults.push_back(parseExpression());
+                    }
+                    else
+                    {
+                        defaults.push_back(nullptr);
+                    }
+                }
             }
         }
         consume(TokenType::RPAREN, "Expected ')' after parameters");
@@ -421,7 +558,110 @@ namespace xell
         auto body = parseBlock();
         consume(TokenType::SEMICOLON, "Expected ';' to close function body");
 
-        return std::make_unique<FnDef>(name, std::move(params), std::move(body), ln);
+        auto fnDef = std::make_unique<FnDef>(name, std::move(params), std::move(body), ln);
+        fnDef->defaults = std::move(defaults);
+        fnDef->isVariadic = isVariadic;
+        fnDef->variadicName = std::move(variadicName);
+        return fnDef;
+    }
+
+    // ============================================================
+    // Try / Catch / Finally
+    // ============================================================
+
+    StmtPtr Parser::parseTryCatchStmt()
+    {
+        int ln = current().line;
+        advance(); // consume TRY
+
+        consume(TokenType::COLON, "Expected ':' after 'try'");
+        auto tryBody = parseBlock();
+        consume(TokenType::SEMICOLON, "Expected ';' to close try block");
+        skipNewlines();
+
+        // catch varname :
+        std::string catchVar;
+        std::vector<StmtPtr> catchBody;
+        if (check(TokenType::CATCH))
+        {
+            advance(); // consume CATCH
+            catchVar = consume(TokenType::IDENTIFIER, "Expected variable name after 'catch'").value;
+            consume(TokenType::COLON, "Expected ':' after catch variable");
+            catchBody = parseBlock();
+            consume(TokenType::SEMICOLON, "Expected ';' to close catch block");
+            skipNewlines();
+        }
+
+        // optional finally :
+        std::vector<StmtPtr> finallyBody;
+        if (check(TokenType::FINALLY))
+        {
+            advance(); // consume FINALLY
+            consume(TokenType::COLON, "Expected ':' after 'finally'");
+            finallyBody = parseBlock();
+            consume(TokenType::SEMICOLON, "Expected ';' to close finally block");
+        }
+
+        return std::make_unique<TryCatchStmt>(
+            std::move(tryBody), std::move(catchVar),
+            std::move(catchBody), std::move(finallyBody), ln);
+    }
+
+    // ============================================================
+    // InCase (switch/match)
+    // ============================================================
+
+    StmtPtr Parser::parseInCaseStmt()
+    {
+        int ln = current().line;
+        advance(); // consume INCASE
+
+        ExprPtr subject = parseExpression();
+        consume(TokenType::COLON, "Expected ':' after incase expression");
+        skipNewlines();
+
+        std::vector<InCaseClause> clauses;
+        std::vector<StmtPtr> elseBody;
+
+        // Parse clauses: is EXPR [or EXPR ...] : block ;
+        while (check(TokenType::IS))
+        {
+            InCaseClause clause;
+            clause.line = current().line;
+            advance(); // consume IS
+
+            // First value — use parseLogicalAnd so 'or' is not consumed as logical OR
+            clause.values.push_back(parseLogicalAnd());
+            // Additional values separated by 'or'
+            while (check(TokenType::OR))
+            {
+                advance(); // consume OR
+                clause.values.push_back(parseLogicalAnd());
+            }
+
+            consume(TokenType::COLON, "Expected ':' after incase value(s)");
+            clause.body = parseBlock();
+            consume(TokenType::SEMICOLON, "Expected ';' to close incase clause");
+            skipNewlines();
+
+            clauses.push_back(std::move(clause));
+        }
+
+        // Optional else clause
+        if (check(TokenType::ELSE))
+        {
+            advance(); // consume ELSE
+            consume(TokenType::COLON, "Expected ':' after 'else'");
+            elseBody = parseBlock();
+            consume(TokenType::SEMICOLON, "Expected ';' to close else block");
+            skipNewlines();
+        }
+
+        // Closing semicolon for the entire incase
+        consume(TokenType::SEMICOLON, "Expected ';' to close incase statement");
+
+        return std::make_unique<InCaseStmt>(
+            std::move(subject), std::move(clauses), std::move(elseBody), ln);
     }
 
     // ============================================================
@@ -496,7 +736,20 @@ namespace xell
 
     ExprPtr Parser::parseExpression()
     {
-        return parseShellOr();
+        auto expr = parseShellOr();
+
+        // Ternary: value if condition else alternative
+        if (check(TokenType::IF))
+        {
+            int ln = current().line;
+            advance(); // consume IF
+            auto condition = parseShellOr();
+            consume(TokenType::ELSE, "Expected 'else' in ternary expression");
+            auto alternative = parseShellOr();
+            return std::make_unique<TernaryExpr>(std::move(expr), std::move(condition), std::move(alternative), ln);
+        }
+
+        return expr;
     }
 
     // ---- Shell OR: expr || expr  (lowest new level) ----
@@ -595,29 +848,55 @@ namespace xell
     ExprPtr Parser::parseComparison()
     {
         auto left = parseAddition();
-        while (check(TokenType::GREATER) || check(TokenType::LESS) ||
-               check(TokenType::GREATER_EQUAL) || check(TokenType::LESS_EQUAL) ||
-               check(TokenType::GT) || check(TokenType::LT) ||
-               check(TokenType::GE) || check(TokenType::LE))
+
+        auto isCompOp = [this]()
         {
-            int ln = current().line;
+            return check(TokenType::GREATER) || check(TokenType::LESS) ||
+                   check(TokenType::GREATER_EQUAL) || check(TokenType::LESS_EQUAL) ||
+                   check(TokenType::GT) || check(TokenType::LT) ||
+                   check(TokenType::GE) || check(TokenType::LE);
+        };
+
+        auto readOp = [this]() -> std::string
+        {
             TokenType opType = current().type;
             advance();
-
-            std::string op;
             if (opType == TokenType::GREATER || opType == TokenType::GT)
-                op = ">";
-            else if (opType == TokenType::LESS || opType == TokenType::LT)
-                op = "<";
-            else if (opType == TokenType::GREATER_EQUAL || opType == TokenType::GE)
-                op = ">=";
-            else
-                op = "<=";
+                return ">";
+            if (opType == TokenType::LESS || opType == TokenType::LT)
+                return "<";
+            if (opType == TokenType::GREATER_EQUAL || opType == TokenType::GE)
+                return ">=";
+            return "<=";
+        };
 
-            auto right = parseAddition();
-            left = std::make_unique<BinaryExpr>(std::move(left), op, std::move(right), ln);
+        if (!isCompOp())
+            return left;
+
+        // First comparison
+        int ln = current().line;
+        std::string op = readOp();
+        auto right = parseAddition();
+        auto result = std::make_unique<BinaryExpr>(std::move(left), op, std::move(right), ln);
+
+        // Chained comparisons: a < b < c → (a < b) and (b < c)
+        // For each additional comparison, we reparse the chain.
+        // Since we can't clone AST nodes, we don't truly chain.
+        // Instead, each comparison is independent: a < b, then b < c.
+        // This means the middle expression is evaluated twice at runtime.
+        // For correctness we just chain as: (a < b) and (b < c).
+        // We track the last right-side expression's line for re-parsing.
+        // But we already consumed it. So for now, single comparisons only.
+        // Multiple comparison operators without chaining just left-associate.
+        while (isCompOp())
+        {
+            ln = current().line;
+            op = readOp();
+            right = parseAddition();
+            result = std::make_unique<BinaryExpr>(std::move(result), op, std::move(right), ln);
         }
-        return left;
+
+        return result;
     }
 
     ExprPtr Parser::parseAddition()
@@ -711,6 +990,14 @@ namespace xell
             return parsePostfix(std::make_unique<StringLiteral>(std::move(val), ln));
         }
 
+        // Raw string literal (r"..." — no interpolation)
+        if (check(TokenType::RAW_STRING))
+        {
+            std::string val = current().value;
+            advance();
+            return parsePostfix(std::make_unique<StringLiteral>(std::move(val), ln, true));
+        }
+
         // Boolean literals
         if (check(TokenType::TRUE_KW))
         {
@@ -742,20 +1029,121 @@ namespace xell
             return parsePostfix(parseMapLiteral());
         }
 
-        // Grouped expression: ( expr )
+        // Spread operator: ...expr
+        if (check(TokenType::ELLIPSIS))
+        {
+            advance(); // consume ...
+            auto operand = parsePrimary();
+            return std::make_unique<SpreadExpr>(std::move(operand), ln);
+        }
+
+        // Grouped expression or lambda: ( expr ) or (a, b) => expr
         if (check(TokenType::LPAREN))
         {
+            // Lookahead: is this a lambda (a, b) => ... ?
+            // Save position, try to match: LPAREN IDENT [, IDENT]* RPAREN FAT_ARROW
+            size_t savedPos = pos_;
+            bool isLambda = false;
+            {
+                size_t look = pos_ + 1; // skip LPAREN
+                // Check for empty params: () =>
+                if (look < tokens_.size() && tokens_[look].type == TokenType::RPAREN)
+                {
+                    look++;
+                    if (look < tokens_.size() && tokens_[look].type == TokenType::FAT_ARROW)
+                        isLambda = true;
+                }
+                else
+                {
+                    // Check for IDENT [, IDENT]* RPAREN FAT_ARROW
+                    bool valid = true;
+                    while (look < tokens_.size())
+                    {
+                        if (tokens_[look].type != TokenType::IDENTIFIER)
+                        {
+                            valid = false;
+                            break;
+                        }
+                        look++;
+                        if (look < tokens_.size() && tokens_[look].type == TokenType::COMMA)
+                        {
+                            look++;
+                            continue;
+                        }
+                        break;
+                    }
+                    if (valid && look < tokens_.size() && tokens_[look].type == TokenType::RPAREN)
+                    {
+                        look++;
+                        if (look < tokens_.size() && tokens_[look].type == TokenType::FAT_ARROW)
+                            isLambda = true;
+                    }
+                }
+            }
+
+            if (isLambda)
+            {
+                advance(); // consume LPAREN
+                std::vector<std::string> params;
+                if (!check(TokenType::RPAREN))
+                {
+                    params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name").value);
+                    while (check(TokenType::COMMA))
+                    {
+                        advance();
+                        params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name").value);
+                    }
+                }
+                consume(TokenType::RPAREN, "Expected ')' after lambda parameters");
+                consume(TokenType::FAT_ARROW, "Expected '=>' after lambda parameters");
+
+                if (check(TokenType::COLON))
+                {
+                    // Multi-line lambda: (a, b) => : block ;
+                    advance(); // consume :
+                    auto body = parseBlock();
+                    consume(TokenType::SEMICOLON, "Expected ';' to close lambda body");
+                    return std::make_unique<LambdaExpr>(std::move(params), std::move(body), nullptr, ln);
+                }
+                else
+                {
+                    auto expr = parseExpression();
+                    return std::make_unique<LambdaExpr>(std::move(params), std::vector<StmtPtr>{}, std::move(expr), ln);
+                }
+            }
+
+            // Regular grouped expression
             advance();
             auto expr = parseExpression();
             consume(TokenType::RPAREN, "Expected ')' after grouped expression");
             return parsePostfix(std::move(expr));
         }
 
-        // Identifier or function call
+        // Identifier, lambda (x => ...), or function call
         if (check(TokenType::IDENTIFIER))
         {
             std::string name = current().value;
             advance();
+
+            // Single-param lambda: x => expr  or  x => : block ;
+            if (check(TokenType::FAT_ARROW))
+            {
+                advance(); // consume =>
+                std::vector<std::string> params = {name};
+                if (check(TokenType::COLON))
+                {
+                    // Multi-line lambda
+                    advance(); // consume :
+                    auto body = parseBlock();
+                    consume(TokenType::SEMICOLON, "Expected ';' to close lambda body");
+                    return std::make_unique<LambdaExpr>(std::move(params), std::move(body), nullptr, ln);
+                }
+                else
+                {
+                    auto expr = parseExpression();
+                    return std::make_unique<LambdaExpr>(std::move(params), std::vector<StmtPtr>{}, std::move(expr), ln);
+                }
+            }
 
             // Function call with parens: name(args)
             if (check(TokenType::LPAREN))
@@ -849,14 +1237,34 @@ namespace xell
         skipNewlines();
         if (!check(TokenType::RBRACKET))
         {
-            elements.push_back(parseExpression());
+            // Support spread: ...expr
+            if (check(TokenType::ELLIPSIS))
+            {
+                advance(); // consume ...
+                auto operand = parseExpression();
+                elements.push_back(std::make_unique<SpreadExpr>(std::move(operand), ln));
+            }
+            else
+            {
+                elements.push_back(parseExpression());
+            }
             while (check(TokenType::COMMA))
             {
                 advance();
                 skipNewlines();
                 if (check(TokenType::RBRACKET))
                     break; // trailing comma
-                elements.push_back(parseExpression());
+                if (check(TokenType::ELLIPSIS))
+                {
+                    int sln = current().line;
+                    advance(); // consume ...
+                    auto operand = parseExpression();
+                    elements.push_back(std::make_unique<SpreadExpr>(std::move(operand), sln));
+                }
+                else
+                {
+                    elements.push_back(parseExpression());
+                }
             }
         }
         skipNewlines();
@@ -874,7 +1282,7 @@ namespace xell
         {
             if (check(TokenType::IDENTIFIER))
                 return advance().value;
-            if (check(TokenType::STRING))
+            if (check(TokenType::STRING) || check(TokenType::RAW_STRING))
                 return advance().value;
             throw ParseError(
                 "Expected map key (identifier or string), got " +
@@ -916,12 +1324,32 @@ namespace xell
         skipNewlines();
         if (!check(TokenType::RPAREN))
         {
-            args.push_back(parseExpression());
+            if (check(TokenType::ELLIPSIS))
+            {
+                int sln = current().line;
+                advance(); // consume ...
+                auto operand = parseExpression();
+                args.push_back(std::make_unique<SpreadExpr>(std::move(operand), sln));
+            }
+            else
+            {
+                args.push_back(parseExpression());
+            }
             while (check(TokenType::COMMA))
             {
                 advance();
                 skipNewlines();
-                args.push_back(parseExpression());
+                if (check(TokenType::ELLIPSIS))
+                {
+                    int sln = current().line;
+                    advance(); // consume ...
+                    auto operand = parseExpression();
+                    args.push_back(std::make_unique<SpreadExpr>(std::move(operand), sln));
+                }
+                else
+                {
+                    args.push_back(parseExpression());
+                }
             }
         }
         skipNewlines();

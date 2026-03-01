@@ -11,6 +11,7 @@ namespace xell
         // Literals
         NUMBER,
         STRING,
+        RAW_STRING,
 
         // Boolean & None keywords (also used as literals)
         TRUE_KW,
@@ -28,6 +29,10 @@ namespace xell
         IN,
         BREAK,
         CONTINUE,
+        TRY,
+        CATCH,
+        FINALLY,
+        INCASE,
 
         // Import keywords
         BRING,
@@ -68,6 +73,13 @@ namespace xell
         BANG,        // !   (standalone NOT)
         BANG_EQUAL,  // !=
 
+        // Augmented assignment
+        PLUS_EQUAL,    // +=
+        MINUS_EQUAL,   // -=
+        STAR_EQUAL,    // *=
+        SLASH_EQUAL,   // /=
+        PERCENT_EQUAL, // %=
+
         // Relational operators
         GREATER,       // >
         LESS,          // <
@@ -75,8 +87,10 @@ namespace xell
         LESS_EQUAL,    // <=
 
         // Access operators
-        ARROW, // ->
-        DOT,   // .
+        ARROW,     // ->
+        FAT_ARROW, // =>
+        DOT,       // .
+        ELLIPSIS,  // ...
 
         // Delimiters
         LPAREN,    // (
@@ -105,6 +119,7 @@ namespace xell
         static const std::unordered_map<int, std::string> map = {
             {(int)TokenType::NUMBER, "NUMBER"},
             {(int)TokenType::STRING, "STRING"},
+            {(int)TokenType::RAW_STRING, "RAW_STRING"},
             {(int)TokenType::TRUE_KW, "TRUE"},
             {(int)TokenType::FALSE_KW, "FALSE"},
             {(int)TokenType::NONE_KW, "NONE"},
@@ -118,6 +133,10 @@ namespace xell
             {(int)TokenType::IN, "IN"},
             {(int)TokenType::BREAK, "BREAK"},
             {(int)TokenType::CONTINUE, "CONTINUE"},
+            {(int)TokenType::TRY, "TRY"},
+            {(int)TokenType::CATCH, "CATCH"},
+            {(int)TokenType::FINALLY, "FINALLY"},
+            {(int)TokenType::INCASE, "INCASE"},
             {(int)TokenType::BRING, "BRING"},
             {(int)TokenType::FROM, "FROM"},
             {(int)TokenType::AS, "AS"},
@@ -143,12 +162,19 @@ namespace xell
             {(int)TokenType::EQUAL_EQUAL, "EQUAL_EQUAL"},
             {(int)TokenType::BANG, "BANG"},
             {(int)TokenType::BANG_EQUAL, "BANG_EQUAL"},
+            {(int)TokenType::PLUS_EQUAL, "PLUS_EQUAL"},
+            {(int)TokenType::MINUS_EQUAL, "MINUS_EQUAL"},
+            {(int)TokenType::STAR_EQUAL, "STAR_EQUAL"},
+            {(int)TokenType::SLASH_EQUAL, "SLASH_EQUAL"},
+            {(int)TokenType::PERCENT_EQUAL, "PERCENT_EQUAL"},
             {(int)TokenType::GREATER, "GREATER"},
             {(int)TokenType::LESS, "LESS"},
             {(int)TokenType::GREATER_EQUAL, "GREATER_EQUAL"},
             {(int)TokenType::LESS_EQUAL, "LESS_EQUAL"},
             {(int)TokenType::ARROW, "ARROW"},
+            {(int)TokenType::FAT_ARROW, "FAT_ARROW"},
             {(int)TokenType::DOT, "DOT"},
+            {(int)TokenType::ELLIPSIS, "ELLIPSIS"},
             {(int)TokenType::LPAREN, "LPAREN"},
             {(int)TokenType::RPAREN, "RPAREN"},
             {(int)TokenType::LBRACKET, "LBRACKET"},

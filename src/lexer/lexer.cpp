@@ -22,6 +22,10 @@ namespace xell
             {"in", TokenType::IN},
             {"break", TokenType::BREAK},
             {"continue", TokenType::CONTINUE},
+            {"try", TokenType::TRY},
+            {"catch", TokenType::CATCH},
+            {"finally", TokenType::FINALLY},
+            {"incase", TokenType::INCASE},
 
             // Import
             {"bring", TokenType::BRING},
@@ -198,6 +202,34 @@ namespace xell
     Token Lexer::readString()
     {
         int startLine = line_;
+
+        // Check for triple-quoted multi-line string: """..."""
+        bool isTripleQuote = (peek(1) == '"' && peek(2) == '"');
+        if (isTripleQuote)
+        {
+            advance(); // consume first "
+            advance(); // consume second "
+            advance(); // consume third "
+
+            std::string str;
+            while (!isAtEnd())
+            {
+                if (current() == '"' && peek(1) == '"' && peek(2) == '"')
+                {
+                    advance();
+                    advance();
+                    advance(); // consume closing """
+                    return Token(TokenType::STRING, str, startLine);
+                }
+                if (current() == '\n')
+                    line_++;
+                str += current();
+                advance();
+            }
+            throw LexerError("Unterminated multi-line string literal (expected \"\"\")", startLine);
+        }
+
+        // Regular string: "..."
         advance(); // consume opening "
 
         std::string str;
@@ -241,6 +273,29 @@ namespace xell
 
         advance(); // consume closing "
         return Token(TokenType::STRING, str, startLine);
+    }
+
+    // Raw string: r"..." — backslashes are treated as literal characters
+    Token Lexer::readRawString()
+    {
+        int startLine = line_;
+        advance(); // consume the 'r'
+        advance(); // consume the opening "
+
+        std::string str;
+        while (!isAtEnd() && current() != '"')
+        {
+            str += current();
+            advance();
+        }
+
+        if (isAtEnd())
+        {
+            throw LexerError("Unterminated raw string literal", startLine);
+        }
+
+        advance(); // consume closing "
+        return Token(TokenType::RAW_STRING, str, startLine);
     }
 
     Token Lexer::readIdentifierOrKeyword()
@@ -311,9 +366,15 @@ namespace xell
                 continue;
             }
 
-            // --- Identifier or keyword ---
+            // --- Identifier or keyword (also handles raw string r"...") ---
             if (isAlpha(c))
             {
+                // Check for raw string: r"..."
+                if (c == 'r' && peek(1) == '"')
+                {
+                    tokens.push_back(readRawString());
+                    continue;
+                }
                 tokens.push_back(readIdentifierOrKeyword());
                 continue;
             }
@@ -321,12 +382,18 @@ namespace xell
             // --- Operators and delimiters ---
             // (using a dispatch approach — each character handled explicitly)
 
-            // + and ++
+            // + and ++ and +=
             if (c == '+')
             {
                 if (peek(1) == '+')
                 {
                     tokens.emplace_back(TokenType::PLUS_PLUS, "++", tokenLine);
+                    advance();
+                    advance();
+                }
+                else if (peek(1) == '=')
+                {
+                    tokens.emplace_back(TokenType::PLUS_EQUAL, "+=", tokenLine);
                     advance();
                     advance();
                 }
@@ -359,6 +426,12 @@ namespace xell
                     advance();
                     advance();
                 }
+                else if (peek(1) == '=')
+                {
+                    tokens.emplace_back(TokenType::MINUS_EQUAL, "-=", tokenLine);
+                    advance();
+                    advance();
+                }
                 else
                 {
                     tokens.emplace_back(TokenType::MINUS, "-", tokenLine);
@@ -369,31 +442,64 @@ namespace xell
 
             if (c == '*')
             {
-                tokens.emplace_back(TokenType::STAR, "*", tokenLine);
-                advance();
+                if (peek(1) == '=')
+                {
+                    tokens.emplace_back(TokenType::STAR_EQUAL, "*=", tokenLine);
+                    advance();
+                    advance();
+                }
+                else
+                {
+                    tokens.emplace_back(TokenType::STAR, "*", tokenLine);
+                    advance();
+                }
                 continue;
             }
 
             if (c == '/')
             {
-                tokens.emplace_back(TokenType::SLASH, "/", tokenLine);
-                advance();
+                if (peek(1) == '=')
+                {
+                    tokens.emplace_back(TokenType::SLASH_EQUAL, "/=", tokenLine);
+                    advance();
+                    advance();
+                }
+                else
+                {
+                    tokens.emplace_back(TokenType::SLASH, "/", tokenLine);
+                    advance();
+                }
                 continue;
             }
 
             if (c == '%')
             {
-                tokens.emplace_back(TokenType::PERCENT, "%", tokenLine);
-                advance();
+                if (peek(1) == '=')
+                {
+                    tokens.emplace_back(TokenType::PERCENT_EQUAL, "%=", tokenLine);
+                    advance();
+                    advance();
+                }
+                else
+                {
+                    tokens.emplace_back(TokenType::PERCENT, "%", tokenLine);
+                    advance();
+                }
                 continue;
             }
 
-            // = and ==
+            // = and == and =>
             if (c == '=')
             {
                 if (peek(1) == '=')
                 {
                     tokens.emplace_back(TokenType::EQUAL_EQUAL, "==", tokenLine);
+                    advance();
+                    advance();
+                }
+                else if (peek(1) == '>')
+                {
+                    tokens.emplace_back(TokenType::FAT_ARROW, "=>", tokenLine);
                     advance();
                     advance();
                 }
@@ -458,8 +564,18 @@ namespace xell
 
             if (c == '.')
             {
-                tokens.emplace_back(TokenType::DOT, ".", tokenLine);
-                advance();
+                if (peek(1) == '.' && peek(2) == '.')
+                {
+                    tokens.emplace_back(TokenType::ELLIPSIS, "...", tokenLine);
+                    advance();
+                    advance();
+                    advance();
+                }
+                else
+                {
+                    tokens.emplace_back(TokenType::DOT, ".", tokenLine);
+                    advance();
+                }
                 continue;
             }
 

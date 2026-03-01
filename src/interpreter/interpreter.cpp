@@ -119,6 +119,12 @@ namespace xell
             return execExprStmt(p);
         if (auto *p = dynamic_cast<const BringStmt *>(stmt))
             return execBring(p);
+        if (auto *p = dynamic_cast<const TryCatchStmt *>(stmt))
+            return execTryCatch(p);
+        if (auto *p = dynamic_cast<const InCaseStmt *>(stmt))
+            return execInCase(p);
+        if (auto *p = dynamic_cast<const DestructuringAssignment *>(stmt))
+            return execDestructuring(p);
     }
 
     void Interpreter::execBlock(const std::vector<StmtPtr> &stmts, Environment &env)
@@ -259,6 +265,17 @@ namespace xell
     {
         // Capture the current environment as the lexical closure scope
         auto fn = XObject::makeFunction(node->name, node->params, &node->body, currentEnv_);
+
+        // Store default parameter AST pointers (non-owning) and variadic info
+        XFunction &fnRef = const_cast<XFunction &>(fn.asFunction());
+        fnRef.defaults.clear();
+        for (const auto &d : node->defaults)
+        {
+            fnRef.defaults.push_back(d.get()); // raw non-owning pointer
+        }
+        fnRef.isVariadic = node->isVariadic;
+        fnRef.variadicName = node->variadicName;
+
         currentEnv_->set(node->name, std::move(fn));
     }
 
@@ -385,6 +402,9 @@ namespace xell
 
         if (auto *p = dynamic_cast<const StringLiteral *>(expr))
         {
+            // Raw strings skip interpolation
+            if (p->isRaw)
+                return XObject::makeString(p->value);
             // Check for interpolation markers
             if (p->value.find('{') != std::string::npos)
                 return XObject::makeString(interpolate(p->value, p->line));
@@ -416,6 +436,14 @@ namespace xell
             return evalIndex(p);
         if (auto *p = dynamic_cast<const MemberAccess *>(expr))
             return evalMember(p);
+
+        // New expression types
+        if (auto *p = dynamic_cast<const TernaryExpr *>(expr))
+            return evalTernary(p);
+        if (auto *p = dynamic_cast<const LambdaExpr *>(expr))
+            return evalLambda(p);
+        if (auto *p = dynamic_cast<const SpreadExpr *>(expr))
+            return evalSpread(p);
 
         throw NotImplementedError("unknown expression node", expr->line);
     }
@@ -661,11 +689,24 @@ namespace xell
 
     XObject Interpreter::evalCall(const CallExpr *node)
     {
-        // Evaluate arguments
+        // Evaluate arguments, handling spread
         std::vector<XObject> args;
         for (const auto &arg : node->args)
         {
-            args.push_back(eval(arg.get()));
+            if (auto *spread = dynamic_cast<const SpreadExpr *>(arg.get()))
+            {
+                XObject val = eval(spread->operand.get());
+                if (!val.isList())
+                    throw TypeError("spread operator in function call requires a list, got " +
+                                        std::string(xtype_name(val.type())),
+                                    spread->line);
+                for (const auto &item : val.asList())
+                    args.push_back(item);
+            }
+            else
+            {
+                args.push_back(eval(arg.get()));
+            }
         }
 
         // Check builtins first
@@ -685,9 +726,29 @@ namespace xell
 
     XObject Interpreter::callUserFn(const XFunction &fn, std::vector<XObject> &args, int line)
     {
-        // Arity check
-        if (args.size() != fn.params.size())
-            throw ArityError(fn.name, (int)fn.params.size(), (int)args.size(), line);
+        size_t minRequired = 0;
+        // Count required params (those without defaults)
+        for (size_t i = 0; i < fn.params.size(); i++)
+        {
+            if (i >= fn.defaults.size() || fn.defaults[i] == nullptr)
+                minRequired = i + 1;
+        }
+
+        // Arity check with defaults and variadic
+        if (fn.isVariadic)
+        {
+            // Variadic: need at least minRequired args
+            if (args.size() < minRequired)
+                throw ArityError(fn.name, (int)minRequired, (int)args.size(), line);
+        }
+        else
+        {
+            // Non-variadic: need at least minRequired, at most fn.params.size()
+            if (args.size() < minRequired)
+                throw ArityError(fn.name, (int)minRequired, (int)args.size(), line);
+            if (args.size() > fn.params.size())
+                throw ArityError(fn.name, (int)fn.params.size(), (int)args.size(), line);
+        }
 
         // Recursion guard
         if (callDepth_ >= MAX_CALL_DEPTH)
@@ -699,7 +760,30 @@ namespace xell
         // Bind parameters
         for (size_t i = 0; i < fn.params.size(); i++)
         {
-            fnEnv.define(fn.params[i], std::move(args[i]));
+            if (i < args.size())
+            {
+                fnEnv.define(fn.params[i], std::move(args[i]));
+            }
+            else if (i < fn.defaults.size() && fn.defaults[i] != nullptr)
+            {
+                // Evaluate default value in the closure environment
+                fnEnv.define(fn.params[i], eval(fn.defaults[i]));
+            }
+            else
+            {
+                fnEnv.define(fn.params[i], XObject::makeNone());
+            }
+        }
+
+        // Bind variadic parameter: collect remaining args into a list
+        if (fn.isVariadic && !fn.variadicName.empty())
+        {
+            XList varArgs;
+            for (size_t i = fn.params.size(); i < args.size(); i++)
+            {
+                varArgs.push_back(std::move(args[i]));
+            }
+            fnEnv.define(fn.variadicName, XObject::makeList(std::move(varArgs)));
         }
 
         // Execute body, catching GiveSignal for return values
@@ -710,7 +794,12 @@ namespace xell
         XObject result = XObject::makeNone();
         try
         {
-            if (fn.body)
+            // Lambda with single expression — evaluate and return it
+            if (fn.lambdaSingleExpr)
+            {
+                result = eval(fn.lambdaSingleExpr);
+            }
+            else if (fn.body)
             {
                 for (const auto &stmt : *fn.body)
                 {
@@ -804,7 +893,21 @@ namespace xell
         XList elements;
         for (const auto &elem : node->elements)
         {
-            elements.push_back(eval(elem.get()));
+            // Handle spread expressions within list literals
+            if (auto *spread = dynamic_cast<const SpreadExpr *>(elem.get()))
+            {
+                XObject val = eval(spread->operand.get());
+                if (!val.isList())
+                    throw TypeError("spread operator requires a list, got " +
+                                        std::string(xtype_name(val.type())),
+                                    spread->line);
+                for (const auto &item : val.asList())
+                    elements.push_back(item);
+            }
+            else
+            {
+                elements.push_back(eval(elem.get()));
+            }
         }
         return XObject::makeList(std::move(elements));
     }
@@ -819,6 +922,166 @@ namespace xell
             map.set(entry.first, eval(entry.second.get()));
         }
         return XObject::makeMap(std::move(map));
+    }
+
+    // ---- Ternary expression: value if condition else alternative -----------
+
+    XObject Interpreter::evalTernary(const TernaryExpr *node)
+    {
+        XObject condition = eval(node->condition.get());
+        if (condition.truthy())
+            return eval(node->value.get());
+        return eval(node->alternative.get());
+    }
+
+    // ---- Lambda expression: creates an anonymous function ------------------
+
+    XObject Interpreter::evalLambda(const LambdaExpr *node)
+    {
+        // Create a heap-allocated snapshot of the current environment
+        // so the closure survives even after the enclosing function returns.
+        auto ownedEnv = std::make_shared<Environment>(currentEnv_);
+        // Copy all visible variables into the owned environment
+        auto names = currentEnv_->allNames();
+        for (const auto &n : names)
+        {
+            try
+            {
+                ownedEnv->define(n, currentEnv_->get(n, 0));
+            }
+            catch (...)
+            {
+            }
+        }
+
+        if (node->singleExpr)
+        {
+            auto fn = XObject::makeFunction("<lambda>", node->params, &node->body, ownedEnv.get());
+            XFunction &fnRef = const_cast<XFunction &>(fn.asFunction());
+            fnRef.lambdaSingleExpr = node->singleExpr.get();
+            fnRef.ownedEnv = ownedEnv;
+            return fn;
+        }
+        else
+        {
+            auto fn = XObject::makeFunction("<lambda>", node->params, &node->body, ownedEnv.get());
+            XFunction &fnRef = const_cast<XFunction &>(fn.asFunction());
+            fnRef.ownedEnv = ownedEnv;
+            return fn;
+        }
+    }
+
+    // ---- Spread expression (standalone) ------------------------------------
+
+    XObject Interpreter::evalSpread(const SpreadExpr *node)
+    {
+        // When spread appears in a standalone context, just evaluate the operand
+        // The actual spreading happens in evalList/evalCall
+        return eval(node->operand.get());
+    }
+
+    // ---- Try / Catch / Finally ---------------------------------------------
+
+    void Interpreter::execTryCatch(const TryCatchStmt *node)
+    {
+        try
+        {
+            Environment tryEnv(currentEnv_);
+            execBlock(node->tryBody, tryEnv);
+        }
+        catch (const XellError &e)
+        {
+            if (!node->catchBody.empty())
+            {
+                Environment catchEnv(currentEnv_);
+                // Bind the error to the catch variable as a map
+                XMap errMap;
+                errMap.set("message", XObject::makeString(e.detail()));
+                errMap.set("type", XObject::makeString(e.category()));
+                errMap.set("line", XObject::makeNumber(e.line()));
+                catchEnv.define(node->catchVarName, XObject::makeMap(std::move(errMap)));
+
+                try
+                {
+                    execBlock(node->catchBody, catchEnv);
+                }
+                catch (...)
+                {
+                    // If finally exists, run it before re-throwing
+                    if (!node->finallyBody.empty())
+                    {
+                        Environment finallyEnv(currentEnv_);
+                        execBlock(node->finallyBody, finallyEnv);
+                    }
+                    throw;
+                }
+            }
+        }
+        catch (...)
+        {
+            // Non-XellError exceptions — still run finally
+            if (!node->finallyBody.empty())
+            {
+                Environment finallyEnv(currentEnv_);
+                execBlock(node->finallyBody, finallyEnv);
+            }
+            throw;
+        }
+
+        // Always run finally
+        if (!node->finallyBody.empty())
+        {
+            Environment finallyEnv(currentEnv_);
+            execBlock(node->finallyBody, finallyEnv);
+        }
+    }
+
+    // ---- InCase (switch/match) ---------------------------------------------
+
+    void Interpreter::execInCase(const InCaseStmt *node)
+    {
+        XObject subject = eval(node->subject.get());
+
+        for (const auto &clause : node->clauses)
+        {
+            for (const auto &val : clause.values)
+            {
+                XObject matchVal = eval(val.get());
+                if (subject.equals(matchVal))
+                {
+                    Environment clauseEnv(currentEnv_);
+                    execBlock(clause.body, clauseEnv);
+                    return; // first match wins, exit
+                }
+            }
+        }
+
+        // No match — run else body
+        if (!node->elseBody.empty())
+        {
+            Environment elseEnv(currentEnv_);
+            execBlock(node->elseBody, elseEnv);
+        }
+    }
+
+    // ---- Destructuring assignment: a, b = [1, 2] ---------------------------
+
+    void Interpreter::execDestructuring(const DestructuringAssignment *node)
+    {
+        XObject value = eval(node->value.get());
+        if (!value.isList())
+            throw TypeError("destructuring requires a list on the right side, got " +
+                                std::string(xtype_name(value.type())),
+                            node->line);
+
+        const auto &list = value.asList();
+        for (size_t i = 0; i < node->names.size(); i++)
+        {
+            if (i < list.size())
+                currentEnv_->set(node->names[i], list[i]);
+            else
+                currentEnv_->set(node->names[i], XObject::makeNone());
+        }
     }
 
     // ========================================================================

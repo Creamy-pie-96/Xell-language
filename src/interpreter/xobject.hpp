@@ -49,6 +49,7 @@ namespace xell
     // Forward declarations
     class XObject;
     struct Stmt;
+    struct Expr;
     class Environment;
 
     // ========================================================================
@@ -99,6 +100,21 @@ namespace xell
         std::vector<std::string> params;
         const std::vector<std::unique_ptr<Stmt>> *body; // non-owning pointer to AST
         Environment *closureEnv;                        // lexical scope at definition
+
+        // Default parameter values (evaluated at call time from AST pointers)
+        std::vector<const Expr *> defaults; // nullptr = no default; non-owning AST ptrs
+
+        // Variadic support
+        bool isVariadic = false;
+        std::string variadicName; // name of the ...rest parameter
+
+        // Lambda single expression (for inline lambdas: x => x * 2)
+        const Expr *lambdaSingleExpr = nullptr; // non-owning AST ptr
+
+        // Heap-allocated closure environment for lambdas returned from functions.
+        // When set, closureEnv points into this. Shared so copies of the function
+        // keep the environment alive.
+        std::shared_ptr<Environment> ownedEnv;
 
         XFunction(std::string name, std::vector<std::string> params,
                   const std::vector<std::unique_ptr<Stmt>> *body,

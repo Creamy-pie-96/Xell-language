@@ -30,6 +30,7 @@ namespace xell
 
         Token readNumber();
         Token readString();
+        Token readRawString();
         Token readIdentifierOrKeyword();
 
         // Map-based keyword lookup (extensible)

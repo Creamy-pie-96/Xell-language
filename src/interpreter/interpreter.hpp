@@ -109,6 +109,9 @@ namespace xell
         void execGive(const GiveStmt *node);
         void execExprStmt(const ExprStmt *node);
         void execBring(const BringStmt *node);
+        void execTryCatch(const TryCatchStmt *node);
+        void execInCase(const InCaseStmt *node);
+        void execDestructuring(const DestructuringAssignment *node);
 
         // ---- Expression evaluation -----------------------------------------
 
@@ -121,6 +124,9 @@ namespace xell
         XObject evalMember(const MemberAccess *node);
         XObject evalList(const ListLiteral *node);
         XObject evalMap(const MapLiteral *node);
+        XObject evalTernary(const TernaryExpr *node);
+        XObject evalLambda(const LambdaExpr *node);
+        XObject evalSpread(const SpreadExpr *node);
 
         // ---- Helpers -------------------------------------------------------
 

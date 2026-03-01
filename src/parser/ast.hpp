@@ -47,7 +47,9 @@ namespace xell
     struct StringLiteral : Expr
     {
         std::string value; // raw content with {interpolation} markers preserved
-        explicit StringLiteral(std::string v, int ln = 0) : value(std::move(v)) { line = ln; }
+        bool isRaw;        // true for r"..." strings — no interpolation
+        explicit StringLiteral(std::string v, int ln = 0, bool raw = false)
+            : value(std::move(v)), isRaw(raw) { line = ln; }
     };
 
     struct BoolLiteral : Expr
@@ -131,6 +133,33 @@ namespace xell
             : object(std::move(obj)), member(std::move(mem)) { line = ln; }
     };
 
+    // Ternary expression: value if condition else alternative
+    struct TernaryExpr : Expr
+    {
+        ExprPtr value;       // expression before "if"
+        ExprPtr condition;   // condition after "if"
+        ExprPtr alternative; // expression after "else"
+        TernaryExpr(ExprPtr val, ExprPtr cond, ExprPtr alt, int ln = 0)
+            : value(std::move(val)), condition(std::move(cond)), alternative(std::move(alt)) { line = ln; }
+    };
+
+    // Lambda expression: x => expr  or  (a, b) => expr  or  x => : block ;
+    struct LambdaExpr : Expr
+    {
+        std::vector<std::string> params;
+        std::vector<StmtPtr> body; // for multi-line: x => : ... ;
+        ExprPtr singleExpr;        // for inline: x => x * 2 (body will be empty)
+        LambdaExpr(std::vector<std::string> params, std::vector<StmtPtr> body, ExprPtr singleExpr, int ln = 0)
+            : params(std::move(params)), body(std::move(body)), singleExpr(std::move(singleExpr)) { line = ln; }
+    };
+
+    // Spread expression: ...list inside list literals or function calls
+    struct SpreadExpr : Expr
+    {
+        ExprPtr operand;
+        explicit SpreadExpr(ExprPtr op, int ln = 0) : operand(std::move(op)) { line = ln; }
+    };
+
     // ============================================================
     // Statement nodes
     // ============================================================
@@ -190,6 +219,9 @@ namespace xell
     {
         std::string name;
         std::vector<std::string> params;
+        std::vector<ExprPtr> defaults; // default value for each param (nullptr = no default)
+        bool isVariadic = false;       // true if last param is ...name
+        std::string variadicName;      // name of variadic param (without ...)
         std::vector<StmtPtr> body;
         FnDef(std::string name, std::vector<std::string> params, std::vector<StmtPtr> body, int ln = 0)
             : name(std::move(name)), params(std::move(params)), body(std::move(body)) { line = ln; }
@@ -209,6 +241,46 @@ namespace xell
     struct ContinueStmt : Stmt
     {
         explicit ContinueStmt(int ln = 0) { line = ln; }
+    };
+
+    struct TryCatchStmt : Stmt
+    {
+        std::vector<StmtPtr> tryBody;
+        std::string catchVarName; // name of error variable in catch block (e.g., "e" in "catch e :")
+        std::vector<StmtPtr> catchBody;
+        std::vector<StmtPtr> finallyBody; // empty if no finally block
+        TryCatchStmt(std::vector<StmtPtr> tryB, std::string catchVar,
+                     std::vector<StmtPtr> catchB, std::vector<StmtPtr> finallyB, int ln = 0)
+            : tryBody(std::move(tryB)), catchVarName(std::move(catchVar)),
+              catchBody(std::move(catchB)), finallyBody(std::move(finallyB)) { line = ln; }
+    };
+
+    // incase x : is 1 or 2 : ... ; is 3 : ... ; else : ... ; ;
+    struct InCaseClause
+    {
+        std::vector<ExprPtr> values; // one or more values joined by 'or'
+        std::vector<StmtPtr> body;
+        int line = 0;
+    };
+
+    struct InCaseStmt : Stmt
+    {
+        ExprPtr subject;                   // the value being matched
+        std::vector<InCaseClause> clauses; // is ... : ... ; branches
+        std::vector<StmtPtr> elseBody;     // else : ... ;
+        InCaseStmt(ExprPtr subj, std::vector<InCaseClause> clauses,
+                   std::vector<StmtPtr> elseBody, int ln = 0)
+            : subject(std::move(subj)), clauses(std::move(clauses)),
+              elseBody(std::move(elseBody)) { line = ln; }
+    };
+
+    // Destructuring assignment: a, b = [1, 2]
+    struct DestructuringAssignment : Stmt
+    {
+        std::vector<std::string> names;
+        ExprPtr value;
+        DestructuringAssignment(std::vector<std::string> names, ExprPtr val, int ln = 0)
+            : names(std::move(names)), value(std::move(val)) { line = ln; }
     };
 
     struct BringStmt : Stmt

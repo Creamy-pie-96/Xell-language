@@ -18,6 +18,9 @@ namespace xell
             return XObject::makeString(xtype_name(args[0].type()));
         };
 
+        // typeof is an alias for type
+        t["typeof"] = t["type"];
+
         t["str"] = [](std::vector<XObject> &args, int line) -> XObject
         {
             if (args.size() != 1)
