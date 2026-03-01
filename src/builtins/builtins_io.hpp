@@ -25,7 +25,11 @@ namespace xell
                 line += args[i].toString();
             }
             output.push_back(line);
-            return XObject::makeNone();
+            // Return 0 (shell "success" exit code) so that shell-style
+            // operators work correctly:
+            //   print("a") && print("b")  →  both execute (0 = success → continue)
+            //   print("a") || print("b")  →  only first   (0 = success → skip fallback)
+            return XObject::makeNumber(0);
         };
     }
 

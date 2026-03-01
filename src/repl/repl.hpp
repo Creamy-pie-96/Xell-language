@@ -19,6 +19,7 @@
 #include "../lexer/lexer.hpp"
 #include "../parser/parser.hpp"
 #include "../interpreter/interpreter.hpp"
+#include "../os/os.hpp"
 #include <iostream>
 #include <string>
 #include <cstdlib>
@@ -29,6 +30,10 @@
 #include <climits>
 #else
 #include <windows.h>
+#include <direct.h>
+#ifndef PATH_MAX
+#define PATH_MAX MAX_PATH
+#endif
 #endif
 
 namespace xell
@@ -396,6 +401,154 @@ namespace xell
                 }
                 return true;
             }
+
+            // ---- Shell-like built-in commands (for terminal mode) ----
+
+            // cd <path> — change working directory
+            if (line == "cd" || line.substr(0, 3) == "cd ")
+            {
+                std::string target;
+                if (line.size() > 3)
+                    target = line.substr(3);
+                // Trim whitespace
+                while (!target.empty() && (target.front() == ' ' || target.front() == '\t'))
+                    target.erase(target.begin());
+                while (!target.empty() && (target.back() == ' ' || target.back() == '\t'))
+                    target.pop_back();
+                // Remove surrounding quotes if present
+                if (target.size() >= 2 &&
+                    ((target.front() == '"' && target.back() == '"') ||
+                     (target.front() == '\'' && target.back() == '\'')))
+                {
+                    target = target.substr(1, target.size() - 2);
+                }
+                // Default to home directory
+                if (target.empty() || target == "~")
+                {
+                    const char *home = std::getenv("HOME");
+#ifdef _WIN32
+                    if (!home) home = std::getenv("USERPROFILE");
+#endif
+                    if (home)
+                        target = home;
+                    else
+                    {
+                        Terminal::write(std::string(color::RED) + "cd: HOME not set\r\n" + color::RESET);
+                        return true;
+                    }
+                }
+                // Handle ~ prefix
+                if (target.size() >= 2 && target[0] == '~' && (target[1] == '/' || target[1] == '\\'))
+                {
+                    const char *home = std::getenv("HOME");
+#ifdef _WIN32
+                    if (!home) home = std::getenv("USERPROFILE");
+#endif
+                    if (home)
+                        target = std::string(home) + target.substr(1);
+                }
+
+#ifdef _WIN32
+                int rc = _chdir(target.c_str());
+#else
+                int rc = chdir(target.c_str());
+#endif
+                if (rc != 0)
+                {
+                    Terminal::write(std::string(color::RED) + "cd: " + target +
+                                    ": No such file or directory\r\n" + color::RESET);
+                }
+                return true;
+            }
+
+            // pwd — print working directory
+            if (line == "pwd")
+            {
+                char buf[PATH_MAX];
+#ifdef _WIN32
+                if (_getcwd(buf, sizeof(buf)))
+#else
+                if (getcwd(buf, sizeof(buf)))
+#endif
+                {
+                    Terminal::write(std::string(buf) + "\r\n");
+                }
+                else
+                {
+                    Terminal::write(std::string(color::RED) + "pwd: error\r\n" + color::RESET);
+                }
+                return true;
+            }
+
+            // ls — list directory (delegate to system)
+            if (line == "ls" || line.substr(0, 3) == "ls ")
+            {
+                // Run ls directly as a shell command
+                os::run(line);
+                return true;
+            }
+
+            // run <command> — execute a shell command
+            // Supports:
+            //   run echo "hello" && ls     (paren-less, raw text after "run ")
+            //   run(echo "hello" && ls)    (parens act as delimiters, content is raw)
+            //   run("echo hello")          (backward compat: strips surrounding quotes)
+            if (line == "run" || line.substr(0, 4) == "run " || line.substr(0, 4) == "run(")
+            {
+                std::string cmd;
+                if (line.size() >= 4 && line[3] == '(')
+                {
+                    // run(command) syntax — extract content between parens
+                    size_t end_paren = line.rfind(')');
+                    if (end_paren != std::string::npos && end_paren > 4)
+                        cmd = line.substr(4, end_paren - 4);
+                    else
+                        cmd = line.substr(4); // no closing paren, use rest
+
+                    // Trim whitespace
+                    while (!cmd.empty() && (cmd.front() == ' ' || cmd.front() == '\t'))
+                        cmd.erase(cmd.begin());
+                    while (!cmd.empty() && (cmd.back() == ' ' || cmd.back() == '\t'))
+                        cmd.pop_back();
+
+                    // If it's a single quoted string like run("cmd"), strip quotes
+                    // to maintain backward compatibility with run("echo hello")
+                    if (cmd.size() >= 2 && cmd[0] == '"' && cmd.back() == '"' &&
+                        cmd.find('"', 1) == cmd.size() - 1)
+                    {
+                        cmd = cmd.substr(1, cmd.size() - 2);
+                    }
+                }
+                else if (line.size() > 4)
+                {
+                    // run command args... — paren-less, everything after "run " is the command
+                    cmd = line.substr(4);
+                    while (!cmd.empty() && (cmd.front() == ' ' || cmd.front() == '\t'))
+                        cmd.erase(cmd.begin());
+                }
+
+                if (cmd.empty())
+                {
+                    Terminal::write(std::string(color::RED) + "run: no command specified\r\n" + color::RESET);
+                    return true;
+                }
+
+                // If the command is "cd <path>", handle with chdir() instead
+                // of spawning a subprocess (which can't change our cwd)
+                if (cmd == "cd" || (cmd.size() >= 3 && cmd.substr(0, 3) == "cd "))
+                {
+                    return handleCommand(cmd); // delegate to the cd handler above
+                }
+
+                int code = os::run(cmd);
+                if (code != 0)
+                {
+                    Terminal::write(std::string(color::RED) + "[exit " +
+                                    std::to_string(code) + "]" + color::RESET + "\r\n");
+                }
+                return true;
+            }
+
             return false;
         }
 

@@ -245,10 +245,10 @@ namespace xterm
     {
         unsigned char uch = static_cast<unsigned char>(ch);
 
-        if (uch == '?')
+        // Private mode prefix characters: ?, >, =, <
+        // e.g., ESC[?25h (cursor visibility), ESC[>1u (kitty keyboard protocol)
+        if (uch == '?' || uch == '>' || uch == '=' || uch == '<')
         {
-            // Private mode marker (e.g., ESC[?25h for cursor show)
-            // Treat '?' as part of params so dispatch knows it's private
             csi_params_ += ch;
             state_ = State::CSI_Param;
             return;
@@ -375,7 +375,9 @@ namespace xterm
     void VTParser::dispatch_csi(char cmd)
     {
         auto params = parse_params();
-        bool is_private = (!csi_params_.empty() && csi_params_[0] == '?');
+        bool is_private = (!csi_params_.empty() &&
+                          (csi_params_[0] == '?' || csi_params_[0] == '>' ||
+                           csi_params_[0] == '=' || csi_params_[0] == '<'));
 
         // Default parameter is 1 for most commands, 0 for some
         auto param = [&](int idx, int def = 1) -> int
@@ -490,9 +492,14 @@ namespace xterm
             buffer_.saved_cursor_col = buffer_.cursor_col;
             break;
 
-        case 'u': // RCP — Restore Cursor Position
-            buffer_.cursor_row = buffer_.saved_cursor_row;
-            buffer_.cursor_col = buffer_.saved_cursor_col;
+        case 'u': // RCP — Restore Cursor Position, or kitty keyboard protocol response
+            // Only restore cursor for plain ESC[u, not ESC[>...u (kitty protocol)
+            if (!is_private && csi_params_.empty())
+            {
+                buffer_.cursor_row = buffer_.saved_cursor_row;
+                buffer_.cursor_col = buffer_.saved_cursor_col;
+            }
+            // ESC[>1u, ESC[<u, etc. are kitty keyboard protocol — silently consume
             break;
 
         // --- Insert/Delete lines ---
@@ -772,9 +779,9 @@ namespace xterm
     {
         std::vector<int> result;
 
-        // Skip leading '?' for private modes
+        // Skip leading private mode prefix (?, >, =, <)
         std::string raw = csi_params_;
-        if (!raw.empty() && raw[0] == '?')
+        if (!raw.empty() && (raw[0] == '?' || raw[0] == '>' || raw[0] == '=' || raw[0] == '<'))
             raw = raw.substr(1);
 
         if (raw.empty())

@@ -11,6 +11,7 @@
 #include "../terminal/types.hpp"
 #include <string>
 #include <unordered_map>
+#include <functional>
 
 struct SDL_Window;
 struct SDL_Renderer;
@@ -50,6 +51,23 @@ namespace xterm
 
         /// Get the SDL window.
         SDL_Window *get_window() const { return window_; }
+
+        /// Draw a right-click context menu overlay.
+        /// @param x, y          Top-left pixel of the menu
+        /// @param w, h          Size of the menu
+        /// @param item_count    Number of items
+        /// @param get_label     Callback to get label for item i
+        /// @param hover_index   Currently hovered item (-1 = none)
+        void draw_context_menu(int x, int y, int w, int h,
+                               int item_count,
+                               std::function<const char*(int)> get_label,
+                               int hover_index);
+
+        /// Draw a scrollbar on the right edge of the terminal.
+        /// @param visible_rows  Number of visible rows
+        /// @param scrollback    Total scrollback lines
+        /// @param scroll_offset Current scroll position (0 = live)
+        void draw_scrollbar(int visible_rows, int scrollback, int scroll_offset);
 
         /// Clean up all resources.
         void shutdown();

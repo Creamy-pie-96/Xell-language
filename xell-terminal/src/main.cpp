@@ -191,10 +191,16 @@ static ShellResult find_xell_path()
     // --- 3. Xell project build directories (relative to terminal binary) ---
     // Terminal binary:  <project>/xell-terminal/build/xell-terminal
     // Xell binary:      <project>/build/xell  or  <project>/build_release/xell
-    // So: go up 2 levels (../../) from exe_dir
+    // exe_dir = <project>/xell-terminal/build/
+    //   parent_path() = .../xell-terminal/build
+    //   parent_path() = .../xell-terminal
+    //   parent_path() = <project>
     try
     {
-        fs::path project_root = fs::path(exe_dir).parent_path().parent_path();
+        fs::path exe_fs = fs::path(exe_dir);
+        // Remove trailing separator by canonicalizing
+        if (exe_fs.filename().empty()) exe_fs = exe_fs.parent_path();
+        fs::path project_root = exe_fs.parent_path().parent_path();
 
         std::string build_candidates[] = {
             (project_root / "build" / xell_name).string(),
@@ -407,6 +413,48 @@ int main(int argc, char *argv[])
     int cell_w, cell_h;
     renderer.get_cell_size(cell_w, cell_h);
 
+    // --- Right-click context menu state ---
+    struct ContextMenu {
+        bool visible = false;
+        int x = 0, y = 0; // pixel position
+        int width = 220, height = 0;
+        struct Item { std::string label; xterm::InputAction action; };
+        std::vector<Item> items;
+        int hover_index = -1;
+
+        void show(int mx, int my, bool has_sel) {
+            x = mx; y = my;
+            items.clear();
+            if (has_sel)
+                items.push_back({"  Copy              Ctrl+C", xterm::InputAction::COPY});
+            items.push_back({"  Paste             Ctrl+V", xterm::InputAction::PASTE});
+            items.push_back({"  Select All  Ctrl+Shift+A", xterm::InputAction::SELECT_ALL});
+            height = static_cast<int>(items.size()) * 28 + 8;
+            hover_index = -1;
+            visible = true;
+        }
+        void hide() { visible = false; }
+        int hit_test(int mx, int my) const {
+            if (!visible) return -1;
+            if (mx < x || mx > x + width || my < y || my > y + height) return -1;
+            int idx = (my - y - 4) / 28;
+            if (idx < 0 || idx >= (int)items.size()) return -1;
+            return idx;
+        }
+    } context_menu;
+
+    // --- Font zoom state ---
+    int current_font_size = DEFAULT_FONT_SIZE;
+
+    // --- Double-click detection ---
+    Uint32 last_click_time = 0;
+    int last_click_row = -1, last_click_col = -1;
+
+    // --- Scrollbar interaction state ---
+    bool scrollbar_dragging = false;
+    static constexpr int SCROLLBAR_WIDTH = 8; // must match renderer
+    float scrollbar_drag_start_ratio = 0.0f;
+
     // --- Main event/render loop ---
     while (running.load())
     {
@@ -421,6 +469,9 @@ int main(int argc, char *argv[])
 
             case SDL_KEYDOWN:
             {
+                // Dismiss context menu on any keypress
+                context_menu.hide();
+
                 // Any keypress returns to live view
                 scroll_offset = 0;
 
@@ -429,41 +480,9 @@ int main(int argc, char *argv[])
                 last_keypress = std::chrono::steady_clock::now();
                 last_blink = last_keypress;
 
-                bool ctrl = (event.key.keysym.mod & KMOD_CTRL) != 0;
                 bool shift = (event.key.keysym.mod & KMOD_SHIFT) != 0;
 
-                // --- Copy: Ctrl+Shift+C ---
-                if (ctrl && shift && event.key.keysym.sym == SDLK_c)
-                {
-                    if (selection.has_selection)
-                    {
-                        std::lock_guard<std::mutex> lock(buffer_mutex);
-                        std::string text = buffer.extract_text(selection, scroll_offset);
-                        if (!text.empty())
-                            SDL_SetClipboardText(text.c_str());
-                    }
-                    break;
-                }
-
-                // --- Paste: Ctrl+Shift+V ---
-                if (ctrl && shift && event.key.keysym.sym == SDLK_v)
-                {
-                    if (SDL_HasClipboardText())
-                    {
-                        char *clip = SDL_GetClipboardText();
-                        if (clip)
-                        {
-                            pty.write(std::string(clip));
-                            SDL_free(clip);
-                        }
-                    }
-                    break;
-                }
-
-                // Clear selection on any other keypress
-                selection.clear();
-
-                // Check for Shift+PageUp/Down for scrolling
+                // Shift+PageUp/Down for scrollback
                 if (event.key.keysym.sym == SDLK_PAGEUP && shift)
                 {
                     std::lock_guard<std::mutex> lock(buffer_mutex);
@@ -478,26 +497,105 @@ int main(int argc, char *argv[])
                     break;
                 }
 
-                // Translate key to bytes and send to PTY
-                std::string bytes = xterm::InputHandler::translate(event);
-                if (!bytes.empty())
+                // Translate key through InputHandler
+                auto result = xterm::InputHandler::translate(event, selection.has_selection);
+
+                switch (result.action)
                 {
-                    pty.write(bytes);
+                case xterm::InputAction::COPY:
+                {
+                    if (selection.has_selection)
+                    {
+                        std::lock_guard<std::mutex> lock(buffer_mutex);
+                        std::string text = buffer.extract_text(selection, scroll_offset);
+                        if (!text.empty())
+                            SDL_SetClipboardText(text.c_str());
+                    }
+                    break;
+                }
+                case xterm::InputAction::PASTE:
+                {
+                    if (SDL_HasClipboardText())
+                    {
+                        char *clip = SDL_GetClipboardText();
+                        if (clip)
+                        {
+                            pty.write(std::string(clip));
+                            SDL_free(clip);
+                        }
+                    }
+                    selection.clear();
+                    break;
+                }
+                case xterm::InputAction::SELECT_ALL:
+                {
+                    std::lock_guard<std::mutex> lock(buffer_mutex);
+                    selection.has_selection = true;
+                    selection.active = false;
+                    selection.start = {0, 0};
+                    selection.end = {term_rows - 1, term_cols - 1};
+                    break;
+                }
+                case xterm::InputAction::ZOOM_IN:
+                {
+                    if (current_font_size < 48)
+                    {
+                        current_font_size += 2;
+                        renderer.shutdown();
+                        int w, h;
+                        SDL_GetWindowSize(renderer.get_window(), &w, &h);
+                        // Re-init will create new window — skip for now
+                        // TODO: proper font resize without recreating window
+                    }
+                    break;
+                }
+                case xterm::InputAction::ZOOM_OUT:
+                {
+                    if (current_font_size > 8)
+                    {
+                        current_font_size -= 2;
+                        // TODO: proper font resize
+                    }
+                    break;
+                }
+                case xterm::InputAction::ZOOM_RESET:
+                {
+                    current_font_size = DEFAULT_FONT_SIZE;
+                    // TODO: proper font resize
+                    break;
+                }
+                case xterm::InputAction::SEND_TO_PTY:
+                {
+                    selection.clear(); // clear selection on typed input
+                    if (!result.data.empty())
+                        pty.write(result.data);
+                    break;
+                }
+                default:
+                    break;
                 }
                 break;
             }
 
             case SDL_TEXTINPUT:
             {
+                // Dismiss context menu
+                context_menu.hide();
+
                 // Regular character input
                 scroll_offset = 0;
                 cursor_visible = true;
                 last_keypress = std::chrono::steady_clock::now();
                 last_blink = last_keypress;
 
+                // Don't send text if Ctrl is held (Ctrl+C etc. already handled in KEYDOWN)
+                if (SDL_GetModState() & KMOD_CTRL)
+                    break;
+
                 std::string bytes = xterm::InputHandler::translate_text(event);
                 if (!bytes.empty())
                 {
+                    selection.clear();
                     pty.write(bytes);
                 }
                 break;
@@ -506,17 +604,16 @@ int main(int argc, char *argv[])
             case SDL_MOUSEWHEEL:
             {
                 // Scroll through history
+                context_menu.hide();
                 std::lock_guard<std::mutex> lock(buffer_mutex);
                 if (event.wheel.y > 0)
                 {
-                    // Scroll up
                     scroll_offset = std::min(
                         scroll_offset + 3,
                         buffer.scrollback_size());
                 }
                 else if (event.wheel.y < 0)
                 {
-                    // Scroll down
                     scroll_offset = std::max(scroll_offset - 3, 0);
                 }
                 break;
@@ -526,31 +623,155 @@ int main(int argc, char *argv[])
             {
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
+                    // Check if clicking on the context menu
+                    if (context_menu.visible)
+                    {
+                        int idx = context_menu.hit_test(event.button.x, event.button.y);
+                        if (idx >= 0)
+                        {
+                            auto action = context_menu.items[idx].action;
+                            context_menu.hide();
+                            // Execute the menu action
+                            if (action == xterm::InputAction::COPY && selection.has_selection)
+                            {
+                                std::lock_guard<std::mutex> lock(buffer_mutex);
+                                std::string text = buffer.extract_text(selection, scroll_offset);
+                                if (!text.empty())
+                                    SDL_SetClipboardText(text.c_str());
+                            }
+                            else if (action == xterm::InputAction::PASTE)
+                            {
+                                if (SDL_HasClipboardText())
+                                {
+                                    char *clip = SDL_GetClipboardText();
+                                    if (clip)
+                                    {
+                                        pty.write(std::string(clip));
+                                        SDL_free(clip);
+                                    }
+                                }
+                            }
+                            else if (action == xterm::InputAction::SELECT_ALL)
+                            {
+                                std::lock_guard<std::mutex> lock(buffer_mutex);
+                                selection.has_selection = true;
+                                selection.active = false;
+                                selection.start = {0, 0};
+                                selection.end = {term_rows - 1, term_cols - 1};
+                            }
+                            break;
+                        }
+                        context_menu.hide();
+                        break;
+                    }
+
+                    // Check if clicking on the scrollbar
+                    int win_w, win_h;
+                    SDL_GetWindowSize(SDL_GetWindowFromID(event.button.windowID), &win_w, &win_h);
+                    int sb_size = 0;
+                    {
+                        std::lock_guard<std::mutex> lock(buffer_mutex);
+                        sb_size = buffer.scrollback_size();
+                    }
+                    if (sb_size > 0 && event.button.x >= win_w - SCROLLBAR_WIDTH)
+                    {
+                        // Click on scrollbar: jump to position and start dragging
+                        scrollbar_dragging = true;
+                        int total_lines = term_rows + sb_size;
+                        float click_ratio = 1.0f - (static_cast<float>(event.button.y) / win_h);
+                        scroll_offset = static_cast<int>(click_ratio * sb_size);
+                        if (scroll_offset < 0) scroll_offset = 0;
+                        if (scroll_offset > sb_size) scroll_offset = sb_size;
+                        break;
+                    }
+
                     int col = event.button.x / cell_w;
                     int row = event.button.y / cell_h;
-                    selection.active = true;
-                    selection.has_selection = true;
-                    selection.start = {row, col};
-                    selection.end = {row, col};
+
+                    // Double-click detection → select word
+                    Uint32 now_tick = SDL_GetTicks();
+                    if (now_tick - last_click_time < 400 &&
+                        row == last_click_row && col == last_click_col)
+                    {
+                        // Double-click: select word under cursor
+                        std::lock_guard<std::mutex> lock(buffer_mutex);
+                        int lo_col = col, hi_col = col;
+                        while (lo_col > 0)
+                        {
+                            xterm::Cell c = buffer.get_cell(row, lo_col - 1);
+                            if (c.ch == U' ' || c.ch == 0) break;
+                            lo_col--;
+                        }
+                        while (hi_col < term_cols - 1)
+                        {
+                            xterm::Cell c = buffer.get_cell(row, hi_col + 1);
+                            if (c.ch == U' ' || c.ch == 0) break;
+                            hi_col++;
+                        }
+                        selection.active = false;
+                        selection.has_selection = true;
+                        selection.start = {row, lo_col};
+                        selection.end = {row, hi_col};
+                        last_click_time = 0; // prevent triple-click
+                    }
+                    else
+                    {
+                        // Single click: start drag selection
+                        selection.active = true;
+                        selection.has_selection = true;
+                        selection.start = {row, col};
+                        selection.end = {row, col};
+                        last_click_time = now_tick;
+                        last_click_row = row;
+                        last_click_col = col;
+                    }
+                }
+                else if (event.button.button == SDL_BUTTON_RIGHT)
+                {
+                    // Right-click: show context menu
+                    context_menu.show(event.button.x, event.button.y,
+                                      selection.has_selection);
                 }
                 break;
             }
 
             case SDL_MOUSEMOTION:
             {
+                // Update context menu hover
+                if (context_menu.visible)
+                {
+                    context_menu.hover_index = context_menu.hit_test(
+                        event.motion.x, event.motion.y);
+                }
+
+                // Scrollbar drag
+                if (scrollbar_dragging && (event.motion.state & SDL_BUTTON_LMASK))
+                {
+                    int win_w, win_h;
+                    SDL_GetWindowSize(SDL_GetWindowFromID(event.motion.windowID), &win_w, &win_h);
+                    int sb_size = 0;
+                    {
+                        std::lock_guard<std::mutex> lock(buffer_mutex);
+                        sb_size = buffer.scrollback_size();
+                    }
+                    if (sb_size > 0 && win_h > 0)
+                    {
+                        float click_ratio = 1.0f - (static_cast<float>(event.motion.y) / win_h);
+                        scroll_offset = static_cast<int>(click_ratio * sb_size);
+                        if (scroll_offset < 0) scroll_offset = 0;
+                        if (scroll_offset > sb_size) scroll_offset = sb_size;
+                    }
+                    break;
+                }
+
                 if (selection.active && (event.motion.state & SDL_BUTTON_LMASK))
                 {
                     int col = event.motion.x / cell_w;
                     int row = event.motion.y / cell_h;
-                    // Clamp to grid bounds
-                    if (col < 0)
-                        col = 0;
-                    if (row < 0)
-                        row = 0;
-                    if (col >= term_cols)
-                        col = term_cols - 1;
-                    if (row >= term_rows)
-                        row = term_rows - 1;
+                    if (col < 0) col = 0;
+                    if (row < 0) row = 0;
+                    if (col >= term_cols) col = term_cols - 1;
+                    if (row >= term_rows) row = term_rows - 1;
                     selection.end = {row, col};
                 }
                 break;
@@ -560,10 +781,13 @@ int main(int argc, char *argv[])
             {
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
-                    selection.active = false;
-                    // If start == end, clear (it was just a click, not a drag)
-                    if (selection.start == selection.end)
-                        selection.clear();
+                    scrollbar_dragging = false;
+                    if (selection.active)
+                    {
+                        selection.active = false;
+                        if (selection.start == selection.end)
+                            selection.clear();
+                    }
                 }
                 break;
             }
@@ -587,9 +811,12 @@ int main(int argc, char *argv[])
                         buffer.resize(term_rows, term_cols);
                         pty.resize(term_rows, term_cols);
                         renderer.get_cell_size(cell_w, cell_h);
-                        selection.clear(); // selection invalid after resize
+                        selection.clear();
                     }
                 }
+                // Dismiss menu on focus loss
+                if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+                    context_menu.hide();
                 break;
             }
 
@@ -620,6 +847,28 @@ int main(int argc, char *argv[])
             std::lock_guard<std::mutex> lock(buffer_mutex);
             renderer.render(buffer, cursor_visible, scroll_offset, &selection);
         }
+
+        // --- Draw context menu (on top of everything) ---
+        if (context_menu.visible)
+        {
+            renderer.draw_context_menu(
+                context_menu.x, context_menu.y,
+                context_menu.width, context_menu.height,
+                context_menu.items.size(),
+                [&](int i) -> const char* { return context_menu.items[i].label.c_str(); },
+                context_menu.hover_index);
+        }
+
+        // --- Draw scrollbar ---
+        {
+            std::lock_guard<std::mutex> lock(buffer_mutex);
+            int sb_total = buffer.scrollback_size();
+            if (sb_total > 0)
+            {
+                renderer.draw_scrollbar(term_rows, sb_total, scroll_offset);
+            }
+        }
+
         renderer.present();
 
         // Cap at ~120fps if vsync isn't doing it

@@ -88,8 +88,42 @@ namespace xell
                             return true;
                         }
 
+                        // REPL commands (:help, :quit, etc.) should execute immediately
+                        // without depth checking — the leading : is not a block opener.
+                        std::string trimmed = content;
+                        size_t fpos = trimmed.find_first_not_of(" \t\n");
+                        if (fpos != std::string::npos)
+                            trimmed = trimmed.substr(fpos);
+                        bool isReplCommand = (!trimmed.empty() && trimmed[0] == ':');
+
+                        // Also treat short single-line inputs as immediate
+                        // (cd, pwd, etc.) — no block depth check needed
+                        bool isSingleLine = (content.find('\n') == std::string::npos);
+                        bool isShellBuiltin = false;
+                        if (isSingleLine)
+                        {
+                            isShellBuiltin = (trimmed == "cd" || trimmed.substr(0, 3) == "cd " ||
+                                              trimmed == "pwd" || trimmed == "ls" ||
+                                              trimmed.substr(0, 3) == "ls " ||
+                                              trimmed == "run" || trimmed.substr(0, 4) == "run " ||
+                                              trimmed.substr(0, 4) == "run(");
+                        }
+
+                        if (isReplCommand || isShellBuiltin)
+                        {
+                            // Execute immediately
+                            Terminal::write("\r\n");
+                            while (!lines_.empty() && lines_.back().empty())
+                                lines_.pop_back();
+                            result = joinLines();
+                            history_.resetCursor();
+                            return true;
+                        }
+
                         // Check for unclosed blocks
-                        // Simple heuristic: count unmatched : vs ;
+                        // Heuristic: count unmatched : vs ;
+                        // Only count : that appear after whitespace or keywords
+                        // (not at the start of a line, which is a REPL command)
                         int depth = 0;
                         bool inStr = false;
                         for (size_t ci = 0; ci < content.size(); ci++)
@@ -106,7 +140,12 @@ namespace xell
                                 continue;
                             }
                             if (cc == ':')
-                                depth++;
+                            {
+                                // Only count : as block opener if preceded by
+                                // a non-colon, non-newline character (i.e., after a keyword)
+                                if (ci > 0 && content[ci - 1] != '\n' && content[ci - 1] != ':')
+                                    depth++;
+                            }
                             if (cc == ';')
                                 depth--;
                         }

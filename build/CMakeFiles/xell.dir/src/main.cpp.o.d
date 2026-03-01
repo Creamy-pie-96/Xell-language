@@ -245,7 +245,8 @@ CMakeFiles/xell.dir/src/main.cpp.o: \
  /usr/include/x86_64-linux-gnu/bits/ioctl-types.h \
  /home/DATA/CODE/code/Xell/src/repl/line_editor.hpp \
  /home/DATA/CODE/code/Xell/src/repl/history.hpp \
- /home/DATA/CODE/code/Xell/src/repl/completer.hpp /usr/include/pwd.h \
+ /home/DATA/CODE/code/Xell/src/repl/completer.hpp \
+ /home/DATA/CODE/code/Xell/src/repl/../os/os.hpp /usr/include/pwd.h \
  /usr/include/c++/13/climits \
  /usr/lib/gcc/x86_64-linux-gnu/13/include/limits.h \
  /usr/lib/gcc/x86_64-linux-gnu/13/include/syslimits.h \

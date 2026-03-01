@@ -458,4 +458,118 @@ namespace xterm
         glyph_cache_.clear();
     }
 
+    // =============================================================================
+    // Draw a right-click context menu
+    // =============================================================================
+
+    void Renderer::draw_context_menu(int x, int y, int w, int h,
+                                     int item_count,
+                                     std::function<const char*(int)> get_label,
+                                     int hover_index)
+    {
+        if (!renderer_ || !font_ || item_count <= 0)
+            return;
+
+        // Clamp to window bounds
+        int win_w, win_h;
+        SDL_GetRendererOutputSize(renderer_, &win_w, &win_h);
+        if (x + w > win_w) x = win_w - w;
+        if (y + h > win_h) y = win_h - h;
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+
+        // Draw shadow
+        SDL_Rect shadow = {x + 3, y + 3, w, h};
+        SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 80);
+        SDL_RenderFillRect(renderer_, &shadow);
+
+        // Draw background
+        SDL_Rect bg = {x, y, w, h};
+        SDL_SetRenderDrawColor(renderer_, 45, 45, 48, 245);
+        SDL_RenderFillRect(renderer_, &bg);
+
+        // Draw border
+        SDL_SetRenderDrawColor(renderer_, 80, 80, 85, 255);
+        SDL_RenderDrawRect(renderer_, &bg);
+
+        // Draw items
+        int item_h = 28;
+        int text_y = y + 4;
+
+        for (int i = 0; i < item_count; ++i)
+        {
+            SDL_Rect item_rect = {x + 1, text_y, w - 2, item_h};
+
+            // Highlight hovered item
+            if (i == hover_index)
+            {
+                SDL_SetRenderDrawColor(renderer_, 62, 62, 66, 255);
+                SDL_RenderFillRect(renderer_, &item_rect);
+            }
+
+            // Render text
+            const char *label = get_label(i);
+            if (label && label[0])
+            {
+                SDL_Color text_color = {210, 210, 210, 255};
+                SDL_Surface *surf = TTF_RenderUTF8_Blended(font_, label, text_color);
+                if (surf)
+                {
+                    SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer_, surf);
+                    if (tex)
+                    {
+                        SDL_Rect dst = {x + 4, text_y + (item_h - surf->h) / 2,
+                                        surf->w, surf->h};
+                        SDL_RenderCopy(renderer_, tex, nullptr, &dst);
+                        SDL_DestroyTexture(tex);
+                    }
+                    SDL_FreeSurface(surf);
+                }
+            }
+
+            text_y += item_h;
+        }
+    }
+
+    // =============================================================================
+    // Draw a scrollbar on the right edge
+    // =============================================================================
+
+    void Renderer::draw_scrollbar(int visible_rows, int scrollback, int scroll_offset)
+    {
+        if (!renderer_ || scrollback <= 0)
+            return;
+
+        int win_w, win_h;
+        SDL_GetRendererOutputSize(renderer_, &win_w, &win_h);
+
+        const int bar_width = 8;
+        const int bar_x = win_w - bar_width;
+        const int bar_height = win_h;
+
+        // Draw scrollbar track (subtle background)
+        SDL_Rect track = {bar_x, 0, bar_width, bar_height};
+        SDL_SetRenderDrawColor(renderer_, 40, 40, 42, 120);
+        SDL_RenderFillRect(renderer_, &track);
+
+        // Calculate thumb size and position
+        int total_lines = visible_rows + scrollback;
+        float visible_ratio = static_cast<float>(visible_rows) / total_lines;
+        int thumb_height = std::max(20, static_cast<int>(bar_height * visible_ratio));
+
+        // Thumb position: scroll_offset 0 = bottom, scrollback = top
+        float scroll_ratio = (scrollback > 0)
+            ? static_cast<float>(scroll_offset) / scrollback
+            : 0.0f;
+        int thumb_y = static_cast<int>((bar_height - thumb_height) * (1.0f - scroll_ratio));
+
+        // Draw thumb
+        SDL_Rect thumb = {bar_x + 1, thumb_y, bar_width - 2, thumb_height};
+        if (scroll_offset > 0)
+            SDL_SetRenderDrawColor(renderer_, 140, 140, 145, 200); // brighter when scrolled
+        else
+            SDL_SetRenderDrawColor(renderer_, 90, 90, 95, 160);    // subtle when at bottom
+        SDL_RenderFillRect(renderer_, &thumb);
+    }
+
 } // namespace xterm

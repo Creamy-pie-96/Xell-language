@@ -1,10 +1,10 @@
-Start testing: Mar 01 05:19 +06
+Start testing: Mar 01 18:02 +06
 ----------------------------------------------------------
 1/7 Testing: parser_test
 1/7 Test: parser_test
 Command: "/home/DATA/CODE/code/Xell/build/parser_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"parser_test" start time: Mar 01 05:19 +06
+"parser_test" start time: Mar 01 18:02 +06
 Output:
 ----------------------------------------------------------
 
@@ -133,7 +133,7 @@ Output:
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"parser_test" end time: Mar 01 05:19 +06
+"parser_test" end time: Mar 01 18:02 +06
 "parser_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -141,7 +141,7 @@ Test Passed.
 2/7 Test: error_test
 Command: "/home/DATA/CODE/code/Xell/build/error_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"error_test" start time: Mar 01 05:19 +06
+"error_test" start time: Mar 01 18:02 +06
 Output:
 ----------------------------------------------------------
 
@@ -231,7 +231,7 @@ Output:
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"error_test" end time: Mar 01 05:19 +06
+"error_test" end time: Mar 01 18:02 +06
 "error_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -239,7 +239,7 @@ Test Passed.
 3/7 Test: xobject_test
 Command: "/home/DATA/CODE/code/Xell/build/xobject_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"xobject_test" start time: Mar 01 05:19 +06
+"xobject_test" start time: Mar 01 18:02 +06
 Output:
 ----------------------------------------------------------
 
@@ -359,10 +359,10 @@ Output:
   Total: 92  |  Passed: 92  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"xobject_test" end time: Mar 01 05:19 +06
+"xobject_test" end time: Mar 01 18:02 +06
 "xobject_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -370,7 +370,7 @@ Test Passed.
 4/7 Test: interpreter_test
 Command: "/home/DATA/CODE/code/Xell/build/interpreter_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"interpreter_test" start time: Mar 01 05:19 +06
+"interpreter_test" start time: Mar 01 18:02 +06
 Output:
 ----------------------------------------------------------
 
@@ -543,7 +543,7 @@ Output:
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"interpreter_test" end time: Mar 01 05:19 +06
+"interpreter_test" end time: Mar 01 18:02 +06
 "interpreter_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -551,7 +551,7 @@ Test Passed.
 5/7 Test: os_test
 Command: "/home/DATA/CODE/code/Xell/build/os_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"os_test" start time: Mar 01 05:19 +06
+"os_test" start time: Mar 01 18:02 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -638,7 +638,7 @@ Output:
 Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"os_test" end time: Mar 01 05:19 +06
+"os_test" end time: Mar 01 18:02 +06
 "os_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -646,7 +646,7 @@ Test Passed.
 6/7 Test: bring_test
 Command: "/home/DATA/CODE/code/Xell/build/bring_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"bring_test" start time: Mar 01 05:19 +06
+"bring_test" start time: Mar 01 18:02 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -693,7 +693,7 @@ Output:
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"bring_test" end time: Mar 01 05:19 +06
+"bring_test" end time: Mar 01 18:02 +06
 "bring_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -701,7 +701,7 @@ Test Passed.
 7/7 Test: shell_test
 Command: "/home/DATA/CODE/code/Xell/build/shell_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"shell_test" start time: Mar 01 05:19 +06
+"shell_test" start time: Mar 01 18:02 +06
 Output:
 ----------------------------------------------------------
 done
@@ -760,11 +760,11 @@ done
   Total: 40  |  Passed: 40  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.04 sec
+Test time =   0.05 sec
 ----------------------------------------------------------
 Test Passed.
-"shell_test" end time: Mar 01 05:19 +06
+"shell_test" end time: Mar 01 18:02 +06
 "shell_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Mar 01 05:19 +06
+End testing: Mar 01 18:02 +06

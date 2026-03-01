@@ -65,6 +65,7 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: /home/DATA/CODE/code/Xell/xell-term
   /usr/include/asm-generic/int-ll64.h \
   /usr/include/asm-generic/posix_types.h \
   /usr/include/asm-generic/types.h \
+  /usr/include/c++/13/algorithm \
   /usr/include/c++/13/array \
   /usr/include/c++/13/atomic \
   /usr/include/c++/13/backward/binders.h \
@@ -205,6 +206,8 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: /home/DATA/CODE/code/Xell/xell-term
   /usr/include/c++/13/mutex \
   /usr/include/c++/13/new \
   /usr/include/c++/13/ostream \
+  /usr/include/c++/13/pstl/execution_defs.h \
+  /usr/include/c++/13/pstl/glue_algorithm_defs.h \
   /usr/include/c++/13/pstl/pstl_config.h \
   /usr/include/c++/13/ratio \
   /usr/include/c++/13/sstream \
@@ -762,6 +765,7 @@ CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o: /home/DATA/CODE/code/X
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
   /usr/include/c++/13/algorithm \
+  /usr/include/c++/13/array \
   /usr/include/c++/13/backward/binders.h \
   /usr/include/c++/13/bit \
   /usr/include/c++/13/bits/algorithmfwd.h \
@@ -800,6 +804,7 @@ CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o: /home/DATA/CODE/code/X
   /usr/include/c++/13/bits/requires_hosted.h \
   /usr/include/c++/13/bits/specfun.h \
   /usr/include/c++/13/bits/std_abs.h \
+  /usr/include/c++/13/bits/std_function.h \
   /usr/include/c++/13/bits/stl_algo.h \
   /usr/include/c++/13/bits/stl_algobase.h \
   /usr/include/c++/13/bits/stl_bvector.h \
@@ -826,6 +831,7 @@ CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o: /home/DATA/CODE/code/X
   /usr/include/c++/13/cerrno \
   /usr/include/c++/13/clocale \
   /usr/include/c++/13/cmath \
+  /usr/include/c++/13/compare \
   /usr/include/c++/13/cstddef \
   /usr/include/c++/13/cstdint \
   /usr/include/c++/13/cstdio \
@@ -839,6 +845,7 @@ CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o: /home/DATA/CODE/code/X
   /usr/include/c++/13/ext/numeric_traits.h \
   /usr/include/c++/13/ext/string_conversions.h \
   /usr/include/c++/13/ext/type_traits.h \
+  /usr/include/c++/13/functional \
   /usr/include/c++/13/initializer_list \
   /usr/include/c++/13/iosfwd \
   /usr/include/c++/13/limits \
@@ -864,6 +871,7 @@ CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o: /home/DATA/CODE/code/X
   /usr/include/c++/13/tr1/special_function_util.h \
   /usr/include/c++/13/tuple \
   /usr/include/c++/13/type_traits \
+  /usr/include/c++/13/typeinfo \
   /usr/include/c++/13/unordered_map \
   /usr/include/c++/13/vector \
   /usr/include/ctype.h \
@@ -1716,10 +1724,6 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /home/DATA/CODE/code/Xell/xell-terminal/src/terminal/screen_buffer.cpp:
 
-/usr/include/c++/13/pstl/glue_algorithm_defs.h:
-
-/usr/include/c++/13/pstl/execution_defs.h:
-
 /usr/include/x86_64-linux-gnu/bits/types/stack_t.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/sigval_t.h:
@@ -1805,10 +1809,6 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 /usr/lib/gcc/x86_64-linux-gnu/13/include/pmmintrin.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/pkuintrin.h:
-
-/usr/include/c++/13/algorithm:
-
-/usr/lib/gcc/x86_64-linux-gnu/13/include/mmintrin.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/mm_malloc.h:
 
@@ -2080,7 +2080,9 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/time.h:
 
-/usr/include/c++/13/bits/refwrap.h:
+/usr/include/string.h:
+
+/usr/include/stdlib.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/clwbintrin.h:
 
@@ -2113,6 +2115,12 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 /usr/include/c++/13/bits/fs_fwd.h:
 
 /usr/include/c++/13/bits/uses_allocator.h:
+
+/usr/include/signal.h:
+
+/usr/include/strings.h:
+
+/usr/include/c++/13/iomanip:
 
 /usr/include/c++/13/bits/locale_facets_nonio.tcc:
 
@@ -2186,6 +2194,8 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/c++/13/bits/basic_ios.tcc:
 
+/usr/include/c++/13/pstl/execution_defs.h:
+
 /usr/include/linux/stddef.h:
 
 /usr/include/c++/13/bits/basic_ios.h:
@@ -2242,6 +2252,12 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/c++/13/atomic:
 
+/usr/lib/gcc/x86_64-linux-gnu/13/include/mmintrin.h:
+
+/usr/include/c++/13/algorithm:
+
+/usr/include/SDL2/SDL_power.h:
+
 /usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h:
 
 /usr/include/asm-generic/errno.h:
@@ -2296,17 +2312,9 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/SDL2/SDL_hidapi.h:
 
-/usr/include/x86_64-linux-gnu/bits/endianness.h:
-
-/home/DATA/CODE/code/Xell/xell-terminal/src/renderer/renderer.hpp:
-
-/usr/include/c++/13/bits/chrono.h:
-
 /usr/include/c++/13/bits/functexcept.h:
 
 /home/DATA/CODE/code/Xell/xell-terminal/src/main.cpp:
-
-/usr/include/SDL2/SDL_power.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/uintrintrin.h:
 
@@ -2424,7 +2432,13 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/SDL2/SDL_assert.h:
 
-/usr/include/stdlib.h:
+/usr/include/x86_64-linux-gnu/bits/endianness.h:
+
+/usr/include/c++/13/bits/chrono.h:
+
+/home/DATA/CODE/code/Xell/xell-terminal/src/renderer/renderer.hpp:
+
+/usr/include/c++/13/bits/refwrap.h:
 
 /usr/include/SDL2/SDL_log.h:
 
@@ -2648,6 +2662,8 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/c++/13/ext/concurrence.h:
 
+/usr/include/c++/13/pstl/glue_algorithm_defs.h:
+
 /usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
 
 /usr/include/c++/13/bits/stl_iterator.h:
@@ -2771,11 +2787,3 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 /usr/include/c++/13/bits/stl_iterator_base_types.h:
 
 /usr/include/stdio.h:
-
-/usr/include/string.h:
-
-/usr/include/signal.h:
-
-/usr/include/c++/13/iomanip:
-
-/usr/include/strings.h:
