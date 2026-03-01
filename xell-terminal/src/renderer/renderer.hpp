@@ -60,7 +60,7 @@ namespace xterm
         /// @param hover_index   Currently hovered item (-1 = none)
         void draw_context_menu(int x, int y, int w, int h,
                                int item_count,
-                               std::function<const char*(int)> get_label,
+                               std::function<const char *(int)> get_label,
                                int hover_index);
 
         /// Draw a scrollbar on the right edge of the terminal.

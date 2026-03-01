@@ -97,54 +97,88 @@ namespace xterm
 
         // ---- Arrow keys ----
         case SDLK_UP:
-            if (ctrl) seq = "\033[1;5A";
-            else if (shift) seq = "\033[1;2A";
-            else if (alt) seq = "\033[1;3A";
-            else seq = "\033[A";
+            if (ctrl)
+                seq = "\033[1;5A";
+            else if (shift)
+                seq = "\033[1;2A";
+            else if (alt)
+                seq = "\033[1;3A";
+            else
+                seq = "\033[A";
             return {InputAction::SEND_TO_PTY, seq};
 
         case SDLK_DOWN:
-            if (ctrl) seq = "\033[1;5B";
-            else if (shift) seq = "\033[1;2B";
-            else if (alt) seq = "\033[1;3B";
-            else seq = "\033[B";
+            if (ctrl)
+                seq = "\033[1;5B";
+            else if (shift)
+                seq = "\033[1;2B";
+            else if (alt)
+                seq = "\033[1;3B";
+            else
+                seq = "\033[B";
             return {InputAction::SEND_TO_PTY, seq};
 
         case SDLK_RIGHT:
-            if (ctrl) seq = "\033[1;5C";
-            else if (shift) seq = "\033[1;2C";
-            else if (alt) seq = "\033[1;3C";
-            else seq = "\033[C";
+            if (ctrl)
+                seq = "\033[1;5C";
+            else if (shift)
+                seq = "\033[1;2C";
+            else if (alt)
+                seq = "\033[1;3C";
+            else
+                seq = "\033[C";
             return {InputAction::SEND_TO_PTY, seq};
 
         case SDLK_LEFT:
-            if (ctrl) seq = "\033[1;5D";
-            else if (shift) seq = "\033[1;2D";
-            else if (alt) seq = "\033[1;3D";
-            else seq = "\033[D";
+            if (ctrl)
+                seq = "\033[1;5D";
+            else if (shift)
+                seq = "\033[1;2D";
+            else if (alt)
+                seq = "\033[1;3D";
+            else
+                seq = "\033[D";
             return {InputAction::SEND_TO_PTY, seq};
 
         // ---- Navigation keys ----
-        case SDLK_HOME:  return {InputAction::SEND_TO_PTY, "\033[H"};
-        case SDLK_END:   return {InputAction::SEND_TO_PTY, "\033[F"};
-        case SDLK_INSERT:return {InputAction::SEND_TO_PTY, "\033[2~"};
-        case SDLK_DELETE: return {InputAction::SEND_TO_PTY, "\033[3~"};
-        case SDLK_PAGEUP: return {InputAction::SEND_TO_PTY, "\033[5~"};
-        case SDLK_PAGEDOWN: return {InputAction::SEND_TO_PTY, "\033[6~"};
+        case SDLK_HOME:
+            return {InputAction::SEND_TO_PTY, "\033[H"};
+        case SDLK_END:
+            return {InputAction::SEND_TO_PTY, "\033[F"};
+        case SDLK_INSERT:
+            return {InputAction::SEND_TO_PTY, "\033[2~"};
+        case SDLK_DELETE:
+            return {InputAction::SEND_TO_PTY, "\033[3~"};
+        case SDLK_PAGEUP:
+            return {InputAction::SEND_TO_PTY, "\033[5~"};
+        case SDLK_PAGEDOWN:
+            return {InputAction::SEND_TO_PTY, "\033[6~"};
 
         // ---- Function keys ----
-        case SDLK_F1:  return {InputAction::SEND_TO_PTY, "\033OP"};
-        case SDLK_F2:  return {InputAction::SEND_TO_PTY, "\033OQ"};
-        case SDLK_F3:  return {InputAction::SEND_TO_PTY, "\033OR"};
-        case SDLK_F4:  return {InputAction::SEND_TO_PTY, "\033OS"};
-        case SDLK_F5:  return {InputAction::SEND_TO_PTY, "\033[15~"};
-        case SDLK_F6:  return {InputAction::SEND_TO_PTY, "\033[17~"};
-        case SDLK_F7:  return {InputAction::SEND_TO_PTY, "\033[18~"};
-        case SDLK_F8:  return {InputAction::SEND_TO_PTY, "\033[19~"};
-        case SDLK_F9:  return {InputAction::SEND_TO_PTY, "\033[20~"};
-        case SDLK_F10: return {InputAction::SEND_TO_PTY, "\033[21~"};
-        case SDLK_F11: return {InputAction::SEND_TO_PTY, "\033[23~"};
-        case SDLK_F12: return {InputAction::SEND_TO_PTY, "\033[24~"};
+        case SDLK_F1:
+            return {InputAction::SEND_TO_PTY, "\033OP"};
+        case SDLK_F2:
+            return {InputAction::SEND_TO_PTY, "\033OQ"};
+        case SDLK_F3:
+            return {InputAction::SEND_TO_PTY, "\033OR"};
+        case SDLK_F4:
+            return {InputAction::SEND_TO_PTY, "\033OS"};
+        case SDLK_F5:
+            return {InputAction::SEND_TO_PTY, "\033[15~"};
+        case SDLK_F6:
+            return {InputAction::SEND_TO_PTY, "\033[17~"};
+        case SDLK_F7:
+            return {InputAction::SEND_TO_PTY, "\033[18~"};
+        case SDLK_F8:
+            return {InputAction::SEND_TO_PTY, "\033[19~"};
+        case SDLK_F9:
+            return {InputAction::SEND_TO_PTY, "\033[20~"};
+        case SDLK_F10:
+            return {InputAction::SEND_TO_PTY, "\033[21~"};
+        case SDLK_F11:
+            return {InputAction::SEND_TO_PTY, "\033[23~"};
+        case SDLK_F12:
+            return {InputAction::SEND_TO_PTY, "\033[24~"};
 
         default:
             break;

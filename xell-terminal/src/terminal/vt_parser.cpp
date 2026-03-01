@@ -376,8 +376,8 @@ namespace xterm
     {
         auto params = parse_params();
         bool is_private = (!csi_params_.empty() &&
-                          (csi_params_[0] == '?' || csi_params_[0] == '>' ||
-                           csi_params_[0] == '=' || csi_params_[0] == '<'));
+                           (csi_params_[0] == '?' || csi_params_[0] == '>' ||
+                            csi_params_[0] == '=' || csi_params_[0] == '<'));
 
         // Default parameter is 1 for most commands, 0 for some
         auto param = [&](int idx, int def = 1) -> int

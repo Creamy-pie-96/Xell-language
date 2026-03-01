@@ -427,7 +427,8 @@ namespace xell
                 {
                     const char *home = std::getenv("HOME");
 #ifdef _WIN32
-                    if (!home) home = std::getenv("USERPROFILE");
+                    if (!home)
+                        home = std::getenv("USERPROFILE");
 #endif
                     if (home)
                         target = home;
@@ -442,7 +443,8 @@ namespace xell
                 {
                     const char *home = std::getenv("HOME");
 #ifdef _WIN32
-                    if (!home) home = std::getenv("USERPROFILE");
+                    if (!home)
+                        home = std::getenv("USERPROFILE");
 #endif
                     if (home)
                         target = std::string(home) + target.substr(1);

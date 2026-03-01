@@ -10,9 +10,9 @@
 #include "pty.hpp"
 #include <unistd.h>
 #ifdef __APPLE__
-#include <util.h>     // macOS forkpty()
+#include <util.h> // macOS forkpty()
 #else
-#include <pty.h>      // Linux forkpty()
+#include <pty.h> // Linux forkpty()
 #endif
 #include <sys/wait.h>
 #include <sys/ioctl.h>

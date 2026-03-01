@@ -199,7 +199,8 @@ static ShellResult find_xell_path()
     {
         fs::path exe_fs = fs::path(exe_dir);
         // Remove trailing separator by canonicalizing
-        if (exe_fs.filename().empty()) exe_fs = exe_fs.parent_path();
+        if (exe_fs.filename().empty())
+            exe_fs = exe_fs.parent_path();
         fs::path project_root = exe_fs.parent_path().parent_path();
 
         std::string build_candidates[] = {
@@ -414,16 +415,23 @@ int main(int argc, char *argv[])
     renderer.get_cell_size(cell_w, cell_h);
 
     // --- Right-click context menu state ---
-    struct ContextMenu {
+    struct ContextMenu
+    {
         bool visible = false;
         int x = 0, y = 0; // pixel position
         int width = 220, height = 0;
-        struct Item { std::string label; xterm::InputAction action; };
+        struct Item
+        {
+            std::string label;
+            xterm::InputAction action;
+        };
         std::vector<Item> items;
         int hover_index = -1;
 
-        void show(int mx, int my, bool has_sel) {
-            x = mx; y = my;
+        void show(int mx, int my, bool has_sel)
+        {
+            x = mx;
+            y = my;
             items.clear();
             if (has_sel)
                 items.push_back({"  Copy              Ctrl+C", xterm::InputAction::COPY});
@@ -434,11 +442,15 @@ int main(int argc, char *argv[])
             visible = true;
         }
         void hide() { visible = false; }
-        int hit_test(int mx, int my) const {
-            if (!visible) return -1;
-            if (mx < x || mx > x + width || my < y || my > y + height) return -1;
+        int hit_test(int mx, int my) const
+        {
+            if (!visible)
+                return -1;
+            if (mx < x || mx > x + width || my < y || my > y + height)
+                return -1;
             int idx = (my - y - 4) / 28;
-            if (idx < 0 || idx >= (int)items.size()) return -1;
+            if (idx < 0 || idx >= (int)items.size())
+                return -1;
             return idx;
         }
     } context_menu;
@@ -680,8 +692,10 @@ int main(int argc, char *argv[])
                         int total_lines = term_rows + sb_size;
                         float click_ratio = 1.0f - (static_cast<float>(event.button.y) / win_h);
                         scroll_offset = static_cast<int>(click_ratio * sb_size);
-                        if (scroll_offset < 0) scroll_offset = 0;
-                        if (scroll_offset > sb_size) scroll_offset = sb_size;
+                        if (scroll_offset < 0)
+                            scroll_offset = 0;
+                        if (scroll_offset > sb_size)
+                            scroll_offset = sb_size;
                         break;
                     }
 
@@ -699,13 +713,15 @@ int main(int argc, char *argv[])
                         while (lo_col > 0)
                         {
                             xterm::Cell c = buffer.get_cell(row, lo_col - 1);
-                            if (c.ch == U' ' || c.ch == 0) break;
+                            if (c.ch == U' ' || c.ch == 0)
+                                break;
                             lo_col--;
                         }
                         while (hi_col < term_cols - 1)
                         {
                             xterm::Cell c = buffer.get_cell(row, hi_col + 1);
-                            if (c.ch == U' ' || c.ch == 0) break;
+                            if (c.ch == U' ' || c.ch == 0)
+                                break;
                             hi_col++;
                         }
                         selection.active = false;
@@ -758,8 +774,10 @@ int main(int argc, char *argv[])
                     {
                         float click_ratio = 1.0f - (static_cast<float>(event.motion.y) / win_h);
                         scroll_offset = static_cast<int>(click_ratio * sb_size);
-                        if (scroll_offset < 0) scroll_offset = 0;
-                        if (scroll_offset > sb_size) scroll_offset = sb_size;
+                        if (scroll_offset < 0)
+                            scroll_offset = 0;
+                        if (scroll_offset > sb_size)
+                            scroll_offset = sb_size;
                     }
                     break;
                 }
@@ -768,10 +786,14 @@ int main(int argc, char *argv[])
                 {
                     int col = event.motion.x / cell_w;
                     int row = event.motion.y / cell_h;
-                    if (col < 0) col = 0;
-                    if (row < 0) row = 0;
-                    if (col >= term_cols) col = term_cols - 1;
-                    if (row >= term_rows) row = term_rows - 1;
+                    if (col < 0)
+                        col = 0;
+                    if (row < 0)
+                        row = 0;
+                    if (col >= term_cols)
+                        col = term_cols - 1;
+                    if (row >= term_rows)
+                        row = term_rows - 1;
                     selection.end = {row, col};
                 }
                 break;
@@ -855,7 +877,8 @@ int main(int argc, char *argv[])
                 context_menu.x, context_menu.y,
                 context_menu.width, context_menu.height,
                 context_menu.items.size(),
-                [&](int i) -> const char* { return context_menu.items[i].label.c_str(); },
+                [&](int i) -> const char *
+                { return context_menu.items[i].label.c_str(); },
                 context_menu.hover_index);
         }
 

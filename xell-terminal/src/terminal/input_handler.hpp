@@ -14,20 +14,20 @@ namespace xterm
     /// terminal-internal action (copy, paste, zoom, etc.)
     enum class InputAction
     {
-        NONE,           // nothing to do
-        SEND_TO_PTY,    // send .data to the PTY
-        COPY,           // copy selection to clipboard
-        PASTE,          // paste clipboard to PTY
-        SELECT_ALL,     // select all text
-        ZOOM_IN,        // increase font size
-        ZOOM_OUT,       // decrease font size
-        ZOOM_RESET,     // reset font size
+        NONE,        // nothing to do
+        SEND_TO_PTY, // send .data to the PTY
+        COPY,        // copy selection to clipboard
+        PASTE,       // paste clipboard to PTY
+        SELECT_ALL,  // select all text
+        ZOOM_IN,     // increase font size
+        ZOOM_OUT,    // decrease font size
+        ZOOM_RESET,  // reset font size
     };
 
     struct InputResult
     {
         InputAction action = InputAction::NONE;
-        std::string data;  // bytes to send to PTY (when action == SEND_TO_PTY)
+        std::string data; // bytes to send to PTY (when action == SEND_TO_PTY)
     };
 
     class InputHandler
