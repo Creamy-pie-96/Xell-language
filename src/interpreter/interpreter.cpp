@@ -343,12 +343,10 @@ namespace xell
         if (node->bringAll)
         {
             // bring * from "file" — bring everything
+            // User-defined imports can shadow builtins (evalCall checks user scope first)
             auto names = childEnv.allNames();
             for (const auto &name : names)
             {
-                // Skip builtins (they're already registered in our env)
-                if (builtins_.count(name))
-                    continue;
                 try
                 {
                     XObject val = childEnv.get(name, node->line);
@@ -392,7 +390,16 @@ namespace xell
     {
         // Literals
         if (auto *p = dynamic_cast<const NumberLiteral *>(expr))
-            return XObject::makeNumber(p->value);
+            return XObject::makeFloat(p->value);
+
+        if (auto *p = dynamic_cast<const IntLiteral *>(expr))
+            return XObject::makeInt(p->value);
+
+        if (auto *p = dynamic_cast<const FloatLiteral *>(expr))
+            return XObject::makeFloat(p->value);
+
+        if (auto *p = dynamic_cast<const ImaginaryLiteral *>(expr))
+            return XObject::makeComplex(0.0, p->value);
 
         if (auto *p = dynamic_cast<const BoolLiteral *>(expr))
             return XObject::makeBool(p->value);
@@ -418,6 +425,12 @@ namespace xell
         // Compound literals
         if (auto *p = dynamic_cast<const ListLiteral *>(expr))
             return evalList(p);
+        if (auto *p = dynamic_cast<const TupleLiteral *>(expr))
+            return evalTuple(p);
+        if (auto *p = dynamic_cast<const SetLiteral *>(expr))
+            return evalSet(p);
+        if (auto *p = dynamic_cast<const FrozenSetLiteral *>(expr))
+            return evalFrozenSet(p);
         if (auto *p = dynamic_cast<const MapLiteral *>(expr))
             return evalMap(p);
 
@@ -545,8 +558,22 @@ namespace xell
         // Arithmetic / string concatenation
         if (op == "+")
         {
-            if (left.isNumber() && right.isNumber())
-                return XObject::makeNumber(left.asNumber() + right.asNumber());
+            // Complex + anything numeric
+            if (left.isNumeric() && right.isNumeric())
+            {
+                if (left.isComplex() || right.isComplex())
+                {
+                    XComplex a = left.isComplex() ? left.asComplex() : XComplex(left.asNumber(), 0.0);
+                    XComplex b = right.isComplex() ? right.asComplex() : XComplex(right.asNumber(), 0.0);
+                    XComplex result = a + b;
+                    // If result has no imaginary part and came from int+imaginary, stay as complex
+                    return XObject::makeComplex(result);
+                }
+                // Both are int/float
+                if (left.isInt() && right.isInt())
+                    return XObject::makeInt(left.asInt() + right.asInt());
+                return XObject::makeFloat(left.asNumber() + right.asNumber());
+            }
             if (left.isString() || right.isString())
             {
                 // Auto-convert to string for concatenation
@@ -569,33 +596,76 @@ namespace xell
         // Numeric-only arithmetic
         if (op == "-" || op == "*" || op == "/" || op == "%")
         {
-            if (!left.isNumber() || !right.isNumber())
+            if (!left.isNumeric() || !right.isNumeric())
                 throw TypeError("unsupported operand types for " + op + ": " +
                                     std::string(xtype_name(left.type())) + " and " +
                                     std::string(xtype_name(right.type())),
                                 node->line);
+
+            // Complex arithmetic
+            if (left.isComplex() || right.isComplex())
+            {
+                XComplex a = left.isComplex() ? left.asComplex() : XComplex(left.asNumber(), 0.0);
+                XComplex b = right.isComplex() ? right.asComplex() : XComplex(right.asNumber(), 0.0);
+                if (op == "-")
+                    return XObject::makeComplex(a - b);
+                if (op == "*")
+                    return XObject::makeComplex(a * b);
+                if (op == "%")
+                    throw TypeError("modulo (%) not supported for complex numbers", node->line);
+                // op == "/"
+                if (b.real == 0.0 && b.imag == 0.0)
+                    throw DivisionByZeroError(node->line);
+                return XObject::makeComplex(a / b);
+            }
+
+            // Integer arithmetic (preserves int type when both are int)
+            if (left.isInt() && right.isInt())
+            {
+                int64_t l = left.asInt(), r = right.asInt();
+                if (op == "-")
+                    return XObject::makeInt(l - r);
+                if (op == "*")
+                    return XObject::makeInt(l * r);
+                if (op == "%")
+                {
+                    if (r == 0)
+                        throw DivisionByZeroError(node->line);
+                    return XObject::makeInt(l % r);
+                }
+                // op == "/" → integer division only if it divides evenly
+                if (r == 0)
+                    throw DivisionByZeroError(node->line);
+                if (l % r == 0)
+                    return XObject::makeInt(l / r);
+                return XObject::makeFloat(static_cast<double>(l) / static_cast<double>(r));
+            }
+
+            // Float arithmetic (at least one is float)
             double l = left.asNumber(), r = right.asNumber();
             if (op == "-")
-                return XObject::makeNumber(l - r);
+                return XObject::makeFloat(l - r);
             if (op == "*")
-                return XObject::makeNumber(l * r);
+                return XObject::makeFloat(l * r);
             if (op == "%")
             {
                 if (r == 0.0)
                     throw DivisionByZeroError(node->line);
-                return XObject::makeNumber(std::fmod(l, r));
+                return XObject::makeFloat(std::fmod(l, r));
             }
             // op == "/"
             if (r == 0.0)
                 throw DivisionByZeroError(node->line);
-            return XObject::makeNumber(l / r);
+            return XObject::makeFloat(l / r);
         }
 
         // Comparison (numbers and strings)
         if (op == ">" || op == "<" || op == ">=" || op == "<=")
         {
-            if (left.isNumber() && right.isNumber())
+            if (left.isNumeric() && right.isNumeric())
             {
+                if (left.isComplex() || right.isComplex())
+                    throw TypeError("comparison not supported for complex numbers", node->line);
                 double l = left.asNumber(), r = right.asNumber();
                 if (op == ">")
                     return XObject::makeBool(l > r);
@@ -640,11 +710,15 @@ namespace xell
         if (op == "-")
         {
             XObject val = eval(node->operand.get());
-            if (!val.isNumber())
-                throw TypeError("unary '-' requires a number, got " +
-                                    std::string(xtype_name(val.type())),
-                                node->line);
-            return XObject::makeNumber(-val.asNumber());
+            if (val.isInt())
+                return XObject::makeInt(-val.asInt());
+            if (val.isFloat())
+                return XObject::makeFloat(-val.asFloat());
+            if (val.isComplex())
+                return XObject::makeComplex(-val.asComplex());
+            throw TypeError("unary '-' requires a number, got " +
+                                std::string(xtype_name(val.type())),
+                            node->line);
         }
 
         // Prefix ++ and --
@@ -655,12 +729,19 @@ namespace xell
                 throw TypeError("prefix " + op + " requires a variable", node->line);
 
             XObject val = currentEnv_->get(ident->name, node->line);
-            if (!val.isNumber())
+            if (!val.isNumeric())
                 throw TypeError("prefix " + op + " requires a number", node->line);
 
+            if (val.isInt())
+            {
+                int64_t newVal = val.asInt() + (op == "++" ? 1 : -1);
+                XObject result = XObject::makeInt(newVal);
+                currentEnv_->set(ident->name, XObject::makeInt(newVal));
+                return result;
+            }
             double newVal = val.asNumber() + (op == "++" ? 1.0 : -1.0);
-            XObject result = XObject::makeNumber(newVal);
-            currentEnv_->set(ident->name, XObject::makeNumber(newVal));
+            XObject result = XObject::makeFloat(newVal);
+            currentEnv_->set(ident->name, XObject::makeFloat(newVal));
             return result; // prefix returns new value
         }
 
@@ -676,13 +757,20 @@ namespace xell
             throw TypeError("postfix " + node->op + " requires a variable", node->line);
 
         XObject val = currentEnv_->get(ident->name, node->line);
-        if (!val.isNumber())
+        if (!val.isNumeric())
             throw TypeError("postfix " + node->op + " requires a number", node->line);
 
+        if (val.isInt())
+        {
+            int64_t oldVal = val.asInt();
+            int64_t newVal = oldVal + (node->op == "++" ? 1 : -1);
+            currentEnv_->set(ident->name, XObject::makeInt(newVal));
+            return XObject::makeInt(oldVal);
+        }
         double oldVal = val.asNumber();
         double newVal = oldVal + (node->op == "++" ? 1.0 : -1.0);
-        currentEnv_->set(ident->name, XObject::makeNumber(newVal));
-        return XObject::makeNumber(oldVal); // postfix returns old value
+        currentEnv_->set(ident->name, XObject::makeFloat(newVal));
+        return XObject::makeFloat(oldVal); // postfix returns old value
     }
 
     // ---- Function calls ----------------------------------------------------
@@ -709,14 +797,22 @@ namespace xell
             }
         }
 
-        // Check builtins first
+        // Check builtins first, BUT user-defined functions take precedence
+        // (allows shadowing builtins, like Python)
+        if (currentEnv_->has(node->callee))
+        {
+            XObject fnObj = currentEnv_->get(node->callee, node->line);
+            if (fnObj.isFunction())
+                return callUserFn(fnObj.asFunction(), args, node->line);
+        }
+
         auto bit = builtins_.find(node->callee);
         if (bit != builtins_.end())
         {
             return bit->second(args, node->line);
         }
 
-        // Look up user-defined function
+        // Look up user-defined function (throws if not found)
         XObject fnObj = currentEnv_->get(node->callee, node->line);
         if (!fnObj.isFunction())
             throw TypeError("'" + node->callee + "' is not a function", node->line);
@@ -839,13 +935,32 @@ namespace xell
             return list[index];
         }
 
+        if (obj.isTuple())
+        {
+            if (!idx.isNumber())
+                throw TypeError("tuple index must be a number", node->line);
+            int index = (int)idx.asNumber();
+            const auto &tup = obj.asTuple();
+            if (index < 0)
+                index += (int)tup.size();
+            if (index < 0 || index >= (int)tup.size())
+                throw IndexError("tuple index " + std::to_string(index) + " out of range (size " +
+                                     std::to_string(tup.size()) + ")",
+                                 node->line);
+            return tup[index];
+        }
+
         if (obj.isMap())
         {
-            if (!idx.isString())
-                throw TypeError("map key must be a string", node->line);
-            const XObject *val = obj.asMap().get(idx.asString());
+            // Map keys can be any hashable type — look up by XObject key
+            const XObject *val = obj.asMap().get(idx);
             if (!val)
-                throw KeyError(idx.asString(), node->line);
+            {
+                if (idx.isString())
+                    throw KeyError(idx.asString(), node->line);
+                else
+                    throw KeyError(idx.toString(), node->line);
+            }
             return *val;
         }
 
@@ -919,9 +1034,57 @@ namespace xell
         XMap map;
         for (const auto &entry : node->entries)
         {
-            map.set(entry.first, eval(entry.second.get()));
+            // Map literal keys are strings (from parser: identifier or string literal)
+            XObject key = XObject::makeString(entry.first);
+            map.set(key, eval(entry.second.get()));
         }
         return XObject::makeMap(std::move(map));
+    }
+
+    // ---- Tuple literal -----------------------------------------------------
+
+    XObject Interpreter::evalTuple(const TupleLiteral *node)
+    {
+        XTuple elements;
+        for (const auto &elem : node->elements)
+        {
+            elements.push_back(eval(elem.get()));
+        }
+        return XObject::makeTuple(std::move(elements));
+    }
+
+    // ---- Set literal -------------------------------------------------------
+
+    XObject Interpreter::evalSet(const SetLiteral *node)
+    {
+        XSet set;
+        for (const auto &elem : node->elements)
+        {
+            XObject val = eval(elem.get());
+            if (!isHashable(val))
+                throw HashError("set elements must be hashable (immutable), got " +
+                                    std::string(xtype_name(val.type())),
+                                node->line);
+            set.add(val);
+        }
+        return XObject::makeSet(std::move(set));
+    }
+
+    // ---- Frozen set literal ------------------------------------------------
+
+    XObject Interpreter::evalFrozenSet(const FrozenSetLiteral *node)
+    {
+        XSet set;
+        for (const auto &elem : node->elements)
+        {
+            XObject val = eval(elem.get());
+            if (!isHashable(val))
+                throw HashError("frozen set elements must be hashable (immutable), got " +
+                                    std::string(xtype_name(val.type())),
+                                node->line);
+            set.add(val);
+        }
+        return XObject::makeFrozenSet(std::move(set));
     }
 
     // ---- Ternary expression: value if condition else alternative -----------
@@ -998,7 +1161,7 @@ namespace xell
                 XMap errMap;
                 errMap.set("message", XObject::makeString(e.detail()));
                 errMap.set("type", XObject::makeString(e.category()));
-                errMap.set("line", XObject::makeNumber(e.line()));
+                errMap.set("line", XObject::makeInt(e.line()));
                 catchEnv.define(node->catchVarName, XObject::makeMap(std::move(errMap)));
 
                 try

@@ -196,6 +196,13 @@ namespace xell
             }
         }
 
+        // Imaginary suffix 'i' → IMAGINARY token (for complex numbers: 2i, 3.14i)
+        if (!isAtEnd() && current() == 'i' && !isAlphaNumeric(peek(1)))
+        {
+            advance(); // consume 'i'
+            return Token(TokenType::IMAGINARY, num, startLine);
+        }
+
         return Token(TokenType::NUMBER, num, startLine);
     }
 

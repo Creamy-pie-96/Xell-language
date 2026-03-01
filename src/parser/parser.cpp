@@ -74,7 +74,7 @@ namespace xell
 
     bool Parser::canStartPrimary(TokenType type) const
     {
-        return type == TokenType::NUMBER || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS;
+        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::LESS || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS;
     }
 
     // ============================================================
@@ -974,12 +974,29 @@ namespace xell
     {
         int ln = current().line;
 
-        // Number literal
+        // Number literal → IntLiteral or FloatLiteral
         if (check(TokenType::NUMBER))
+        {
+            const std::string &val = current().value;
+            advance();
+            if (val.find('.') != std::string::npos)
+            {
+                // Has decimal point → float
+                return parsePostfix(std::make_unique<FloatLiteral>(std::stod(val), ln));
+            }
+            else
+            {
+                // No decimal point → int
+                return parsePostfix(std::make_unique<IntLiteral>(std::stoll(val), ln));
+            }
+        }
+
+        // Imaginary literal → ImaginaryLiteral (for complex numbers)
+        if (check(TokenType::IMAGINARY))
         {
             double val = std::stod(current().value);
             advance();
-            return parsePostfix(std::make_unique<NumberLiteral>(val, ln));
+            return parsePostfix(std::make_unique<ImaginaryLiteral>(val, ln));
         }
 
         // String literal
@@ -1023,10 +1040,16 @@ namespace xell
             return parsePostfix(parseListLiteral());
         }
 
-        // Map literal
+        // Map or Set literal: { ... }
         if (check(TokenType::LBRACE))
         {
-            return parsePostfix(parseMapLiteral());
+            return parsePostfix(parseBraceExpr());
+        }
+
+        // Frozen set literal: <expr, expr, ...>
+        if (check(TokenType::LESS))
+        {
+            return parsePostfix(parseFrozenSetLiteral());
         }
 
         // Spread operator: ...expr
@@ -1112,9 +1135,39 @@ namespace xell
                 }
             }
 
-            // Regular grouped expression
-            advance();
+            // Regular grouped expression or tuple
+            advance(); // consume (
+            skipNewlines();
+
+            // Empty parens: () → empty tuple (lambda case already handled above)
+            if (check(TokenType::RPAREN))
+            {
+                advance();
+                return parsePostfix(std::make_unique<TupleLiteral>(std::vector<ExprPtr>{}, ln));
+            }
+
             auto expr = parseExpression();
+            skipNewlines();
+
+            // If comma follows, this is a tuple: (expr, expr, ...) or (expr,)
+            if (check(TokenType::COMMA))
+            {
+                std::vector<ExprPtr> elements;
+                elements.push_back(std::move(expr));
+                while (check(TokenType::COMMA))
+                {
+                    advance();
+                    skipNewlines();
+                    if (check(TokenType::RPAREN))
+                        break; // trailing comma
+                    elements.push_back(parseExpression());
+                    skipNewlines();
+                }
+                consume(TokenType::RPAREN, "Expected ')' to close tuple");
+                return parsePostfix(std::make_unique<TupleLiteral>(std::move(elements), ln));
+            }
+
+            // Single expression in parens → grouped expression
             consume(TokenType::RPAREN, "Expected ')' after grouped expression");
             return parsePostfix(std::move(expr));
         }
@@ -1272,11 +1325,40 @@ namespace xell
         return std::make_unique<ListLiteral>(std::move(elements), ln);
     }
 
-    ExprPtr Parser::parseMapLiteral()
+    ExprPtr Parser::parseBraceExpr()
     {
         int ln = current().line;
         advance(); // consume {
+        skipNewlines();
 
+        // Empty braces → empty map
+        if (check(TokenType::RBRACE))
+        {
+            advance();
+            return std::make_unique<MapLiteral>(
+                std::vector<std::pair<std::string, ExprPtr>>{}, ln);
+        }
+
+        // Lookahead: if (IDENTIFIER|STRING|RAW_STRING) followed by COLON → map
+        bool isMapPattern = false;
+        if (check(TokenType::IDENTIFIER) || check(TokenType::STRING) || check(TokenType::RAW_STRING))
+        {
+            size_t saved = pos_;
+            advance(); // consume potential key
+            skipNewlines();
+            if (check(TokenType::COLON))
+                isMapPattern = true;
+            pos_ = saved; // restore
+        }
+
+        if (isMapPattern)
+            return parseMapEntries(ln);
+        else
+            return parseSetEntries(ln);
+    }
+
+    ExprPtr Parser::parseMapEntries(int ln)
+    {
         // Helper: parse a map key (IDENTIFIER or STRING)
         auto parseKey = [this]() -> std::string
         {
@@ -1292,30 +1374,82 @@ namespace xell
 
         std::vector<std::pair<std::string, ExprPtr>> entries;
         skipNewlines();
-        if (!check(TokenType::RBRACE))
+
+        std::string key = parseKey();
+        consume(TokenType::COLON, "Expected ':' after map key");
+        skipNewlines();
+        ExprPtr value = parseExpression();
+        entries.emplace_back(key, std::move(value));
+
+        while (check(TokenType::COMMA))
         {
-            std::string key = parseKey();
+            advance();
+            skipNewlines();
+            if (check(TokenType::RBRACE))
+                break; // trailing comma
+            key = parseKey();
             consume(TokenType::COLON, "Expected ':' after map key");
             skipNewlines();
-            ExprPtr value = parseExpression();
+            value = parseExpression();
             entries.emplace_back(key, std::move(value));
-
-            while (check(TokenType::COMMA))
-            {
-                advance();
-                skipNewlines();
-                if (check(TokenType::RBRACE))
-                    break; // trailing comma
-                key = parseKey();
-                consume(TokenType::COLON, "Expected ':' after map key");
-                skipNewlines();
-                value = parseExpression();
-                entries.emplace_back(key, std::move(value));
-            }
         }
+
         skipNewlines();
         consume(TokenType::RBRACE, "Expected '}' to close map");
         return std::make_unique<MapLiteral>(std::move(entries), ln);
+    }
+
+    ExprPtr Parser::parseSetEntries(int ln)
+    {
+        std::vector<ExprPtr> elements;
+        skipNewlines();
+
+        elements.push_back(parseExpression());
+
+        while (check(TokenType::COMMA))
+        {
+            advance();
+            skipNewlines();
+            if (check(TokenType::RBRACE))
+                break; // trailing comma
+            elements.push_back(parseExpression());
+        }
+
+        skipNewlines();
+        consume(TokenType::RBRACE, "Expected '}' to close set");
+        return std::make_unique<SetLiteral>(std::move(elements), ln);
+    }
+
+    ExprPtr Parser::parseFrozenSetLiteral()
+    {
+        int ln = current().line;
+        advance(); // consume <
+        skipNewlines();
+
+        // Empty frozen set: <>
+        if (check(TokenType::GREATER))
+        {
+            advance();
+            return std::make_unique<FrozenSetLiteral>(std::vector<ExprPtr>{}, ln);
+        }
+
+        // Parse elements using parseAddition() to avoid consuming '>' or '<'
+        // as comparison operators (since '>' is our closing delimiter).
+        std::vector<ExprPtr> elements;
+        elements.push_back(parseAddition());
+
+        while (check(TokenType::COMMA))
+        {
+            advance();
+            skipNewlines();
+            if (check(TokenType::GREATER))
+                break; // trailing comma
+            elements.push_back(parseAddition());
+        }
+
+        skipNewlines();
+        consume(TokenType::GREATER, "Expected '>' to close frozen set");
+        return std::make_unique<FrozenSetLiteral>(std::move(elements), ln);
     }
 
     std::vector<ExprPtr> Parser::parseArgList()

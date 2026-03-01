@@ -77,7 +77,10 @@ namespace xell
 
         // Literal helpers
         ExprPtr parseListLiteral();
-        ExprPtr parseMapLiteral();
+        ExprPtr parseBraceExpr();    // disambiguates {} as map or set
+        ExprPtr parseMapEntries(int ln);
+        ExprPtr parseSetEntries(int ln);
+        ExprPtr parseFrozenSetLiteral(); // <expr, expr, ...>
         std::vector<ExprPtr> parseArgList();
     };
 

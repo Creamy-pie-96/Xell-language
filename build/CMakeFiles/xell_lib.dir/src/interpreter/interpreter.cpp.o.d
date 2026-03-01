@@ -167,7 +167,29 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: \
  /usr/include/c++/13/backward/auto_ptr.h \
  /usr/include/c++/13/pstl/glue_memory_defs.h \
  /usr/include/c++/13/pstl/execution_defs.h /usr/include/c++/13/atomic \
- /usr/include/c++/13/cstdint /usr/include/c++/13/functional \
+ /usr/include/c++/13/cstdint /usr/include/c++/13/cmath \
+ /usr/include/math.h /usr/include/x86_64-linux-gnu/bits/math-vector.h \
+ /usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h \
+ /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h \
+ /usr/include/x86_64-linux-gnu/bits/fp-logb.h \
+ /usr/include/x86_64-linux-gnu/bits/fp-fast.h \
+ /usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h \
+ /usr/include/x86_64-linux-gnu/bits/mathcalls.h \
+ /usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h \
+ /usr/include/x86_64-linux-gnu/bits/iscanonical.h \
+ /usr/include/c++/13/bits/specfun.h /usr/include/c++/13/limits \
+ /usr/include/c++/13/tr1/gamma.tcc \
+ /usr/include/c++/13/tr1/special_function_util.h \
+ /usr/include/c++/13/tr1/bessel_function.tcc \
+ /usr/include/c++/13/tr1/beta_function.tcc \
+ /usr/include/c++/13/tr1/ell_integral.tcc \
+ /usr/include/c++/13/tr1/exp_integral.tcc \
+ /usr/include/c++/13/tr1/hypergeometric.tcc \
+ /usr/include/c++/13/tr1/legendre_function.tcc \
+ /usr/include/c++/13/tr1/modified_bessel_func.tcc \
+ /usr/include/c++/13/tr1/poly_hermite.tcc \
+ /usr/include/c++/13/tr1/poly_laguerre.tcc \
+ /usr/include/c++/13/tr1/riemann_zeta.tcc /usr/include/c++/13/functional \
  /usr/include/c++/13/bits/std_function.h \
  /usr/include/c++/13/unordered_map \
  /usr/include/c++/13/bits/unordered_map.h \
@@ -180,12 +202,17 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: \
  /usr/include/c++/13/bits/algorithmfwd.h \
  /usr/include/c++/13/bits/stl_heap.h \
  /usr/include/c++/13/bits/uniform_int_dist.h \
+ /home/DATA/CODE/code/Xell/src/interpreter/../hash/hash_algorithm.hpp \
+ /usr/include/c++/13/cstring /usr/include/string.h /usr/include/strings.h \
+ /usr/include/x86_64-linux-gnu/bits/strings_fortified.h \
+ /usr/include/x86_64-linux-gnu/bits/string_fortified.h \
+ /home/DATA/CODE/code/Xell/src/interpreter/../xobject/ordered_hash_table.hpp \
+ /usr/include/c++/13/utility /usr/include/c++/13/bits/stl_relops.h \
  /home/DATA/CODE/code/Xell/src/interpreter/../lib/errors/error.hpp \
  /usr/include/c++/13/stdexcept \
  /home/DATA/CODE/code/Xell/src/interpreter/shell_state.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtin_registry.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../parser/ast.hpp \
- /usr/include/c++/13/utility /usr/include/c++/13/bits/stl_relops.h \
  /usr/include/c++/13/unordered_set \
  /usr/include/c++/13/bits/unordered_set.h \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/register_all.hpp \
@@ -208,29 +235,6 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: \
  /usr/include/c++/13/bits/ostream.tcc /usr/include/c++/13/istream \
  /usr/include/c++/13/bits/istream.tcc \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_math.hpp \
- /usr/include/c++/13/cmath /usr/include/math.h \
- /usr/include/x86_64-linux-gnu/bits/math-vector.h \
- /usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h \
- /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h \
- /usr/include/x86_64-linux-gnu/bits/fp-logb.h \
- /usr/include/x86_64-linux-gnu/bits/fp-fast.h \
- /usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h \
- /usr/include/x86_64-linux-gnu/bits/mathcalls.h \
- /usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h \
- /usr/include/x86_64-linux-gnu/bits/iscanonical.h \
- /usr/include/c++/13/bits/specfun.h /usr/include/c++/13/limits \
- /usr/include/c++/13/tr1/gamma.tcc \
- /usr/include/c++/13/tr1/special_function_util.h \
- /usr/include/c++/13/tr1/bessel_function.tcc \
- /usr/include/c++/13/tr1/beta_function.tcc \
- /usr/include/c++/13/tr1/ell_integral.tcc \
- /usr/include/c++/13/tr1/exp_integral.tcc \
- /usr/include/c++/13/tr1/hypergeometric.tcc \
- /usr/include/c++/13/tr1/legendre_function.tcc \
- /usr/include/c++/13/tr1/modified_bessel_func.tcc \
- /usr/include/c++/13/tr1/poly_hermite.tcc \
- /usr/include/c++/13/tr1/poly_laguerre.tcc \
- /usr/include/c++/13/tr1/riemann_zeta.tcc \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_type.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_collection.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_util.hpp \
@@ -245,6 +249,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: \
  /usr/include/c++/13/bits/quoted_string.h \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_os.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/../os/os.hpp \
+ /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_hash.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../lexer/lexer.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../lexer/token.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../parser/parser.hpp \

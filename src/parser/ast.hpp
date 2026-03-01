@@ -44,6 +44,27 @@ namespace xell
         explicit NumberLiteral(double v, int ln = 0) : value(v) { line = ln; }
     };
 
+    // Integer literal: 42, 0, -1 (produced by parser for NUMBER tokens without '.')
+    struct IntLiteral : Expr
+    {
+        int64_t value;
+        explicit IntLiteral(int64_t v, int ln = 0) : value(v) { line = ln; }
+    };
+
+    // Float literal: 3.14, 0.5 (produced by parser for NUMBER tokens with '.')
+    struct FloatLiteral : Expr
+    {
+        double value;
+        explicit FloatLiteral(double v, int ln = 0) : value(v) { line = ln; }
+    };
+
+    // Imaginary literal: 2i, 3.14i (for building complex numbers)
+    struct ImaginaryLiteral : Expr
+    {
+        double value; // the imaginary coefficient
+        explicit ImaginaryLiteral(double v, int ln = 0) : value(v) { line = ln; }
+    };
+
     struct StringLiteral : Expr
     {
         std::string value; // raw content with {interpolation} markers preserved
@@ -73,6 +94,28 @@ namespace xell
     {
         std::vector<ExprPtr> elements;
         explicit ListLiteral(std::vector<ExprPtr> elems, int ln = 0)
+            : elements(std::move(elems)) { line = ln; }
+    };
+
+    struct TupleLiteral : Expr
+    {
+        std::vector<ExprPtr> elements;
+        explicit TupleLiteral(std::vector<ExprPtr> elems, int ln = 0)
+            : elements(std::move(elems)) { line = ln; }
+    };
+
+    struct SetLiteral : Expr
+    {
+        std::vector<ExprPtr> elements;
+        explicit SetLiteral(std::vector<ExprPtr> elems, int ln = 0)
+            : elements(std::move(elems)) { line = ln; }
+    };
+
+    // Frozen (immutable) set: <1, 2, 3>
+    struct FrozenSetLiteral : Expr
+    {
+        std::vector<ExprPtr> elements;
+        explicit FrozenSetLiteral(std::vector<ExprPtr> elems, int ln = 0)
             : elements(std::move(elems)) { line = ln; }
     };
 

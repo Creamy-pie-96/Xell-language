@@ -40,8 +40,12 @@
 #include <memory>
 #include <atomic>
 #include <cstdint>
+#include <cmath>
 #include <functional>
-#include <unordered_map>
+
+// Modular hash algorithms and ordered hash table
+#include "../hash/hash_algorithm.hpp"
+#include "../xobject/ordered_hash_table.hpp"
 
 namespace xell
 {
@@ -52,6 +56,43 @@ namespace xell
     struct Expr;
     class Environment;
 
+    // Forward declarations for hash-table-based types (defined after XObject)
+    struct XObjectHash;
+    struct XObjectEqual;
+    struct XSet;
+    struct XMap;
+
+    // ========================================================================
+    // XComplex — complex number representation (a + bi)
+    // ========================================================================
+
+    struct XComplex
+    {
+        double real;
+        double imag;
+
+        XComplex() : real(0.0), imag(0.0) {}
+        XComplex(double r, double i) : real(r), imag(i) {}
+
+        XComplex operator+(const XComplex &o) const { return {real + o.real, imag + o.imag}; }
+        XComplex operator-(const XComplex &o) const { return {real - o.real, imag - o.imag}; }
+        XComplex operator*(const XComplex &o) const
+        {
+            return {real * o.real - imag * o.imag, real * o.imag + imag * o.real};
+        }
+        XComplex operator/(const XComplex &o) const
+        {
+            double denom = o.real * o.real + o.imag * o.imag;
+            return {(real * o.real + imag * o.imag) / denom,
+                    (imag * o.real - real * o.imag) / denom};
+        }
+        XComplex operator-() const { return {-real, -imag}; }
+        XComplex conjugate() const { return {real, -imag}; }
+        double magnitude() const { return std::sqrt(real * real + imag * imag); }
+        bool operator==(const XComplex &o) const { return real == o.real && imag == o.imag; }
+        bool operator!=(const XComplex &o) const { return !(*this == o); }
+    };
+
     // ========================================================================
     // XType — the type tag enum
     // ========================================================================
@@ -59,10 +100,15 @@ namespace xell
     enum class XType : uint8_t
     {
         NONE = 0,
-        NUMBER,
+        INT,       // int64_t
+        FLOAT,     // double
+        COMPLEX,   // XComplex (a + bi)
         BOOL,
         STRING,
         LIST,
+        TUPLE,
+        SET,
+        FROZEN_SET, // immutable set: <1, 2, 3>
         MAP,
         FUNCTION,
     };
@@ -74,22 +120,11 @@ namespace xell
     // XList, XMap, XFunction — the compound payload types
     // ========================================================================
 
-    /// An ordered list of XObjects
+    /// An ordered list of XObjects (mutable)
     using XList = std::vector<XObject>;
 
-    /// An ordered map (preserves insertion order).
-    /// We use a vector of pairs for ordered iteration + a hash map for O(1) lookup.
-    struct XMap
-    {
-        std::vector<std::pair<std::string, XObject>> entries;
-        std::unordered_map<std::string, size_t> index; // key → position in entries
-
-        void set(const std::string &key, XObject value);
-        XObject *get(const std::string &key);
-        const XObject *get(const std::string &key) const;
-        bool has(const std::string &key) const;
-        size_t size() const;
-    };
+    /// A tuple of XObjects (immutable — enforced at interpreter level)
+    using XTuple = std::vector<XObject>;
 
     /// A user-defined function captured at definition time.
     /// Holds a raw pointer to the AST body (owned by the Program, outlives this).
@@ -153,8 +188,18 @@ namespace xell
         /// none value (payload is nullptr)
         static XObject makeNone();
 
-        /// number (heap-allocates a double)
+        /// integer (heap-allocates an int64_t)
+        static XObject makeInt(int64_t value);
+
+        /// float (heap-allocates a double)
+        static XObject makeFloat(double value);
+
+        /// number — backward compat: creates FLOAT
         static XObject makeNumber(double value);
+
+        /// complex number (heap-allocates an XComplex)
+        static XObject makeComplex(double real, double imag);
+        static XObject makeComplex(const XComplex &c);
 
         /// bool (heap-allocates a bool)
         static XObject makeBool(bool value);
@@ -167,6 +212,18 @@ namespace xell
         static XObject makeList();
         /// list from existing vector
         static XObject makeList(XList &&elements);
+
+        /// tuple from existing vector (immutable after creation)
+        static XObject makeTuple(XTuple &&elements);
+
+        /// empty set
+        static XObject makeSet();
+        /// set from existing XSet
+        static XObject makeSet(XSet &&set);
+
+        /// frozen (immutable) set
+        static XObject makeFrozenSet();
+        static XObject makeFrozenSet(XSet &&set);
 
         /// empty map
         static XObject makeMap();
@@ -195,33 +252,43 @@ namespace xell
 
         XType type() const;
         bool isNone() const;
-        bool isNumber() const;
+        bool isInt() const;
+        bool isFloat() const;
+        bool isComplex() const;
+        bool isNumber() const;   // true for INT or FLOAT (backward compat)
+        bool isNumeric() const;  // true for INT, FLOAT, or COMPLEX
         bool isBool() const;
         bool isString() const;
         bool isList() const;
+        bool isTuple() const;
+        bool isSet() const;
+        bool isFrozenSet() const;
         bool isMap() const;
         bool isFunction() const;
 
         // ---- Payload access (unchecked — caller must verify type first) ----
 
-        double asNumber() const;
+        int64_t asInt() const;
+        double asFloat() const;
+        const XComplex &asComplex() const;
+        double asNumber() const;   // returns double for INT or FLOAT (backward compat)
         bool asBool() const;
         const std::string &asString() const;
         std::string &asStringMut();
         const XList &asList() const;
         XList &asListMut();
+        const XTuple &asTuple() const;
+        const XSet &asSet() const;
+        XSet &asSetMut();
+        const XSet &asFrozenSet() const;  // same payload type but immutable
         const XMap &asMap() const;
         XMap &asMapMut();
         const XFunction &asFunction() const;
 
         // ---- Truthiness (for if/while conditions) ----
-        //   none → false
-        //   bool → its value
-        //   number → false if 0.0
-        //   string → false if empty
-        //   list → false if empty
-        //   map → false if empty
-        //   function → true (always)
+        //   none → false, bool → its value, number → false if 0.0
+        //   string → false if empty, list/tuple → false if empty
+        //   set/map → false if empty, function → true (always)
 
         bool truthy() const;
 
@@ -260,6 +327,79 @@ namespace xell
 
         /// Free the payload based on type
         static void freePayload(XType type, void *payload);
+    };
+
+    // ========================================================================
+    // Hash support for XObject
+    // ========================================================================
+
+    /// Check if an XObject is of an immutable (hashable) type.
+    /// Hashable: none, int, float, complex, bool, string,
+    ///           tuple (if all elements hashable), frozen_set (if all elements hashable)
+    /// NOT hashable: list, set, map, function
+    bool isHashable(const XObject &obj);
+
+    /// Hash a single XObject using a specific algorithm function.
+    /// Throws HashError if the object is not hashable.
+    size_t hashXObject(const XObject &obj, hash::HashFn hashFn);
+
+    /// Hash functor for XObject — uses FNV-1a (default algorithm).
+    struct XObjectHash
+    {
+        size_t operator()(const XObject &obj) const;
+    };
+
+    /// Equality functor for XObject — delegates to XObject::equals().
+    struct XObjectEqual
+    {
+        bool operator()(const XObject &a, const XObject &b) const;
+    };
+
+    // ========================================================================
+    // XSet — ordered set of unique hashable XObjects
+    // ========================================================================
+
+    struct XSet
+    {
+        using Table = OrderedHashTable<XObject, bool, XObjectHash, XObjectEqual>;
+        Table table;
+
+        void add(const XObject &elem);
+        bool remove(const XObject &elem);
+        bool has(const XObject &elem) const;
+        size_t size() const;
+        bool empty() const;
+        void clear();
+        std::vector<XObject> elements() const;
+    };
+
+    // ========================================================================
+    // XMap — ordered map with XObject keys
+    // ========================================================================
+
+    struct XMap
+    {
+        using Table = OrderedHashTable<XObject, XObject, XObjectHash, XObjectEqual>;
+        Table table;
+
+        // XObject key API
+        void set(const XObject &key, XObject value);
+        XObject *get(const XObject &key);
+        const XObject *get(const XObject &key) const;
+        bool has(const XObject &key) const;
+        bool remove(const XObject &key);
+
+        // String key convenience (backward compat)
+        void set(const std::string &key, XObject value);
+        XObject *get(const std::string &key);
+        const XObject *get(const std::string &key) const;
+        bool has(const std::string &key) const;
+
+        size_t size() const;
+        bool empty() const;
+        void clear();
+
+        Table::Iterator begin() const { return table.begin(); }
     };
 
 } // namespace xell

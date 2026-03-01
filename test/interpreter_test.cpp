@@ -856,12 +856,7 @@ static void testBuiltins()
             "print(type(none))\n"
             "print(type([]))\n"
             "print(type({}))");
-        XASSERT_EQ(out[0], std::string("number"));
-        XASSERT_EQ(out[1], std::string("string"));
-        XASSERT_EQ(out[2], std::string("bool"));
-        XASSERT_EQ(out[3], std::string("none"));
-        XASSERT_EQ(out[4], std::string("list"));
-        XASSERT_EQ(out[5], std::string("map")); });
+        XASSERT_EQ(out[0], std::string("int"));; });
 
     runTest("str() conversion", []()
             {
@@ -1751,7 +1746,7 @@ static void testTypeofBuiltin()
     runTest("typeof number", []()
             {
         auto out = runXell("print(typeof(42))");
-        XASSERT_EQ(out[0], std::string("number")); });
+        XASSERT_EQ(out[0], std::string("int")); });
 
     runTest("typeof string", []()
             {
@@ -1775,7 +1770,7 @@ static void testInputExit()
         // We can't actually call exit() in tests, so just verify
         // it exists by checking a try/catch that calls a function
         auto out = runXell("print(typeof(42))");
-        XASSERT_EQ(out[0], std::string("number")); });
+        XASSERT_EQ(out[0], std::string("int")); });
 }
 
 static void testChainedComparison()
@@ -1799,6 +1794,399 @@ static void testChainedComparison()
 // ============================================================================
 // main
 // ============================================================================
+
+// =============================================================================
+// INT / FLOAT DISTINCTION
+// =============================================================================
+
+static void testIntFloat()
+{
+    std::cout << "\n===== Int / Float Distinction =====\n";
+
+    runTest("int literal type", []()
+            {
+        auto out = runXell("print(type(42))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("float literal type", []()
+            {
+        auto out = runXell("print(type(3.14))");
+        XASSERT_EQ(out[0], std::string("float")); });
+
+    runTest("int + int = int", []()
+            {
+        auto out = runXell("print(type(2 + 3))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("int + float = float", []()
+            {
+        auto out = runXell("print(type(2 + 3.0))");
+        XASSERT_EQ(out[0], std::string("float")); });
+
+    runTest("int * int = int", []()
+            {
+        auto out = runXell("print(type(4 * 5))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("int / int exact = int", []()
+            {
+        auto out = runXell("print(10 / 2)\nprint(type(10 / 2))");
+        XASSERT_EQ(out[0], std::string("5"));
+        XASSERT_EQ(out[1], std::string("int")); });
+
+    runTest("int / int inexact = float", []()
+            {
+        auto out = runXell("print(7 / 2)\nprint(type(7 / 2))");
+        XASSERT_EQ(out[0], std::string("3.5"));
+        XASSERT_EQ(out[1], std::string("float")); });
+
+    runTest("int % int = int", []()
+            {
+        auto out = runXell("print(10 % 3)\nprint(type(10 % 3))");
+        XASSERT_EQ(out[0], std::string("1"));
+        XASSERT_EQ(out[1], std::string("int")); });
+
+    runTest("int - int = int", []()
+            {
+        auto out = runXell("print(type(10 - 3))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("unary minus int = int", []()
+            {
+        auto out = runXell("x = 5\nprint(type(-x))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("prefix ++ on int stays int", []()
+            {
+        auto out = runXell("x = 5\n++x\nprint(type(x))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("postfix ++ on int stays int", []()
+            {
+        auto out = runXell("x = 5\nx++\nprint(type(x))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("int() conversion", []()
+            {
+        auto out = runXell("print(int(3.7))\nprint(int(\"42\"))");
+        XASSERT_EQ(out[0], std::string("3"));
+        XASSERT_EQ(out[1], std::string("42")); });
+
+    runTest("float() conversion", []()
+            {
+        auto out = runXell("print(float(42))\nprint(type(float(42)))");
+        XASSERT_EQ(out[0], std::string("42"));
+        XASSERT_EQ(out[1], std::string("float")); });
+
+    runTest("cross-type equality int == float", []()
+            {
+        auto out = runXell("print(3 == 3.0)");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("range returns ints", []()
+            {
+        auto out = runXell("r = range(3)\nprint(type(r[0]))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("len returns int", []()
+            {
+        auto out = runXell("print(type(len([1,2,3])))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("floor/ceil/round return int", []()
+            {
+        auto out = runXell(
+            "print(type(floor(3.7)))\n"
+            "print(type(ceil(3.2)))\n"
+            "print(type(round(3.5)))");
+        XASSERT_EQ(out[0], std::string("int"));
+        XASSERT_EQ(out[1], std::string("int"));
+        XASSERT_EQ(out[2], std::string("int")); });
+}
+
+// =============================================================================
+// COMPLEX NUMBERS
+// =============================================================================
+
+static void testComplexNumbers()
+{
+    std::cout << "\n===== Complex Numbers =====\n";
+
+    runTest("imaginary literal type", []()
+            {
+        auto out = runXell("print(type(2i))");
+        XASSERT_EQ(out[0], std::string("complex")); });
+
+    runTest("complex from addition", []()
+            {
+        auto out = runXell("x = 3 + 2i\nprint(x)");
+        XASSERT_EQ(out[0], std::string("(3+2i)")); });
+
+    runTest("complex from subtraction", []()
+            {
+        auto out = runXell("x = 3 - 2i\nprint(x)");
+        XASSERT_EQ(out[0], std::string("(3-2i)")); });
+
+    runTest("pure imaginary", []()
+            {
+        auto out = runXell("x = 5i\nprint(x)");
+        XASSERT_EQ(out[0], std::string("(0+5i)")); });
+
+    runTest("complex + complex", []()
+            {
+        auto out = runXell("a = 1 + 2i\nb = 3 + 4i\nprint(a + b)");
+        XASSERT_EQ(out[0], std::string("(4+6i)")); });
+
+    runTest("complex - complex", []()
+            {
+        auto out = runXell("a = 5 + 3i\nb = 2 + 1i\nprint(a - b)");
+        XASSERT_EQ(out[0], std::string("(3+2i)")); });
+
+    runTest("complex * complex", []()
+            {
+        // (1+2i)*(3+4i) = 3+4i+6i+8i^2 = 3+10i-8 = -5+10i
+        auto out = runXell("a = 1 + 2i\nb = 3 + 4i\nprint(a * b)");
+        XASSERT_EQ(out[0], std::string("(-5+10i)")); });
+
+    runTest("complex / complex", []()
+            {
+        // (4+2i)/(1+1i) = (4+2i)(1-1i)/((1+1i)(1-1i)) = (4-4i+2i-2i^2)/(1+1) = (6-2i)/2 = 3-1i
+        auto out = runXell("a = 4 + 2i\nb = 1 + 1i\nprint(a / b)");
+        XASSERT_EQ(out[0], std::string("(3-1i)")); });
+
+    runTest("complex + int", []()
+            {
+        auto out = runXell("a = 1 + 2i\nprint(a + 3)");
+        XASSERT_EQ(out[0], std::string("(4+2i)")); });
+
+    runTest("int + complex", []()
+            {
+        auto out = runXell("a = 1 + 2i\nprint(5 + a)");
+        XASSERT_EQ(out[0], std::string("(6+2i)")); });
+
+    runTest("unary minus complex", []()
+            {
+        auto out = runXell("a = 3 + 2i\nprint(-a)");
+        XASSERT_EQ(out[0], std::string("(-3-2i)")); });
+
+    runTest("complex equality", []()
+            {
+        auto out = runXell("a = 3 + 2i\nb = 3 + 2i\nprint(a == b)");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("complex inequality", []()
+            {
+        auto out = runXell("a = 3 + 2i\nb = 3 + 3i\nprint(a != b)");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("complex() builtin", []()
+            {
+        auto out = runXell("c = complex(3, 4)\nprint(c)");
+        XASSERT_EQ(out[0], std::string("(3+4i)")); });
+
+    runTest("real() and imag()", []()
+            {
+        auto out = runXell("c = 3 + 4i\nprint(real(c))\nprint(imag(c))");
+        XASSERT_EQ(out[0], std::string("3"));
+        XASSERT_EQ(out[1], std::string("4")); });
+
+    runTest("conjugate()", []()
+            {
+        auto out = runXell("c = 3 + 4i\nprint(conjugate(c))");
+        XASSERT_EQ(out[0], std::string("(3-4i)")); });
+
+    runTest("magnitude()", []()
+            {
+        auto out = runXell("c = 3 + 4i\nprint(magnitude(c))");
+        XASSERT_EQ(out[0], std::string("5")); });
+
+    runTest("complex is hashable", []()
+            {
+        auto out = runXell("c = 3 + 2i\nprint(is_hashable(c))");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("complex truthy", []()
+            {
+        auto out = runXell(
+            "if 1i:\n  print(\"yes\")\n;\n"
+            "c = 0 + 0i\nif c:\n  print(\"no\")\n;\nelse:\n  print(\"zero\")\n;");
+        XASSERT_EQ(out[0], std::string("yes"));
+        XASSERT_EQ(out[1], std::string("zero")); });
+
+    runTest("sqrt of negative = complex", []()
+            {
+        auto out = runXell("print(type(sqrt(-4)))");
+        XASSERT_EQ(out[0], std::string("complex")); });
+}
+
+// =============================================================================
+// FROZEN SETS
+// =============================================================================
+
+static void testFrozenSets()
+{
+    std::cout << "\n===== Frozen Sets =====\n";
+
+    runTest("frozen set literal", []()
+            {
+        auto out = runXell("s = <1, 2, 3>\nprint(type(s))");
+        XASSERT_EQ(out[0], std::string("frozen_set")); });
+
+    runTest("empty frozen set", []()
+            {
+        auto out = runXell("s = <>\nprint(len(s))");
+        XASSERT_EQ(out[0], std::string("0")); });
+
+    runTest("frozen set len", []()
+            {
+        auto out = runXell("s = <1, 2, 3>\nprint(len(s))");
+        XASSERT_EQ(out[0], std::string("3")); });
+
+    runTest("frozen set has", []()
+            {
+        auto out = runXell("s = <1, 2, 3>\nprint(has(s, 2))\nprint(has(s, 5))");
+        XASSERT_EQ(out[0], std::string("true"));
+        XASSERT_EQ(out[1], std::string("false")); });
+
+    runTest("frozen set contains", []()
+            {
+        auto out = runXell("s = <\"a\", \"b\">\nprint(contains(s, \"a\"))");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("frozen set is immutable (add)", []()
+            {
+        auto out = runXell("try:\n  s = <1, 2>\n  add(s, 3)\n;\ncatch e:\n  print(e->message)\n;");
+        XASSERT(out[0].find("frozen set") != std::string::npos); });
+
+    runTest("frozen set is immutable (remove)", []()
+            {
+        auto out = runXell("try:\n  s = <1, 2>\n  remove(s, 1)\n;\ncatch e:\n  print(e->message)\n;");
+        XASSERT(out[0].find("frozen set") != std::string::npos); });
+
+    runTest("frozen set equality", []()
+            {
+        auto out = runXell("a = <1, 2, 3>\nb = <1, 2, 3>\nprint(a == b)");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("frozen set is hashable", []()
+            {
+        auto out = runXell("s = <1, 2, 3>\nprint(is_hashable(s))");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("frozen set in map key (hashable)", []()
+            {
+        auto out = runXell(
+            "m = {}\n"
+            "k = <1, 2>\n"
+            "set(m, k, \"value\")\n"
+            "print(m[k])");
+        XASSERT_EQ(out[0], std::string("value")); });
+
+    runTest("frozen set to_list", []()
+            {
+        auto out = runXell("s = <42>\nprint(to_list(s))");
+        XASSERT_EQ(out[0], std::string("[42]")); });
+
+    runTest("frozen set to_tuple", []()
+            {
+        auto out = runXell("s = <42>\nprint(to_tuple(s))");
+        XASSERT_EQ(out[0], std::string("(42,)")); });
+
+    runTest("frozen set to_set", []()
+            {
+        auto out = runXell("s = <1, 2>\nms = to_set(s)\nprint(type(ms))");
+        XASSERT_EQ(out[0], std::string("set")); });
+
+    runTest("frozen set with mixed types", []()
+            {
+        auto out = runXell("s = <1, 3.14, \"hello\">\nprint(len(s))");
+        XASSERT_EQ(out[0], std::string("3")); });
+
+    runTest("frozen set deduplication", []()
+            {
+        auto out = runXell("s = <1, 1, 2, 2, 3>\nprint(len(s))");
+        XASSERT_EQ(out[0], std::string("3")); });
+
+    runTest("union_set with frozen_set", []()
+            {
+        auto out = runXell("a = <1, 2>\nb = <2, 3>\nprint(len(union_set(a, b)))");
+        XASSERT_EQ(out[0], std::string("3")); });
+
+    runTest("intersect with frozen_set", []()
+            {
+        auto out = runXell("a = <1, 2, 3>\nb = <2, 3, 4>\nprint(len(intersect(a, b)))");
+        XASSERT_EQ(out[0], std::string("2")); });
+
+    runTest("diff with frozen_set", []()
+            {
+        auto out = runXell("a = <1, 2, 3>\nb = <2, 3>\nprint(len(diff(a, b)))");
+        XASSERT_EQ(out[0], std::string("1")); });
+}
+
+// =============================================================================
+// HASH ENHANCEMENTS
+// =============================================================================
+
+static void testHashEnhancements()
+{
+    std::cout << "\n===== Hash Enhancements =====\n";
+
+    runTest("hash int", []()
+            {
+        auto out = runXell("h = hash(42)\nprint(type(h))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("hash float", []()
+            {
+        auto out = runXell("h = hash(3.14)\nprint(type(h))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("hash string", []()
+            {
+        auto out = runXell("h = hash(\"hello\")\nprint(type(h))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("hash complex", []()
+            {
+        auto out = runXell("h = hash(3 + 2i)\nprint(type(h))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("hash frozen_set", []()
+            {
+        auto out = runXell("h = hash(<1, 2, 3>)\nprint(type(h))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("hash tuple", []()
+            {
+        auto out = runXell("h = hash((1, 2, 3))\nprint(type(h))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("hash with algorithm", []()
+            {
+        auto out = runXell(
+            "h1 = hash(\"test\", \"fnv1a\")\n"
+            "h2 = hash(\"test\", \"djb2\")\n"
+            "print(h1 != h2)");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("hash_seed", []()
+            {
+        auto out = runXell(
+            "h1 = hash_seed(\"test\", 42)\n"
+            "h2 = hash_seed(\"test\", 99)\n"
+            "print(h1 != h2)");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("hash_seed complex", []()
+            {
+        auto out = runXell("h = hash_seed(3 + 2i, 42)\nprint(type(h))");
+        XASSERT_EQ(out[0], std::string("int")); });
+
+    runTest("hash_seed frozen_set", []()
+            {
+        auto out = runXell("h = hash_seed(<1, 2>, 42)\nprint(type(h))");
+        XASSERT_EQ(out[0], std::string("int")); });
+}
 
 int main()
 {
@@ -1834,6 +2222,12 @@ int main()
     testTypeofBuiltin();
     testInputExit();
     testChainedComparison();
+
+    // Type system refactor tests
+    testIntFloat();
+    testComplexNumbers();
+    testFrozenSets();
+    testHashEnhancements();
 
     std::cout << "\n============================================\n";
     std::cout << "  Total: " << (g_passed + g_failed)

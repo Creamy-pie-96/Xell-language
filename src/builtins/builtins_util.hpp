@@ -102,7 +102,7 @@ namespace xell
                     {
                         // Parse format spec: [fill][align][width][.precision][type]
                         // Simplified: support .Nf for float formatting
-                        if (!fmtPart.empty() && fmtPart[0] == '.' && val.isNumber())
+                        if (!fmtPart.empty() && fmtPart[0] == '.' && val.isNumeric())
                         {
                             // .Nf format
                             std::string precStr;
@@ -110,9 +110,24 @@ namespace xell
                             while (k < fmtPart.size() && std::isdigit(fmtPart[k]))
                                 precStr += fmtPart[k++];
                             int precision = precStr.empty() ? 6 : std::stoi(precStr);
-                            std::ostringstream oss;
-                            oss << std::fixed << std::setprecision(precision) << val.asNumber();
-                            result += oss.str();
+                            if (val.isComplex())
+                            {
+                                // Format complex as (real+imagi) with precision
+                                std::ostringstream oss;
+                                oss << std::fixed << std::setprecision(precision);
+                                auto c = val.asComplex();
+                                oss << "(" << c.real;
+                                if (c.imag >= 0)
+                                    oss << "+";
+                                oss << c.imag << "i)";
+                                result += oss.str();
+                            }
+                            else
+                            {
+                                std::ostringstream oss;
+                                oss << std::fixed << std::setprecision(precision) << val.asNumber();
+                                result += oss.str();
+                            }
                         }
                         else
                         {

@@ -296,10 +296,15 @@ static void testConstruction()
     runTest("xtype_name strings", []()
             {
         XASSERT_EQ(std::string(xtype_name(XType::NONE)), std::string("none"));
-        XASSERT_EQ(std::string(xtype_name(XType::NUMBER)), std::string("number"));
+        XASSERT_EQ(std::string(xtype_name(XType::INT)), std::string("int"));
+        XASSERT_EQ(std::string(xtype_name(XType::FLOAT)), std::string("float"));
+        XASSERT_EQ(std::string(xtype_name(XType::COMPLEX)), std::string("complex"));
         XASSERT_EQ(std::string(xtype_name(XType::BOOL)), std::string("bool"));
         XASSERT_EQ(std::string(xtype_name(XType::STRING)), std::string("string"));
         XASSERT_EQ(std::string(xtype_name(XType::LIST)), std::string("list"));
+        XASSERT_EQ(std::string(xtype_name(XType::TUPLE)), std::string("tuple"));
+        XASSERT_EQ(std::string(xtype_name(XType::SET)), std::string("set"));
+        XASSERT_EQ(std::string(xtype_name(XType::FROZEN_SET)), std::string("frozen_set"));
         XASSERT_EQ(std::string(xtype_name(XType::MAP)), std::string("map"));
         XASSERT_EQ(std::string(xtype_name(XType::FUNCTION)), std::string("function")); });
 }
@@ -773,9 +778,11 @@ static void testXMap()
             m.set("c", XObject::makeNumber(3));
             m.set("a", XObject::makeNumber(1));
             m.set("b", XObject::makeNumber(2));
-            XASSERT_EQ(m.entries[0].first, std::string("c"));
-            XASSERT_EQ(m.entries[1].first, std::string("a"));
-            XASSERT_EQ(m.entries[2].first, std::string("b"));
+            auto keys = m.table.keys();
+            XASSERT_EQ(keys.size(), (size_t)3);
+            XASSERT_EQ(keys[0].asString(), std::string("c"));
+            XASSERT_EQ(keys[1].asString(), std::string("a"));
+            XASSERT_EQ(keys[2].asString(), std::string("b"));
         }
         lg.check(); });
 

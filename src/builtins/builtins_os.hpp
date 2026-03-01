@@ -240,7 +240,7 @@ namespace xell
                 throw TypeError("file_size() expects a string path", line);
             try
             {
-                return XObject::makeNumber(static_cast<double>(os::file_size(args[0].asString())));
+                return XObject::makeInt(static_cast<int64_t>(os::file_size(args[0].asString())));
             }
             catch (const FileNotFoundError &)
             {
@@ -386,7 +386,7 @@ namespace xell
                 shellState.lastExitCode = code;
                 if (shellState.exitOnError && code != 0)
                     throw CommandFailedError(cmd, code, line);
-                return XObject::makeNumber(static_cast<double>(code));
+                return XObject::makeInt(static_cast<int64_t>(code));
             }
             catch (const CommandFailedError &)
             {
@@ -411,7 +411,7 @@ namespace xell
                 auto result = os::run_capture(cmd);
                 shellState.lastExitCode = result.exitCode;
                 XMap m;
-                m.set("exit_code", XObject::makeNumber(static_cast<double>(result.exitCode)));
+                m.set("exit_code", XObject::makeInt(static_cast<int64_t>(result.exitCode)));
                 m.set("stdout", XObject::makeString(std::move(result.stdoutOutput)));
                 m.set("stderr", XObject::makeString(std::move(result.stderrOutput)));
                 if (shellState.exitOnError && result.exitCode != 0)
@@ -433,7 +433,7 @@ namespace xell
         {
             if (!args.empty())
                 throw ArityError("pid", 0, (int)args.size(), line);
-            return XObject::makeNumber(static_cast<double>(os::get_pid()));
+            return XObject::makeInt(static_cast<int64_t>(os::get_pid()));
         };
 
         // =================================================================
@@ -463,7 +463,7 @@ namespace xell
         {
             if (!args.empty())
                 throw ArityError("exit_code", 0, (int)args.size(), line);
-            return XObject::makeNumber(static_cast<double>(shellState.lastExitCode));
+            return XObject::makeInt(static_cast<int64_t>(shellState.lastExitCode));
         };
     }
 

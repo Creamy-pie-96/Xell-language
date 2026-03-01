@@ -20,6 +20,7 @@
 #include "builtins_collection.hpp"
 #include "builtins_util.hpp"
 #include "builtins_os.hpp"
+#include "builtins_hash.hpp"
 #include "../interpreter/shell_state.hpp"
 
 namespace xell
@@ -40,6 +41,7 @@ namespace xell
         registerCollectionBuiltins(t);
         registerUtilBuiltins(t);
         registerOSBuiltins(t, shellState);
+        registerHashBuiltins(t);
     }
 
 } // namespace xell

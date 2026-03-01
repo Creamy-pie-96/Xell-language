@@ -236,7 +236,27 @@ namespace xell
             : XellError("AssertionError", message, line) {}
     };
 
-    // ---- 3m. Not-implemented placeholder ------------------------------------
+    // ---- 3m. Hash errors ----------------------------------------------------
+
+    /// Attempt to hash a mutable (non-hashable) type, or other hash failure.
+    class HashError : public XellError
+    {
+    public:
+        HashError(const std::string &message, int line)
+            : XellError("HashError", message, line) {}
+    };
+
+    // ---- 3n. Immutability errors --------------------------------------------
+
+    /// Attempt to mutate an immutable object (e.g. tuple).
+    class ImmutabilityError : public XellError
+    {
+    public:
+        ImmutabilityError(const std::string &message, int line)
+            : XellError("ImmutabilityError", message, line) {}
+    };
+
+    // ---- 3o. Not-implemented placeholder ------------------------------------
 
     /// Feature or built-in that is stubbed but not yet implemented.
     class NotImplementedError : public XellError

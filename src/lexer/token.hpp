@@ -10,6 +10,7 @@ namespace xell
     {
         // Literals
         NUMBER,
+        IMAGINARY, // number with 'i' suffix, e.g. 2i, 3.14i
         STRING,
         RAW_STRING,
 
@@ -118,6 +119,7 @@ namespace xell
     {
         static const std::unordered_map<int, std::string> map = {
             {(int)TokenType::NUMBER, "NUMBER"},
+            {(int)TokenType::IMAGINARY, "IMAGINARY"},
             {(int)TokenType::STRING, "STRING"},
             {(int)TokenType::RAW_STRING, "RAW_STRING"},
             {(int)TokenType::TRUE_KW, "TRUE"},

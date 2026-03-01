@@ -31,7 +31,7 @@ namespace xell
             // operators work correctly:
             //   print("a") && print("b")  →  both execute (0 = success → continue)
             //   print("a") || print("b")  →  only first   (0 = success → skip fallback)
-            return XObject::makeNumber(0);
+            return XObject::makeInt(0);
         };
 
         // input(prompt) or input() — read a line from stdin
@@ -66,7 +66,7 @@ namespace xell
             {
                 if (!args[0].isNumber())
                     throw TypeError("exit() code must be a number", line);
-                exit_code = static_cast<int>(args[0].asNumber());
+                exit_code = args[0].isInt() ? static_cast<int>(args[0].asInt()) : static_cast<int>(args[0].asNumber());
             }
             else
                 throw ArityError("exit", 1, (int)args.size(), line);

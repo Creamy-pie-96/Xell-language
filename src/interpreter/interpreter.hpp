@@ -123,6 +123,9 @@ namespace xell
         XObject evalIndex(const IndexAccess *node);
         XObject evalMember(const MemberAccess *node);
         XObject evalList(const ListLiteral *node);
+        XObject evalTuple(const TupleLiteral *node);
+        XObject evalSet(const SetLiteral *node);
+        XObject evalFrozenSet(const FrozenSetLiteral *node);
         XObject evalMap(const MapLiteral *node);
         XObject evalTernary(const TernaryExpr *node);
         XObject evalLambda(const LambdaExpr *node);

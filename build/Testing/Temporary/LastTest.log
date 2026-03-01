@@ -1,10 +1,10 @@
-Start testing: Mar 02 02:36 +06
+Start testing: Mar 02 05:46 +06
 ----------------------------------------------------------
 1/7 Testing: parser_test
 1/7 Test: parser_test
 Command: "/home/DATA/CODE/code/Xell/build/parser_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"parser_test" start time: Mar 02 02:36 +06
+"parser_test" start time: Mar 02 05:46 +06
 Output:
 ----------------------------------------------------------
 
@@ -130,10 +130,10 @@ Output:
 ============================================
 
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"parser_test" end time: Mar 02 02:36 +06
+"parser_test" end time: Mar 02 05:46 +06
 "parser_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -141,7 +141,7 @@ Test Passed.
 2/7 Test: error_test
 Command: "/home/DATA/CODE/code/Xell/build/error_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"error_test" start time: Mar 02 02:36 +06
+"error_test" start time: Mar 02 05:46 +06
 Output:
 ----------------------------------------------------------
 
@@ -228,10 +228,10 @@ Output:
   Total: 67  |  Passed: 67  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"error_test" end time: Mar 02 02:36 +06
+"error_test" end time: Mar 02 05:46 +06
 "error_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -239,7 +239,7 @@ Test Passed.
 3/7 Test: xobject_test
 Command: "/home/DATA/CODE/code/Xell/build/xobject_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"xobject_test" start time: Mar 02 02:36 +06
+"xobject_test" start time: Mar 02 05:46 +06
 Output:
 ----------------------------------------------------------
 
@@ -362,7 +362,7 @@ Output:
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"xobject_test" end time: Mar 02 02:36 +06
+"xobject_test" end time: Mar 02 05:46 +06
 "xobject_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -370,7 +370,7 @@ Test Passed.
 4/7 Test: interpreter_test
 Command: "/home/DATA/CODE/code/Xell/build/interpreter_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"interpreter_test" start time: Mar 02 02:36 +06
+"interpreter_test" start time: Mar 02 05:46 +06
 Output:
 ----------------------------------------------------------
 
@@ -611,14 +611,88 @@ Output:
   PASS: simple comparison
   PASS: chained less than
 
+===== Int / Float Distinction =====
+  PASS: int literal type
+  PASS: float literal type
+  PASS: int + int = int
+  PASS: int + float = float
+  PASS: int * int = int
+  PASS: int / int exact = int
+  PASS: int / int inexact = float
+  PASS: int % int = int
+  PASS: int - int = int
+  PASS: unary minus int = int
+  PASS: prefix ++ on int stays int
+  PASS: postfix ++ on int stays int
+  PASS: int() conversion
+  PASS: float() conversion
+  PASS: cross-type equality int == float
+  PASS: range returns ints
+  PASS: len returns int
+  PASS: floor/ceil/round return int
+
+===== Complex Numbers =====
+  PASS: imaginary literal type
+  PASS: complex from addition
+  PASS: complex from subtraction
+  PASS: pure imaginary
+  PASS: complex + complex
+  PASS: complex - complex
+  PASS: complex * complex
+  PASS: complex / complex
+  PASS: complex + int
+  PASS: int + complex
+  PASS: unary minus complex
+  PASS: complex equality
+  PASS: complex inequality
+  PASS: complex() builtin
+  PASS: real() and imag()
+  PASS: conjugate()
+  PASS: magnitude()
+  PASS: complex is hashable
+  PASS: complex truthy
+  PASS: sqrt of negative = complex
+
+===== Frozen Sets =====
+  PASS: frozen set literal
+  PASS: empty frozen set
+  PASS: frozen set len
+  PASS: frozen set has
+  PASS: frozen set contains
+  PASS: frozen set is immutable (add)
+  PASS: frozen set is immutable (remove)
+  PASS: frozen set equality
+  PASS: frozen set is hashable
+  PASS: frozen set in map key (hashable)
+  PASS: frozen set to_list
+  PASS: frozen set to_tuple
+  PASS: frozen set to_set
+  PASS: frozen set with mixed types
+  PASS: frozen set deduplication
+  PASS: union_set with frozen_set
+  PASS: intersect with frozen_set
+  PASS: diff with frozen_set
+
+===== Hash Enhancements =====
+  PASS: hash int
+  PASS: hash float
+  PASS: hash string
+  PASS: hash complex
+  PASS: hash frozen_set
+  PASS: hash tuple
+  PASS: hash with algorithm
+  PASS: hash_seed
+  PASS: hash_seed complex
+  PASS: hash_seed frozen_set
+
 ============================================
-  Total: 177  |  Passed: 177  |  Failed: 0
+  Total: 243  |  Passed: 243  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.01 sec
+Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"interpreter_test" end time: Mar 02 02:36 +06
+"interpreter_test" end time: Mar 02 05:46 +06
 "interpreter_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -626,7 +700,7 @@ Test Passed.
 5/7 Test: os_test
 Command: "/home/DATA/CODE/code/Xell/build/os_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"os_test" start time: Mar 02 02:36 +06
+"os_test" start time: Mar 02 05:46 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -710,10 +784,10 @@ Output:
   Total: 61  |  Passed: 61  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.02 sec
+Test time =   0.03 sec
 ----------------------------------------------------------
 Test Passed.
-"os_test" end time: Mar 02 02:36 +06
+"os_test" end time: Mar 02 05:46 +06
 "os_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -721,7 +795,7 @@ Test Passed.
 6/7 Test: bring_test
 Command: "/home/DATA/CODE/code/Xell/build/bring_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"bring_test" start time: Mar 02 02:36 +06
+"bring_test" start time: Mar 02 05:46 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -768,7 +842,7 @@ Output:
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"bring_test" end time: Mar 02 02:36 +06
+"bring_test" end time: Mar 02 05:46 +06
 "bring_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -776,7 +850,7 @@ Test Passed.
 7/7 Test: shell_test
 Command: "/home/DATA/CODE/code/Xell/build/shell_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"shell_test" start time: Mar 02 02:36 +06
+"shell_test" start time: Mar 02 05:46 +06
 Output:
 ----------------------------------------------------------
 done
@@ -835,11 +909,11 @@ done
   Total: 40  |  Passed: 40  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.05 sec
+Test time =   0.06 sec
 ----------------------------------------------------------
 Test Passed.
-"shell_test" end time: Mar 02 02:36 +06
+"shell_test" end time: Mar 02 05:46 +06
 "shell_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Mar 02 02:36 +06
+End testing: Mar 02 05:46 +06

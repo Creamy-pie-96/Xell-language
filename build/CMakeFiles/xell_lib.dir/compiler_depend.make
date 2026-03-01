@@ -5,17 +5,20 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /home/DATA/CODE/code/Xell/src/os/os.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtin_registry.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_collection.hpp \
+  /home/DATA/CODE/code/Xell/src/builtins/builtins_hash.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_io.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_math.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_os.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_type.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_util.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/register_all.hpp \
+  /home/DATA/CODE/code/Xell/src/hash/hash_algorithm.hpp \
   /home/DATA/CODE/code/Xell/src/lexer/lexer.hpp \
   /home/DATA/CODE/code/Xell/src/lexer/token.hpp \
   /home/DATA/CODE/code/Xell/src/lib/errors/error.hpp \
   /home/DATA/CODE/code/Xell/src/parser/ast.hpp \
   /home/DATA/CODE/code/Xell/src/parser/parser.hpp \
+  /home/DATA/CODE/code/Xell/src/xobject/ordered_hash_table.hpp \
   /home/DATA/CODE/code/Xell/src/interpreter/environment.hpp \
   /home/DATA/CODE/code/Xell/src/interpreter/interpreter.hpp \
   /home/DATA/CODE/code/Xell/src/interpreter/shell_state.hpp \
@@ -129,6 +132,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/c++/13/cstdint \
   /usr/include/c++/13/cstdio \
   /usr/include/c++/13/cstdlib \
+  /usr/include/c++/13/cstring \
   /usr/include/c++/13/ctime \
   /usr/include/c++/13/cwchar \
   /usr/include/c++/13/cwctype \
@@ -199,6 +203,8 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/stdint.h \
   /usr/include/stdio.h \
   /usr/include/stdlib.h \
+  /usr/include/string.h \
+  /usr/include/strings.h \
   /usr/include/time.h \
   /usr/include/wchar.h \
   /usr/include/wctype.h \
@@ -241,6 +247,8 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/x86_64-linux-gnu/bits/stdlib-bsearch.h \
   /usr/include/x86_64-linux-gnu/bits/stdlib-float.h \
   /usr/include/x86_64-linux-gnu/bits/stdlib.h \
+  /usr/include/x86_64-linux-gnu/bits/string_fortified.h \
+  /usr/include/x86_64-linux-gnu/bits/strings_fortified.h \
   /usr/include/x86_64-linux-gnu/bits/struct_mutex.h \
   /usr/include/x86_64-linux-gnu/bits/struct_rwlock.h \
   /usr/include/x86_64-linux-gnu/bits/thread-shared-types.h \
@@ -308,6 +316,9 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/lib/gcc/x86_64-linux-gnu/13/include/stdint.h
 
 CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o: /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp \
+  /home/DATA/CODE/code/Xell/src/hash/hash_algorithm.hpp \
+  /home/DATA/CODE/code/Xell/src/lib/errors/error.hpp \
+  /home/DATA/CODE/code/Xell/src/xobject/ordered_hash_table.hpp \
   /home/DATA/CODE/code/Xell/src/interpreter/xobject.hpp \
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
@@ -385,6 +396,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o: /home/DATA/CODE/code/Xell
   /usr/include/c++/13/bits/stl_iterator_base_types.h \
   /usr/include/c++/13/bits/stl_pair.h \
   /usr/include/c++/13/bits/stl_raw_storage_iter.h \
+  /usr/include/c++/13/bits/stl_relops.h \
   /usr/include/c++/13/bits/stl_tempbuf.h \
   /usr/include/c++/13/bits/stl_uninitialized.h \
   /usr/include/c++/13/bits/stl_vector.h \
@@ -456,6 +468,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o: /home/DATA/CODE/code/Xell
   /usr/include/c++/13/type_traits \
   /usr/include/c++/13/typeinfo \
   /usr/include/c++/13/unordered_map \
+  /usr/include/c++/13/utility \
   /usr/include/c++/13/vector \
   /usr/include/ctype.h \
   /usr/include/endian.h \
@@ -1708,14 +1721,6 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /home/DATA/CODE/code/Xell/src/os/env.cpp:
 
-/usr/include/x86_64-linux-gnu/bits/strings_fortified.h:
-
-/usr/include/x86_64-linux-gnu/bits/string_fortified.h:
-
-/usr/include/string.h:
-
-/usr/include/c++/13/cstring:
-
 /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/stdint.h:
@@ -1780,21 +1785,21 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/types/locale_t.h:
 
-/usr/include/c++/13/cstdio:
+/usr/include/x86_64-linux-gnu/bits/types/clock_t.h:
 
-/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp:
+/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h:
 
-/usr/include/c++/13/fstream:
+/usr/include/x86_64-linux-gnu/bits/types/struct_sigstack.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/__locale_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h:
 
 /usr/include/c++/13/cerrno:
 
 /usr/include/x86_64-linux-gnu/bits/stdint-least.h:
 
-/usr/include/c++/13/cstdint:
-
-/home/DATA/CODE/code/Xell/src/interpreter/interpreter.hpp:
-
-/usr/include/c++/13/cstdlib:
+/usr/include/x86_64-linux-gnu/bits/strings_fortified.h:
 
 /usr/include/c++/13/cctype:
 
@@ -1803,6 +1808,8 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 /usr/include/c++/13/ext/atomicity.h:
 
 /usr/include/c++/13/tr1/gamma.tcc:
+
+/home/DATA/CODE/code/Xell/src/hash/hash_algorithm.hpp:
 
 /usr/include/c++/13/tr1/poly_hermite.tcc:
 
@@ -1815,12 +1822,6 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 /usr/include/c++/13/bits/uses_allocator_args.h:
 
 /usr/include/c++/13/bits/atomic_base.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h:
-
-/usr/include/c++/13/bits/unique_ptr.h:
-
-/usr/include/c++/13/bits/align.h:
 
 /usr/include/c++/13/bits/unordered_map.h:
 
@@ -1854,13 +1855,13 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/bits/postypes.h:
 
-/usr/include/signal.h:
-
-/usr/include/strings.h:
-
-/usr/include/c++/13/iomanip:
-
 /usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h:
+
+/home/DATA/CODE/code/Xell/src/interpreter/interpreter.hpp:
+
+/usr/include/c++/13/cstdint:
+
+/usr/include/c++/13/cstdlib:
 
 /usr/include/c++/13/bits/sstream.tcc:
 
@@ -1888,8 +1889,6 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/bits/memoryfwd.h:
 
-/usr/include/c++/13/bits/locale_facets_nonio.tcc:
-
 /usr/include/c++/13/bits/stl_heap.h:
 
 /usr/include/c++/13/utility:
@@ -1906,7 +1905,11 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/bits/ios_base.h:
 
-/usr/include/c++/13/bits/enable_special_members.h:
+/usr/include/c++/13/bits/invoke.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/error_t.h:
+
+/usr/include/c++/13/bits/hashtable.h:
 
 /home/DATA/CODE/code/Xell/src/lexer/lexer.hpp:
 
@@ -1928,13 +1931,11 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/errno.h:
 
-/usr/include/assert.h:
-
-/usr/include/c++/13/backward/auto_ptr.h:
-
 /home/DATA/CODE/code/Xell/src/parser/parser.hpp:
 
-/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h:
+/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h:
+
+/home/DATA/CODE/code/Xell/src/interpreter/xobject.hpp:
 
 /usr/include/c++/13/bits/stl_raw_storage_iter.h:
 
@@ -1942,7 +1943,9 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/algorithm:
 
-/usr/include/c++/13/array:
+/usr/include/c++/13/bits/basic_ios.tcc:
+
+/usr/include/c++/13/pstl/execution_defs.h:
 
 /usr/include/x86_64-linux-gnu/sys/wait.h:
 
@@ -1954,67 +1957,19 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/math-vector.h:
 
-/usr/include/c++/13/bits/basic_ios.tcc:
+/usr/include/c++/13/array:
 
-/usr/include/c++/13/pstl/execution_defs.h:
+/usr/include/c++/13/bits/enable_special_members.h:
 
-/usr/include/c++/13/bits/stringfwd.h:
+/usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h:
 
-/usr/include/c++/13/backward/binders.h:
+/usr/include/c++/13/bits/unique_ptr.h:
 
-/usr/include/c++/13/bits/uniform_int_dist.h:
+/usr/include/c++/13/bits/align.h:
 
-/usr/include/c++/13/bits/locale_classes.tcc:
+/usr/include/c++/13/bits/locale_facets_nonio.tcc:
 
-/usr/include/c++/13/bits/atomic_lockfree_defines.h:
-
-/usr/include/x86_64-linux-gnu/asm/errno.h:
-
-/usr/include/x86_64-linux-gnu/bits/stdlib.h:
-
-/usr/include/c++/13/bits/allocated_ptr.h:
-
-/usr/include/c++/13/bit:
-
-/usr/include/c++/13/bits/basic_string.tcc:
-
-/usr/include/c++/13/bits/shared_ptr.h:
-
-/usr/include/x86_64-linux-gnu/bits/struct_mutex.h:
-
-/home/DATA/CODE/code/Xell/src/parser/ast.hpp:
-
-/usr/include/c++/13/ext/concurrence.h:
-
-/usr/include/c++/13/pstl/glue_algorithm_defs.h:
-
-/usr/include/c++/13/bits/ostream_insert.h:
-
-/home/DATA/CODE/code/Xell/src/interpreter/interpreter.cpp:
-
-/usr/include/c++/13/tr1/modified_bessel_func.tcc:
-
-/home/DATA/CODE/code/Xell/src/os/os.hpp:
-
-/home/DATA/CODE/code/Xell/src/builtins/builtin_registry.hpp:
-
-/usr/include/x86_64-linux-gnu/gnu/stubs.h:
-
-/home/DATA/CODE/code/Xell/src/builtins/builtins_collection.hpp:
-
-/usr/include/c++/13/bits/cxxabi_forced.h:
-
-/home/DATA/CODE/code/Xell/src/builtins/builtins_type.hpp:
-
-/usr/include/c++/13/bits/stl_algobase.h:
-
-/usr/include/c++/13/bits/requires_hosted.h:
-
-/usr/include/x86_64-linux-gnu/bits/floatn-common.h:
-
-/home/DATA/CODE/code/Xell/src/builtins/builtins_math.hpp:
-
-/home/DATA/CODE/code/Xell/src/builtins/builtins_os.hpp:
+/home/DATA/CODE/code/Xell/src/xobject/ordered_hash_table.hpp:
 
 /usr/include/x86_64-linux-gnu/bits/types/__sigval_t.h:
 
@@ -2030,15 +1985,87 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/iosfwd:
 
-/home/DATA/CODE/code/Xell/src/builtins/builtins_util.hpp:
+/usr/include/c++/13/bits/atomic_lockfree_defines.h:
 
-/home/DATA/CODE/code/Xell/src/lexer/token.hpp:
+/usr/include/x86_64-linux-gnu/asm/errno.h:
+
+/usr/include/x86_64-linux-gnu/bits/stdlib.h:
+
+/usr/include/c++/13/bits/allocated_ptr.h:
+
+/usr/include/c++/13/bit:
+
+/usr/include/c++/13/bits/basic_string.tcc:
+
+/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:
+
+/usr/include/c++/13/bits/charconv.h:
+
+/usr/include/c++/13/cstdio:
+
+/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp:
+
+/usr/include/c++/13/fstream:
 
 /usr/include/c++/13/istream:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:
 
 /usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h:
+
+/usr/include/c++/13/bits/ostream_insert.h:
+
+/home/DATA/CODE/code/Xell/src/interpreter/interpreter.cpp:
+
+/usr/include/c++/13/tr1/modified_bessel_func.tcc:
+
+/home/DATA/CODE/code/Xell/src/os/os.hpp:
+
+/home/DATA/CODE/code/Xell/src/builtins/builtin_registry.hpp:
+
+/usr/include/c++/13/bits/stringfwd.h:
+
+/usr/include/c++/13/bits/shared_ptr.h:
+
+/usr/include/x86_64-linux-gnu/bits/struct_mutex.h:
+
+/home/DATA/CODE/code/Xell/src/parser/ast.hpp:
+
+/usr/include/c++/13/ext/concurrence.h:
+
+/usr/include/c++/13/pstl/glue_algorithm_defs.h:
+
+/usr/include/x86_64-linux-gnu/gnu/stubs.h:
+
+/home/DATA/CODE/code/Xell/src/builtins/builtins_collection.hpp:
+
+/usr/include/c++/13/bits/cxxabi_forced.h:
+
+/usr/include/assert.h:
+
+/usr/include/c++/13/backward/auto_ptr.h:
+
+/home/DATA/CODE/code/Xell/src/builtins/builtins_type.hpp:
+
+/usr/include/c++/13/bits/stl_algobase.h:
+
+/home/DATA/CODE/code/Xell/src/lexer/token.hpp:
+
+/home/DATA/CODE/code/Xell/src/builtins/builtins_util.hpp:
+
+/usr/include/c++/13/bits/requires_hosted.h:
+
+/usr/include/x86_64-linux-gnu/bits/floatn-common.h:
+
+/home/DATA/CODE/code/Xell/src/builtins/builtins_math.hpp:
+
+/home/DATA/CODE/code/Xell/src/builtins/builtins_os.hpp:
+
+/usr/include/c++/13/backward/binders.h:
+
+/usr/include/c++/13/bits/uniform_int_dist.h:
+
+/usr/include/c++/13/bits/locale_classes.tcc:
 
 /usr/include/x86_64-linux-gnu/bits/long-double.h:
 
@@ -2055,6 +2082,10 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 /usr/include/x86_64-linux-gnu/gnu/stubs-64.h:
 
 /usr/include/c++/13/bits/node_handle.h:
+
+/usr/include/wchar.h:
+
+/usr/include/c++/13/bits/shared_ptr_base.h:
 
 /usr/include/c++/13/bits/basic_ios.h:
 
@@ -2076,25 +2107,11 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/endianness.h:
 
-/usr/include/c++/13/bits/shared_ptr_base.h:
-
-/usr/include/wchar.h:
-
-/usr/include/c++/13/bits/invoke.h:
-
 /usr/include/alloca.h:
 
 /usr/include/c++/13/bits/refwrap.h:
 
-/home/DATA/CODE/code/Xell/src/interpreter/xobject.hpp:
-
-/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h:
-
 /home/DATA/CODE/code/Xell/src/builtins/builtins_io.hpp:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_sigstack.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/__locale_t.h:
 
 /usr/include/c++/13/bits/fstream.tcc:
 
@@ -2113,8 +2130,6 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 /usr/include/c++/13/bits/char_traits.h:
 
 /usr/include/c++/13/bits/hashtable_policy.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/clock_t.h:
 
 /usr/include/c++/13/ostream:
 
@@ -2136,6 +2151,10 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/bits/exception_defines.h:
 
+/usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
+
+/usr/include/math.h:
+
 /usr/include/c++/13/bits/cxxabi_init_exception.h:
 
 /usr/include/x86_64-linux-gnu/c++/13/bits/c++io.h:
@@ -2150,9 +2169,7 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/stdlib-float.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/error_t.h:
-
-/usr/include/c++/13/bits/hashtable.h:
+/usr/include/c++/13/cstring:
 
 /usr/include/c++/13/ctime:
 
@@ -2214,6 +2231,12 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/pstl/glue_memory_defs.h:
 
+/usr/include/signal.h:
+
+/usr/include/c++/13/iomanip:
+
+/usr/include/strings.h:
+
 /usr/include/x86_64-linux-gnu/bits/struct_rwlock.h:
 
 /usr/include/c++/13/pstl/pstl_config.h:
@@ -2260,6 +2283,8 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/vector:
 
+/home/DATA/CODE/code/Xell/src/builtins/builtins_hash.hpp:
+
 /usr/include/ctype.h:
 
 /usr/include/features.h:
@@ -2285,6 +2310,10 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 /usr/include/stdio.h:
 
 /usr/include/stdlib.h:
+
+/usr/include/string.h:
+
+/usr/include/x86_64-linux-gnu/bits/stdio.h:
 
 /usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h:
 
@@ -2316,15 +2345,11 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/setjmp.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h:
-
 /usr/include/x86_64-linux-gnu/c++/13/bits/gthr-default.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
 
 /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h:
-
-/usr/include/x86_64-linux-gnu/bits/stdio.h:
 
 /usr/include/c++/13/bits/ptr_traits.h:
 
@@ -2346,6 +2371,8 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/stdlib-bsearch.h:
 
+/usr/include/x86_64-linux-gnu/bits/string_fortified.h:
+
 /usr/include/x86_64-linux-gnu/bits/select.h:
 
 /usr/include/x86_64-linux-gnu/bits/time.h:
@@ -2353,11 +2380,3 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 /usr/include/c++/13/bits/locale_classes.h:
 
 /usr/include/x86_64-linux-gnu/bits/timesize.h:
-
-/usr/include/math.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
-
-/usr/include/c++/13/bits/charconv.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:

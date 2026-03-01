@@ -1,4 +1,5 @@
 #include "xobject.hpp"
+#include "../lib/errors/error.hpp"
 #include <sstream>
 #include <cmath>
 #include <cstring>
@@ -27,14 +28,24 @@ namespace xell
         {
         case XType::NONE:
             return "none";
-        case XType::NUMBER:
-            return "number";
+        case XType::INT:
+            return "int";
+        case XType::FLOAT:
+            return "float";
+        case XType::COMPLEX:
+            return "complex";
         case XType::BOOL:
             return "bool";
         case XType::STRING:
             return "string";
         case XType::LIST:
             return "list";
+        case XType::TUPLE:
+            return "tuple";
+        case XType::SET:
+            return "set";
+        case XType::FROZEN_SET:
+            return "frozen_set";
         case XType::MAP:
             return "map";
         case XType::FUNCTION:
@@ -44,50 +55,52 @@ namespace xell
     }
 
     // ========================================================================
+    // XSet methods
+    // ========================================================================
+
+    void XSet::add(const XObject &elem) { table.set(elem, true); }
+    bool XSet::remove(const XObject &elem) { return table.remove(elem); }
+    bool XSet::has(const XObject &elem) const { return table.has(elem); }
+    size_t XSet::size() const { return table.size(); }
+    bool XSet::empty() const { return table.empty(); }
+    void XSet::clear() { table.clear(); }
+    std::vector<XObject> XSet::elements() const { return table.keys(); }
+
+    // ========================================================================
     // XMap methods
     // ========================================================================
 
+    void XMap::set(const XObject &key, XObject value) { table.set(key, std::move(value)); }
+    XObject *XMap::get(const XObject &key) { return table.get(key); }
+    const XObject *XMap::get(const XObject &key) const { return table.get(key); }
+    bool XMap::has(const XObject &key) const { return table.has(key); }
+    bool XMap::remove(const XObject &key) { return table.remove(key); }
+
+    // String key convenience
     void XMap::set(const std::string &key, XObject value)
     {
-        auto it = index.find(key);
-        if (it != index.end())
-        {
-            // Key exists — overwrite value in place
-            entries[it->second].second = std::move(value);
-        }
-        else
-        {
-            // New key — append and record index
-            index[key] = entries.size();
-            entries.emplace_back(key, std::move(value));
-        }
+        XObject k = XObject::makeString(key);
+        table.set(k, std::move(value));
     }
-
     XObject *XMap::get(const std::string &key)
     {
-        auto it = index.find(key);
-        if (it == index.end())
-            return nullptr;
-        return &entries[it->second].second;
+        XObject k = XObject::makeString(key);
+        return table.get(k);
     }
-
     const XObject *XMap::get(const std::string &key) const
     {
-        auto it = index.find(key);
-        if (it == index.end())
-            return nullptr;
-        return &entries[it->second].second;
+        XObject k = XObject::makeString(key);
+        return table.get(k);
     }
-
     bool XMap::has(const std::string &key) const
     {
-        return index.find(key) != index.end();
+        XObject k = XObject::makeString(key);
+        return table.has(k);
     }
 
-    size_t XMap::size() const
-    {
-        return entries.size();
-    }
+    size_t XMap::size() const { return table.size(); }
+    bool XMap::empty() const { return table.empty(); }
+    void XMap::clear() { table.clear(); }
 
     // ========================================================================
     // Payload allocation helpers (raw new/delete, tracked)
@@ -108,8 +121,14 @@ namespace xell
         {
         case XType::NONE:
             break; // no payload
-        case XType::NUMBER:
+        case XType::INT:
+            delete static_cast<int64_t *>(payload);
+            break;
+        case XType::FLOAT:
             delete static_cast<double *>(payload);
+            break;
+        case XType::COMPLEX:
+            delete static_cast<XComplex *>(payload);
             break;
         case XType::BOOL:
             delete static_cast<bool *>(payload);
@@ -119,6 +138,15 @@ namespace xell
             break;
         case XType::LIST:
             delete static_cast<XList *>(payload);
+            break;
+        case XType::TUPLE:
+            delete static_cast<XTuple *>(payload);
+            break;
+        case XType::SET:
+            delete static_cast<XSet *>(payload);
+            break;
+        case XType::FROZEN_SET:
+            delete static_cast<XSet *>(payload);
             break;
         case XType::MAP:
             delete static_cast<XMap *>(payload);
@@ -138,10 +166,35 @@ namespace xell
         return XObject(allocData(XType::NONE, nullptr));
     }
 
-    XObject XObject::makeNumber(double value)
+    XObject XObject::makeInt(int64_t value)
+    {
+        int64_t *p = new int64_t(value);
+        return XObject(allocData(XType::INT, p));
+    }
+
+    XObject XObject::makeFloat(double value)
     {
         double *p = new double(value);
-        return XObject(allocData(XType::NUMBER, p));
+        return XObject(allocData(XType::FLOAT, p));
+    }
+
+    XObject XObject::makeNumber(double value)
+    {
+        // Backward compat: creates FLOAT
+        double *p = new double(value);
+        return XObject(allocData(XType::FLOAT, p));
+    }
+
+    XObject XObject::makeComplex(double real, double imag)
+    {
+        XComplex *p = new XComplex(real, imag);
+        return XObject(allocData(XType::COMPLEX, p));
+    }
+
+    XObject XObject::makeComplex(const XComplex &c)
+    {
+        XComplex *p = new XComplex(c);
+        return XObject(allocData(XType::COMPLEX, p));
     }
 
     XObject XObject::makeBool(bool value)
@@ -172,6 +225,36 @@ namespace xell
     {
         XList *p = new XList(std::move(elements));
         return XObject(allocData(XType::LIST, p));
+    }
+
+    XObject XObject::makeTuple(XTuple &&elements)
+    {
+        XTuple *p = new XTuple(std::move(elements));
+        return XObject(allocData(XType::TUPLE, p));
+    }
+
+    XObject XObject::makeSet()
+    {
+        XSet *p = new XSet();
+        return XObject(allocData(XType::SET, p));
+    }
+
+    XObject XObject::makeSet(XSet &&set)
+    {
+        XSet *p = new XSet(std::move(set));
+        return XObject(allocData(XType::SET, p));
+    }
+
+    XObject XObject::makeFrozenSet()
+    {
+        XSet *p = new XSet();
+        return XObject(allocData(XType::FROZEN_SET, p));
+    }
+
+    XObject XObject::makeFrozenSet(XSet &&set)
+    {
+        XSet *p = new XSet(std::move(set));
+        return XObject(allocData(XType::FROZEN_SET, p));
     }
 
     XObject XObject::makeMap()
@@ -283,10 +366,17 @@ namespace xell
 
     XType XObject::type() const { return data_ ? data_->type : XType::NONE; }
     bool XObject::isNone() const { return type() == XType::NONE; }
-    bool XObject::isNumber() const { return type() == XType::NUMBER; }
+    bool XObject::isInt() const { return type() == XType::INT; }
+    bool XObject::isFloat() const { return type() == XType::FLOAT; }
+    bool XObject::isComplex() const { return type() == XType::COMPLEX; }
+    bool XObject::isNumber() const { return type() == XType::INT || type() == XType::FLOAT; }
+    bool XObject::isNumeric() const { return type() == XType::INT || type() == XType::FLOAT || type() == XType::COMPLEX; }
     bool XObject::isBool() const { return type() == XType::BOOL; }
     bool XObject::isString() const { return type() == XType::STRING; }
     bool XObject::isList() const { return type() == XType::LIST; }
+    bool XObject::isTuple() const { return type() == XType::TUPLE; }
+    bool XObject::isSet() const { return type() == XType::SET; }
+    bool XObject::isFrozenSet() const { return type() == XType::FROZEN_SET; }
     bool XObject::isMap() const { return type() == XType::MAP; }
     bool XObject::isFunction() const { return type() == XType::FUNCTION; }
 
@@ -294,8 +384,26 @@ namespace xell
     // Payload access (unchecked — caller must verify type)
     // ========================================================================
 
+    int64_t XObject::asInt() const
+    {
+        return *static_cast<int64_t *>(data_->payload);
+    }
+
+    double XObject::asFloat() const
+    {
+        return *static_cast<double *>(data_->payload);
+    }
+
+    const XComplex &XObject::asComplex() const
+    {
+        return *static_cast<XComplex *>(data_->payload);
+    }
+
     double XObject::asNumber() const
     {
+        // Backward compat: returns double for INT or FLOAT
+        if (type() == XType::INT)
+            return static_cast<double>(asInt());
         return *static_cast<double *>(data_->payload);
     }
 
@@ -322,6 +430,26 @@ namespace xell
     XList &XObject::asListMut()
     {
         return *static_cast<XList *>(data_->payload);
+    }
+
+    const XTuple &XObject::asTuple() const
+    {
+        return *static_cast<XTuple *>(data_->payload);
+    }
+
+    const XSet &XObject::asSet() const
+    {
+        return *static_cast<XSet *>(data_->payload);
+    }
+
+    XSet &XObject::asSetMut()
+    {
+        return *static_cast<XSet *>(data_->payload);
+    }
+
+    const XSet &XObject::asFrozenSet() const
+    {
+        return *static_cast<XSet *>(data_->payload);
     }
 
     const XMap &XObject::asMap() const
@@ -351,14 +479,24 @@ namespace xell
             return false;
         case XType::BOOL:
             return asBool();
-        case XType::NUMBER:
-            return asNumber() != 0.0;
+        case XType::INT:
+            return asInt() != 0;
+        case XType::FLOAT:
+            return asFloat() != 0.0;
+        case XType::COMPLEX:
+            return asComplex().real != 0.0 || asComplex().imag != 0.0;
         case XType::STRING:
             return !asString().empty();
         case XType::LIST:
             return !asList().empty();
+        case XType::TUPLE:
+            return !asTuple().empty();
+        case XType::SET:
+            return !asSet().empty();
+        case XType::FROZEN_SET:
+            return !asFrozenSet().empty();
         case XType::MAP:
-            return !asMap().entries.empty();
+            return !asMap().empty();
         case XType::FUNCTION:
             return true;
         }
@@ -375,8 +513,12 @@ namespace xell
         {
         case XType::NONE:
             return makeNone();
-        case XType::NUMBER:
-            return makeNumber(asNumber());
+        case XType::INT:
+            return makeInt(asInt());
+        case XType::FLOAT:
+            return makeFloat(asFloat());
+        case XType::COMPLEX:
+            return makeComplex(asComplex());
         case XType::BOOL:
             return makeBool(asBool());
         case XType::STRING:
@@ -391,12 +533,40 @@ namespace xell
             }
             return makeList(std::move(clonedList));
         }
+        case XType::TUPLE:
+        {
+            XTuple clonedTuple;
+            clonedTuple.reserve(asTuple().size());
+            for (const auto &elem : asTuple())
+            {
+                clonedTuple.push_back(elem.clone());
+            }
+            return makeTuple(std::move(clonedTuple));
+        }
+        case XType::SET:
+        {
+            XSet clonedSet;
+            for (const auto &elem : asSet().elements())
+            {
+                clonedSet.add(elem.clone());
+            }
+            return makeSet(std::move(clonedSet));
+        }
+        case XType::FROZEN_SET:
+        {
+            XSet clonedSet;
+            for (const auto &elem : asFrozenSet().elements())
+            {
+                clonedSet.add(elem.clone());
+            }
+            return makeFrozenSet(std::move(clonedSet));
+        }
         case XType::MAP:
         {
             XMap clonedMap;
-            for (const auto &[key, val] : asMap().entries)
+            for (auto it = asMap().begin(); it.valid(); it.next())
             {
-                clonedMap.set(key, val.clone());
+                clonedMap.set(it.key().clone(), it.value().clone());
             }
             return makeMap(std::move(clonedMap));
         }
@@ -420,19 +590,41 @@ namespace xell
         case XType::NONE:
             return "none";
 
-        case XType::NUMBER:
+        case XType::INT:
+            return std::to_string(asInt());
+
+        case XType::FLOAT:
         {
-            double val = asNumber();
+            double val = asFloat();
             // Print integers without decimal point
             if (val == std::floor(val) && std::isfinite(val))
             {
-                // Check if it fits in a long long for clean printing
                 long long intVal = static_cast<long long>(val);
                 return std::to_string(intVal);
             }
-            // For actual floats, use ostringstream for clean output
             std::ostringstream oss;
             oss << val;
+            return oss.str();
+        }
+
+        case XType::COMPLEX:
+        {
+            const XComplex &c = asComplex();
+            std::ostringstream oss;
+            oss << "(";
+            // Always print real part
+            if (c.real == std::floor(c.real) && std::isfinite(c.real))
+                oss << static_cast<long long>(c.real);
+            else
+                oss << c.real;
+            // Print sign + imaginary part
+            if (c.imag >= 0.0)
+                oss << "+";
+            if (c.imag == std::floor(c.imag) && std::isfinite(c.imag))
+                oss << static_cast<long long>(c.imag);
+            else
+                oss << c.imag;
+            oss << "i)";
             return oss.str();
         }
 
@@ -451,7 +643,6 @@ namespace xell
             {
                 if (i > 0)
                     oss << ", ";
-                // Strings get quoted in list representation
                 if (list[i].isString())
                     oss << "\"" << list[i].asString() << "\"";
                 else
@@ -461,20 +652,86 @@ namespace xell
             return oss.str();
         }
 
+        case XType::TUPLE:
+        {
+            std::ostringstream oss;
+            oss << "(";
+            const auto &tup = asTuple();
+            for (size_t i = 0; i < tup.size(); i++)
+            {
+                if (i > 0)
+                    oss << ", ";
+                if (tup[i].isString())
+                    oss << "\"" << tup[i].asString() << "\"";
+                else
+                    oss << tup[i].toString();
+            }
+            if (tup.size() == 1)
+                oss << ","; // trailing comma for single-element tuple
+            oss << ")";
+            return oss.str();
+        }
+
+        case XType::SET:
+        {
+            if (asSet().empty())
+                return "set()";
+            std::ostringstream oss;
+            oss << "{";
+            auto elems = asSet().elements();
+            for (size_t i = 0; i < elems.size(); i++)
+            {
+                if (i > 0)
+                    oss << ", ";
+                if (elems[i].isString())
+                    oss << "\"" << elems[i].asString() << "\"";
+                else
+                    oss << elems[i].toString();
+            }
+            oss << "}";
+            return oss.str();
+        }
+
+        case XType::FROZEN_SET:
+        {
+            if (asFrozenSet().empty())
+                return "<>";
+            std::ostringstream oss;
+            oss << "<";
+            auto elems = asFrozenSet().elements();
+            for (size_t i = 0; i < elems.size(); i++)
+            {
+                if (i > 0)
+                    oss << ", ";
+                if (elems[i].isString())
+                    oss << "\"" << elems[i].asString() << "\"";
+                else
+                    oss << elems[i].toString();
+            }
+            oss << ">";
+            return oss.str();
+        }
+
         case XType::MAP:
         {
             std::ostringstream oss;
             oss << "{";
-            const auto &map = asMap();
-            for (size_t i = 0; i < map.entries.size(); i++)
+            size_t i = 0;
+            for (auto it = asMap().begin(); it.valid(); it.next(), i++)
             {
                 if (i > 0)
                     oss << ", ";
-                oss << map.entries[i].first << ": ";
-                if (map.entries[i].second.isString())
-                    oss << "\"" << map.entries[i].second.asString() << "\"";
+                // Show key: strings without quotes (identifier-like), others as toString
+                if (it.key().isString())
+                    oss << it.key().asString();
                 else
-                    oss << map.entries[i].second.toString();
+                    oss << it.key().toString();
+                oss << ": ";
+                // Show value: strings with quotes
+                if (it.value().isString())
+                    oss << "\"" << it.value().asString() << "\"";
+                else
+                    oss << it.value().toString();
             }
             oss << "}";
             return oss.str();
@@ -497,7 +754,21 @@ namespace xell
         if (data_ == other.data_)
             return true;
 
-        // Different types are never equal
+        // Numeric cross-type equality: int == float, int == complex, float == complex
+        if (isNumeric() && other.isNumeric())
+        {
+            // If either is complex, compare as complex
+            if (isComplex() || other.isComplex())
+            {
+                XComplex a = isComplex() ? asComplex() : XComplex(asNumber(), 0.0);
+                XComplex b = other.isComplex() ? other.asComplex() : XComplex(other.asNumber(), 0.0);
+                return a == b;
+            }
+            // Both are int/float — compare as double
+            return asNumber() == other.asNumber();
+        }
+
+        // Different types are never equal (except numeric cross-type handled above)
         if (type() != other.type())
             return false;
 
@@ -505,8 +776,12 @@ namespace xell
         {
         case XType::NONE:
             return true; // none == none
-        case XType::NUMBER:
-            return asNumber() == other.asNumber();
+        case XType::INT:
+            return asInt() == other.asInt();
+        case XType::FLOAT:
+            return asFloat() == other.asFloat();
+        case XType::COMPLEX:
+            return asComplex() == other.asComplex();
         case XType::BOOL:
             return asBool() == other.asBool();
         case XType::STRING:
@@ -524,16 +799,55 @@ namespace xell
             }
             return true;
         }
+        case XType::TUPLE:
+        {
+            const auto &a = asTuple();
+            const auto &b = other.asTuple();
+            if (a.size() != b.size())
+                return false;
+            for (size_t i = 0; i < a.size(); i++)
+            {
+                if (!a[i].equals(b[i]))
+                    return false;
+            }
+            return true;
+        }
+        case XType::SET:
+        {
+            const auto &a = asSet();
+            const auto &b = other.asSet();
+            if (a.size() != b.size())
+                return false;
+            for (const auto &elem : a.elements())
+            {
+                if (!b.has(elem))
+                    return false;
+            }
+            return true;
+        }
+        case XType::FROZEN_SET:
+        {
+            const auto &a = asFrozenSet();
+            const auto &b = other.asFrozenSet();
+            if (a.size() != b.size())
+                return false;
+            for (const auto &elem : a.elements())
+            {
+                if (!b.has(elem))
+                    return false;
+            }
+            return true;
+        }
         case XType::MAP:
         {
             const auto &a = asMap();
             const auto &b = other.asMap();
-            if (a.entries.size() != b.entries.size())
+            if (a.size() != b.size())
                 return false;
-            for (const auto &[key, val] : a.entries)
+            for (auto it = a.begin(); it.valid(); it.next())
             {
-                const XObject *bVal = b.get(key);
-                if (!bVal || !val.equals(*bVal))
+                const XObject *bVal = b.get(it.key());
+                if (!bVal || !it.value().equals(*bVal))
                     return false;
             }
             return true;
@@ -552,6 +866,128 @@ namespace xell
     uint32_t XObject::refCount() const
     {
         return data_ ? data_->refCount.load(std::memory_order_relaxed) : 0;
+    }
+
+    // ========================================================================
+    // Hash support
+    // ========================================================================
+
+    bool isHashable(const XObject &obj)
+    {
+        switch (obj.type())
+        {
+        case XType::NONE:
+        case XType::INT:
+        case XType::FLOAT:
+        case XType::COMPLEX:
+        case XType::BOOL:
+        case XType::STRING:
+            return true;
+        case XType::TUPLE:
+        {
+            // Tuple is hashable only if ALL elements are hashable
+            for (const auto &elem : obj.asTuple())
+            {
+                if (!isHashable(elem))
+                    return false;
+            }
+            return true;
+        }
+        case XType::FROZEN_SET:
+        {
+            // Frozen set is hashable only if ALL elements are hashable
+            for (const auto &elem : obj.asFrozenSet().elements())
+            {
+                if (!isHashable(elem))
+                    return false;
+            }
+            return true;
+        }
+        default:
+            return false; // LIST, SET, MAP, FUNCTION are mutable/non-hashable
+        }
+    }
+
+    size_t hashXObject(const XObject &obj, hash::HashFn hashFn)
+    {
+        switch (obj.type())
+        {
+        case XType::NONE:
+        {
+            const char marker[] = "__xell_none__";
+            return hashFn(marker, sizeof(marker) - 1);
+        }
+        case XType::INT:
+        {
+            // Use specialized integer hash for default algo
+            if (hashFn == hash::fnv1a)
+                return hash::hash_int(obj.asInt());
+            int64_t val = obj.asInt();
+            return hashFn(&val, sizeof(val));
+        }
+        case XType::FLOAT:
+        {
+            if (hashFn == hash::fnv1a)
+                return hash::hash_float(obj.asFloat());
+            double val = obj.asFloat();
+            if (val == 0.0)
+                val = 0.0; // normalize -0.0
+            return hashFn(&val, sizeof(val));
+        }
+        case XType::COMPLEX:
+        {
+            // Hash real and imaginary parts separately and combine
+            const XComplex &c = obj.asComplex();
+            double real = c.real == 0.0 ? 0.0 : c.real;
+            double imag = c.imag == 0.0 ? 0.0 : c.imag;
+            size_t h1 = hashFn(&real, sizeof(real));
+            size_t h2 = hashFn(&imag, sizeof(imag));
+            return hash::hash_combine(h1, h2);
+        }
+        case XType::BOOL:
+        {
+            uint8_t b = obj.asBool() ? 1 : 0;
+            return hashFn(&b, 1);
+        }
+        case XType::STRING:
+            return hashFn(obj.asString().c_str(), obj.asString().size());
+        case XType::TUPLE:
+        {
+            const char seed[] = "__xell_tuple__";
+            size_t h = hashFn(seed, sizeof(seed) - 1);
+            for (const auto &elem : obj.asTuple())
+            {
+                h = hash::hash_combine(h, hashXObject(elem, hashFn));
+            }
+            return h;
+        }
+        case XType::FROZEN_SET:
+        {
+            // Order-independent hash: XOR all element hashes
+            // (XOR is commutative + associative → order doesn't matter)
+            const char seed[] = "__xell_fset__";
+            size_t h = hashFn(seed, sizeof(seed) - 1);
+            for (const auto &elem : obj.asFrozenSet().elements())
+            {
+                h ^= hashXObject(elem, hashFn);
+            }
+            return h;
+        }
+        default:
+            throw HashError("cannot hash mutable type '" +
+                                std::string(xtype_name(obj.type())) + "'",
+                            0);
+        }
+    }
+
+    size_t XObjectHash::operator()(const XObject &obj) const
+    {
+        return hashXObject(obj, hash::fnv1a);
+    }
+
+    bool XObjectEqual::operator()(const XObject &a, const XObject &b) const
+    {
+        return a.equals(b);
     }
 
 } // namespace xell

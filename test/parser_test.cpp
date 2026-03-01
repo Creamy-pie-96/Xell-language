@@ -305,15 +305,15 @@ void test_parse_number_literal()
     auto prog = parseSource("42");
     auto *es = firstStmt<ExprStmt>(prog);
     XASSERT(es != nullptr);
-    auto *num = asExpr<NumberLiteral>(es->expr.get());
-    XASSERT(std::abs(num->value - 42.0) < 0.001);
+    auto *num = asExpr<IntLiteral>(es->expr.get());
+    XASSERT_EQ(num->value, (int64_t)42);
 }
 
 void test_parse_float_literal()
 {
     auto prog = parseSource("3.14");
     auto *es = firstStmt<ExprStmt>(prog);
-    auto *num = asExpr<NumberLiteral>(es->expr.get());
+    auto *num = asExpr<FloatLiteral>(es->expr.get());
     XASSERT(std::abs(num->value - 3.14) < 0.001);
 }
 
@@ -366,8 +366,8 @@ void test_parse_simple_assignment()
     auto *assign = firstStmt<Assignment>(prog);
     XASSERT(assign != nullptr);
     XASSERT_EQ(assign->name, std::string("x"));
-    auto *num = asExpr<NumberLiteral>(assign->value.get());
-    XASSERT(std::abs(num->value - 10.0) < 0.001);
+    auto *num = asExpr<IntLiteral>(assign->value.get());
+    XASSERT_EQ(num->value, (int64_t)10);
 }
 
 void test_parse_string_assignment()
@@ -405,10 +405,10 @@ void test_parse_addition()
     auto *assign = firstStmt<Assignment>(prog);
     auto *bin = asExpr<BinaryExpr>(assign->value.get());
     XASSERT_EQ(bin->op, std::string("+"));
-    auto *left = asExpr<NumberLiteral>(bin->left.get());
-    auto *right = asExpr<NumberLiteral>(bin->right.get());
-    XASSERT(std::abs(left->value - 1.0) < 0.001);
-    XASSERT(std::abs(right->value - 2.0) < 0.001);
+    auto *left = asExpr<IntLiteral>(bin->left.get());
+    auto *right = asExpr<IntLiteral>(bin->right.get());
+    XASSERT_EQ(left->value, (int64_t)1);
+    XASSERT_EQ(right->value, (int64_t)2);
 }
 
 void test_parse_operator_precedence()
@@ -470,8 +470,8 @@ void test_parse_unary_minus()
     auto *assign = firstStmt<Assignment>(prog);
     auto *unary = asExpr<UnaryExpr>(assign->value.get());
     XASSERT_EQ(unary->op, std::string("-"));
-    auto *num = asExpr<NumberLiteral>(unary->operand.get());
-    XASSERT(std::abs(num->value - 5.0) < 0.001);
+    auto *num = asExpr<IntLiteral>(unary->operand.get());
+    XASSERT_EQ(num->value, (int64_t)5);
 }
 
 // =============================================================================
@@ -707,7 +707,7 @@ void test_parse_mixed_list_types()
     auto *assign = firstStmt<Assignment>(prog);
     auto *list = asExpr<ListLiteral>(assign->value.get());
     XASSERT_EQ(list->elements.size(), (size_t)4);
-    asExpr<NumberLiteral>(list->elements[0].get());
+    asExpr<IntLiteral>(list->elements[0].get());
     asExpr<StringLiteral>(list->elements[1].get());
     asExpr<BoolLiteral>(list->elements[2].get());
     XASSERT(dynamic_cast<NoneLiteral *>(list->elements[3].get()) != nullptr);

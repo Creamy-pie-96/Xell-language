@@ -6,17 +6,20 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /home/DATA/CODE/code/Xell/src/os/os.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtin_registry.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_collection.hpp
+ /home/DATA/CODE/code/Xell/src/builtins/builtins_hash.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_io.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_math.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_os.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_type.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_util.hpp
  /home/DATA/CODE/code/Xell/src/builtins/register_all.hpp
+ /home/DATA/CODE/code/Xell/src/hash/hash_algorithm.hpp
  /home/DATA/CODE/code/Xell/src/lexer/lexer.hpp
  /home/DATA/CODE/code/Xell/src/lexer/token.hpp
  /home/DATA/CODE/code/Xell/src/lib/errors/error.hpp
  /home/DATA/CODE/code/Xell/src/parser/ast.hpp
  /home/DATA/CODE/code/Xell/src/parser/parser.hpp
+ /home/DATA/CODE/code/Xell/src/xobject/ordered_hash_table.hpp
  /home/DATA/CODE/code/Xell/src/interpreter/environment.hpp
  /home/DATA/CODE/code/Xell/src/interpreter/interpreter.hpp
  /home/DATA/CODE/code/Xell/src/interpreter/shell_state.hpp
@@ -130,6 +133,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /usr/include/c++/13/cstdint
  /usr/include/c++/13/cstdio
  /usr/include/c++/13/cstdlib
+ /usr/include/c++/13/cstring
  /usr/include/c++/13/ctime
  /usr/include/c++/13/cwchar
  /usr/include/c++/13/cwctype
@@ -200,6 +204,8 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /usr/include/stdint.h
  /usr/include/stdio.h
  /usr/include/stdlib.h
+ /usr/include/string.h
+ /usr/include/strings.h
  /usr/include/time.h
  /usr/include/wchar.h
  /usr/include/wctype.h
@@ -242,6 +248,8 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /usr/include/x86_64-linux-gnu/bits/stdlib-bsearch.h
  /usr/include/x86_64-linux-gnu/bits/stdlib-float.h
  /usr/include/x86_64-linux-gnu/bits/stdlib.h
+ /usr/include/x86_64-linux-gnu/bits/string_fortified.h
+ /usr/include/x86_64-linux-gnu/bits/strings_fortified.h
  /usr/include/x86_64-linux-gnu/bits/struct_mutex.h
  /usr/include/x86_64-linux-gnu/bits/struct_rwlock.h
  /usr/include/x86_64-linux-gnu/bits/thread-shared-types.h
@@ -310,6 +318,9 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
 
 CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o
  /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp
+ /home/DATA/CODE/code/Xell/src/hash/hash_algorithm.hpp
+ /home/DATA/CODE/code/Xell/src/lib/errors/error.hpp
+ /home/DATA/CODE/code/Xell/src/xobject/ordered_hash_table.hpp
  /home/DATA/CODE/code/Xell/src/interpreter/xobject.hpp
  /usr/include/alloca.h
  /usr/include/asm-generic/errno-base.h
@@ -387,6 +398,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o
  /usr/include/c++/13/bits/stl_iterator_base_types.h
  /usr/include/c++/13/bits/stl_pair.h
  /usr/include/c++/13/bits/stl_raw_storage_iter.h
+ /usr/include/c++/13/bits/stl_relops.h
  /usr/include/c++/13/bits/stl_tempbuf.h
  /usr/include/c++/13/bits/stl_uninitialized.h
  /usr/include/c++/13/bits/stl_vector.h
@@ -458,6 +470,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/xobject.cpp.o
  /usr/include/c++/13/type_traits
  /usr/include/c++/13/typeinfo
  /usr/include/c++/13/unordered_map
+ /usr/include/c++/13/utility
  /usr/include/c++/13/vector
  /usr/include/ctype.h
  /usr/include/endian.h
