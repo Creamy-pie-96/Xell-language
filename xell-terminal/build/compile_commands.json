@@ -1,0 +1,38 @@
+[
+{
+  "directory": "/home/DATA/CODE/code/Xell/xell-terminal/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/xell-terminal/src -isystem /usr/include/SDL2 -isystem /usr/include/harfbuzz -isystem /usr/include/freetype2 -isystem /usr/include/libpng16 -isystem /usr/include/glib-2.0 -isystem /usr/lib/x86_64-linux-gnu/glib-2.0/include -g -std=gnu++17 -D_REENTRANT -o CMakeFiles/xell-terminal.dir/src/main.cpp.o -c /home/DATA/CODE/code/Xell/xell-terminal/src/main.cpp",
+  "file": "/home/DATA/CODE/code/Xell/xell-terminal/src/main.cpp",
+  "output": "CMakeFiles/xell-terminal.dir/src/main.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/xell-terminal/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/xell-terminal/src -isystem /usr/include/SDL2 -isystem /usr/include/harfbuzz -isystem /usr/include/freetype2 -isystem /usr/include/libpng16 -isystem /usr/include/glib-2.0 -isystem /usr/lib/x86_64-linux-gnu/glib-2.0/include -g -std=gnu++17 -D_REENTRANT -o CMakeFiles/xell-terminal.dir/src/terminal/screen_buffer.cpp.o -c /home/DATA/CODE/code/Xell/xell-terminal/src/terminal/screen_buffer.cpp",
+  "file": "/home/DATA/CODE/code/Xell/xell-terminal/src/terminal/screen_buffer.cpp",
+  "output": "CMakeFiles/xell-terminal.dir/src/terminal/screen_buffer.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/xell-terminal/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/xell-terminal/src -isystem /usr/include/SDL2 -isystem /usr/include/harfbuzz -isystem /usr/include/freetype2 -isystem /usr/include/libpng16 -isystem /usr/include/glib-2.0 -isystem /usr/lib/x86_64-linux-gnu/glib-2.0/include -g -std=gnu++17 -D_REENTRANT -o CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o -c /home/DATA/CODE/code/Xell/xell-terminal/src/terminal/vt_parser.cpp",
+  "file": "/home/DATA/CODE/code/Xell/xell-terminal/src/terminal/vt_parser.cpp",
+  "output": "CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/xell-terminal/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/xell-terminal/src -isystem /usr/include/SDL2 -isystem /usr/include/harfbuzz -isystem /usr/include/freetype2 -isystem /usr/include/libpng16 -isystem /usr/include/glib-2.0 -isystem /usr/lib/x86_64-linux-gnu/glib-2.0/include -g -std=gnu++17 -D_REENTRANT -o CMakeFiles/xell-terminal.dir/src/terminal/input_handler.cpp.o -c /home/DATA/CODE/code/Xell/xell-terminal/src/terminal/input_handler.cpp",
+  "file": "/home/DATA/CODE/code/Xell/xell-terminal/src/terminal/input_handler.cpp",
+  "output": "CMakeFiles/xell-terminal.dir/src/terminal/input_handler.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/xell-terminal/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/xell-terminal/src -isystem /usr/include/SDL2 -isystem /usr/include/harfbuzz -isystem /usr/include/freetype2 -isystem /usr/include/libpng16 -isystem /usr/include/glib-2.0 -isystem /usr/lib/x86_64-linux-gnu/glib-2.0/include -g -std=gnu++17 -D_REENTRANT -o CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o -c /home/DATA/CODE/code/Xell/xell-terminal/src/renderer/renderer.cpp",
+  "file": "/home/DATA/CODE/code/Xell/xell-terminal/src/renderer/renderer.cpp",
+  "output": "CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/xell-terminal/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/xell-terminal/src -isystem /usr/include/SDL2 -isystem /usr/include/harfbuzz -isystem /usr/include/freetype2 -isystem /usr/include/libpng16 -isystem /usr/include/glib-2.0 -isystem /usr/lib/x86_64-linux-gnu/glib-2.0/include -g -std=gnu++17 -D_REENTRANT -o CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o -c /home/DATA/CODE/code/Xell/xell-terminal/src/pty/pty_unix.cpp",
+  "file": "/home/DATA/CODE/code/Xell/xell-terminal/src/pty/pty_unix.cpp",
+  "output": "CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o"
+}
+]

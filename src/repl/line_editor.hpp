@@ -24,6 +24,10 @@ namespace xell
         LineEditor(Terminal &term, History &hist, Completer &comp)
             : term_(term), history_(hist), completer_(comp) {}
 
+        /// Enable terminal mode: Enter=execute, Shift+Enter=newline.
+        /// In default mode (false): Enter=newline, Shift+Enter=execute.
+        void setTerminalMode(bool enabled) { terminalMode_ = enabled; }
+
         /// Read multiline input from the user.
         /// Enter = newline, Shift+Enter or Alt+Enter = submit.
         /// Returns false on EOF (Ctrl+D on empty buffer).
@@ -49,33 +53,104 @@ namespace xell
                 {
                 case Key::SHIFT_ENTER:
                 case Key::ALT_ENTER:
-                    // Submit
-                    Terminal::write("\r\n");
-                    result = joinLines();
-                    history_.resetCursor();
-                    return true;
-
-                case Key::ENTER:
-                {
-                    // Enter on an empty last line = submit (fallback for
-                    // terminals that can't distinguish Shift+Enter)
-                    std::string content = joinLines();
-                    bool isLastLine = (row_ == lines_.size() - 1);
-                    bool lineIsEmpty = lines_[row_].empty();
-                    bool hasContent = !content.empty() &&
-                                      content.find_first_not_of(" \t\n") != std::string::npos;
-                    if (isLastLine && lineIsEmpty && hasContent)
+                    if (terminalMode_)
                     {
+                        // Terminal mode: Shift+Enter = insert newline
+                        insertNewline();
+                    }
+                    else
+                    {
+                        // Default mode: Shift+Enter = submit
                         Terminal::write("\r\n");
-                        // Remove trailing empty line
-                        while (!lines_.empty() && lines_.back().empty())
-                            lines_.pop_back();
                         result = joinLines();
                         history_.resetCursor();
                         return true;
                     }
-                    // Otherwise: newline — add a new line
-                    insertNewline();
+                    break;
+
+                case Key::ENTER:
+                {
+                    if (terminalMode_)
+                    {
+                        // Terminal mode: Enter = execute (like a normal shell).
+                        // Exception: if the code has unclosed blocks (: without ;),
+                        // treat Enter as newline so user can continue typing.
+                        std::string content = joinLines();
+                        bool hasContent = !content.empty() &&
+                                          content.find_first_not_of(" \t\n") != std::string::npos;
+
+                        if (!hasContent)
+                        {
+                            // Empty input — just show a new prompt
+                            Terminal::write("\r\n");
+                            result.clear();
+                            history_.resetCursor();
+                            return true;
+                        }
+
+                        // Check for unclosed blocks
+                        // Simple heuristic: count unmatched : vs ;
+                        int depth = 0;
+                        bool inStr = false;
+                        for (size_t ci = 0; ci < content.size(); ci++)
+                        {
+                            char cc = content[ci];
+                            if (cc == '"')
+                                inStr = !inStr;
+                            if (inStr)
+                                continue;
+                            if (cc == '#')
+                            {
+                                while (ci < content.size() && content[ci] != '\n')
+                                    ci++;
+                                continue;
+                            }
+                            if (cc == ':')
+                                depth++;
+                            if (cc == ';')
+                                depth--;
+                        }
+
+                        if (depth > 0)
+                        {
+                            // Unclosed block — add newline for continuation
+                            insertNewline();
+                        }
+                        else
+                        {
+                            // Complete expression — execute!
+                            Terminal::write("\r\n");
+                            // Remove trailing empty lines
+                            while (!lines_.empty() && lines_.back().empty())
+                                lines_.pop_back();
+                            result = joinLines();
+                            history_.resetCursor();
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        // Default REPL mode: Enter = newline.
+                        // Enter on an empty last line = submit (fallback for
+                        // terminals that can't distinguish Shift+Enter)
+                        std::string content = joinLines();
+                        bool isLastLine = (row_ == lines_.size() - 1);
+                        bool lineIsEmpty = lines_[row_].empty();
+                        bool hasContent = !content.empty() &&
+                                          content.find_first_not_of(" \t\n") != std::string::npos;
+                        if (isLastLine && lineIsEmpty && hasContent)
+                        {
+                            Terminal::write("\r\n");
+                            // Remove trailing empty line
+                            while (!lines_.empty() && lines_.back().empty())
+                                lines_.pop_back();
+                            result = joinLines();
+                            history_.resetCursor();
+                            return true;
+                        }
+                        // Otherwise: newline — add a new line
+                        insertNewline();
+                    }
                     break;
                 }
 
@@ -240,6 +315,7 @@ namespace xell
         Terminal &term_;
         History &history_;
         Completer &completer_;
+        bool terminalMode_ = false;
 
         std::vector<std::string> lines_;
         size_t row_ = 0;

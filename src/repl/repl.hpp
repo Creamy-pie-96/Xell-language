@@ -21,6 +21,15 @@
 #include "../interpreter/interpreter.hpp"
 #include <iostream>
 #include <string>
+#include <cstdlib>
+
+#ifndef _WIN32
+#include <unistd.h>
+#include <pwd.h>
+#include <climits>
+#else
+#include <windows.h>
+#endif
 
 namespace xell
 {
@@ -45,6 +54,13 @@ namespace xell
         Repl() : editor_(terminal_, history_, completer_)
         {
             completer_.setEnvironment(&interpreter_.globals());
+
+            // Detect if we're running inside the Xell Terminal emulator.
+            // When XELL_TERMINAL=1, we use a shell-like prompt (user@host:cwd)
+            // and single-Enter execution instead of multiline-first editing.
+            const char *xt = std::getenv("XELL_TERMINAL");
+            isTerminalMode_ = (xt && std::string(xt) == "1");
+            editor_.setTerminalMode(isTerminalMode_);
         }
 
         void run()
@@ -97,7 +113,86 @@ namespace xell
         Completer completer_;
         LineEditor editor_;
         Interpreter interpreter_;
+        bool isTerminalMode_ = false;
         std::string historyPath_;
+
+        // ---- Shell-style prompt helpers (for terminal mode) -----------------
+
+        static std::string getUsername()
+        {
+#ifdef _WIN32
+            char buf[256];
+            DWORD len = sizeof(buf);
+            if (GetUserNameA(buf, &len))
+                return buf;
+            const char *user = std::getenv("USERNAME");
+            return user ? user : "user";
+#else
+            const char *user = std::getenv("USER");
+            if (user)
+                return user;
+            struct passwd *pw = getpwuid(getuid());
+            return pw ? pw->pw_name : "user";
+#endif
+        }
+
+        static std::string getHostname()
+        {
+#ifdef _WIN32
+            char buf[256];
+            DWORD len = sizeof(buf);
+            if (GetComputerNameA(buf, &len))
+                return buf;
+            return "pc";
+#else
+            char buf[256];
+            if (gethostname(buf, sizeof(buf)) == 0)
+            {
+                // Trim domain part (e.g., "macbook.local" → "macbook")
+                std::string h(buf);
+                auto dot = h.find('.');
+                if (dot != std::string::npos)
+                    h = h.substr(0, dot);
+                return h;
+            }
+            return "localhost";
+#endif
+        }
+
+        static std::string getShortCwd()
+        {
+            char buf[PATH_MAX];
+#ifdef _WIN32
+            if (_getcwd(buf, sizeof(buf)))
+            {
+#else
+            if (getcwd(buf, sizeof(buf)))
+            {
+#endif
+                std::string cwd(buf);
+                // Replace $HOME with ~
+                const char *home = std::getenv("HOME");
+#ifdef _WIN32
+                if (!home)
+                    home = std::getenv("USERPROFILE");
+#endif
+                if (home)
+                {
+                    std::string h(home);
+                    if (cwd == h)
+                        return "~";
+                    if (cwd.size() > h.size() && cwd.substr(0, h.size()) == h &&
+                        (cwd[h.size()] == '/' || cwd[h.size()] == '\\'))
+                    {
+                        return "~" + cwd.substr(h.size());
+                    }
+                }
+                return cwd;
+            }
+            return "?";
+        }
+
+        // -----------------------------------------------------------------
 
         void printBanner()
         {
@@ -110,7 +205,16 @@ namespace xell
             banner += std::string(color::CYAN) + color::BOLD + "     ║\r\n";
             banner += std::string("  ╚═══════════════════════════════════════╝") + color::RESET + "\r\n";
             banner += std::string(color::DIM) + "  Type :help for commands, Ctrl+D to exit\r\n" + color::RESET;
-            banner += std::string(color::DIM) + "  Enter=newline  Shift+Enter/empty line=run\r\n" + color::RESET;
+
+            if (isTerminalMode_)
+            {
+                banner += std::string(color::DIM) + "  Enter=run  Shift+Enter=newline  (Terminal Mode)\r\n" + color::RESET;
+            }
+            else
+            {
+                banner += std::string(color::DIM) + "  Enter=newline  Shift+Enter/empty line=run\r\n" + color::RESET;
+            }
+
             banner += "\r\n";
             Terminal::write(banner);
         }
@@ -123,12 +227,28 @@ namespace xell
                 std::string dots(depth * 2, '.');
                 return std::string(color::DIM) + "  " + dots + " " + color::RESET;
             }
+
+            if (isTerminalMode_)
+            {
+                // Shell-like prompt:  user@host:~/path $
+                std::string user = getUsername();
+                std::string host = getHostname();
+                std::string cwd = getShortCwd();
+
+                return std::string(color::BOLD) + color::GREEN + user + "@" + host + color::RESET + ":" + std::string(color::BOLD) + color::BLUE + cwd + color::RESET + " $ ";
+            }
+
+            // Default REPL prompt
             return std::string(color::CYAN) + color::BOLD + "xell" +
                    color::RESET + std::string(color::DIM) + " ▸ " + color::RESET;
         }
 
         std::string makeContPrompt()
         {
+            if (isTerminalMode_)
+            {
+                return std::string(color::DIM) + "... " + color::RESET;
+            }
             return std::string(color::DIM) + "  ·· " + color::RESET;
         }
 

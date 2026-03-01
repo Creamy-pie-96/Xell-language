@@ -1,8 +1,8 @@
-parser_test 1 0.00354141
-error_test 1 0.00329948
-xobject_test 1 0.00387319
-interpreter_test 1 0.00902132
-os_test 1 0.0175797
-bring_test 1 0.00850691
-shell_test 1 0.0475193
+parser_test 1 0.0033552
+error_test 1 0.00299458
+xobject_test 1 0.00408169
+interpreter_test 1 0.00883853
+os_test 1 0.0150756
+bring_test 1 0.0102992
+shell_test 1 0.0446587
 ---
