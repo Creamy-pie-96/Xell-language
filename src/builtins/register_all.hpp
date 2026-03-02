@@ -101,7 +101,8 @@ namespace xell
         // and optionally promote to the active table (Tier 1).
         auto regModule = [&](const std::string &moduleName,
                              bool tier2,
-                             auto registerFn) {
+                             auto registerFn)
+        {
             // Snapshot current keys
             std::unordered_set<std::string> before;
             before.reserve(allBuiltins.size());
@@ -128,75 +129,53 @@ namespace xell
 
         // ── Tier 1: always available (no bring needed) ──────────────────
 
-        regModule("io", false, [&](BuiltinTable &t) {
-            registerIOBuiltins(t, output);
-        });
-        regModule("math", false, [&](BuiltinTable &t) {
-            registerMathBuiltins(t);
-        });
-        regModule("type", false, [&](BuiltinTable &t) {
-            registerTypeBuiltins(t);
-        });
-        regModule("collection", false, [&](BuiltinTable &t) {
-            registerCollectionBuiltins(t);
-        });
-        regModule("util", false, [&](BuiltinTable &t) {
-            registerUtilBuiltins(t);
-        });
-        regModule("os", false, [&](BuiltinTable &t) {
-            registerOSBuiltins(t, shellState);
-        });
-        regModule("hash", false, [&](BuiltinTable &t) {
-            registerHashBuiltins(t);
-        });
-        regModule("string", false, [&](BuiltinTable &t) {
-            registerStringBuiltins(t);
-        });
-        regModule("list", false, [&](BuiltinTable &t) {
-            registerListBuiltins(t);
-        });
-        regModule("map", false, [&](BuiltinTable &t) {
-            registerMapBuiltins(t);
-        });
-        regModule("bytes", false, [&](BuiltinTable &t) {
-            registerBytesBuiltins(t);
-        });
-        regModule("generator", false, [&](BuiltinTable &t) {
-            registerGeneratorBuiltins(t);
-        });
-        regModule("shell", false, [&](BuiltinTable &t) {
-            registerShellBuiltins(t, output);
-        });
+        regModule("io", false, [&](BuiltinTable &t)
+                  { registerIOBuiltins(t, output); });
+        regModule("math", false, [&](BuiltinTable &t)
+                  { registerMathBuiltins(t); });
+        regModule("type", false, [&](BuiltinTable &t)
+                  { registerTypeBuiltins(t); });
+        regModule("collection", false, [&](BuiltinTable &t)
+                  { registerCollectionBuiltins(t); });
+        regModule("util", false, [&](BuiltinTable &t)
+                  { registerUtilBuiltins(t); });
+        regModule("os", false, [&](BuiltinTable &t)
+                  { registerOSBuiltins(t, shellState); });
+        regModule("hash", false, [&](BuiltinTable &t)
+                  { registerHashBuiltins(t); });
+        regModule("string", false, [&](BuiltinTable &t)
+                  { registerStringBuiltins(t); });
+        regModule("list", false, [&](BuiltinTable &t)
+                  { registerListBuiltins(t); });
+        regModule("map", false, [&](BuiltinTable &t)
+                  { registerMapBuiltins(t); });
+        regModule("bytes", false, [&](BuiltinTable &t)
+                  { registerBytesBuiltins(t); });
+        regModule("generator", false, [&](BuiltinTable &t)
+                  { registerGeneratorBuiltins(t); });
+        regModule("shell", false, [&](BuiltinTable &t)
+                  { registerShellBuiltins(t, output); });
 
         // ── Tier 2: require `bring * from "module"` ────────────────────
 
-        regModule("datetime", true, [&](BuiltinTable &t) {
-            registerDateTimeBuiltins(t);
-        });
-        regModule("regex", true, [&](BuiltinTable &t) {
-            registerRegexBuiltins(t);
-        });
-        regModule("fs", true, [&](BuiltinTable &t) {
-            registerFSBuiltins(t);
-        });
-        regModule("textproc", true, [&](BuiltinTable &t) {
-            registerTextProcBuiltins(t);
-        });
-        regModule("process", true, [&](BuiltinTable &t) {
-            registerProcessBuiltins(t);
-        });
-        regModule("sysmon", true, [&](BuiltinTable &t) {
-            registerSysMonBuiltins(t);
-        });
-        regModule("net", true, [&](BuiltinTable &t) {
-            registerNetworkBuiltins(t);
-        });
-        regModule("archive", true, [&](BuiltinTable &t) {
-            registerArchiveBuiltins(t);
-        });
-        regModule("json", true, [&](BuiltinTable &t) {
-            registerJSONBuiltins(t);
-        });
+        regModule("datetime", true, [&](BuiltinTable &t)
+                  { registerDateTimeBuiltins(t); });
+        regModule("regex", true, [&](BuiltinTable &t)
+                  { registerRegexBuiltins(t); });
+        regModule("fs", true, [&](BuiltinTable &t)
+                  { registerFSBuiltins(t); });
+        regModule("textproc", true, [&](BuiltinTable &t)
+                  { registerTextProcBuiltins(t); });
+        regModule("process", true, [&](BuiltinTable &t)
+                  { registerProcessBuiltins(t); });
+        regModule("sysmon", true, [&](BuiltinTable &t)
+                  { registerSysMonBuiltins(t); });
+        regModule("net", true, [&](BuiltinTable &t)
+                  { registerNetworkBuiltins(t); });
+        regModule("archive", true, [&](BuiltinTable &t)
+                  { registerArchiveBuiltins(t); });
+        regModule("json", true, [&](BuiltinTable &t)
+                  { registerJSONBuiltins(t); });
     }
 
 } // namespace xell

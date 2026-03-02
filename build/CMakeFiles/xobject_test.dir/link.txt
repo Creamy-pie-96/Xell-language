@@ -1,1 +1,1 @@
-/usr/bin/c++ -g CMakeFiles/xobject_test.dir/test/xobject_test.cpp.o -o xobject_test  libxell_lib.a 
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/xobject_test.dir/test/xobject_test.cpp.o -o xobject_test  libxell_lib.a 

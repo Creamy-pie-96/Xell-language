@@ -34,3 +34,5 @@ add_test(network_archive_test "/home/DATA/CODE/code/Xell/build/network_archive_t
 set_tests_properties(network_archive_test PROPERTIES  _BACKTRACE_TRIPLES "/home/DATA/CODE/code/Xell/CMakeLists.txt;89;add_test;/home/DATA/CODE/code/Xell/CMakeLists.txt;0;")
 add_test(json_shell_test "/home/DATA/CODE/code/Xell/build/json_shell_test")
 set_tests_properties(json_shell_test PROPERTIES  _BACKTRACE_TRIPLES "/home/DATA/CODE/code/Xell/CMakeLists.txt;93;add_test;/home/DATA/CODE/code/Xell/CMakeLists.txt;0;")
+add_test(module_test "/home/DATA/CODE/code/Xell/build/module_test")
+set_tests_properties(module_test PROPERTIES  _BACKTRACE_TRIPLES "/home/DATA/CODE/code/Xell/CMakeLists.txt;97;add_test;/home/DATA/CODE/code/Xell/CMakeLists.txt;0;")

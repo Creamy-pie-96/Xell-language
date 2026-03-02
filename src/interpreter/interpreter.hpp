@@ -102,8 +102,8 @@ namespace xell
         Environment globalEnv_;
         Environment *currentEnv_;
         std::vector<std::string> output_;
-        BuiltinTable builtins_;      // Tier 1: always-available builtins
-        BuiltinTable allBuiltins_;   // ALL builtins (Tier 1 + Tier 2)
+        BuiltinTable builtins_;    // Tier 1: always-available builtins
+        BuiltinTable allBuiltins_; // ALL builtins (Tier 1 + Tier 2)
         ModuleRegistry moduleRegistry_;
         int callDepth_ = 0;
         static constexpr int MAX_CALL_DEPTH = 512;

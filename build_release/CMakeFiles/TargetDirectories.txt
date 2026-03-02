@@ -7,6 +7,15 @@
 /home/DATA/CODE/code/Xell/build_release/CMakeFiles/os_test.dir
 /home/DATA/CODE/code/Xell/build_release/CMakeFiles/bring_test.dir
 /home/DATA/CODE/code/Xell/build_release/CMakeFiles/shell_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/builtin_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/forloop_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/datetime_regex_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/fs_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/textproc_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/process_sysmon_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/network_archive_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/json_shell_test.dir
+/home/DATA/CODE/code/Xell/build_release/CMakeFiles/module_test.dir
 /home/DATA/CODE/code/Xell/build_release/CMakeFiles/test.dir
 /home/DATA/CODE/code/Xell/build_release/CMakeFiles/edit_cache.dir
 /home/DATA/CODE/code/Xell/build_release/CMakeFiles/rebuild_cache.dir

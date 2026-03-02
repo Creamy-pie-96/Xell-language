@@ -54,16 +54,64 @@
       "include": "#none-constant"
     },
     {
+      "include": "#archive-builtins"
+    },
+    {
+      "include": "#bytes-builtins"
+    },
+    {
       "include": "#collection-builtins"
+    },
+    {
+      "include": "#datetime-builtins"
+    },
+    {
+      "include": "#fs-builtins"
+    },
+    {
+      "include": "#generator-builtins"
+    },
+    {
+      "include": "#hash-builtins"
     },
     {
       "include": "#io-builtins"
     },
     {
+      "include": "#json-builtins"
+    },
+    {
+      "include": "#list-builtins"
+    },
+    {
+      "include": "#map-builtins"
+    },
+    {
       "include": "#math-builtins"
     },
     {
+      "include": "#network-builtins"
+    },
+    {
       "include": "#os-builtins"
+    },
+    {
+      "include": "#process-builtins"
+    },
+    {
+      "include": "#regex-builtins"
+    },
+    {
+      "include": "#shell-builtins"
+    },
+    {
+      "include": "#string-builtins"
+    },
+    {
+      "include": "#sysmon-builtins"
+    },
+    {
+      "include": "#textproc-builtins"
     },
     {
       "include": "#type-builtins"
@@ -335,30 +383,120 @@
         }
       ]
     },
+    "archive-builtins": {
+      "comment": "ARCHIVE builtins: bunzip2_decompress, bzip2_compress, gunzip_decompress, gzip_compress, tar_create, tar_extract, unzip_archive, xz_compress, xz_decompress, zip_archive",
+      "patterns": [
+        {
+          "name": "support.function.archive.xell",
+          "match": "\\b(bunzip2_decompress|bzip2_compress|gunzip_decompress|gzip_compress|tar_create|tar_extract|unzip_archive|xz_compress|xz_decompress|zip_archive)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "bytes-builtins": {
+      "comment": "BYTES builtins: byte_at, byte_len, bytes, bytes, bytes_concat, bytes_slice, decode, encode, to_bytes",
+      "patterns": [
+        {
+          "name": "support.function.bytes.xell",
+          "match": "\\b(byte_at|byte_len|bytes|bytes|bytes_concat|bytes_slice|decode|encode|to_bytes)\\b(?=\\s*\\()"
+        }
+      ]
+    },
     "collection-builtins": {
-      "comment": "COLLECTION builtins: has, keys, len, pop, push, range, set, values",
+      "comment": "COLLECTION builtins: add, contains, diff, has, intersect, keys, len, pop, push, range, remove, set, to_list, to_set, to_tuple, union_set, values",
       "patterns": [
         {
           "name": "support.function.builtin.xell",
-          "match": "\\b(has|keys|len|pop|push|range|set|values)\\b(?=\\s*\\()"
+          "match": "\\b(add|contains|diff|has|intersect|keys|len|pop|push|range|remove|set|to_list|to_set|to_tuple|union_set|values)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "datetime-builtins": {
+      "comment": "DATETIME builtins: format_date, now, parse_date, sleep, sleep_sec, time_since, timestamp, timestamp_ms",
+      "patterns": [
+        {
+          "name": "support.function.datetime.xell",
+          "match": "\\b(format_date|now|parse_date|sleep|sleep_sec|time_since|timestamp|timestamp_ms)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "fs-builtins": {
+      "comment": "FS builtins: cat, chgrp, chmod, chown, created_time, disk_free, disk_usage, extension, file_diff, find, find_regex, glob, hardlink, home_dir, is_absolute, is_symlink, join_path, ln, locate, ls_all, modified_time, normalize, pwd, read_lines, readlink, realpath, relative_path, stat, stem, strings, symlink, temp_dir, touch, tree, write_lines, xxd",
+      "patterns": [
+        {
+          "name": "support.function.fs.xell",
+          "match": "\\b(cat|chgrp|chmod|chown|created_time|disk_free|disk_usage|extension|file_diff|find|find_regex|glob|hardlink|home_dir|is_absolute|is_symlink|join_path|ln|locate|ls_all|modified_time|normalize|pwd|read_lines|readlink|realpath|relative_path|stat|stem|strings|symlink|temp_dir|touch|tree|write_lines|xxd)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "generator-builtins": {
+      "comment": "GENERATOR builtins: gen_collect, is_exhausted, next",
+      "patterns": [
+        {
+          "name": "support.function.generator.xell",
+          "match": "\\b(gen_collect|is_exhausted|next)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "hash-builtins": {
+      "comment": "HASH builtins: hash, hash_seed, hash_seed, hash_seed, is_hashable",
+      "patterns": [
+        {
+          "name": "support.function.hash.xell",
+          "match": "\\b(hash|hash_seed|hash_seed|hash_seed|is_hashable)\\b(?=\\s*\\()"
         }
       ]
     },
     "io-builtins": {
-      "comment": "IO builtins: print",
+      "comment": "IO builtins: exit, input, print",
       "patterns": [
         {
           "name": "support.function.builtin.xell",
-          "match": "\\b(print)\\b(?=\\s*\\()"
+          "match": "\\b(exit|input|print)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "json-builtins": {
+      "comment": "JSON builtins: csv_parse, csv_read, csv_write, json_parse, json_pretty, json_read, json_stringify, json_write, toml_read, yaml_read",
+      "patterns": [
+        {
+          "name": "support.function.json.xell",
+          "match": "\\b(csv_parse|csv_read|csv_write|json_parse|json_pretty|json_read|json_stringify|json_write|toml_read|yaml_read)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "list-builtins": {
+      "comment": "LIST builtins: avg, enumerate, first, flatten, insert, last, max, min, remove_val, shift, size, slice, sort, sort_desc, sum, unique, unshift, zip, zip_longest",
+      "patterns": [
+        {
+          "name": "support.function.list.xell",
+          "match": "\\b(avg|enumerate|first|flatten|insert|last|max|min|remove_val|shift|size|slice|sort|sort_desc|sum|unique|unshift|zip|zip_longest)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "map-builtins": {
+      "comment": "MAP builtins: delete_key, entries, from_entries, get, merge",
+      "patterns": [
+        {
+          "name": "support.function.map.xell",
+          "match": "\\b(delete_key|entries|from_entries|get|merge)\\b(?=\\s*\\()"
         }
       ]
     },
     "math-builtins": {
-      "comment": "MATH builtins: abs, ceil, floor, mod, round",
+      "comment": "MATH builtins: abs, acos, acosh, acot, acoth, acsc, acsch, asec, asech, asin, asinh, atan, atan2, atanh, bin, ceil, clamp, cos, cosh, cot, coth, csc, csch, floor, hex, is_inf, is_nan, log, log10, mod, pow, random, random_choice, random_int, round, sec, sech, sin, sinh, sqrt, tan, tanh, to_float, to_int",
       "patterns": [
         {
           "name": "support.function.math.xell",
-          "match": "\\b(abs|ceil|floor|mod|round)\\b(?=\\s*\\()"
+          "match": "\\b(abs|acos|acosh|acot|acoth|acsc|acsch|asec|asech|asin|asinh|atan|atan2|atanh|bin|ceil|clamp|cos|cosh|cot|coth|csc|csch|floor|hex|is_inf|is_nan|log|log10|mod|pow|random|random_choice|random_int|round|sec|sech|sin|sinh|sqrt|tan|tanh|to_float|to_int)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "network-builtins": {
+      "comment": "NETWORK builtins: dns_lookup, download, host_lookup, http_delete, http_get, http_post, http_put, ifconfig, ip_cmd, iptables, local_ip, nc, netstat, nslookup, ping, public_ip, route, rsync, ss, telnet_connect, traceroute, ufw, whois",
+      "patterns": [
+        {
+          "name": "support.function.network.xell",
+          "match": "\\b(dns_lookup|download|host_lookup|http_delete|http_get|http_post|http_put|ifconfig|ip_cmd|iptables|local_ip|nc|netstat|nslookup|ping|public_ip|route|rsync|ss|telnet_connect|traceroute|ufw|whois)\\b(?=\\s*\\()"
         }
       ]
     },
@@ -371,21 +509,75 @@
         }
       ]
     },
+    "process-builtins": {
+      "comment": "PROCESS builtins: arch, bg, exec_proc, fg, getuid, hostname, id, is_root, jobs, kill, kill_name, lsof, nice, nohup, os_name, pgrep, pidof, pkill, ppid, ps, pstree, run_timeout, signal_send, spawn, strace, sys_info, time_cmd, uname, uptime, wait_pid, watch, whoami",
+      "patterns": [
+        {
+          "name": "support.function.process.xell",
+          "match": "\\b(arch|bg|exec_proc|fg|getuid|hostname|id|is_root|jobs|kill|kill_name|lsof|nice|nohup|os_name|pgrep|pidof|pkill|ppid|ps|pstree|run_timeout|signal_send|spawn|strace|sys_info|time_cmd|uname|uptime|wait_pid|watch|whoami)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "regex-builtins": {
+      "comment": "REGEX builtins: regex_find, regex_find_all, regex_groups, regex_match, regex_match_full, regex_replace, regex_replace_all, regex_split",
+      "patterns": [
+        {
+          "name": "support.function.regex.xell",
+          "match": "\\b(regex_find|regex_find_all|regex_groups|regex_match|regex_match_full|regex_replace|regex_replace_all|regex_split)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "shell-builtins": {
+      "comment": "SHELL builtins: alias, clear, env_list, error, export_env, false_val, history, history_add, logout, man, printenv, reset, set_env, source_file, true_val, type_cmd, unalias, whereis, which, yes_cmd",
+      "patterns": [
+        {
+          "name": "support.function.shell.xell",
+          "match": "\\b(alias|clear|env_list|error|export_env|false_val|history|history_add|logout|man|printenv|reset|set_env|source_file|true_val|type_cmd|unalias|whereis|which|yes_cmd)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "string-builtins": {
+      "comment": "STRING builtins: char_at, count, ends_with, index_of, is_alpha, is_empty, is_numeric, join, lines, lower, pad_end, pad_start, repeat, replace, replace_first, reverse, split, starts_with, substr, to_chars, trim, trim_end, trim_start, upper",
+      "patterns": [
+        {
+          "name": "support.function.string.xell",
+          "match": "\\b(char_at|count|ends_with|index_of|is_alpha|is_empty|is_numeric|join|lines|lower|pad_end|pad_start|repeat|replace|replace_first|reverse|split|starts_with|substr|to_chars|trim|trim_end|trim_start|upper)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "sysmon-builtins": {
+      "comment": "SYSMON builtins: cal, cpu_count, cpu_usage, date_str, dmesg, fdisk, free, iostat, journalctl, last_logins, lsblk, lscpu, lsmem, lspci, lsusb, mem_free, mem_total, mem_used, mount_fs, mpstat, sar, ulimit_info, umount_fs, vmstat, w_cmd",
+      "patterns": [
+        {
+          "name": "support.function.sysmon.xell",
+          "match": "\\b(cal|cpu_count|cpu_usage|date_str|dmesg|fdisk|free|iostat|journalctl|last_logins|lsblk|lscpu|lsmem|lspci|lsusb|mem_free|mem_total|mem_used|mount_fs|mpstat|sar|ulimit_info|umount_fs|vmstat|w_cmd)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "textproc-builtins": {
+      "comment": "TEXTPROC builtins: awk, cut, grep, grep_recursive, grep_regex, head, less, more, patch, sed, sort_file, tail, tail_follow, tee, tr, uniq, wc, xargs",
+      "patterns": [
+        {
+          "name": "support.function.textproc.xell",
+          "match": "\\b(awk|cut|grep|grep_recursive|grep_regex|head|less|more|patch|sed|sort_file|tail|tail_follow|tee|tr|uniq|wc|xargs)\\b(?=\\s*\\()"
+        }
+      ]
+    },
     "type-builtins": {
-      "comment": "TYPE builtins: num, str, type",
+      "comment": "TYPE builtins: complex, conjugate, float, imag, int, magnitude, num, real, str, type, type, typeof",
       "patterns": [
         {
           "name": "support.type.conversion.xell",
-          "match": "\\b(num|str|type)\\b(?=\\s*\\()"
+          "match": "\\b(complex|conjugate|float|imag|int|magnitude|num|real|str|type|type|typeof)\\b(?=\\s*\\()"
         }
       ]
     },
     "util-builtins": {
-      "comment": "UTIL builtins: assert",
+      "comment": "UTIL builtins: assert, format",
       "patterns": [
         {
           "name": "support.function.builtin.xell",
-          "match": "\\b(assert)\\b(?=\\s*\\()"
+          "match": "\\b(assert|format)\\b(?=\\s*\\()"
         }
       ]
     },

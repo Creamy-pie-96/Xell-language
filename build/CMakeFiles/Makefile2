@@ -80,6 +80,7 @@ all: CMakeFiles/textproc_test.dir/all
 all: CMakeFiles/process_sysmon_test.dir/all
 all: CMakeFiles/network_archive_test.dir/all
 all: CMakeFiles/json_shell_test.dir/all
+all: CMakeFiles/module_test.dir/all
 .PHONY : all
 
 # The main recursive "preinstall" target.
@@ -104,6 +105,7 @@ clean: CMakeFiles/textproc_test.dir/clean
 clean: CMakeFiles/process_sysmon_test.dir/clean
 clean: CMakeFiles/network_archive_test.dir/clean
 clean: CMakeFiles/json_shell_test.dir/clean
+clean: CMakeFiles/module_test.dir/clean
 .PHONY : clean
 
 #=============================================================================
@@ -113,7 +115,7 @@ clean: CMakeFiles/json_shell_test.dir/clean
 CMakeFiles/xell_lib.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell_lib.dir/build.make CMakeFiles/xell_lib.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=31,32,33,34,35,36,37,38 "Built target xell_lib"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=33,34,35,36,37,38,39,40 "Built target xell_lib"
 .PHONY : CMakeFiles/xell_lib.dir/all
 
 # Build rule for subdir invocation for target.
@@ -139,7 +141,7 @@ CMakeFiles/xell_lib.dir/clean:
 CMakeFiles/xell.dir/all: CMakeFiles/xell_lib.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell.dir/build.make CMakeFiles/xell.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell.dir/build.make CMakeFiles/xell.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=29,30 "Built target xell"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=31,32 "Built target xell"
 .PHONY : CMakeFiles/xell.dir/all
 
 # Build rule for subdir invocation for target.
@@ -165,7 +167,7 @@ CMakeFiles/xell.dir/clean:
 CMakeFiles/parser_test.dir/all: CMakeFiles/xell_lib.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/parser_test.dir/build.make CMakeFiles/parser_test.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/parser_test.dir/build.make CMakeFiles/parser_test.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=21,22 "Built target parser_test"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=23,24 "Built target parser_test"
 .PHONY : CMakeFiles/parser_test.dir/all
 
 # Build rule for subdir invocation for target.
@@ -217,7 +219,7 @@ CMakeFiles/error_test.dir/clean:
 CMakeFiles/xobject_test.dir/all: CMakeFiles/xell_lib.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xobject_test.dir/build.make CMakeFiles/xobject_test.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xobject_test.dir/build.make CMakeFiles/xobject_test.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=39,40 "Built target xobject_test"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=41,42 "Built target xobject_test"
 .PHONY : CMakeFiles/xobject_test.dir/all
 
 # Build rule for subdir invocation for target.
@@ -269,7 +271,7 @@ CMakeFiles/interpreter_test.dir/clean:
 CMakeFiles/os_test.dir/all: CMakeFiles/xell_lib.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/os_test.dir/build.make CMakeFiles/os_test.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/os_test.dir/build.make CMakeFiles/os_test.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=19,20 "Built target os_test"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=21,22 "Built target os_test"
 .PHONY : CMakeFiles/os_test.dir/all
 
 # Build rule for subdir invocation for target.
@@ -321,7 +323,7 @@ CMakeFiles/bring_test.dir/clean:
 CMakeFiles/shell_test.dir/all: CMakeFiles/xell_lib.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/shell_test.dir/build.make CMakeFiles/shell_test.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/shell_test.dir/build.make CMakeFiles/shell_test.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=25,26 "Built target shell_test"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=27,28 "Built target shell_test"
 .PHONY : CMakeFiles/shell_test.dir/all
 
 # Build rule for subdir invocation for target.
@@ -451,7 +453,7 @@ CMakeFiles/fs_test.dir/clean:
 CMakeFiles/textproc_test.dir/all: CMakeFiles/xell_lib.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/textproc_test.dir/build.make CMakeFiles/textproc_test.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/textproc_test.dir/build.make CMakeFiles/textproc_test.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=27,28 "Built target textproc_test"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=29,30 "Built target textproc_test"
 .PHONY : CMakeFiles/textproc_test.dir/all
 
 # Build rule for subdir invocation for target.
@@ -477,7 +479,7 @@ CMakeFiles/textproc_test.dir/clean:
 CMakeFiles/process_sysmon_test.dir/all: CMakeFiles/xell_lib.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/process_sysmon_test.dir/build.make CMakeFiles/process_sysmon_test.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/process_sysmon_test.dir/build.make CMakeFiles/process_sysmon_test.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=23,24 "Built target process_sysmon_test"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=25,26 "Built target process_sysmon_test"
 .PHONY : CMakeFiles/process_sysmon_test.dir/all
 
 # Build rule for subdir invocation for target.
@@ -503,7 +505,7 @@ CMakeFiles/process_sysmon_test.dir/clean:
 CMakeFiles/network_archive_test.dir/all: CMakeFiles/xell_lib.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/network_archive_test.dir/build.make CMakeFiles/network_archive_test.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/network_archive_test.dir/build.make CMakeFiles/network_archive_test.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=17,18 "Built target network_archive_test"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=19,20 "Built target network_archive_test"
 .PHONY : CMakeFiles/network_archive_test.dir/all
 
 # Build rule for subdir invocation for target.
@@ -547,6 +549,32 @@ json_shell_test: CMakeFiles/json_shell_test.dir/rule
 CMakeFiles/json_shell_test.dir/clean:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/json_shell_test.dir/build.make CMakeFiles/json_shell_test.dir/clean
 .PHONY : CMakeFiles/json_shell_test.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/module_test.dir
+
+# All Build rule for target.
+CMakeFiles/module_test.dir/all: CMakeFiles/xell_lib.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/DATA/CODE/code/Xell/build/CMakeFiles --progress-num=17,18 "Built target module_test"
+.PHONY : CMakeFiles/module_test.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/module_test.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/DATA/CODE/code/Xell/build/CMakeFiles 10
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/module_test.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/DATA/CODE/code/Xell/build/CMakeFiles 0
+.PHONY : CMakeFiles/module_test.dir/rule
+
+# Convenience name for target.
+module_test: CMakeFiles/module_test.dir/rule
+.PHONY : module_test
+
+# clean rule for target.
+CMakeFiles/module_test.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/clean
+.PHONY : CMakeFiles/module_test.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

@@ -201,19 +201,53 @@ CMakeFiles/xell.dir/src/main.cpp.o: \
  /home/DATA/CODE/code/Xell/src/interpreter/environment.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/xobject.hpp \
  /usr/include/c++/13/atomic /usr/include/c++/13/cstdint \
- /usr/include/c++/13/functional /usr/include/c++/13/bits/std_function.h \
- /usr/include/c++/13/array /usr/include/c++/13/compare \
- /usr/include/c++/13/bits/stl_algo.h \
+ /usr/include/c++/13/cmath /usr/include/math.h \
+ /usr/include/x86_64-linux-gnu/bits/math-vector.h \
+ /usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h \
+ /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h \
+ /usr/include/x86_64-linux-gnu/bits/fp-logb.h \
+ /usr/include/x86_64-linux-gnu/bits/fp-fast.h \
+ /usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h \
+ /usr/include/x86_64-linux-gnu/bits/mathcalls.h \
+ /usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h \
+ /usr/include/x86_64-linux-gnu/bits/iscanonical.h \
+ /usr/include/c++/13/bits/specfun.h /usr/include/c++/13/limits \
+ /usr/include/c++/13/tr1/gamma.tcc \
+ /usr/include/c++/13/tr1/special_function_util.h \
+ /usr/include/c++/13/tr1/bessel_function.tcc \
+ /usr/include/c++/13/tr1/beta_function.tcc \
+ /usr/include/c++/13/tr1/ell_integral.tcc \
+ /usr/include/c++/13/tr1/exp_integral.tcc \
+ /usr/include/c++/13/tr1/hypergeometric.tcc \
+ /usr/include/c++/13/tr1/legendre_function.tcc \
+ /usr/include/c++/13/tr1/modified_bessel_func.tcc \
+ /usr/include/c++/13/tr1/poly_hermite.tcc \
+ /usr/include/c++/13/tr1/poly_laguerre.tcc \
+ /usr/include/c++/13/tr1/riemann_zeta.tcc /usr/include/c++/13/functional \
+ /usr/include/c++/13/bits/std_function.h /usr/include/c++/13/array \
+ /usr/include/c++/13/compare /usr/include/c++/13/bits/stl_algo.h \
  /usr/include/c++/13/bits/algorithmfwd.h \
  /usr/include/c++/13/bits/stl_heap.h \
- /usr/include/c++/13/bits/uniform_int_dist.h \
+ /usr/include/c++/13/bits/uniform_int_dist.h /usr/include/c++/13/thread \
+ /usr/include/c++/13/bits/std_thread.h \
+ /usr/include/c++/13/bits/this_thread_sleep.h \
+ /usr/include/c++/13/bits/chrono.h /usr/include/c++/13/ratio \
+ /usr/include/c++/13/ctime /usr/include/c++/13/bits/parse_numbers.h \
+ /usr/include/c++/13/mutex /usr/include/c++/13/bits/std_mutex.h \
+ /usr/include/c++/13/bits/unique_lock.h \
+ /usr/include/c++/13/condition_variable \
+ /home/DATA/CODE/code/Xell/src/interpreter/../hash/hash_algorithm.hpp \
+ /usr/include/c++/13/cstring /usr/include/string.h /usr/include/strings.h \
+ /usr/include/x86_64-linux-gnu/bits/strings_fortified.h \
+ /usr/include/x86_64-linux-gnu/bits/string_fortified.h \
+ /home/DATA/CODE/code/Xell/src/interpreter/../xobject/ordered_hash_table.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/shell_state.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtin_registry.hpp \
+ /home/DATA/CODE/code/Xell/src/interpreter/../builtins/module_registry.hpp \
  /usr/include/c++/13/unordered_set \
- /usr/include/c++/13/bits/unordered_set.h \
- /home/DATA/CODE/code/Xell/src/analyzer/static_analyzer.hpp \
- /usr/include/c++/13/algorithm \
+ /usr/include/c++/13/bits/unordered_set.h /usr/include/c++/13/algorithm \
  /usr/include/c++/13/pstl/glue_algorithm_defs.h \
+ /home/DATA/CODE/code/Xell/src/analyzer/static_analyzer.hpp \
  /home/DATA/CODE/code/Xell/src/repl/repl.hpp \
  /home/DATA/CODE/code/Xell/src/repl/terminal.hpp /usr/include/termios.h \
  /usr/include/x86_64-linux-gnu/bits/termios.h \
@@ -245,4 +279,14 @@ CMakeFiles/xell.dir/src/main.cpp.o: \
  /usr/include/x86_64-linux-gnu/bits/ioctl-types.h \
  /home/DATA/CODE/code/Xell/src/repl/line_editor.hpp \
  /home/DATA/CODE/code/Xell/src/repl/history.hpp \
- /home/DATA/CODE/code/Xell/src/repl/completer.hpp
+ /home/DATA/CODE/code/Xell/src/repl/completer.hpp \
+ /home/DATA/CODE/code/Xell/src/repl/../os/os.hpp /usr/include/pwd.h \
+ /usr/include/c++/13/climits \
+ /usr/lib/gcc/x86_64-linux-gnu/13/include/limits.h \
+ /usr/lib/gcc/x86_64-linux-gnu/13/include/syslimits.h \
+ /usr/include/limits.h /usr/include/x86_64-linux-gnu/bits/posix1_lim.h \
+ /usr/include/x86_64-linux-gnu/bits/local_lim.h \
+ /usr/include/linux/limits.h \
+ /usr/include/x86_64-linux-gnu/bits/posix2_lim.h \
+ /usr/include/x86_64-linux-gnu/bits/xopen_lim.h \
+ /usr/include/x86_64-linux-gnu/bits/uio_lim.h

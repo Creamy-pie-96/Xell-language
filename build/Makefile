@@ -392,6 +392,19 @@ json_shell_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/json_shell_test.dir/build.make CMakeFiles/json_shell_test.dir/build
 .PHONY : json_shell_test/fast
 
+#=============================================================================
+# Target rules for targets named module_test
+
+# Build rule for target.
+module_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 module_test
+.PHONY : module_test
+
+# fast build rule for target.
+module_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/build
+.PHONY : module_test/fast
+
 src/interpreter/interpreter.o: src/interpreter/interpreter.cpp.o
 .PHONY : src/interpreter/interpreter.o
 
@@ -776,6 +789,30 @@ test/json_shell_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/json_shell_test.dir/build.make CMakeFiles/json_shell_test.dir/test/json_shell_test.cpp.s
 .PHONY : test/json_shell_test.cpp.s
 
+test/module_test.o: test/module_test.cpp.o
+.PHONY : test/module_test.o
+
+# target to build an object file
+test/module_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/test/module_test.cpp.o
+.PHONY : test/module_test.cpp.o
+
+test/module_test.i: test/module_test.cpp.i
+.PHONY : test/module_test.i
+
+# target to preprocess a source file
+test/module_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/test/module_test.cpp.i
+.PHONY : test/module_test.cpp.i
+
+test/module_test.s: test/module_test.cpp.s
+.PHONY : test/module_test.s
+
+# target to generate assembly for a file
+test/module_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/test/module_test.cpp.s
+.PHONY : test/module_test.cpp.s
+
 test/network_archive_test.o: test/network_archive_test.cpp.o
 .PHONY : test/network_archive_test.o
 
@@ -965,6 +1002,7 @@ help:
 	@echo "... fs_test"
 	@echo "... interpreter_test"
 	@echo "... json_shell_test"
+	@echo "... module_test"
 	@echo "... network_archive_test"
 	@echo "... os_test"
 	@echo "... parser_test"
@@ -1022,6 +1060,9 @@ help:
 	@echo "... test/json_shell_test.o"
 	@echo "... test/json_shell_test.i"
 	@echo "... test/json_shell_test.s"
+	@echo "... test/module_test.o"
+	@echo "... test/module_test.i"
+	@echo "... test/module_test.s"
 	@echo "... test/network_archive_test.o"
 	@echo "... test/network_archive_test.i"
 	@echo "... test/network_archive_test.s"

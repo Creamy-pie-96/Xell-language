@@ -181,8 +181,8 @@
         "color": "#00ffff",
         "bold": false,
         "italic": false,
-        "label": "Core builtins (assert, has, keys, len, pop, print, push, range, set, values)",
-        "example": "assert, has, keys, len, pop..."
+        "label": "Core builtins (add, assert, contains, diff, exit, format, has, input, intersect, keys, len, pop, print, push, range, remove, set, to_list, to_set, to_tuple, union_set, values)",
+        "example": "add, assert, contains, diff, exit..."
       },
       {
         "id": "builtin_type",
@@ -190,8 +190,8 @@
         "color": "#008080",
         "bold": false,
         "italic": false,
-        "label": "Type builtins (num, str, type)",
-        "example": "num, str, type"
+        "label": "Type builtins (complex, conjugate, float, imag, int, magnitude, num, real, str, type, type, typeof)",
+        "example": "complex, conjugate, float, imag, int, magnitude, num, real, str, type, type, typeof"
       },
       {
         "id": "builtin_math",
@@ -199,8 +199,8 @@
         "color": "#00ffff",
         "bold": false,
         "italic": false,
-        "label": "Math builtins (abs, ceil, floor, mod, round)",
-        "example": "abs, ceil, floor, mod, round"
+        "label": "Math builtins (abs, acos, acosh, acot, acoth, acsc, acsch, asec, asech, asin, asinh, atan, atan2, atanh, bin, ceil, clamp, cos, cosh, cot, coth, csc, csch, floor, hex, is_inf, is_nan, log, log10, mod, pow, random, random_choice, random_int, round, sec, sech, sin, sinh, sqrt, tan, tanh, to_float, to_int)",
+        "example": "abs, acos, acosh, acot, acoth, acsc, acsch, asec, asech, asin, asinh, atan, atan2, atanh, bin, ceil, clamp, cos, cosh, cot, coth, csc, csch, floor, hex, is_inf, is_nan, log, log10, mod, pow, random, random_choice, random_int, round, sec, sech, sin, sinh, sqrt, tan, tanh, to_float, to_int"
       },
       {
         "id": "builtin_os",
@@ -210,6 +210,150 @@
         "italic": false,
         "label": "OS builtins (abspath, append, basename, cd, cp, cwd, dirname, env_get...)",
         "example": "abspath, append, basename, cd, cp..."
+      },
+      {
+        "id": "builtin_archive",
+        "scope": "support.function.archive.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Archive builtins (bunzip2_decompress, bzip2_compress, gunzip_decompress, gzip_compress, tar_create, tar_extract, unzip_archive, xz_compress, xz_decompress, zip_archive)",
+        "example": "bunzip2_decompress, bzip2_compress, gunzip_decompress"
+      },
+      {
+        "id": "builtin_bytes",
+        "scope": "support.function.bytes.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Bytes builtins (byte_at, byte_len, bytes, bytes, bytes_concat, bytes_slice, decode, encode, to_bytes)",
+        "example": "byte_at, byte_len, bytes"
+      },
+      {
+        "id": "builtin_datetime",
+        "scope": "support.function.datetime.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Datetime builtins (format_date, now, parse_date, sleep, sleep_sec, time_since, timestamp, timestamp_ms)",
+        "example": "format_date, now, parse_date"
+      },
+      {
+        "id": "builtin_fs",
+        "scope": "support.function.fs.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Fs builtins (cat, chgrp, chmod, chown, created_time, disk_free, disk_usage, extension, file_diff, find, find_regex, glob, hardlink, home_dir, is_absolute, is_symlink, join_path, ln, locate, ls_all, modified_time, normalize, pwd, read_lines, readlink, realpath, relative_path, stat, stem, strings, symlink, temp_dir, touch, tree, write_lines, xxd)",
+        "example": "cat, chgrp, chmod"
+      },
+      {
+        "id": "builtin_generator",
+        "scope": "support.function.generator.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Generator builtins (gen_collect, is_exhausted, next)",
+        "example": "gen_collect, is_exhausted, next"
+      },
+      {
+        "id": "builtin_hash",
+        "scope": "support.function.hash.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Hash builtins (hash, hash_seed, hash_seed, hash_seed, is_hashable)",
+        "example": "hash, hash_seed, hash_seed"
+      },
+      {
+        "id": "builtin_json",
+        "scope": "support.function.json.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Json builtins (csv_parse, csv_read, csv_write, json_parse, json_pretty, json_read, json_stringify, json_write, toml_read, yaml_read)",
+        "example": "csv_parse, csv_read, csv_write"
+      },
+      {
+        "id": "builtin_list",
+        "scope": "support.function.list.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "List builtins (avg, enumerate, first, flatten, insert, last, max, min, remove_val, shift, size, slice, sort, sort_desc, sum, unique, unshift, zip, zip_longest)",
+        "example": "avg, enumerate, first"
+      },
+      {
+        "id": "builtin_map",
+        "scope": "support.function.map.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Map builtins (delete_key, entries, from_entries, get, merge)",
+        "example": "delete_key, entries, from_entries"
+      },
+      {
+        "id": "builtin_network",
+        "scope": "support.function.network.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Network builtins (dns_lookup, download, host_lookup, http_delete, http_get, http_post, http_put, ifconfig, ip_cmd, iptables, local_ip, nc, netstat, nslookup, ping, public_ip, route, rsync, ss, telnet_connect, traceroute, ufw, whois)",
+        "example": "dns_lookup, download, host_lookup"
+      },
+      {
+        "id": "builtin_process",
+        "scope": "support.function.process.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Process builtins (arch, bg, exec_proc, fg, getuid, hostname, id, is_root, jobs, kill, kill_name, lsof, nice, nohup, os_name, pgrep, pidof, pkill, ppid, ps, pstree, run_timeout, signal_send, spawn, strace, sys_info, time_cmd, uname, uptime, wait_pid, watch, whoami)",
+        "example": "arch, bg, exec_proc"
+      },
+      {
+        "id": "builtin_regex",
+        "scope": "support.function.regex.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Regex builtins (regex_find, regex_find_all, regex_groups, regex_match, regex_match_full, regex_replace, regex_replace_all, regex_split)",
+        "example": "regex_find, regex_find_all, regex_groups"
+      },
+      {
+        "id": "builtin_shell",
+        "scope": "support.function.shell.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Shell builtins (alias, clear, env_list, error, export_env, false_val, history, history_add, logout, man, printenv, reset, set_env, source_file, true_val, type_cmd, unalias, whereis, which, yes_cmd)",
+        "example": "alias, clear, env_list"
+      },
+      {
+        "id": "builtin_string",
+        "scope": "support.function.string.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "String builtins (char_at, count, ends_with, index_of, is_alpha, is_empty, is_numeric, join, lines, lower, pad_end, pad_start, repeat, replace, replace_first, reverse, split, starts_with, substr, to_chars, trim, trim_end, trim_start, upper)",
+        "example": "char_at, count, ends_with"
+      },
+      {
+        "id": "builtin_sysmon",
+        "scope": "support.function.sysmon.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Sysmon builtins (cal, cpu_count, cpu_usage, date_str, dmesg, fdisk, free, iostat, journalctl, last_logins, lsblk, lscpu, lsmem, lspci, lsusb, mem_free, mem_total, mem_used, mount_fs, mpstat, sar, ulimit_info, umount_fs, vmstat, w_cmd)",
+        "example": "cal, cpu_count, cpu_usage"
+      },
+      {
+        "id": "builtin_textproc",
+        "scope": "support.function.textproc.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Textproc builtins (awk, cut, grep, grep_recursive, grep_regex, head, less, more, patch, sed, sort_file, tail, tail_follow, tee, tr, uniq, wc, xargs)",
+        "example": "awk, cut, grep"
       }
     ]
   },

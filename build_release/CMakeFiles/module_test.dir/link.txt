@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/module_test.dir/test/module_test.cpp.o -o module_test  libxell_lib.a 

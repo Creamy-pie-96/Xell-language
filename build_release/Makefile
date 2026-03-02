@@ -288,6 +288,123 @@ shell_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/shell_test.dir/build.make CMakeFiles/shell_test.dir/build
 .PHONY : shell_test/fast
 
+#=============================================================================
+# Target rules for targets named builtin_test
+
+# Build rule for target.
+builtin_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 builtin_test
+.PHONY : builtin_test
+
+# fast build rule for target.
+builtin_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/build
+.PHONY : builtin_test/fast
+
+#=============================================================================
+# Target rules for targets named forloop_test
+
+# Build rule for target.
+forloop_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 forloop_test
+.PHONY : forloop_test
+
+# fast build rule for target.
+forloop_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/forloop_test.dir/build.make CMakeFiles/forloop_test.dir/build
+.PHONY : forloop_test/fast
+
+#=============================================================================
+# Target rules for targets named datetime_regex_test
+
+# Build rule for target.
+datetime_regex_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 datetime_regex_test
+.PHONY : datetime_regex_test
+
+# fast build rule for target.
+datetime_regex_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/datetime_regex_test.dir/build.make CMakeFiles/datetime_regex_test.dir/build
+.PHONY : datetime_regex_test/fast
+
+#=============================================================================
+# Target rules for targets named fs_test
+
+# Build rule for target.
+fs_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 fs_test
+.PHONY : fs_test
+
+# fast build rule for target.
+fs_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fs_test.dir/build.make CMakeFiles/fs_test.dir/build
+.PHONY : fs_test/fast
+
+#=============================================================================
+# Target rules for targets named textproc_test
+
+# Build rule for target.
+textproc_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 textproc_test
+.PHONY : textproc_test
+
+# fast build rule for target.
+textproc_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/textproc_test.dir/build.make CMakeFiles/textproc_test.dir/build
+.PHONY : textproc_test/fast
+
+#=============================================================================
+# Target rules for targets named process_sysmon_test
+
+# Build rule for target.
+process_sysmon_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 process_sysmon_test
+.PHONY : process_sysmon_test
+
+# fast build rule for target.
+process_sysmon_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/process_sysmon_test.dir/build.make CMakeFiles/process_sysmon_test.dir/build
+.PHONY : process_sysmon_test/fast
+
+#=============================================================================
+# Target rules for targets named network_archive_test
+
+# Build rule for target.
+network_archive_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 network_archive_test
+.PHONY : network_archive_test
+
+# fast build rule for target.
+network_archive_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/network_archive_test.dir/build.make CMakeFiles/network_archive_test.dir/build
+.PHONY : network_archive_test/fast
+
+#=============================================================================
+# Target rules for targets named json_shell_test
+
+# Build rule for target.
+json_shell_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 json_shell_test
+.PHONY : json_shell_test
+
+# fast build rule for target.
+json_shell_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/json_shell_test.dir/build.make CMakeFiles/json_shell_test.dir/build
+.PHONY : json_shell_test/fast
+
+#=============================================================================
+# Target rules for targets named module_test
+
+# Build rule for target.
+module_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 module_test
+.PHONY : module_test
+
+# fast build rule for target.
+module_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/build
+.PHONY : module_test/fast
+
 src/interpreter/interpreter.o: src/interpreter/interpreter.cpp.o
 .PHONY : src/interpreter/interpreter.o
 
@@ -504,6 +621,54 @@ test/bring_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bring_test.dir/build.make CMakeFiles/bring_test.dir/test/bring_test.cpp.s
 .PHONY : test/bring_test.cpp.s
 
+test/builtin_test.o: test/builtin_test.cpp.o
+.PHONY : test/builtin_test.o
+
+# target to build an object file
+test/builtin_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/test/builtin_test.cpp.o
+.PHONY : test/builtin_test.cpp.o
+
+test/builtin_test.i: test/builtin_test.cpp.i
+.PHONY : test/builtin_test.i
+
+# target to preprocess a source file
+test/builtin_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/test/builtin_test.cpp.i
+.PHONY : test/builtin_test.cpp.i
+
+test/builtin_test.s: test/builtin_test.cpp.s
+.PHONY : test/builtin_test.s
+
+# target to generate assembly for a file
+test/builtin_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/test/builtin_test.cpp.s
+.PHONY : test/builtin_test.cpp.s
+
+test/datetime_regex_test.o: test/datetime_regex_test.cpp.o
+.PHONY : test/datetime_regex_test.o
+
+# target to build an object file
+test/datetime_regex_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/datetime_regex_test.dir/build.make CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.o
+.PHONY : test/datetime_regex_test.cpp.o
+
+test/datetime_regex_test.i: test/datetime_regex_test.cpp.i
+.PHONY : test/datetime_regex_test.i
+
+# target to preprocess a source file
+test/datetime_regex_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/datetime_regex_test.dir/build.make CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.i
+.PHONY : test/datetime_regex_test.cpp.i
+
+test/datetime_regex_test.s: test/datetime_regex_test.cpp.s
+.PHONY : test/datetime_regex_test.s
+
+# target to generate assembly for a file
+test/datetime_regex_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/datetime_regex_test.dir/build.make CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.s
+.PHONY : test/datetime_regex_test.cpp.s
+
 test/error_test.o: test/error_test.cpp.o
 .PHONY : test/error_test.o
 
@@ -528,6 +693,54 @@ test/error_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/error_test.dir/build.make CMakeFiles/error_test.dir/test/error_test.cpp.s
 .PHONY : test/error_test.cpp.s
 
+test/forloop_test.o: test/forloop_test.cpp.o
+.PHONY : test/forloop_test.o
+
+# target to build an object file
+test/forloop_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/forloop_test.dir/build.make CMakeFiles/forloop_test.dir/test/forloop_test.cpp.o
+.PHONY : test/forloop_test.cpp.o
+
+test/forloop_test.i: test/forloop_test.cpp.i
+.PHONY : test/forloop_test.i
+
+# target to preprocess a source file
+test/forloop_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/forloop_test.dir/build.make CMakeFiles/forloop_test.dir/test/forloop_test.cpp.i
+.PHONY : test/forloop_test.cpp.i
+
+test/forloop_test.s: test/forloop_test.cpp.s
+.PHONY : test/forloop_test.s
+
+# target to generate assembly for a file
+test/forloop_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/forloop_test.dir/build.make CMakeFiles/forloop_test.dir/test/forloop_test.cpp.s
+.PHONY : test/forloop_test.cpp.s
+
+test/fs_test.o: test/fs_test.cpp.o
+.PHONY : test/fs_test.o
+
+# target to build an object file
+test/fs_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fs_test.dir/build.make CMakeFiles/fs_test.dir/test/fs_test.cpp.o
+.PHONY : test/fs_test.cpp.o
+
+test/fs_test.i: test/fs_test.cpp.i
+.PHONY : test/fs_test.i
+
+# target to preprocess a source file
+test/fs_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fs_test.dir/build.make CMakeFiles/fs_test.dir/test/fs_test.cpp.i
+.PHONY : test/fs_test.cpp.i
+
+test/fs_test.s: test/fs_test.cpp.s
+.PHONY : test/fs_test.s
+
+# target to generate assembly for a file
+test/fs_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fs_test.dir/build.make CMakeFiles/fs_test.dir/test/fs_test.cpp.s
+.PHONY : test/fs_test.cpp.s
+
 test/interpreter_test.o: test/interpreter_test.cpp.o
 .PHONY : test/interpreter_test.o
 
@@ -551,6 +764,78 @@ test/interpreter_test.s: test/interpreter_test.cpp.s
 test/interpreter_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/interpreter_test.dir/build.make CMakeFiles/interpreter_test.dir/test/interpreter_test.cpp.s
 .PHONY : test/interpreter_test.cpp.s
+
+test/json_shell_test.o: test/json_shell_test.cpp.o
+.PHONY : test/json_shell_test.o
+
+# target to build an object file
+test/json_shell_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/json_shell_test.dir/build.make CMakeFiles/json_shell_test.dir/test/json_shell_test.cpp.o
+.PHONY : test/json_shell_test.cpp.o
+
+test/json_shell_test.i: test/json_shell_test.cpp.i
+.PHONY : test/json_shell_test.i
+
+# target to preprocess a source file
+test/json_shell_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/json_shell_test.dir/build.make CMakeFiles/json_shell_test.dir/test/json_shell_test.cpp.i
+.PHONY : test/json_shell_test.cpp.i
+
+test/json_shell_test.s: test/json_shell_test.cpp.s
+.PHONY : test/json_shell_test.s
+
+# target to generate assembly for a file
+test/json_shell_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/json_shell_test.dir/build.make CMakeFiles/json_shell_test.dir/test/json_shell_test.cpp.s
+.PHONY : test/json_shell_test.cpp.s
+
+test/module_test.o: test/module_test.cpp.o
+.PHONY : test/module_test.o
+
+# target to build an object file
+test/module_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/test/module_test.cpp.o
+.PHONY : test/module_test.cpp.o
+
+test/module_test.i: test/module_test.cpp.i
+.PHONY : test/module_test.i
+
+# target to preprocess a source file
+test/module_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/test/module_test.cpp.i
+.PHONY : test/module_test.cpp.i
+
+test/module_test.s: test/module_test.cpp.s
+.PHONY : test/module_test.s
+
+# target to generate assembly for a file
+test/module_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/test/module_test.cpp.s
+.PHONY : test/module_test.cpp.s
+
+test/network_archive_test.o: test/network_archive_test.cpp.o
+.PHONY : test/network_archive_test.o
+
+# target to build an object file
+test/network_archive_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/network_archive_test.dir/build.make CMakeFiles/network_archive_test.dir/test/network_archive_test.cpp.o
+.PHONY : test/network_archive_test.cpp.o
+
+test/network_archive_test.i: test/network_archive_test.cpp.i
+.PHONY : test/network_archive_test.i
+
+# target to preprocess a source file
+test/network_archive_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/network_archive_test.dir/build.make CMakeFiles/network_archive_test.dir/test/network_archive_test.cpp.i
+.PHONY : test/network_archive_test.cpp.i
+
+test/network_archive_test.s: test/network_archive_test.cpp.s
+.PHONY : test/network_archive_test.s
+
+# target to generate assembly for a file
+test/network_archive_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/network_archive_test.dir/build.make CMakeFiles/network_archive_test.dir/test/network_archive_test.cpp.s
+.PHONY : test/network_archive_test.cpp.s
 
 test/os_test.o: test/os_test.cpp.o
 .PHONY : test/os_test.o
@@ -600,6 +885,30 @@ test/parser_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/parser_test.dir/build.make CMakeFiles/parser_test.dir/test/parser_test.cpp.s
 .PHONY : test/parser_test.cpp.s
 
+test/process_sysmon_test.o: test/process_sysmon_test.cpp.o
+.PHONY : test/process_sysmon_test.o
+
+# target to build an object file
+test/process_sysmon_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/process_sysmon_test.dir/build.make CMakeFiles/process_sysmon_test.dir/test/process_sysmon_test.cpp.o
+.PHONY : test/process_sysmon_test.cpp.o
+
+test/process_sysmon_test.i: test/process_sysmon_test.cpp.i
+.PHONY : test/process_sysmon_test.i
+
+# target to preprocess a source file
+test/process_sysmon_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/process_sysmon_test.dir/build.make CMakeFiles/process_sysmon_test.dir/test/process_sysmon_test.cpp.i
+.PHONY : test/process_sysmon_test.cpp.i
+
+test/process_sysmon_test.s: test/process_sysmon_test.cpp.s
+.PHONY : test/process_sysmon_test.s
+
+# target to generate assembly for a file
+test/process_sysmon_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/process_sysmon_test.dir/build.make CMakeFiles/process_sysmon_test.dir/test/process_sysmon_test.cpp.s
+.PHONY : test/process_sysmon_test.cpp.s
+
 test/shell_test.o: test/shell_test.cpp.o
 .PHONY : test/shell_test.o
 
@@ -623,6 +932,30 @@ test/shell_test.s: test/shell_test.cpp.s
 test/shell_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/shell_test.dir/build.make CMakeFiles/shell_test.dir/test/shell_test.cpp.s
 .PHONY : test/shell_test.cpp.s
+
+test/textproc_test.o: test/textproc_test.cpp.o
+.PHONY : test/textproc_test.o
+
+# target to build an object file
+test/textproc_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/textproc_test.dir/build.make CMakeFiles/textproc_test.dir/test/textproc_test.cpp.o
+.PHONY : test/textproc_test.cpp.o
+
+test/textproc_test.i: test/textproc_test.cpp.i
+.PHONY : test/textproc_test.i
+
+# target to preprocess a source file
+test/textproc_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/textproc_test.dir/build.make CMakeFiles/textproc_test.dir/test/textproc_test.cpp.i
+.PHONY : test/textproc_test.cpp.i
+
+test/textproc_test.s: test/textproc_test.cpp.s
+.PHONY : test/textproc_test.s
+
+# target to generate assembly for a file
+test/textproc_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/textproc_test.dir/build.make CMakeFiles/textproc_test.dir/test/textproc_test.cpp.s
+.PHONY : test/textproc_test.cpp.s
 
 test/xobject_test.o: test/xobject_test.cpp.o
 .PHONY : test/xobject_test.o
@@ -662,11 +995,20 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... test"
 	@echo "... bring_test"
+	@echo "... builtin_test"
+	@echo "... datetime_regex_test"
 	@echo "... error_test"
+	@echo "... forloop_test"
+	@echo "... fs_test"
 	@echo "... interpreter_test"
+	@echo "... json_shell_test"
+	@echo "... module_test"
+	@echo "... network_archive_test"
 	@echo "... os_test"
 	@echo "... parser_test"
+	@echo "... process_sysmon_test"
 	@echo "... shell_test"
+	@echo "... textproc_test"
 	@echo "... xell"
 	@echo "... xell_lib"
 	@echo "... xobject_test"
@@ -697,21 +1039,48 @@ help:
 	@echo "... test/bring_test.o"
 	@echo "... test/bring_test.i"
 	@echo "... test/bring_test.s"
+	@echo "... test/builtin_test.o"
+	@echo "... test/builtin_test.i"
+	@echo "... test/builtin_test.s"
+	@echo "... test/datetime_regex_test.o"
+	@echo "... test/datetime_regex_test.i"
+	@echo "... test/datetime_regex_test.s"
 	@echo "... test/error_test.o"
 	@echo "... test/error_test.i"
 	@echo "... test/error_test.s"
+	@echo "... test/forloop_test.o"
+	@echo "... test/forloop_test.i"
+	@echo "... test/forloop_test.s"
+	@echo "... test/fs_test.o"
+	@echo "... test/fs_test.i"
+	@echo "... test/fs_test.s"
 	@echo "... test/interpreter_test.o"
 	@echo "... test/interpreter_test.i"
 	@echo "... test/interpreter_test.s"
+	@echo "... test/json_shell_test.o"
+	@echo "... test/json_shell_test.i"
+	@echo "... test/json_shell_test.s"
+	@echo "... test/module_test.o"
+	@echo "... test/module_test.i"
+	@echo "... test/module_test.s"
+	@echo "... test/network_archive_test.o"
+	@echo "... test/network_archive_test.i"
+	@echo "... test/network_archive_test.s"
 	@echo "... test/os_test.o"
 	@echo "... test/os_test.i"
 	@echo "... test/os_test.s"
 	@echo "... test/parser_test.o"
 	@echo "... test/parser_test.i"
 	@echo "... test/parser_test.s"
+	@echo "... test/process_sysmon_test.o"
+	@echo "... test/process_sysmon_test.i"
+	@echo "... test/process_sysmon_test.s"
 	@echo "... test/shell_test.o"
 	@echo "... test/shell_test.i"
 	@echo "... test/shell_test.s"
+	@echo "... test/textproc_test.o"
+	@echo "... test/textproc_test.i"
+	@echo "... test/textproc_test.s"
 	@echo "... test/xobject_test.o"
 	@echo "... test/xobject_test.i"
 	@echo "... test/xobject_test.s"

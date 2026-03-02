@@ -73,8 +73,7 @@ namespace xell
             auto it = modules_.find(moduleName);
             if (it == modules_.end())
                 return false;
-            return std::find(it->second.begin(), it->second.end(), funcName)
-                   != it->second.end();
+            return std::find(it->second.begin(), it->second.end(), funcName) != it->second.end();
         }
 
         /// Get the set of ALL Tier 2 function names (union of all T2 modules).
