@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/builtin_test.dir/test/builtin_test.cpp.o -o builtin_test  libxell_lib.a 

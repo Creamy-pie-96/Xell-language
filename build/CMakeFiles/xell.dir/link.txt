@@ -1,1 +1,1 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/xell.dir/src/main.cpp.o -o xell  libxell_lib.a 
+/usr/bin/c++ -g CMakeFiles/xell.dir/src/main.cpp.o -o xell  libxell_lib.a 

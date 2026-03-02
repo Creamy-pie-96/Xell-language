@@ -59,3 +59,7 @@ add_test(NAME bring_test COMMAND bring_test)
 add_executable(shell_test test/shell_test.cpp)
 target_link_libraries(shell_test xell_lib)
 add_test(NAME shell_test COMMAND shell_test)
+
+add_executable(builtin_test test/builtin_test.cpp)
+target_link_libraries(builtin_test xell_lib)
+add_test(NAME builtin_test COMMAND builtin_test)

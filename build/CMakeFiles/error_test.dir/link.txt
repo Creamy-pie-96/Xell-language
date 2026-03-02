@@ -1,1 +1,1 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/error_test.dir/test/error_test.cpp.o -o error_test  libxell_lib.a 
+/usr/bin/c++ -g CMakeFiles/error_test.dir/test/error_test.cpp.o -o error_test  libxell_lib.a 

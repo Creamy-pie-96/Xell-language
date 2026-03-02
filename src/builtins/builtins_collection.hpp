@@ -250,6 +250,12 @@ namespace xell
         {
             if (args.size() != 2)
                 throw ArityError("contains", 2, (int)args.size(), line);
+            if (args[0].isString())
+            {
+                if (!args[1].isString())
+                    throw TypeError("contains() on string expects a string argument", line);
+                return XObject::makeBool(args[0].asString().find(args[1].asString()) != std::string::npos);
+            }
             if (args[0].isSet())
                 return XObject::makeBool(args[0].asSet().has(args[1]));
             if (args[0].isMap())
@@ -270,7 +276,7 @@ namespace xell
             }
             if (args[0].isFrozenSet())
                 return XObject::makeBool(args[0].asFrozenSet().has(args[1]));
-            throw TypeError("contains() expects a list, tuple, set, frozen_set, or map", line);
+            throw TypeError("contains() expects a string, list, tuple, set, frozen_set, or map", line);
         };
 
         t["to_set"] = [](std::vector<XObject> &args, int line) -> XObject

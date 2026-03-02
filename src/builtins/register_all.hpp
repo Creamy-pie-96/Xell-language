@@ -21,6 +21,9 @@
 #include "builtins_util.hpp"
 #include "builtins_os.hpp"
 #include "builtins_hash.hpp"
+#include "builtins_string.hpp"
+#include "builtins_list.hpp"
+#include "builtins_map.hpp"
 #include "builtins_bytes.hpp"
 #include "builtins_generator.hpp"
 #include "../interpreter/shell_state.hpp"
@@ -44,6 +47,9 @@ namespace xell
         registerUtilBuiltins(t);
         registerOSBuiltins(t, shellState);
         registerHashBuiltins(t);
+        registerStringBuiltins(t);
+        registerListBuiltins(t);
+        registerMapBuiltins(t);
         registerBytesBuiltins(t);
         registerGeneratorBuiltins(t);
     }

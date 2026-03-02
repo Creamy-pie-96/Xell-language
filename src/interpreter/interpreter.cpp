@@ -8,6 +8,7 @@
 #include <cassert>
 #include <iostream>
 #include <fstream>
+#include <limits>
 
 // Portable dirname — returns directory part of a path (no <filesystem> needed)
 static std::string parentDir(const std::string &path)
@@ -181,6 +182,115 @@ namespace xell
     {
         builtins_.clear();
         registerAllBuiltins(builtins_, output_, shellState_);
+
+        // ---- Math constants (injected into global environment) ----
+        globalEnv_.define("PI", XObject::makeFloat(3.14159265358979323846));
+        globalEnv_.define("E", XObject::makeFloat(2.71828182845904523536));
+        globalEnv_.define("INF", XObject::makeFloat(std::numeric_limits<double>::infinity()));
+
+        // ---- Higher-order function builtins (need interpreter access) ----
+
+        // map(list, fn) → apply fn to each element
+        builtins_["map"] = [this](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 2)
+                throw ArityError("map", 2, (int)args.size(), line);
+            if (!args[0].isList())
+                throw TypeError("map() expects a list as first argument", line);
+            if (!args[1].isFunction())
+                throw TypeError("map() expects a function as second argument", line);
+            const auto &list = args[0].asList();
+            const auto &fn = args[1].asFunction();
+            XList result;
+            for (const auto &item : list)
+            {
+                std::vector<XObject> callArgs = {item};
+                result.push_back(callUserFn(fn, callArgs, line));
+            }
+            return XObject::makeList(std::move(result));
+        };
+
+        // filter(list, fn) → keep elements where fn returns true
+        builtins_["filter"] = [this](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 2)
+                throw ArityError("filter", 2, (int)args.size(), line);
+            if (!args[0].isList())
+                throw TypeError("filter() expects a list as first argument", line);
+            if (!args[1].isFunction())
+                throw TypeError("filter() expects a function as second argument", line);
+            const auto &list = args[0].asList();
+            const auto &fn = args[1].asFunction();
+            XList result;
+            for (const auto &item : list)
+            {
+                std::vector<XObject> callArgs = {item};
+                XObject res = callUserFn(fn, callArgs, line);
+                if (res.truthy())
+                    result.push_back(item);
+            }
+            return XObject::makeList(std::move(result));
+        };
+
+        // reduce(list, fn, init) → reduce to single value
+        builtins_["reduce"] = [this](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 3)
+                throw ArityError("reduce", 3, (int)args.size(), line);
+            if (!args[0].isList())
+                throw TypeError("reduce() expects a list as first argument", line);
+            if (!args[1].isFunction())
+                throw TypeError("reduce() expects a function as second argument", line);
+            const auto &list = args[0].asList();
+            const auto &fn = args[1].asFunction();
+            XObject acc = args[2];
+            for (const auto &item : list)
+            {
+                std::vector<XObject> callArgs = {acc, item};
+                acc = callUserFn(fn, callArgs, line);
+            }
+            return acc;
+        };
+
+        // any(list, fn) → true if at least one element matches
+        builtins_["any"] = [this](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 2)
+                throw ArityError("any", 2, (int)args.size(), line);
+            if (!args[0].isList())
+                throw TypeError("any() expects a list as first argument", line);
+            if (!args[1].isFunction())
+                throw TypeError("any() expects a function as second argument", line);
+            const auto &list = args[0].asList();
+            const auto &fn = args[1].asFunction();
+            for (const auto &item : list)
+            {
+                std::vector<XObject> callArgs = {item};
+                if (callUserFn(fn, callArgs, line).truthy())
+                    return XObject::makeBool(true);
+            }
+            return XObject::makeBool(false);
+        };
+
+        // all(list, fn) → true if all elements match
+        builtins_["all"] = [this](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 2)
+                throw ArityError("all", 2, (int)args.size(), line);
+            if (!args[0].isList())
+                throw TypeError("all() expects a list as first argument", line);
+            if (!args[1].isFunction())
+                throw TypeError("all() expects a function as second argument", line);
+            const auto &list = args[0].asList();
+            const auto &fn = args[1].asFunction();
+            for (const auto &item : list)
+            {
+                std::vector<XObject> callArgs = {item};
+                if (!callUserFn(fn, callArgs, line).truthy())
+                    return XObject::makeBool(false);
+            }
+            return XObject::makeBool(true);
+        };
     }
 
     // ========================================================================

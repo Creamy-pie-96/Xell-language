@@ -1,10 +1,10 @@
-Start testing: Mar 02 05:46 +06
+Start testing: Mar 02 14:41 +06
 ----------------------------------------------------------
-1/7 Testing: parser_test
-1/7 Test: parser_test
+1/8 Testing: parser_test
+1/8 Test: parser_test
 Command: "/home/DATA/CODE/code/Xell/build/parser_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"parser_test" start time: Mar 02 05:46 +06
+"parser_test" start time: Mar 02 14:41 +06
 Output:
 ----------------------------------------------------------
 
@@ -130,18 +130,18 @@ Output:
 ============================================
 
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"parser_test" end time: Mar 02 05:46 +06
+"parser_test" end time: Mar 02 14:41 +06
 "parser_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-2/7 Testing: error_test
-2/7 Test: error_test
+2/8 Testing: error_test
+2/8 Test: error_test
 Command: "/home/DATA/CODE/code/Xell/build/error_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"error_test" start time: Mar 02 05:46 +06
+"error_test" start time: Mar 02 14:41 +06
 Output:
 ----------------------------------------------------------
 
@@ -228,18 +228,18 @@ Output:
   Total: 67  |  Passed: 67  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"error_test" end time: Mar 02 05:46 +06
+"error_test" end time: Mar 02 14:41 +06
 "error_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-3/7 Testing: xobject_test
-3/7 Test: xobject_test
+3/8 Testing: xobject_test
+3/8 Test: xobject_test
 Command: "/home/DATA/CODE/code/Xell/build/xobject_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"xobject_test" start time: Mar 02 05:46 +06
+"xobject_test" start time: Mar 02 14:41 +06
 Output:
 ----------------------------------------------------------
 
@@ -362,15 +362,15 @@ Output:
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"xobject_test" end time: Mar 02 05:46 +06
+"xobject_test" end time: Mar 02 14:41 +06
 "xobject_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-4/7 Testing: interpreter_test
-4/7 Test: interpreter_test
+4/8 Testing: interpreter_test
+4/8 Test: interpreter_test
 Command: "/home/DATA/CODE/code/Xell/build/interpreter_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"interpreter_test" start time: Mar 02 05:46 +06
+"interpreter_test" start time: Mar 02 14:41 +06
 Output:
 ----------------------------------------------------------
 
@@ -689,18 +689,18 @@ Output:
   Total: 243  |  Passed: 243  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.02 sec
+Test time =   0.05 sec
 ----------------------------------------------------------
 Test Passed.
-"interpreter_test" end time: Mar 02 05:46 +06
+"interpreter_test" end time: Mar 02 14:41 +06
 "interpreter_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-5/7 Testing: os_test
-5/7 Test: os_test
+5/8 Testing: os_test
+5/8 Test: os_test
 Command: "/home/DATA/CODE/code/Xell/build/os_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"os_test" start time: Mar 02 05:46 +06
+"os_test" start time: Mar 02 14:41 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -784,18 +784,18 @@ Output:
   Total: 61  |  Passed: 61  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.03 sec
+Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"os_test" end time: Mar 02 05:46 +06
+"os_test" end time: Mar 02 14:41 +06
 "os_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-6/7 Testing: bring_test
-6/7 Test: bring_test
+6/8 Testing: bring_test
+6/8 Test: bring_test
 Command: "/home/DATA/CODE/code/Xell/build/bring_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"bring_test" start time: Mar 02 05:46 +06
+"bring_test" start time: Mar 02 14:41 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -839,18 +839,18 @@ Output:
   Total: 21  |  Passed: 21  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.01 sec
+Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"bring_test" end time: Mar 02 05:46 +06
+"bring_test" end time: Mar 02 14:41 +06
 "bring_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-7/7 Testing: shell_test
-7/7 Test: shell_test
+7/8 Testing: shell_test
+7/8 Test: shell_test
 Command: "/home/DATA/CODE/code/Xell/build/shell_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"shell_test" start time: Mar 02 05:46 +06
+"shell_test" start time: Mar 02 14:41 +06
 Output:
 ----------------------------------------------------------
 done
@@ -909,11 +909,188 @@ done
   Total: 40  |  Passed: 40  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.06 sec
+Test time =   0.05 sec
 ----------------------------------------------------------
 Test Passed.
-"shell_test" end time: Mar 02 05:46 +06
+"shell_test" end time: Mar 02 14:41 +06
 "shell_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Mar 02 05:46 +06
+8/8 Testing: builtin_test
+8/8 Test: builtin_test
+Command: "/home/DATA/CODE/code/Xell/build/builtin_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"builtin_test" start time: Mar 02 14:41 +06
+Output:
+----------------------------------------------------------
+=======================================
+   Xell Builtin Tests
+=======================================
+
+===== String Builtins =====
+  PASS: split basic
+  PASS: split with space
+  PASS: join basic
+  PASS: join empty separator
+  PASS: trim whitespace
+  PASS: trim_start
+  PASS: trim_end
+  PASS: upper
+  PASS: lower
+  PASS: replace all
+  PASS: replace_first
+  PASS: starts_with true
+  PASS: starts_with false
+  PASS: ends_with true
+  PASS: ends_with false
+  PASS: index_of string found
+  PASS: index_of string not found
+  PASS: index_of list found
+  PASS: index_of list not found
+  PASS: substr
+  PASS: char_at
+  PASS: repeat
+  PASS: pad_start
+  PASS: pad_end
+  PASS: reverse string
+  PASS: reverse list
+  PASS: count string
+  PASS: count list
+  PASS: is_empty empty string
+  PASS: is_empty non-empty string
+  PASS: is_empty empty list
+  PASS: is_empty non-empty list
+  PASS: is_numeric true
+  PASS: is_numeric false
+  PASS: is_alpha true
+  PASS: is_alpha false
+  PASS: lines
+  PASS: to_chars
+
+===== List Builtins =====
+  PASS: shift removes first
+  PASS: unshift adds to front
+  PASS: insert at index
+  PASS: remove_val
+  PASS: sort ascending
+  PASS: sort_desc descending
+  PASS: slice
+  PASS: flatten nested
+  PASS: unique
+  PASS: first
+  PASS: last
+  PASS: zip two lists
+  PASS: sum
+  PASS: min of list
+  PASS: max of list
+  PASS: min of two
+  PASS: max of two
+  PASS: avg
+  PASS: size of list
+  PASS: size of string
+
+===== Map Builtins =====
+  PASS: delete_key
+  PASS: get existing key
+  PASS: get missing key returns default
+  PASS: merge two maps
+  PASS: entries
+  PASS: from_entries
+
+===== Math Builtins (Basic) =====
+  PASS: log(1) == 0
+  PASS: log10(100) == 2
+  PASS: clamp within range
+  PASS: clamp below low
+  PASS: clamp above high
+  PASS: is_nan false
+  PASS: is_inf false
+  PASS: to_int from float
+  PASS: to_int from string
+  PASS: to_float from int
+  PASS: hex
+  PASS: bin
+  PASS: random returns number
+  PASS: random_int in range
+  PASS: PI is defined
+  PASS: E is defined
+
+===== Math Builtins (Trigonometric) =====
+  PASS: sin(0) == 0
+  PASS: cos(0) == 1
+  PASS: tan(0) == 0
+  PASS: sin(PI/2) approx 1
+  PASS: cos(PI) approx -1
+  PASS: cot(PI/4) approx 1
+  PASS: sec(0) == 1
+  PASS: csc(PI/2) approx 1
+  PASS: asin(0) == 0
+  PASS: acos(1) == 0
+  PASS: atan(0) == 0
+  PASS: atan2(0, 1) == 0
+  PASS: atan2(1, 0) approx PI/2
+  PASS: asin(1) approx PI/2
+  PASS: acot(1) approx PI/4
+  PASS: asec(1) == 0
+  PASS: acsc(1) approx PI/2
+  PASS: asin domain error
+  PASS: acos domain error
+  PASS: asec domain error |x| < 1
+  PASS: acsc domain error |x| < 1
+
+===== Math Builtins (Hyperbolic) =====
+  PASS: sinh(0) == 0
+  PASS: cosh(0) == 1
+  PASS: tanh(0) == 0
+  PASS: sinh(1) approx 1.1752
+  PASS: cosh(1) approx 1.5431
+  PASS: tanh(1) approx 0.7616
+  PASS: coth(1) approx 1.3130
+  PASS: sech(0) == 1
+  PASS: csch(1) approx 0.8509
+  PASS: csch(0) division by zero
+  PASS: coth(0) division by zero
+  PASS: asinh(0) == 0
+  PASS: acosh(1) == 0
+  PASS: atanh(0) == 0
+  PASS: asinh(1) approx 0.8814
+  PASS: acosh(2) approx 1.3170
+  PASS: acoth(2) approx 0.5493
+  PASS: asech(0.5) approx 1.3170
+  PASS: acsch(1) approx 0.8814
+  PASS: acosh domain error x < 1
+  PASS: atanh domain error x == 1
+  PASS: acoth domain error |x| <= 1
+  PASS: asech domain error x > 1
+  PASS: acsch domain error x == 0
+
+===== Higher-Order Function Builtins =====
+  PASS: map with lambda
+  PASS: map with named fn
+  PASS: filter with lambda
+  PASS: filter even numbers
+  PASS: reduce sum
+  PASS: reduce product
+  PASS: any true
+  PASS: any false
+  PASS: all true
+  PASS: all false
+
+===== Contains Polymorphic =====
+  PASS: contains in string
+  PASS: contains not in string
+  PASS: contains in list
+  PASS: contains not in list
+
+=======================================
+  Results: 139 passed, 0 failed
+=======================================
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"builtin_test" end time: Mar 02 14:41 +06
+"builtin_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 02 14:41 +06

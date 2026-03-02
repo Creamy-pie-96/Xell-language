@@ -288,6 +288,19 @@ shell_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/shell_test.dir/build.make CMakeFiles/shell_test.dir/build
 .PHONY : shell_test/fast
 
+#=============================================================================
+# Target rules for targets named builtin_test
+
+# Build rule for target.
+builtin_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 builtin_test
+.PHONY : builtin_test
+
+# fast build rule for target.
+builtin_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/build
+.PHONY : builtin_test/fast
+
 src/interpreter/interpreter.o: src/interpreter/interpreter.cpp.o
 .PHONY : src/interpreter/interpreter.o
 
@@ -504,6 +517,30 @@ test/bring_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bring_test.dir/build.make CMakeFiles/bring_test.dir/test/bring_test.cpp.s
 .PHONY : test/bring_test.cpp.s
 
+test/builtin_test.o: test/builtin_test.cpp.o
+.PHONY : test/builtin_test.o
+
+# target to build an object file
+test/builtin_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/test/builtin_test.cpp.o
+.PHONY : test/builtin_test.cpp.o
+
+test/builtin_test.i: test/builtin_test.cpp.i
+.PHONY : test/builtin_test.i
+
+# target to preprocess a source file
+test/builtin_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/test/builtin_test.cpp.i
+.PHONY : test/builtin_test.cpp.i
+
+test/builtin_test.s: test/builtin_test.cpp.s
+.PHONY : test/builtin_test.s
+
+# target to generate assembly for a file
+test/builtin_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/test/builtin_test.cpp.s
+.PHONY : test/builtin_test.cpp.s
+
 test/error_test.o: test/error_test.cpp.o
 .PHONY : test/error_test.o
 
@@ -662,6 +699,7 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... test"
 	@echo "... bring_test"
+	@echo "... builtin_test"
 	@echo "... error_test"
 	@echo "... interpreter_test"
 	@echo "... os_test"
@@ -697,6 +735,9 @@ help:
 	@echo "... test/bring_test.o"
 	@echo "... test/bring_test.i"
 	@echo "... test/bring_test.s"
+	@echo "... test/builtin_test.o"
+	@echo "... test/builtin_test.i"
+	@echo "... test/builtin_test.s"
 	@echo "... test/error_test.o"
 	@echo "... test/error_test.i"
 	@echo "... test/error_test.s"
