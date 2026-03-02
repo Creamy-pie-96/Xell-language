@@ -67,6 +67,13 @@ namespace xell
         /// Reset cursor to past-the-end (ready for new navigation)
         void resetCursor() { cursor_ = entries_.size(); }
 
+        /// Clear all history entries
+        void clear()
+        {
+            entries_.clear();
+            resetCursor();
+        }
+
         /// Get all entries
         const std::vector<std::string> &entries() const { return entries_; }
 

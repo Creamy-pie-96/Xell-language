@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
-gen_xell_grammar.py — Fully dynamic grammar & token generator for Xell
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+gen_xell_grammar.py — Fully dynamic grammar, token & snippet generator for Xell
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Single source of truth: the C++ source files.
 
 Reads:
-  - src/lexer/token.hpp          → keyword names from TokenType enum
-  - src/builtins/builtins_*.hpp  → builtin function names from t["name"] patterns
+  - src/lexer/token.hpp              → keyword names from TokenType enum
+  - src/builtins/builtins_*.hpp      → builtin function names from t["name"] patterns
+  - src/builtins/register_all.hpp    → Tier 2 module names from regModule() calls
 
 Generates:
   - Extensions/xell-vscode/syntaxes/xell.tmLanguage.json
   - Extensions/xell-vscode/color_customizer/token_data.json
+  - Extensions/xell-vscode/snippets/xell.json
 
 Usage:
-    python3 Extensions/gen_xell_grammar.py              # generate grammar files
+    python3 Extensions/gen_xell_grammar.py              # generate all files
     python3 Extensions/gen_xell_grammar.py --check      # verify files are up-to-date
     python3 Extensions/gen_xell_grammar.py --install     # generate + build + install extension
 """
@@ -39,6 +41,8 @@ BUILTINS_DIR = SRC_DIR / "builtins"
 VSCODE_DIR = SCRIPT_DIR / "xell-vscode"
 TMLANG_OUT = VSCODE_DIR / "syntaxes" / "xell.tmLanguage.json"
 TOKEN_DATA_OUT = VSCODE_DIR / "color_customizer" / "token_data.json"
+SNIPPETS_OUT = VSCODE_DIR / "snippets" / "xell.json"
+REGISTER_ALL_HPP = BUILTINS_DIR / "register_all.hpp"
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -102,6 +106,15 @@ def extract_all_builtins():
         if names:
             categories[cat] = names
     return categories
+
+
+def extract_tier2_modules():
+    """Extract Tier 2 module names from register_all.hpp."""
+    if not REGISTER_ALL_HPP.exists():
+        return []
+    content = read_file(REGISTER_ALL_HPP)
+    # Match: regModule("name", true, ...
+    return re.findall(r'regModule\s*\(\s*"(\w+)"\s*,\s*true\b', content)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -655,6 +668,217 @@ def build_token_data(kw_classes, builtin_cats):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 4b. GENERATE xell.json SNIPPETS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Module-level descriptions for generate snippet docs
+MODULE_DESCRIPTIONS = {
+    "json":     "JSON/CSV/TOML/YAML functions",
+    "regex":    "Regular expression functions",
+    "datetime": "Date and time functions",
+    "fs":       "Advanced filesystem functions",
+    "textproc": "Text processing functions",
+    "process":  "Process management functions",
+    "sysmon":   "System monitoring functions",
+    "net":      "Networking functions (http, ping, dns, etc.)",
+    "archive":  "Archive/compression functions",
+}
+
+# Short prefix aliases for common modules
+MODULE_PREFIX_ALIAS = {
+    "json": "bringjson",
+    "regex": "bringregex",
+    "datetime": "bringdt",
+    "fs": "bringfs",
+    "net": "bringnet",
+    "textproc": "bringtxt",
+    "process": "bringproc",
+    "sysmon": "bringsys",
+    "archive": "bringarc",
+}
+
+
+def build_snippets(kw_classes, builtin_cats, tier2_modules):
+    """Build the complete xell.json snippets dict from extracted data."""
+
+    snips = OrderedDict()
+
+    # ── Core language constructs (static) ────────────────────────────
+
+    snips["Function Definition"] = {
+        "prefix": "fn",
+        "body": ["fn ${1:name}(${2:params}) :", "    ${3:# body}", ";"],
+        "description": "Define a new function",
+    }
+    snips["Function with Give"] = {
+        "prefix": "fnr",
+        "body": ["fn ${1:name}(${2:params}) :", "    give ${3:expression}", ";"],
+        "description": "Define a function that gives back a value",
+    }
+    snips["If Statement"] = {
+        "prefix": "if",
+        "body": ["if ${1:condition} :", "    ${2:# body}", ";"],
+        "description": "If conditional block",
+    }
+    snips["If-Else"] = {
+        "prefix": "ife",
+        "body": ["if ${1:condition} :", "    ${2:# then}", ";",
+                  "else :", "    ${3:# else}", ";"],
+        "description": "If-else conditional block",
+    }
+    snips["If-Elif-Else"] = {
+        "prefix": "ifee",
+        "body": ["if ${1:condition} :", "    ${2:# body}", ";",
+                  "elif ${3:condition2} :", "    ${4:# body2}", ";",
+                  "else :", "    ${5:# else}", ";"],
+        "description": "If-elif-else block",
+    }
+    snips["For Loop"] = {
+        "prefix": "for",
+        "body": ["for ${1:item} in ${2:collection} :", "    ${3:# body}", ";"],
+        "description": "For-in loop over collection",
+    }
+    snips["For Range Loop"] = {
+        "prefix": "forr",
+        "body": ["for ${1:i} in range(${2:n}) :", "    ${3:# body}", ";"],
+        "description": "For loop with range(n)",
+    }
+    snips["While Loop"] = {
+        "prefix": "while",
+        "body": ["while ${1:condition} :", "    ${2:# body}", ";"],
+        "description": "While loop",
+    }
+    snips["Assignment"] = {
+        "prefix": "var",
+        "body": "${1:name} = ${2:value}",
+        "description": "Assign a value to a variable",
+    }
+    snips["Print"] = {
+        "prefix": "pr",
+        "body": "print(${1:expression})",
+        "description": "Print a value",
+    }
+    snips["Give (Return)"] = {
+        "prefix": "give",
+        "body": "give ${1:expression}",
+        "description": "Give back a value from a function",
+    }
+
+    # ── Bring / import ───────────────────────────────────────────────
+
+    snips["Bring (Import)"] = {
+        "prefix": "bring",
+        "body": "bring ${1:name} from \"${2:./file.xel}\"",
+        "description": "Bring names from another file",
+    }
+    snips["Bring All"] = {
+        "prefix": "bringa",
+        "body": "bring * from \"${1:./file.xel}\"",
+        "description": "Bring all names from another file",
+    }
+    snips["Bring As"] = {
+        "prefix": "bringas",
+        "body": "bring ${1:name} from \"${2:./file.xel}\" as ${3:alias}",
+        "description": "Bring a name with an alias",
+    }
+
+    # Dynamic: module bring with choice list from Tier 2 modules
+    if tier2_modules:
+        mod_choice = "|".join(sorted(tier2_modules))
+        snips["Bring Module"] = {
+            "prefix": "bringmod",
+            "body": f"bring * from \"${{1|{mod_choice}|}}\"",
+            "description": "Bring all functions from a built-in module",
+        }
+        snips["Bring Module Selective"] = {
+            "prefix": "bringsel",
+            "body": f"bring ${{2:func_name}} from \"${{1|{mod_choice}|}}\"",
+            "description": "Bring specific function from a built-in module",
+        }
+
+    # Dynamic: per-module bring snippets
+    for mod in sorted(tier2_modules):
+        alias = MODULE_PREFIX_ALIAS.get(mod, f"bring{mod}")
+        desc = MODULE_DESCRIPTIONS.get(mod, f"{mod.title()} functions")
+        title = f"Bring {mod.title()} Module"
+        snips[title] = {
+            "prefix": alias,
+            "body": f"bring * from \"{mod}\"",
+            "description": f"Bring {desc}",
+        }
+
+    # ── Data literals ────────────────────────────────────────────────
+
+    snips["Map Literal"] = {
+        "prefix": "map",
+        "body": ["{", "    ${1:key}: ${2:value}", "}"],
+        "description": "Create a map literal",
+    }
+    snips["List Literal"] = {
+        "prefix": "list",
+        "body": "[${1:items}]",
+        "description": "Create a list literal",
+    }
+
+    # ── Shell / OS ───────────────────────────────────────────────────
+
+    snips["Run Command"] = {
+        "prefix": "run",
+        "body": "run(\"${1:command}\")",
+        "description": "Run an external command",
+    }
+    snips["Run Capture"] = {
+        "prefix": "runc",
+        "body": "${1:result} = run_capture(\"${2:command}\")",
+        "description": "Run and capture output of a command",
+    }
+
+    # ── Dynamic: builtin function snippets ───────────────────────────
+    # Generate a snippet for every builtin function that takes at least
+    # one obvious string/value argument (heuristic: popular names).
+
+    BUILTIN_SNIPPETS = {
+        # name → (prefix, body, description)
+        "mkdir":      ("mkdir",  "mkdir(\"${1:path}\")",                       "Create a directory"),
+        "read":       ("readf",  "${1:content} = read(\"${2:file}\")",         "Read file contents"),
+        "write":      ("writef", "write(\"${1:file}\", ${2:data})",            "Write data to a file"),
+        "append":     ("appendf","append(\"${1:file}\", ${2:data})",           "Append data to a file"),
+        "exists":     ("exists", "exists(\"${1:path}\")",                      "Check if path exists"),
+        "typeof":     ("typeof", "typeof(${1:value})",                         "Get type of value"),
+        "len":        ("len",    "len(${1:collection})",                       "Get length of collection"),
+        "push":       ("push",   "push(${1:list}, ${2:item})",                "Push item to list"),
+        "split":      ("split",  "split(${1:text}, \"${2:delimiter}\")",       "Split string"),
+        "join":       ("join",   "join(${1:list}, \"${2:delimiter}\")",        "Join list into string"),
+        "keys":       ("keys",   "keys(${1:map})",                            "Get map keys"),
+        "values":     ("values", "values(${1:map})",                          "Get map values"),
+        "sort":       ("sort",   "sort(${1:list})",                           "Sort a list"),
+        "reverse":    ("rev",    "reverse(${1:list})",                        "Reverse a list"),
+        "range":      ("range",  "range(${1:start}, ${2:end})",               "Generate a range"),
+        "input":      ("input",  "${1:val} = input(\"${2:prompt}\")",          "Read user input"),
+        "sleep":      ("sleep",  "sleep(${1:seconds})",                       "Pause execution"),
+        "abs":        ("abs",    "abs(${1:number})",                          "Absolute value"),
+        "round":      ("round",  "round(${1:number})",                        "Round a number"),
+        "to_int":     ("toint",  "to_int(${1:value})",                        "Convert to integer"),
+        "to_float":   ("tofloat","to_float(${1:value})",                      "Convert to float"),
+        "to_str":     ("tostr",  "to_str(${1:value})",                        "Convert to string"),
+    }
+
+    all_builtin_names = set()
+    for names in builtin_cats.values():
+        all_builtin_names.update(names)
+
+    for name, (prefix, body, desc) in sorted(BUILTIN_SNIPPETS.items()):
+        if name in all_builtin_names:
+            snips[f"Builtin: {name}"] = {
+                "prefix": prefix,
+                "body": body,
+                "description": desc,
+            }
+
+    return snips
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 5. AUTO-INSTALL EXTENSION
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -740,6 +964,7 @@ def main():
     keywords = extract_keywords_dynamic(token_src)
     kw_classes = classify_keywords(keywords)
     builtin_cats = extract_all_builtins()
+    tier2_modules = extract_tier2_modules()
 
     all_builtins = []
     for cat, names in sorted(builtin_cats.items()):
@@ -750,6 +975,7 @@ def main():
     print(f"  Builtins:  {len(all_builtins)} across {len(builtin_cats)} categories")
     for cat, names in sorted(builtin_cats.items()):
         print(f"    {cat:12s}: {names}")
+    print(f"  Tier 2 modules: {tier2_modules}")
 
     grammar = build_tmlanguage(kw_classes, builtin_cats)
     grammar_json = json.dumps(grammar, indent=2) + "\n"
@@ -757,11 +983,15 @@ def main():
     token_data = build_token_data(kw_classes, builtin_cats)
     token_json = json.dumps(token_data, indent=2) + "\n"
 
+    snippets = build_snippets(kw_classes, builtin_cats, tier2_modules)
+    snippets_json = json.dumps(snippets, indent=2) + "\n"
+
     if check_mode:
         ok = True
         for path, new_content, name in [
             (TMLANG_OUT, grammar_json, "tmLanguage"),
             (TOKEN_DATA_OUT, token_json, "token_data"),
+            (SNIPPETS_OUT, snippets_json, "snippets"),
         ]:
             if path.exists():
                 existing = read_file(path)
@@ -785,7 +1015,12 @@ def main():
             f.write(token_json)
         print(f"[gen_grammar] ✓ Wrote {TOKEN_DATA_OUT}")
 
-        print(f"\n[gen_grammar] Done! Generated grammar with {len(keywords)} keywords and {len(all_builtins)} builtins.")
+        SNIPPETS_OUT.parent.mkdir(parents=True, exist_ok=True)
+        with open(SNIPPETS_OUT, "w") as f:
+            f.write(snippets_json)
+        print(f"[gen_grammar] ✓ Wrote {SNIPPETS_OUT}")
+
+        print(f"\n[gen_grammar] Done! Generated grammar with {len(keywords)} keywords, {len(all_builtins)} builtins, and {len(snippets)} snippets.")
 
         if install_mode:
             if not install_extension():

@@ -7,6 +7,7 @@
 //   xell <file.xel>       Execute a Xell script
 //   xell --check [file]   Lint: shallow parse-only check (file or stdin)
 //   xell --lint [file]    Alias for --check
+//   xell --terminal       Launch the Xell Terminal (SDL2 GUI)
 //   xell --customize      Launch the color customizer web app
 //   xell --kernel          Run as a JSON kernel for notebook integration
 //   xell --version        Print version information
@@ -56,6 +57,7 @@ static void printHelp()
     std::cout << "  xell <file.xel>       Execute a Xell script\n";
     std::cout << "  xell --check [file]   Lint: parse-only check (file or stdin)\n";
     std::cout << "  xell --lint [file]    Alias for --check\n";
+    std::cout << "  xell --terminal       Launch Xell Terminal (SDL2 GUI)\n";
     std::cout << "  xell --customize      Launch color customizer\n";
     std::cout << "  xell --kernel         Run as notebook kernel\n";
     std::cout << "  xell --version        Show version\n";
@@ -225,6 +227,64 @@ static int launchCustomizer()
     // Launch Python server
     std::string cmd = "python3 \"" + serverPath + "\"";
     return std::system(cmd.c_str());
+}
+
+// ---- Launch the Xell Terminal (SDL2 GUI) -----------------------------------
+
+static int launchTerminal()
+{
+    // Search for the xell-terminal binary in known locations
+    std::vector<std::string> searchPaths;
+
+    // Relative to the running xell binary (common in installed setups)
+    // When installed, both xell and xell-terminal are in the same dir
+    const char *xellHome = std::getenv("XELL_HOME");
+    if (xellHome)
+    {
+        searchPaths.push_back(std::string(xellHome) + "/xell-terminal/build/xell-terminal");
+        searchPaths.push_back(std::string(xellHome) + "/xell-terminal/build_release/xell-terminal");
+    }
+
+    const char *home = std::getenv("HOME");
+
+    // Check $HOME/.local/bin (local install)
+    if (home)
+        searchPaths.push_back(std::string(home) + "/.local/bin/xell-terminal");
+
+    // System install locations
+    searchPaths.push_back("/usr/local/bin/xell-terminal");
+    searchPaths.push_back("/usr/bin/xell-terminal");
+
+    // Development mode — relative to CWD
+    searchPaths.push_back("xell-terminal/build/xell-terminal");
+    searchPaths.push_back("xell-terminal/build_release/xell-terminal");
+    searchPaths.push_back("../xell-terminal/build/xell-terminal");
+
+    std::string terminalPath;
+    for (auto &p : searchPaths)
+    {
+        std::ifstream f(p);
+        if (f.good())
+        {
+            terminalPath = p;
+            break;
+        }
+    }
+
+    if (terminalPath.empty())
+    {
+        std::cerr << "Error: Cannot find xell-terminal binary.\n";
+        std::cerr << "Install it with: ./install.sh\n";
+        std::cerr << "Or build it manually: cd xell-terminal && mkdir -p build && cd build && cmake .. && make\n";
+        std::cerr << "Requires SDL2: sudo apt install libsdl2-dev libsdl2-ttf-dev\n";
+        return 1;
+    }
+
+    std::cout << "🖥️  Launching Xell Terminal...\n";
+    std::cout << "   Binary: " << terminalPath << "\n";
+
+    // Launch the terminal (replace current process or run as child)
+    return std::system(("\"" + terminalPath + "\"").c_str());
 }
 
 // ---- JSON Kernel mode (for notebook integration) ---------------------------
@@ -452,6 +512,11 @@ int main(int argc, char *argv[])
     if (arg1 == "--customize")
     {
         return launchCustomizer();
+    }
+
+    if (arg1 == "--terminal" || arg1 == "-t")
+    {
+        return launchTerminal();
     }
 
     if (arg1 == "--kernel")

@@ -23,6 +23,8 @@
 #include <iostream>
 #include <string>
 #include <cstdlib>
+#include <unordered_set>
+#include <unordered_map>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -120,6 +122,7 @@ namespace xell
         Interpreter interpreter_;
         bool isTerminalMode_ = false;
         std::string historyPath_;
+        std::unordered_map<std::string, bool> executableCache_; // PATH lookup cache
 
         // ---- Shell-style prompt helpers (for terminal mode) -----------------
 
@@ -363,7 +366,9 @@ namespace xell
             {
                 interpreter_.reset();
                 completer_.setEnvironment(&interpreter_.globals());
-                Terminal::write(std::string(color::YELLOW) + "Environment reset.\r\n" + color::RESET);
+                history_.clear();
+                executableCache_.clear();
+                Terminal::write(std::string(color::YELLOW) + "Environment reset (variables, history, caches cleared).\r\n" + color::RESET);
                 return true;
             }
             if (line == ":history" || line == ":hist")
@@ -464,6 +469,7 @@ namespace xell
             }
 
             // pwd — print working directory
+            // Bare "pwd" is handled inline; "pwd | ..." or "pwd && ..." is delegated to the shell
             if (line == "pwd")
             {
                 char buf[PATH_MAX];
@@ -481,12 +487,26 @@ namespace xell
                 }
                 return true;
             }
+            if (line.size() > 3 && line.substr(0, 3) == "pwd" &&
+                (line[3] == ' ' || line[3] == '|' || line[3] == '&'))
+            {
+                // pwd with piping/chaining — delegate to OS shell
+                int code = os::run(line);
+                if (code != 0)
+                    Terminal::write(std::string(color::RED) + "[exit " +
+                                    std::to_string(code) + "]" + color::RESET + "\r\n");
+                return true;
+            }
 
             // ls — list directory (delegate to system)
-            if (line == "ls" || line.substr(0, 3) == "ls ")
+            if (line == "ls" || line.substr(0, 3) == "ls " ||
+                (line.size() > 2 && line.substr(0, 2) == "ls" && (line[2] == '|' || line[2] == '&')))
             {
                 // Run ls directly as a shell command
-                os::run(line);
+                int code = os::run(line);
+                if (code != 0)
+                    Terminal::write(std::string(color::RED) + "[exit " +
+                                    std::to_string(code) + "]" + color::RESET + "\r\n");
                 return true;
             }
 
@@ -551,7 +571,113 @@ namespace xell
                 return true;
             }
 
+            // ---- Dynamic shell command passthrough ----
+            // Instead of maintaining a hardcoded list, we check whether the
+            // first word of the input exists as an executable on $PATH.
+            // This lets any system command (tree, grep, echo, cat, ...) work
+            // directly in the REPL, including pipes and chaining:
+            //   echo "hello" | wc -c
+            //   tree -L 2
+            //   whoami && hostname
+            {
+                std::string cmd = firstWord(line);
+                if (!cmd.empty() && cmd != "cd" && cmd != "pwd" && cmd != "ls" &&
+                    cmd != "run" && !isXellKeyword(cmd))
+                {
+                    // Check if it's an executable on PATH or an explicit path
+                    if (isExecutableOnPath(cmd) || isExplicitPath(cmd))
+                    {
+                        int code = os::run(line);
+                        if (code != 0)
+                            Terminal::write(std::string(color::RED) + "[exit " +
+                                            std::to_string(code) + "]" + color::RESET + "\r\n");
+                        return true;
+                    }
+                }
+            }
+
             return false;
+        }
+
+        // ---- Shell command detection helpers ----
+
+        /// Extract the first word from a line (delimited by space/tab/pipe/&/;/paren/redirect)
+        static std::string firstWord(const std::string &line)
+        {
+            size_t start = 0;
+            while (start < line.size() && (line[start] == ' ' || line[start] == '\t'))
+                start++;
+            size_t end = start;
+            while (end < line.size() && line[end] != ' ' && line[end] != '\t' &&
+                   line[end] != '|' && line[end] != '&' && line[end] != ';' &&
+                   line[end] != '(' && line[end] != '<' && line[end] != '>')
+                end++;
+            return line.substr(start, end - start);
+        }
+
+        /// Is this a Xell language keyword? (Should NOT be treated as a shell cmd)
+        static bool isXellKeyword(const std::string &word)
+        {
+            // All Xell keywords — these should always go through the parser
+            static const std::unordered_set<std::string> keywords = {
+                "fn", "give", "if", "elif", "else", "for", "while", "in",
+                "bring", "from", "as", "and", "or", "not",
+                "is", "eq", "ne", "gt", "lt", "ge", "le", "of",
+                "true", "false", "none", "print",
+            };
+            return keywords.count(word) > 0;
+        }
+
+        /// Is the string a path (starts with / or ./ or ../ or ~/) ?
+        static bool isExplicitPath(const std::string &cmd)
+        {
+            if (cmd.empty()) return false;
+            if (cmd[0] == '/') return true;
+            if (cmd.size() >= 2 && cmd[0] == '.' && (cmd[1] == '/' || cmd[1] == '.')) return true;
+            if (cmd.size() >= 2 && cmd[0] == '~' && cmd[1] == '/') return true;
+            return false;
+        }
+
+        /// Check if a command exists on $PATH using a fast lookup.
+        /// Caches results to avoid repeated fork/exec for the same command.
+        bool isExecutableOnPath(const std::string &cmd)
+        {
+            // Check cache first
+            auto it = executableCache_.find(cmd);
+            if (it != executableCache_.end())
+                return it->second;
+
+            bool found = false;
+
+#ifdef _WIN32
+            // On Windows, use SearchPathA
+            char buf[MAX_PATH];
+            found = (SearchPathA(NULL, cmd.c_str(), ".exe", MAX_PATH, buf, NULL) > 0);
+#else
+            // On Unix, search $PATH manually (faster than fork+exec of "which")
+            const char *pathEnv = std::getenv("PATH");
+            if (pathEnv)
+            {
+                std::string paths(pathEnv);
+                size_t pos = 0;
+                while (pos < paths.size())
+                {
+                    size_t sep = paths.find(':', pos);
+                    if (sep == std::string::npos) sep = paths.size();
+                    std::string dir = paths.substr(pos, sep - pos);
+                    std::string full = dir + "/" + cmd;
+                    if (access(full.c_str(), X_OK) == 0)
+                    {
+                        found = true;
+                        break;
+                    }
+                    pos = sep + 1;
+                }
+            }
+#endif
+
+            executableCache_[cmd] = found;
+            return found;
         }
 
         void printHelp()

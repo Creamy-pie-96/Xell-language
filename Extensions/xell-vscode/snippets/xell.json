@@ -112,38 +112,58 @@
   },
   "Bring Module": {
     "prefix": "bringmod",
-    "body": "bring * from \"${1|json,regex,datetime,fs,textproc,process,sysmon,net,archive|}\"",
+    "body": "bring * from \"${1|archive|datetime|fs|json|net|process|regex|sysmon|textproc|}\"",
     "description": "Bring all functions from a built-in module"
   },
   "Bring Module Selective": {
     "prefix": "bringsel",
-    "body": "bring ${2:func_name} from \"${1|json,regex,datetime,fs,textproc,process,sysmon,net,archive|}\"",
+    "body": "bring ${2:func_name} from \"${1|archive|datetime|fs|json|net|process|regex|sysmon|textproc|}\"",
     "description": "Bring specific function from a built-in module"
   },
-  "Bring JSON Module": {
+  "Bring Archive Module": {
+    "prefix": "bringarc",
+    "body": "bring * from \"archive\"",
+    "description": "Bring Archive/compression functions"
+  },
+  "Bring Datetime Module": {
+    "prefix": "bringdt",
+    "body": "bring * from \"datetime\"",
+    "description": "Bring Date and time functions"
+  },
+  "Bring Fs Module": {
+    "prefix": "bringfs",
+    "body": "bring * from \"fs\"",
+    "description": "Bring Advanced filesystem functions"
+  },
+  "Bring Json Module": {
     "prefix": "bringjson",
     "body": "bring * from \"json\"",
     "description": "Bring JSON/CSV/TOML/YAML functions"
   },
-  "Bring Regex Module": {
-    "prefix": "bringregex",
-    "body": "bring * from \"regex\"",
-    "description": "Bring regular expression functions"
-  },
   "Bring Net Module": {
     "prefix": "bringnet",
     "body": "bring * from \"net\"",
-    "description": "Bring networking functions (http, ping, dns, etc.)"
+    "description": "Bring Networking functions (http, ping, dns, etc.)"
   },
-  "Bring FS Module": {
-    "prefix": "bringfs",
-    "body": "bring * from \"fs\"",
-    "description": "Bring advanced filesystem functions"
+  "Bring Process Module": {
+    "prefix": "bringproc",
+    "body": "bring * from \"process\"",
+    "description": "Bring Process management functions"
   },
-  "Bring DateTime Module": {
-    "prefix": "bringdt",
-    "body": "bring * from \"datetime\"",
-    "description": "Bring date/time functions"
+  "Bring Regex Module": {
+    "prefix": "bringregex",
+    "body": "bring * from \"regex\"",
+    "description": "Bring Regular expression functions"
+  },
+  "Bring Sysmon Module": {
+    "prefix": "bringsys",
+    "body": "bring * from \"sysmon\"",
+    "description": "Bring System monitoring functions"
+  },
+  "Bring Textproc Module": {
+    "prefix": "bringtxt",
+    "body": "bring * from \"textproc\"",
+    "description": "Bring Text processing functions"
   },
   "Map Literal": {
     "prefix": "map",
@@ -169,17 +189,107 @@
     "body": "${1:result} = run_capture(\"${2:command}\")",
     "description": "Run and capture output of a command"
   },
-  "Mkdir": {
+  "Builtin: abs": {
+    "prefix": "abs",
+    "body": "abs(${1:number})",
+    "description": "Absolute value"
+  },
+  "Builtin: append": {
+    "prefix": "appendf",
+    "body": "append(\"${1:file}\", ${2:data})",
+    "description": "Append data to a file"
+  },
+  "Builtin: exists": {
+    "prefix": "exists",
+    "body": "exists(\"${1:path}\")",
+    "description": "Check if path exists"
+  },
+  "Builtin: input": {
+    "prefix": "input",
+    "body": "${1:val} = input(\"${2:prompt}\")",
+    "description": "Read user input"
+  },
+  "Builtin: join": {
+    "prefix": "join",
+    "body": "join(${1:list}, \"${2:delimiter}\")",
+    "description": "Join list into string"
+  },
+  "Builtin: keys": {
+    "prefix": "keys",
+    "body": "keys(${1:map})",
+    "description": "Get map keys"
+  },
+  "Builtin: len": {
+    "prefix": "len",
+    "body": "len(${1:collection})",
+    "description": "Get length of collection"
+  },
+  "Builtin: mkdir": {
     "prefix": "mkdir",
     "body": "mkdir(\"${1:path}\")",
     "description": "Create a directory"
   },
-  "Read File": {
+  "Builtin: push": {
+    "prefix": "push",
+    "body": "push(${1:list}, ${2:item})",
+    "description": "Push item to list"
+  },
+  "Builtin: range": {
+    "prefix": "range",
+    "body": "range(${1:start}, ${2:end})",
+    "description": "Generate a range"
+  },
+  "Builtin: read": {
     "prefix": "readf",
     "body": "${1:content} = read(\"${2:file}\")",
     "description": "Read file contents"
   },
-  "Write File": {
+  "Builtin: reverse": {
+    "prefix": "rev",
+    "body": "reverse(${1:list})",
+    "description": "Reverse a list"
+  },
+  "Builtin: round": {
+    "prefix": "round",
+    "body": "round(${1:number})",
+    "description": "Round a number"
+  },
+  "Builtin: sleep": {
+    "prefix": "sleep",
+    "body": "sleep(${1:seconds})",
+    "description": "Pause execution"
+  },
+  "Builtin: sort": {
+    "prefix": "sort",
+    "body": "sort(${1:list})",
+    "description": "Sort a list"
+  },
+  "Builtin: split": {
+    "prefix": "split",
+    "body": "split(${1:text}, \"${2:delimiter}\")",
+    "description": "Split string"
+  },
+  "Builtin: to_float": {
+    "prefix": "tofloat",
+    "body": "to_float(${1:value})",
+    "description": "Convert to float"
+  },
+  "Builtin: to_int": {
+    "prefix": "toint",
+    "body": "to_int(${1:value})",
+    "description": "Convert to integer"
+  },
+  "Builtin: typeof": {
+    "prefix": "typeof",
+    "body": "typeof(${1:value})",
+    "description": "Get type of value"
+  },
+  "Builtin: values": {
+    "prefix": "values",
+    "body": "values(${1:map})",
+    "description": "Get map values"
+  },
+  "Builtin: write": {
     "prefix": "writef",
     "body": "write(\"${1:file}\", ${2:data})",
     "description": "Write data to a file"

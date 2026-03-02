@@ -139,34 +139,116 @@ fi
 
 # ---- Step 4: Install binary + data ----
 
-step "4/6" "Installing Xell..."
+step "4/7" "Installing Xell..."
 
-$SUDO mkdir -p "$BIN_DIR"
-$SUDO cp "$BUILD_DIR/xell" "$BIN_DIR/xell"
-$SUDO chmod 755 "$BIN_DIR/xell"
-ok "Binary installed: $BIN_DIR/xell"
+# When installing system-wide, root may not be able to read the build
+# directory (common on mounted/encrypted home).  Stage to /tmp first.
+if [ "$INSTALL_MODE" = "system" ]; then
+    TMP_STAGE=$(mktemp -d /tmp/xell_install.XXXXXX)
+    trap 'rm -rf "$TMP_STAGE"' EXIT
+
+    cp "$BUILD_DIR/xell" "$TMP_STAGE/xell"
+    ok "Staged binary to $TMP_STAGE"
+
+    $SUDO mkdir -p "$BIN_DIR"
+    $SUDO mv "$TMP_STAGE/xell" "$BIN_DIR/xell"
+    $SUDO chmod 755 "$BIN_DIR/xell"
+    ok "Binary installed: $BIN_DIR/xell"
+else
+    mkdir -p "$BIN_DIR"
+    cp "$BUILD_DIR/xell" "$BIN_DIR/xell"
+    chmod 755 "$BIN_DIR/xell"
+    ok "Binary installed: $BIN_DIR/xell"
+fi
 
 # Install customizer + data
-$SUDO mkdir -p "$SHARE_DIR/color_customizer"
-CUSTOMIZER_SRC="$SCRIPT_DIR/Extensions/xell-vscode/color_customizer"
-if [ -d "$CUSTOMIZER_SRC" ]; then
-    $SUDO cp "$CUSTOMIZER_SRC/customizer_server.py" "$SHARE_DIR/color_customizer/" 2>/dev/null || true
-    $SUDO cp "$CUSTOMIZER_SRC/customize.html" "$SHARE_DIR/color_customizer/" 2>/dev/null || true
-    $SUDO cp "$CUSTOMIZER_SRC/token_data.json" "$SHARE_DIR/color_customizer/" 2>/dev/null || true
-    ok "Customizer installed: $SHARE_DIR/color_customizer/"
+if [ "$INSTALL_MODE" = "system" ]; then
+    TMP_DATA=$(mktemp -d /tmp/xell_data.XXXXXX)
+    trap 'rm -rf "$TMP_STAGE" "$TMP_DATA"' EXIT
+
+    CUSTOMIZER_SRC="$SCRIPT_DIR/Extensions/xell-vscode/color_customizer"
+    if [ -d "$CUSTOMIZER_SRC" ]; then
+        mkdir -p "$TMP_DATA/color_customizer"
+        cp "$CUSTOMIZER_SRC/customizer_server.py" "$TMP_DATA/color_customizer/" 2>/dev/null || true
+        cp "$CUSTOMIZER_SRC/customize.html" "$TMP_DATA/color_customizer/" 2>/dev/null || true
+        cp "$CUSTOMIZER_SRC/token_data.json" "$TMP_DATA/color_customizer/" 2>/dev/null || true
+    fi
+
+    STDLIB_SRC="$SCRIPT_DIR/stdlib"
+    if [ -d "$STDLIB_SRC" ]; then
+        mkdir -p "$TMP_DATA/stdlib"
+        cp -r "$STDLIB_SRC"/* "$TMP_DATA/stdlib/" 2>/dev/null || true
+    fi
+
+    $SUDO mkdir -p "$SHARE_DIR"
+    $SUDO cp -r "$TMP_DATA"/* "$SHARE_DIR/" 2>/dev/null || true
+    ok "Data installed: $SHARE_DIR"
+else
+    CUSTOMIZER_SRC="$SCRIPT_DIR/Extensions/xell-vscode/color_customizer"
+    if [ -d "$CUSTOMIZER_SRC" ]; then
+        mkdir -p "$SHARE_DIR/color_customizer"
+        cp "$CUSTOMIZER_SRC/customizer_server.py" "$SHARE_DIR/color_customizer/" 2>/dev/null || true
+        cp "$CUSTOMIZER_SRC/customize.html" "$SHARE_DIR/color_customizer/" 2>/dev/null || true
+        cp "$CUSTOMIZER_SRC/token_data.json" "$SHARE_DIR/color_customizer/" 2>/dev/null || true
+        ok "Customizer installed: $SHARE_DIR/color_customizer/"
+    fi
+
+    STDLIB_SRC="$SCRIPT_DIR/stdlib"
+    if [ -d "$STDLIB_SRC" ]; then
+        mkdir -p "$SHARE_DIR/stdlib"
+        cp -r "$STDLIB_SRC"/* "$SHARE_DIR/stdlib/" 2>/dev/null || true
+        ok "Stdlib installed: $SHARE_DIR/stdlib/"
+    fi
 fi
 
-# Install stdlib
-STDLIB_SRC="$SCRIPT_DIR/stdlib"
-if [ -d "$STDLIB_SRC" ]; then
-    $SUDO mkdir -p "$SHARE_DIR/stdlib"
-    $SUDO cp -r "$STDLIB_SRC"/* "$SHARE_DIR/stdlib/" 2>/dev/null || true
-    ok "Stdlib installed: $SHARE_DIR/stdlib/"
+# ---- Step 5: Build + Install xell-terminal (if SDL2 available) ----
+
+step "5/7" "Building xell-terminal..."
+
+TERMINAL_SRC="$SCRIPT_DIR/xell-terminal"
+HAS_SDL2=false
+
+if [ -d "$TERMINAL_SRC" ]; then
+    if pkg-config --exists sdl2 sdl2_ttf 2>/dev/null; then
+        HAS_SDL2=true
+    elif [ -f /usr/include/SDL2/SDL.h ] 2>/dev/null; then
+        HAS_SDL2=true
+    fi
+
+    if [ "$HAS_SDL2" = true ]; then
+        TERMINAL_BUILD="$TERMINAL_SRC/build"
+        mkdir -p "$TERMINAL_BUILD"
+        cd "$TERMINAL_BUILD"
+        cmake .. -DCMAKE_BUILD_TYPE=Release >/dev/null 2>&1
+        make -j"$(nproc)" 2>&1 | tail -3
+
+        if [ -f "$TERMINAL_BUILD/xell-terminal" ]; then
+            ok "xell-terminal built"
+
+            if [ "$INSTALL_MODE" = "system" ]; then
+                TMP_TERM=$(mktemp -d /tmp/xell_term.XXXXXX)
+                cp "$TERMINAL_BUILD/xell-terminal" "$TMP_TERM/xell-terminal"
+                $SUDO mv "$TMP_TERM/xell-terminal" "$BIN_DIR/xell-terminal"
+                $SUDO chmod 755 "$BIN_DIR/xell-terminal"
+                rm -rf "$TMP_TERM"
+            else
+                cp "$TERMINAL_BUILD/xell-terminal" "$BIN_DIR/xell-terminal"
+                chmod 755 "$BIN_DIR/xell-terminal"
+            fi
+            ok "Terminal installed: $BIN_DIR/xell-terminal"
+        else
+            warn "xell-terminal build failed"
+        fi
+    else
+        warn "SDL2/SDL2_ttf not found — skipping xell-terminal (install: sudo apt install libsdl2-dev libsdl2-ttf-dev)"
+    fi
+else
+    warn "xell-terminal source not found — skipping"
 fi
 
-# ---- Step 5: Generate grammar + Build VS Code extension ----
+# ---- Step 6: Generate grammar + Build VS Code extension ----
 
-step "5/6" "Building VS Code extension..."
+step "6/7" "Building VS Code extension..."
 
 EXT_DIR="$SCRIPT_DIR/Extensions/xell-vscode"
 
@@ -199,9 +281,9 @@ else
     warn "Node.js/npm not found — skipping VS Code extension build"
 fi
 
-# ---- Step 6: Install VS Code extension ----
+# ---- Step 7: Install VS Code extension ----
 
-step "6/6" "Installing VS Code extension..."
+step "7/7" "Installing VS Code extension..."
 
 VSIX=$(find "$EXT_DIR" -name "*.vsix" -type f 2>/dev/null | head -1)
 
@@ -235,6 +317,7 @@ echo "╚═══════════════════════�
 echo ""
 echo -e "  Try it:  ${BOLD}xell${NC}                    # Start REPL"
 echo -e "           ${BOLD}xell hello.xel${NC}           # Run a script"
+echo -e "           ${BOLD}xell --terminal${NC}          # Launch Xell Terminal"
 echo -e "           ${BOLD}xell --customize${NC}         # Color customizer"
 echo -e "           ${BOLD}xell --version${NC}           # Check version"
 echo ""
