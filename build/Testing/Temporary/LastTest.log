@@ -1,10 +1,10 @@
-Start testing: Mar 02 16:11 +06
+Start testing: Mar 02 18:37 +06
 ----------------------------------------------------------
-1/11 Testing: parser_test
-1/11 Test: parser_test
+1/15 Testing: parser_test
+1/15 Test: parser_test
 Command: "/home/DATA/CODE/code/Xell/build/parser_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"parser_test" start time: Mar 02 16:11 +06
+"parser_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 
@@ -130,18 +130,18 @@ Output:
 ============================================
 
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"parser_test" end time: Mar 02 16:11 +06
+"parser_test" end time: Mar 02 18:37 +06
 "parser_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-2/11 Testing: error_test
-2/11 Test: error_test
+2/15 Testing: error_test
+2/15 Test: error_test
 Command: "/home/DATA/CODE/code/Xell/build/error_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"error_test" start time: Mar 02 16:11 +06
+"error_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 
@@ -231,15 +231,15 @@ Output:
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"error_test" end time: Mar 02 16:11 +06
+"error_test" end time: Mar 02 18:37 +06
 "error_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-3/11 Testing: xobject_test
-3/11 Test: xobject_test
+3/15 Testing: xobject_test
+3/15 Test: xobject_test
 Command: "/home/DATA/CODE/code/Xell/build/xobject_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"xobject_test" start time: Mar 02 16:11 +06
+"xobject_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 
@@ -362,15 +362,15 @@ Output:
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"xobject_test" end time: Mar 02 16:11 +06
+"xobject_test" end time: Mar 02 18:37 +06
 "xobject_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-4/11 Testing: interpreter_test
-4/11 Test: interpreter_test
+4/15 Testing: interpreter_test
+4/15 Test: interpreter_test
 Command: "/home/DATA/CODE/code/Xell/build/interpreter_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"interpreter_test" start time: Mar 02 16:11 +06
+"interpreter_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 
@@ -689,18 +689,18 @@ Output:
   Total: 243  |  Passed: 243  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.06 sec
+Test time =   0.08 sec
 ----------------------------------------------------------
 Test Passed.
-"interpreter_test" end time: Mar 02 16:11 +06
+"interpreter_test" end time: Mar 02 18:37 +06
 "interpreter_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-5/11 Testing: os_test
-5/11 Test: os_test
+5/15 Testing: os_test
+5/15 Test: os_test
 Command: "/home/DATA/CODE/code/Xell/build/os_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"os_test" start time: Mar 02 16:11 +06
+"os_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -784,18 +784,18 @@ Output:
   Total: 61  |  Passed: 61  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.03 sec
+Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"os_test" end time: Mar 02 16:11 +06
+"os_test" end time: Mar 02 18:37 +06
 "os_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-6/11 Testing: bring_test
-6/11 Test: bring_test
+6/15 Testing: bring_test
+6/15 Test: bring_test
 Command: "/home/DATA/CODE/code/Xell/build/bring_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"bring_test" start time: Mar 02 16:11 +06
+"bring_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -839,18 +839,18 @@ Output:
   Total: 21  |  Passed: 21  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.05 sec
+Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"bring_test" end time: Mar 02 16:11 +06
+"bring_test" end time: Mar 02 18:37 +06
 "bring_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-7/11 Testing: shell_test
-7/11 Test: shell_test
+7/15 Testing: shell_test
+7/15 Test: shell_test
 Command: "/home/DATA/CODE/code/Xell/build/shell_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"shell_test" start time: Mar 02 16:11 +06
+"shell_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 done
@@ -909,18 +909,18 @@ done
   Total: 40  |  Passed: 40  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.09 sec
+Test time =   0.05 sec
 ----------------------------------------------------------
 Test Passed.
-"shell_test" end time: Mar 02 16:11 +06
+"shell_test" end time: Mar 02 18:37 +06
 "shell_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-8/11 Testing: builtin_test
-8/11 Test: builtin_test
+8/15 Testing: builtin_test
+8/15 Test: builtin_test
 Command: "/home/DATA/CODE/code/Xell/build/builtin_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"builtin_test" start time: Mar 02 16:11 +06
+"builtin_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 =======================================
@@ -1086,18 +1086,18 @@ Output:
   Results: 139 passed, 0 failed
 =======================================
 <end of output>
-Test time =   0.05 sec
+Test time =   0.04 sec
 ----------------------------------------------------------
 Test Passed.
-"builtin_test" end time: Mar 02 16:11 +06
+"builtin_test" end time: Mar 02 18:37 +06
 "builtin_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-9/11 Testing: forloop_test
-9/11 Test: forloop_test
+9/15 Testing: forloop_test
+9/15 Test: forloop_test
 Command: "/home/DATA/CODE/code/Xell/build/forloop_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"forloop_test" start time: Mar 02 16:11 +06
+"forloop_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 =======================================
@@ -1162,15 +1162,15 @@ Output:
 Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"forloop_test" end time: Mar 02 16:11 +06
+"forloop_test" end time: Mar 02 18:37 +06
 "forloop_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-10/11 Testing: datetime_regex_test
-10/11 Test: datetime_regex_test
+10/15 Testing: datetime_regex_test
+10/15 Test: datetime_regex_test
 Command: "/home/DATA/CODE/code/Xell/build/datetime_regex_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"datetime_regex_test" start time: Mar 02 16:11 +06
+"datetime_regex_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 ===== DateTime & Regex Builtin Tests =====
@@ -1277,15 +1277,15 @@ Output:
 Test time =   0.04 sec
 ----------------------------------------------------------
 Test Passed.
-"datetime_regex_test" end time: Mar 02 16:11 +06
+"datetime_regex_test" end time: Mar 02 18:37 +06
 "datetime_regex_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-11/11 Testing: fs_test
-11/11 Test: fs_test
+11/15 Testing: fs_test
+11/15 Test: fs_test
 Command: "/home/DATA/CODE/code/Xell/build/fs_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"fs_test" start time: Mar 02 16:11 +06
+"fs_test" start time: Mar 02 18:37 +06
 Output:
 ----------------------------------------------------------
 ===== File System Builtin Tests =====
@@ -1393,11 +1393,473 @@ Output:
 
 ===== Results: 77 passed, 0 failed =====
 <end of output>
-Test time =   0.03 sec
+Test time =   0.04 sec
 ----------------------------------------------------------
 Test Passed.
-"fs_test" end time: Mar 02 16:11 +06
+"fs_test" end time: Mar 02 18:37 +06
 "fs_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Mar 02 16:11 +06
+12/15 Testing: textproc_test
+12/15 Test: textproc_test
+Command: "/home/DATA/CODE/code/Xell/build/textproc_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"textproc_test" start time: Mar 02 18:37 +06
+Output:
+----------------------------------------------------------
+===== Text Processing Builtin Tests =====
+
+[head]
+  PASS: head default 10 lines
+  PASS: head 3 lines
+  PASS: head more lines than file
+  PASS: head nonexistent throws
+  PASS: head function style
+
+[tail]
+  PASS: tail default 10 lines
+  PASS: tail 3 lines
+  PASS: tail 1 line
+  PASS: tail nonexistent throws
+
+[grep, grep_regex, grep_recursive]
+  PASS: grep finds matching lines
+  PASS: grep returns correct lines
+  PASS: grep no matches returns empty
+  PASS: grep function style
+  PASS: grep_regex with pattern
+  PASS: grep_regex complex pattern
+  PASS: grep_recursive finds in subdirs
+  PASS: grep_recursive returns file info
+
+[sed]
+  PASS: sed replaces pattern
+  PASS: sed in-place modifies file
+  PASS: sed regex pattern
+  PASS: sed nonexistent throws
+
+[awk]
+  PASS: awk $1 extracts first field
+  PASS: awk $2 extracts second field
+  PASS: awk $1 $3 extracts multiple fields
+  PASS: awk $0 returns whole line
+  PASS: awk $NF returns last field
+  PASS: awk with custom delimiter
+
+[cut]
+  PASS: cut extracts columns
+  PASS: cut multiple columns
+  PASS: cut column 2
+
+[sort_file, uniq]
+  PASS: sort_file ascending
+  PASS: sort_file descending
+  PASS: uniq removes consecutive dupes
+  PASS: uniq on already unique
+
+[wc]
+  PASS: wc returns map with lines/words/bytes
+  PASS: wc tee command as statement
+  PASS: wc nonexistent throws
+
+[tee]
+  PASS: tee writes and returns content
+  PASS: tee file has content
+
+[tr]
+  PASS: tr basic translate
+  PASS: tr range expansion a-z
+  PASS: tr partial match
+  PASS: tr no match passes through
+
+[patch]
+  PASS: patch modifies file from diff
+  PASS: patch add line
+
+[less, more]
+  PASS: less paginates into pages
+  PASS: less first page has 10 lines
+  PASS: more works same as less
+
+[Error handling]
+  PASS: head arity error
+  PASS: tail type error
+  PASS: grep arity error
+  PASS: sed arity error
+  PASS: awk type error
+  PASS: cut type error
+  PASS: wc type error
+  PASS: tee arity error
+  PASS: tr arity error
+  PASS: sort_file nonexistent
+  PASS: uniq nonexistent
+  PASS: less nonexistent
+
+===== Results: 60 passed, 0 failed =====
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"textproc_test" end time: Mar 02 18:37 +06
+"textproc_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+13/15 Testing: process_sysmon_test
+13/15 Test: process_sysmon_test
+Command: "/home/DATA/CODE/code/Xell/build/process_sysmon_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"process_sysmon_test" start time: Mar 02 18:37 +06
+Output:
+----------------------------------------------------------
+hello
+hello
+hi
+hi
+===== Process & System Monitoring Tests =====
+
+[Process queries]
+  PASS: ps returns a list
+  PASS: ps returns non-empty list
+  PASS: ps entries have pid key
+  PASS: ps entries have name key
+  PASS: pgrep finds a process
+  PASS: pidof returns list
+
+[Identity & system info]
+  PASS: whoami returns non-empty
+  PASS: whoami function call
+  PASS: hostname returns non-empty
+  PASS: uname returns map
+  PASS: uname has sysname key
+  PASS: uname has machine key
+  PASS: os_name returns string
+  PASS: os_name is linux or windows or macos
+  PASS: arch returns non-empty
+  PASS: getuid returns int
+  PASS: getuid >= 0
+  PASS: is_root returns bool
+  PASS: id returns map with uid
+  PASS: id returns map with user
+  PASS: ppid returns int > 0
+  PASS: uptime returns positive number
+  PASS: sys_info returns map
+  PASS: sys_info has os key
+  PASS: sys_info has cpu_count key
+  PASS: sys_info has hostname key
+
+[spawn, time_cmd, run_timeout]
+  PASS: time_cmd measures duration
+  PASS: time_cmd exit_code 0 for success
+  PASS: run_timeout completes fast command
+  PASS: run_timeout returns exit_code
+  PASS: spawn returns pid
+
+[System monitoring — memory]
+  PASS: free returns map
+  PASS: free has total key
+  PASS: free has free key
+  PASS: free total > 0
+  PASS: mem_total > 0
+  PASS: mem_free >= 0
+  PASS: mem_used > 0
+  PASS: mem_total >= mem_used
+
+[System monitoring — CPU]
+  PASS: cpu_count > 0
+  PASS: cpu_count returns int
+  PASS: cpu_usage returns float
+  PASS: cpu_usage between 0 and 100
+
+[cal, date_str]
+  PASS: cal returns non-empty string
+  PASS: cal default contains day numbers
+  PASS: cal default contains weekday headers
+  PASS: date_str returns non-empty
+  PASS: date_str with format
+  PASS: date_str default has dashes
+
+[System monitoring — misc]
+  PASS: lscpu returns string
+  PASS: ulimit_info returns string
+  PASS: w_cmd returns string
+
+[Error cases]
+  PASS: kill with bad pid returns false
+  PASS: kill_name with nonexistent returns nonzero
+  PASS: kill arity error
+  PASS: fdisk requires string arg
+
+[Command-style invocations]
+  PASS: hostname command/function same
+  PASS: os_name function call
+  PASS: arch function call
+  PASS: cal function call
+  PASS: date_str function call
+
+===== Results: 61 passed, 0 failed =====
+<end of output>
+Test time =   0.35 sec
+----------------------------------------------------------
+Test Passed.
+"process_sysmon_test" end time: Mar 02 18:37 +06
+"process_sysmon_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+14/15 Testing: network_archive_test
+14/15 Test: network_archive_test
+Command: "/home/DATA/CODE/code/Xell/build/network_archive_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"network_archive_test" start time: Mar 02 18:37 +06
+Output:
+----------------------------------------------------------
+  adding: ziptest.txt (stored 0%)
+Archive:  /tmp/xell_netarch_test_18895686028597/test.zip
+ extracting: /tmp/xell_netarch_test_18895686028597/zip_extract/ziptest.txt  
+tar: Removing leading `/' from member names
+===== Network & Archive Builtin Tests =====
+
+[DNS]
+  PASS: dns_lookup localhost
+  PASS: dns_lookup localhost returns IPs
+  PASS: dns_lookup localhost contains 127.0.0.1 or ::1
+  PASS: dns_lookup invalid throws
+  PASS: dns_lookup arity error
+  PASS: dns_lookup type error
+
+[local_ip]
+  PASS: local_ip returns string
+  PASS: local_ip non-empty
+  PASS: local_ip contains dots (IPv4)
+
+[nc]
+  PASS: nc returns map
+  PASS: nc has connected key
+  PASS: nc has host key
+  PASS: nc has port key
+  PASS: nc arity error
+  PASS: nc type error
+
+[ping]
+  PASS: ping localhost returns string
+  PASS: ping localhost returns non-empty
+  PASS: ping arity error
+  PASS: ping type error
+
+[Network misc]
+  PASS: nslookup returns string
+  PASS: host_lookup returns string
+  PASS: telnet_connect returns bool
+  PASS: netstat returns string
+  PASS: ss returns string
+  PASS: ifconfig returns string
+  PASS: ip_cmd addr returns string
+  PASS: route returns string
+
+[HTTP]
+  PASS: http_get returns map
+  PASS: http_get result has status key
+  PASS: http_get result has body key
+  PASS: http_get arity error
+  PASS: http_get type error
+  PASS: http_post returns map
+  PASS: http_post arity error
+  PASS: http_put returns map
+  PASS: http_delete returns map
+
+[Network errors]
+  PASS: download arity error
+  PASS: download type error
+  PASS: nslookup type error
+  PASS: whois type error
+  PASS: traceroute arity error
+  PASS: rsync arity error
+  PASS: iptables type error
+  PASS: ufw type error
+
+[zip/unzip]
+  PASS: zip_archive creates archive
+  PASS: unzip_archive extracts
+  PASS: unzip_archive extracted content matches
+  PASS: zip_archive nonexistent throws
+  PASS: unzip_archive nonexistent throws
+  PASS: zip_archive arity error
+  PASS: zip_archive type error
+
+[tar]
+  PASS: tar_create .tar.gz
+  PASS: tar_extract .tar.gz
+  PASS: tar_create nonexistent throws
+  PASS: tar_extract nonexistent throws
+  PASS: tar_create arity error
+  PASS: tar_create type error
+
+[gzip]
+  PASS: gzip_compress creates .gz
+  PASS: gunzip_decompress restores
+  PASS: gunzip_decompress content matches
+  PASS: gzip_compress nonexistent throws
+  PASS: gzip_compress type error
+  PASS: gunzip_decompress nonexistent throws
+
+[bzip2]
+  PASS: bzip2_compress creates .bz2
+  PASS: bunzip2_decompress restores
+  PASS: bunzip2_decompress content matches
+  PASS: bzip2_compress nonexistent throws
+  PASS: bzip2_compress type error
+
+[xz]
+  PASS: xz_compress creates .xz
+  PASS: xz_decompress restores
+  PASS: xz_decompress content matches
+  PASS: xz_compress nonexistent throws
+  PASS: xz_compress type error
+
+===== Results: 73 passed, 0 failed =====
+<end of output>
+Test time =  11.53 sec
+----------------------------------------------------------
+Test Passed.
+"network_archive_test" end time: Mar 02 18:37 +06
+"network_archive_test" time elapsed: 00:00:11
+----------------------------------------------------------
+
+15/15 Testing: json_shell_test
+15/15 Test: json_shell_test
+Command: "/home/DATA/CODE/code/Xell/build/json_shell_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"json_shell_test" start time: Mar 02 18:37 +06
+Output:
+----------------------------------------------------------
+=== JSON Parse Tests ===
+  PASS: json_parse: integer
+  PASS: json_parse: negative integer
+  PASS: json_parse: float
+  PASS: json_parse: scientific notation
+  PASS: json_parse: string
+  PASS: json_parse: true
+  PASS: json_parse: false
+  PASS: json_parse: null
+  PASS: json_parse: empty array
+  PASS: json_parse: array of ints
+  PASS: json_parse: array values
+  PASS: json_parse: empty object
+  PASS: json_parse: object with values
+  PASS: json_parse: nested object
+  PASS: json_parse: array of objects
+  PASS: json_parse: string escapes
+  PASS: json_parse: invalid JSON throws
+  PASS: json_parse: arity error
+  PASS: json_parse: type error
+
+=== JSON Stringify Tests ===
+  PASS: json_stringify: integer
+  PASS: json_stringify: string
+  PASS: json_stringify: bool
+  PASS: json_stringify: none → null
+  PASS: json_stringify: list
+  PASS: json_stringify: map
+  PASS: json_stringify: arity error
+  PASS: json_pretty: produces indented output
+  PASS: json_pretty: custom indent
+  PASS: json_stringify → json_parse roundtrip
+
+=== JSON File I/O Tests ===
+  PASS: json_write + json_read roundtrip
+  PASS: json_read: nonexistent file throws
+  PASS: json_write: arity error
+  PASS: json_read: type error
+
+=== CSV Tests ===
+  PASS: csv_parse: basic CSV
+  PASS: csv_parse: custom separator
+  PASS: csv_parse: empty CSV
+  PASS: csv_parse: quoted fields with commas
+  PASS: csv_parse: arity error
+  PASS: csv_parse: type error
+  PASS: csv_write + csv_read roundtrip
+  PASS: csv_read: nonexistent file throws
+  PASS: csv_write: arity error
+  PASS: csv_write: type error on path
+  PASS: csv_write: type error on data
+
+=== TOML Tests ===
+  PASS: toml_read: basic key-value
+  PASS: toml_read: sections
+  PASS: toml_read: inline array
+  PASS: toml_read: comments ignored
+  PASS: toml_read: nonexistent file throws
+  PASS: toml_read: arity error
+  PASS: toml_read: type error
+
+=== YAML Tests ===
+  PASS: yaml_read: basic key-value
+  PASS: yaml_read: nested maps
+  PASS: yaml_read: list
+  PASS: yaml_read: document separator ---
+  PASS: yaml_read: booleans
+  PASS: yaml_read: null values
+  PASS: yaml_read: nonexistent file throws
+  PASS: yaml_read: arity error
+  PASS: yaml_read: type error
+
+=== Shell Utility Tests ===
+test
+  PASS: error: returns 0 (success code)
+  PASS: alias: define and retrieve
+  PASS: unalias: remove alias
+  PASS: unalias: nonexistent throws
+  PASS: alias: arity error
+  PASS: alias: type error name
+  PASS: export_env + printenv roundtrip
+  PASS: set_env: alias for export_env
+  PASS: printenv: nonexistent returns none
+  PASS: env_list: returns map
+  PASS: env_list: contains PATH
+  PASS: printenv: no args returns map
+  PASS: export_env: arity error
+  PASS: export_env: type error
+  PASS: which: finds ls
+  PASS: which: nonexistent returns none
+  PASS: which: arity error
+  PASS: which: type error
+  PASS: whereis: returns string
+  PASS: type_cmd: returns string
+  PASS: type_cmd: arity error
+  PASS: man: returns string
+  PASS: man: arity error
+  PASS: history: initially empty
+  PASS: history_add + history: records entries
+  PASS: yes_cmd: default
+  PASS: yes_cmd: custom text
+  PASS: yes_cmd: zero count
+  PASS: true_val: returns true
+  PASS: false_val: returns false
+  PASS: true_val: arity error
+  PASS: false_val: arity error
+  PASS: source_file: reads file content
+  PASS: source_file: nonexistent throws
+  PASS: source_file: arity error
+  PASS: source_file: type error
+[2J[H  PASS: clear: no error on call
+c  PASS: reset: no error on call
+  PASS: clear: arity error
+  PASS: reset: arity error
+
+=== Integration Tests ===
+  PASS: json_parse → csv_write → csv_read roundtrip
+  PASS: json_parse: complex nested structure
+  PASS: json_stringify: nested map+list
+
+============================================
+  Total: 103  Passed: 103  Failed: 0
+============================================
+<end of output>
+Test time =   0.06 sec
+----------------------------------------------------------
+Test Passed.
+"json_shell_test" end time: Mar 02 18:37 +06
+"json_shell_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 02 18:37 +06

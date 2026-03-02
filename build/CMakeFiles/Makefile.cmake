@@ -53,4 +53,8 @@ set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/forloop_test.dir/DependInfo.cmake"
   "CMakeFiles/datetime_regex_test.dir/DependInfo.cmake"
   "CMakeFiles/fs_test.dir/DependInfo.cmake"
+  "CMakeFiles/textproc_test.dir/DependInfo.cmake"
+  "CMakeFiles/process_sysmon_test.dir/DependInfo.cmake"
+  "CMakeFiles/network_archive_test.dir/DependInfo.cmake"
+  "CMakeFiles/json_shell_test.dir/DependInfo.cmake"
   )

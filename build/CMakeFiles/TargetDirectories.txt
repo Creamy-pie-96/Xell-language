@@ -11,6 +11,10 @@
 /home/DATA/CODE/code/Xell/build/CMakeFiles/forloop_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/datetime_regex_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/fs_test.dir
+/home/DATA/CODE/code/Xell/build/CMakeFiles/textproc_test.dir
+/home/DATA/CODE/code/Xell/build/CMakeFiles/process_sysmon_test.dir
+/home/DATA/CODE/code/Xell/build/CMakeFiles/network_archive_test.dir
+/home/DATA/CODE/code/Xell/build/CMakeFiles/json_shell_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/edit_cache.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/rebuild_cache.dir

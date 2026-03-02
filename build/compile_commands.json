@@ -112,5 +112,29 @@
   "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/fs_test.dir/test/fs_test.cpp.o -c /home/DATA/CODE/code/Xell/test/fs_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/fs_test.cpp",
   "output": "CMakeFiles/fs_test.dir/test/fs_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/textproc_test.dir/test/textproc_test.cpp.o -c /home/DATA/CODE/code/Xell/test/textproc_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/textproc_test.cpp",
+  "output": "CMakeFiles/textproc_test.dir/test/textproc_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/process_sysmon_test.dir/test/process_sysmon_test.cpp.o -c /home/DATA/CODE/code/Xell/test/process_sysmon_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/process_sysmon_test.cpp",
+  "output": "CMakeFiles/process_sysmon_test.dir/test/process_sysmon_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/network_archive_test.dir/test/network_archive_test.cpp.o -c /home/DATA/CODE/code/Xell/test/network_archive_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/network_archive_test.cpp",
+  "output": "CMakeFiles/network_archive_test.dir/test/network_archive_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/json_shell_test.dir/test/json_shell_test.cpp.o -c /home/DATA/CODE/code/Xell/test/json_shell_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/json_shell_test.cpp",
+  "output": "CMakeFiles/json_shell_test.dir/test/json_shell_test.cpp.o"
 }
 ]

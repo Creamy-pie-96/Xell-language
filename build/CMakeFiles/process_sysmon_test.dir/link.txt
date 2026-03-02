@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/process_sysmon_test.dir/test/process_sysmon_test.cpp.o -o process_sysmon_test  libxell_lib.a 

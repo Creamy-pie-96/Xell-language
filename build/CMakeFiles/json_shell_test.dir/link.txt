@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/json_shell_test.dir/test/json_shell_test.cpp.o -o json_shell_test  libxell_lib.a 

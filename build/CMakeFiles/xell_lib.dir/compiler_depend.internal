@@ -5,6 +5,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /home/DATA/CODE/code/Xell/src/interpreter/interpreter.cpp
  /home/DATA/CODE/code/Xell/src/os/os.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtin_registry.hpp
+ /home/DATA/CODE/code/Xell/src/builtins/builtins_archive.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_bytes.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_collection.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_datetime.hpp
@@ -12,12 +13,18 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /home/DATA/CODE/code/Xell/src/builtins/builtins_generator.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_hash.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_io.hpp
+ /home/DATA/CODE/code/Xell/src/builtins/builtins_json.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_list.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_map.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_math.hpp
+ /home/DATA/CODE/code/Xell/src/builtins/builtins_network.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_os.hpp
+ /home/DATA/CODE/code/Xell/src/builtins/builtins_process.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_regex.hpp
+ /home/DATA/CODE/code/Xell/src/builtins/builtins_shell.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_string.hpp
+ /home/DATA/CODE/code/Xell/src/builtins/builtins_sysmon.hpp
+ /home/DATA/CODE/code/Xell/src/builtins/builtins_textproc.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_type.hpp
  /home/DATA/CODE/code/Xell/src/builtins/builtins_util.hpp
  /home/DATA/CODE/code/Xell/src/builtins/register_all.hpp
@@ -33,11 +40,14 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /home/DATA/CODE/code/Xell/src/interpreter/shell_state.hpp
  /home/DATA/CODE/code/Xell/src/interpreter/xobject.hpp
  /usr/include/alloca.h
+ /usr/include/arpa/inet.h
  /usr/include/asm-generic/bitsperlong.h
  /usr/include/asm-generic/errno-base.h
  /usr/include/asm-generic/errno.h
  /usr/include/asm-generic/int-ll64.h
  /usr/include/asm-generic/posix_types.h
+ /usr/include/asm-generic/socket.h
+ /usr/include/asm-generic/sockios.h
  /usr/include/asm-generic/types.h
  /usr/include/assert.h
  /usr/include/c++/13/algorithm
@@ -246,23 +256,33 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /usr/include/c++/13/utility
  /usr/include/c++/13/vector
  /usr/include/ctype.h
+ /usr/include/dirent.h
  /usr/include/endian.h
  /usr/include/errno.h
  /usr/include/features-time64.h
  /usr/include/features.h
  /usr/include/grp.h
+ /usr/include/ifaddrs.h
  /usr/include/libintl.h
  /usr/include/linux/close_range.h
+ /usr/include/linux/const.h
  /usr/include/linux/errno.h
+ /usr/include/linux/kernel.h
+ /usr/include/linux/limits.h
  /usr/include/linux/posix_types.h
  /usr/include/linux/stat.h
  /usr/include/linux/stddef.h
+ /usr/include/linux/sysinfo.h
  /usr/include/linux/types.h
  /usr/include/locale.h
  /usr/include/math.h
+ /usr/include/netdb.h
+ /usr/include/netinet/in.h
  /usr/include/pthread.h
  /usr/include/pwd.h
+ /usr/include/rpc/netdb.h
  /usr/include/sched.h
+ /usr/include/signal.h
  /usr/include/stdc-predef.h
  /usr/include/stdint.h
  /usr/include/stdio.h
@@ -277,11 +297,15 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /usr/include/x86_64-linux-gnu/asm/errno.h
  /usr/include/x86_64-linux-gnu/asm/posix_types.h
  /usr/include/x86_64-linux-gnu/asm/posix_types_64.h
+ /usr/include/x86_64-linux-gnu/asm/socket.h
+ /usr/include/x86_64-linux-gnu/asm/sockios.h
  /usr/include/x86_64-linux-gnu/asm/types.h
  /usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h
  /usr/include/x86_64-linux-gnu/bits/byteswap.h
  /usr/include/x86_64-linux-gnu/bits/confname.h
  /usr/include/x86_64-linux-gnu/bits/cpu-set.h
+ /usr/include/x86_64-linux-gnu/bits/dirent.h
+ /usr/include/x86_64-linux-gnu/bits/dirent_ext.h
  /usr/include/x86_64-linux-gnu/bits/endian.h
  /usr/include/x86_64-linux-gnu/bits/endianness.h
  /usr/include/x86_64-linux-gnu/bits/environments.h
@@ -293,15 +317,19 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /usr/include/x86_64-linux-gnu/bits/fp-logb.h
  /usr/include/x86_64-linux-gnu/bits/getopt_core.h
  /usr/include/x86_64-linux-gnu/bits/getopt_posix.h
+ /usr/include/x86_64-linux-gnu/bits/in.h
  /usr/include/x86_64-linux-gnu/bits/iscanonical.h
  /usr/include/x86_64-linux-gnu/bits/libc-header-start.h
  /usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h
+ /usr/include/x86_64-linux-gnu/bits/local_lim.h
  /usr/include/x86_64-linux-gnu/bits/locale.h
  /usr/include/x86_64-linux-gnu/bits/long-double.h
  /usr/include/x86_64-linux-gnu/bits/math-vector.h
  /usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h
  /usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h
  /usr/include/x86_64-linux-gnu/bits/mathcalls.h
+ /usr/include/x86_64-linux-gnu/bits/netdb.h
+ /usr/include/x86_64-linux-gnu/bits/posix1_lim.h
  /usr/include/x86_64-linux-gnu/bits/posix_opt.h
  /usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h
  /usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h
@@ -309,6 +337,22 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /usr/include/x86_64-linux-gnu/bits/sched.h
  /usr/include/x86_64-linux-gnu/bits/select.h
  /usr/include/x86_64-linux-gnu/bits/setjmp.h
+ /usr/include/x86_64-linux-gnu/bits/sigaction.h
+ /usr/include/x86_64-linux-gnu/bits/sigcontext.h
+ /usr/include/x86_64-linux-gnu/bits/sigevent-consts.h
+ /usr/include/x86_64-linux-gnu/bits/siginfo-arch.h
+ /usr/include/x86_64-linux-gnu/bits/siginfo-consts-arch.h
+ /usr/include/x86_64-linux-gnu/bits/siginfo-consts.h
+ /usr/include/x86_64-linux-gnu/bits/signal_ext.h
+ /usr/include/x86_64-linux-gnu/bits/signum-arch.h
+ /usr/include/x86_64-linux-gnu/bits/signum-generic.h
+ /usr/include/x86_64-linux-gnu/bits/sigstack.h
+ /usr/include/x86_64-linux-gnu/bits/sigstksz.h
+ /usr/include/x86_64-linux-gnu/bits/sigthread.h
+ /usr/include/x86_64-linux-gnu/bits/sockaddr.h
+ /usr/include/x86_64-linux-gnu/bits/socket.h
+ /usr/include/x86_64-linux-gnu/bits/socket_type.h
+ /usr/include/x86_64-linux-gnu/bits/ss_flags.h
  /usr/include/x86_64-linux-gnu/bits/stat.h
  /usr/include/x86_64-linux-gnu/bits/statvfs.h
  /usr/include/x86_64-linux-gnu/bits/statx-generic.h
@@ -334,17 +378,27 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /usr/include/x86_64-linux-gnu/bits/types/__locale_t.h
  /usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h
  /usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h
+ /usr/include/x86_64-linux-gnu/bits/types/__sigval_t.h
  /usr/include/x86_64-linux-gnu/bits/types/clock_t.h
  /usr/include/x86_64-linux-gnu/bits/types/clockid_t.h
  /usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h
  /usr/include/x86_64-linux-gnu/bits/types/error_t.h
+ /usr/include/x86_64-linux-gnu/bits/types/idtype_t.h
  /usr/include/x86_64-linux-gnu/bits/types/locale_t.h
  /usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h
+ /usr/include/x86_64-linux-gnu/bits/types/sig_atomic_t.h
+ /usr/include/x86_64-linux-gnu/bits/types/sigevent_t.h
+ /usr/include/x86_64-linux-gnu/bits/types/siginfo_t.h
  /usr/include/x86_64-linux-gnu/bits/types/sigset_t.h
+ /usr/include/x86_64-linux-gnu/bits/types/sigval_t.h
+ /usr/include/x86_64-linux-gnu/bits/types/stack_t.h
  /usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h
  /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h
+ /usr/include/x86_64-linux-gnu/bits/types/struct_iovec.h
  /usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h
+ /usr/include/x86_64-linux-gnu/bits/types/struct_osockaddr.h
  /usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h
+ /usr/include/x86_64-linux-gnu/bits/types/struct_sigstack.h
  /usr/include/x86_64-linux-gnu/bits/types/struct_statx.h
  /usr/include/x86_64-linux-gnu/bits/types/struct_statx_timestamp.h
  /usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h
@@ -356,6 +410,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /usr/include/x86_64-linux-gnu/bits/typesizes.h
  /usr/include/x86_64-linux-gnu/bits/uintn-identity.h
  /usr/include/x86_64-linux-gnu/bits/unistd_ext.h
+ /usr/include/x86_64-linux-gnu/bits/utsname.h
  /usr/include/x86_64-linux-gnu/bits/waitflags.h
  /usr/include/x86_64-linux-gnu/bits/waitstatus.h
  /usr/include/x86_64-linux-gnu/bits/wchar.h
@@ -382,9 +437,14 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o
  /usr/include/x86_64-linux-gnu/sys/cdefs.h
  /usr/include/x86_64-linux-gnu/sys/select.h
  /usr/include/x86_64-linux-gnu/sys/single_threaded.h
+ /usr/include/x86_64-linux-gnu/sys/socket.h
  /usr/include/x86_64-linux-gnu/sys/stat.h
  /usr/include/x86_64-linux-gnu/sys/statvfs.h
+ /usr/include/x86_64-linux-gnu/sys/sysinfo.h
  /usr/include/x86_64-linux-gnu/sys/types.h
+ /usr/include/x86_64-linux-gnu/sys/ucontext.h
+ /usr/include/x86_64-linux-gnu/sys/utsname.h
+ /usr/include/x86_64-linux-gnu/sys/wait.h
  /usr/lib/gcc/x86_64-linux-gnu/13/include/stdarg.h
  /usr/lib/gcc/x86_64-linux-gnu/13/include/stddef.h
  /usr/lib/gcc/x86_64-linux-gnu/13/include/stdint.h

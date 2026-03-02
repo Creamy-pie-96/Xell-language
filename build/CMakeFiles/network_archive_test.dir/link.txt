@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/network_archive_test.dir/test/network_archive_test.cpp.o -o network_archive_test  libxell_lib.a 

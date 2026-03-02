@@ -75,3 +75,19 @@ add_test(NAME datetime_regex_test COMMAND datetime_regex_test)
 add_executable(fs_test test/fs_test.cpp)
 target_link_libraries(fs_test xell_lib)
 add_test(NAME fs_test COMMAND fs_test)
+
+add_executable(textproc_test test/textproc_test.cpp)
+target_link_libraries(textproc_test xell_lib)
+add_test(NAME textproc_test COMMAND textproc_test)
+
+add_executable(process_sysmon_test test/process_sysmon_test.cpp)
+target_link_libraries(process_sysmon_test xell_lib)
+add_test(NAME process_sysmon_test COMMAND process_sysmon_test)
+
+add_executable(network_archive_test test/network_archive_test.cpp)
+target_link_libraries(network_archive_test xell_lib)
+add_test(NAME network_archive_test COMMAND network_archive_test)
+
+add_executable(json_shell_test test/json_shell_test.cpp)
+target_link_libraries(json_shell_test xell_lib)
+add_test(NAME json_shell_test COMMAND json_shell_test)

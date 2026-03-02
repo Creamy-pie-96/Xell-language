@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/textproc_test.dir/test/textproc_test.cpp.o -o textproc_test  libxell_lib.a 
