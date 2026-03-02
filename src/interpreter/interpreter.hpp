@@ -19,6 +19,7 @@
 #include "xobject.hpp"
 #include "shell_state.hpp"
 #include "../builtins/builtin_registry.hpp"
+#include "../builtins/module_registry.hpp"
 #include "../parser/ast.hpp"
 #include "../lib/errors/error.hpp"
 #include <string>
@@ -83,12 +84,27 @@ namespace xell
         /// Access to shell state (for builtins)
         ShellState &shellState() { return shellState_; }
 
+        /// Access to module registry (for testing / introspection)
+        const ModuleRegistry &moduleRegistry() const { return moduleRegistry_; }
+
+        /// Programmatically load a built-in module (same as `bring * from "mod"`)
+        /// Useful for C++ tests and embedding — avoids modifying Xell source strings.
+        void loadModule(const std::string &moduleName);
+
+        /// Check if a function is available in the active builtin table
+        bool hasActiveBuiltin(const std::string &name) const { return builtins_.count(name) > 0; }
+
+        /// Check if a function exists in any builtin (active or module)
+        bool hasAnyBuiltin(const std::string &name) const { return allBuiltins_.count(name) > 0; }
+
     private:
         ShellState shellState_;
         Environment globalEnv_;
         Environment *currentEnv_;
         std::vector<std::string> output_;
-        BuiltinTable builtins_;
+        BuiltinTable builtins_;      // Tier 1: always-available builtins
+        BuiltinTable allBuiltins_;   // ALL builtins (Tier 1 + Tier 2)
+        ModuleRegistry moduleRegistry_;
         int callDepth_ = 0;
         static constexpr int MAX_CALL_DEPTH = 512;
         std::string sourceFile_;                        // current file path (for bring resolution)

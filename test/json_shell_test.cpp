@@ -68,6 +68,7 @@ static std::vector<std::string> runXell(const std::string &source)
     Parser parser(tokens);
     auto program = parser.parse();
     Interpreter interp;
+    interp.loadModule("json");
     interp.run(program);
     return interp.output();
 }

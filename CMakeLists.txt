@@ -91,3 +91,7 @@ add_test(NAME network_archive_test COMMAND network_archive_test)
 add_executable(json_shell_test test/json_shell_test.cpp)
 target_link_libraries(json_shell_test xell_lib)
 add_test(NAME json_shell_test COMMAND json_shell_test)
+
+add_executable(module_test test/module_test.cpp)
+target_link_libraries(module_test xell_lib)
+add_test(NAME module_test COMMAND module_test)

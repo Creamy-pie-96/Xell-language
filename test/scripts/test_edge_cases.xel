@@ -1,0 +1,37 @@
+# =============================================================================
+# Module System - Edge cases
+# =============================================================================
+
+print("=== Edge cases ===")
+
+# 1. Bring Tier 1 module explicitly (should be a no-op but valid)
+bring * from "math"
+print(floor(3.9))
+
+# 2. Bring specific function from Tier 1
+bring upper from "string"
+print(upper("test"))
+
+# 3. Bring with alias
+bring json_parse from "json" as jp
+x = jp("[10, 20, 30]")
+print(len(x))
+
+# 4. User function shadows a brought module function
+bring * from "regex"
+fn regex_match(a, b):
+    give "custom!"
+;
+print(regex_match("x", "y"))
+
+# 5. Tier 1 + Tier 2 coexist fine
+bring * from "datetime"
+print(timestamp() > 0)
+print(type(len([1,2])))
+
+# 6. Multiple brings of same module (idempotent)
+bring * from "json"
+bring * from "json"
+print(json_stringify([1]))
+
+print("=== Edge cases OK ===")

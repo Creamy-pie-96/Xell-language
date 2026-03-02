@@ -110,6 +110,41 @@
     "body": "bring ${1:name} from \"${2:./file.xel}\" as ${3:alias}",
     "description": "Bring a name with an alias"
   },
+  "Bring Module": {
+    "prefix": "bringmod",
+    "body": "bring * from \"${1|json,regex,datetime,fs,textproc,process,sysmon,net,archive|}\"",
+    "description": "Bring all functions from a built-in module"
+  },
+  "Bring Module Selective": {
+    "prefix": "bringsel",
+    "body": "bring ${2:func_name} from \"${1|json,regex,datetime,fs,textproc,process,sysmon,net,archive|}\"",
+    "description": "Bring specific function from a built-in module"
+  },
+  "Bring JSON Module": {
+    "prefix": "bringjson",
+    "body": "bring * from \"json\"",
+    "description": "Bring JSON/CSV/TOML/YAML functions"
+  },
+  "Bring Regex Module": {
+    "prefix": "bringregex",
+    "body": "bring * from \"regex\"",
+    "description": "Bring regular expression functions"
+  },
+  "Bring Net Module": {
+    "prefix": "bringnet",
+    "body": "bring * from \"net\"",
+    "description": "Bring networking functions (http, ping, dns, etc.)"
+  },
+  "Bring FS Module": {
+    "prefix": "bringfs",
+    "body": "bring * from \"fs\"",
+    "description": "Bring advanced filesystem functions"
+  },
+  "Bring DateTime Module": {
+    "prefix": "bringdt",
+    "body": "bring * from \"datetime\"",
+    "description": "Bring date/time functions"
+  },
   "Map Literal": {
     "prefix": "map",
     "body": [

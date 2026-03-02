@@ -161,6 +161,19 @@ namespace xell
         registerBuiltins();
     }
 
+    void Interpreter::loadModule(const std::string &moduleName)
+    {
+        if (!moduleRegistry_.isBuiltinModule(moduleName))
+            throw RuntimeError("Unknown module '" + moduleName + "'", 0);
+        const auto &functions = moduleRegistry_.moduleFunctions(moduleName);
+        for (const auto &fnName : functions)
+        {
+            auto it = allBuiltins_.find(fnName);
+            if (it != allBuiltins_.end())
+                builtins_[fnName] = it->second;
+        }
+    }
+
     // ========================================================================
     // run — top-level entry point
     // ========================================================================
@@ -181,7 +194,11 @@ namespace xell
     void Interpreter::registerBuiltins()
     {
         builtins_.clear();
-        registerAllBuiltins(builtins_, output_, shellState_);
+        allBuiltins_.clear();
+
+        // Module-aware registration: Tier 1 → builtins_, everything → allBuiltins_
+        registerBuiltinsWithModules(builtins_, allBuiltins_, moduleRegistry_,
+                                    output_, shellState_);
 
         // ---- Math constants (injected into global environment) ----
         globalEnv_.define("PI", XObject::makeFloat(3.14159265358979323846));
@@ -291,6 +308,10 @@ namespace xell
             }
             return XObject::makeBool(true);
         };
+
+        // Mirror the 5 HOF builtins into allBuiltins_ so they're discoverable
+        for (const auto &name : {"map", "filter", "reduce", "any", "all"})
+            allBuiltins_[name] = builtins_[name];
     }
 
     // ========================================================================
@@ -664,8 +685,45 @@ namespace xell
 
     void Interpreter::execBring(const BringStmt *node)
     {
-        // 1. Resolve the file path relative to the current source file
         std::string rawPath = node->path;
+
+        // ── Check if the path refers to a built-in module ──────────────
+        if (moduleRegistry_.isBuiltinModule(rawPath))
+        {
+            const auto &functions = moduleRegistry_.moduleFunctions(rawPath);
+
+            if (node->bringAll)
+            {
+                // bring * from "module" — inject all module functions
+                for (const auto &fnName : functions)
+                {
+                    auto it = allBuiltins_.find(fnName);
+                    if (it != allBuiltins_.end())
+                        builtins_[fnName] = it->second;
+                }
+            }
+            else
+            {
+                // bring name1, name2 from "module" [as alias1, alias2]
+                for (size_t i = 0; i < node->names.size(); ++i)
+                {
+                    const std::string &name = node->names[i];
+                    std::string alias = (i < node->aliases.size() && !node->aliases[i].empty())
+                                            ? node->aliases[i]
+                                            : name;
+
+                    auto it = allBuiltins_.find(name);
+                    if (it == allBuiltins_.end() || !moduleRegistry_.moduleHasFunction(rawPath, name))
+                        throw BringError("Name '" + name + "' not found in module '" + rawPath + "'", node->line);
+                    builtins_[alias] = it->second;
+                }
+            }
+            return; // done — no file I/O needed
+        }
+
+        // ── File-based bring (user .xel modules / 3rd party) ──────────
+
+        // 1. Resolve the file path relative to the current source file
         std::string resolvedPath;
         if (sourceFile_.empty())
             resolvedPath = canonicalPath(rawPath);
@@ -1184,6 +1242,16 @@ namespace xell
         if (bit != builtins_.end())
         {
             return bit->second(args, node->line);
+        }
+
+        // If the function exists in a Tier 2 module, give a helpful error
+        auto abit = allBuiltins_.find(node->callee);
+        if (abit != allBuiltins_.end())
+        {
+            std::string modName = moduleRegistry_.findModuleForFunction(node->callee);
+            throw RuntimeError("'" + node->callee + "' requires: bring * from \"" +
+                                   modName + "\"",
+                               node->line);
         }
 
         // Look up user-defined function (throws if not found)

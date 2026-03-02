@@ -1,0 +1,23 @@
+# =============================================================================
+# Module System - Third-party .xel module import test
+# =============================================================================
+
+print("=== 3rd party .xel module test ===")
+
+# Import a user-created .xel library (relative to this script)
+bring * from "mylib.xel"
+
+# Use functions from the library
+print(greet("World"))
+print(square(7))
+print(LIBRARY_VERSION)
+
+# Mix with Tier 1 builtins
+print(upper(greet("xell")))
+
+# Mix with Tier 2 modules
+bring * from "json"
+data = json_parse("[1, 2, 3]")
+print(len(data))
+
+print("=== 3rd party OK ===")

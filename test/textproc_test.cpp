@@ -67,6 +67,8 @@ static std::vector<std::string> runXell(const std::string &source)
     Parser parser(tokens);
     auto program = parser.parse();
     Interpreter interp;
+    interp.loadModule("textproc");
+    interp.loadModule("fs");
     interp.run(program);
     return interp.output();
 }

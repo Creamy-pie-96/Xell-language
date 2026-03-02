@@ -1,0 +1,34 @@
+# =============================================================================
+# Module System - Tier 2 bring tests
+# =============================================================================
+
+print("=== Tier 2: Bring tests ===")
+
+# JSON module
+bring * from "json"
+data = json_parse("[1, 2, 3]")
+print(len(data))
+print(json_stringify(data))
+
+# Regex module
+bring * from "regex"
+print(regex_match("hello", "h.*o"))
+print(regex_find("abc 123 def", "[0-9]+"))
+result = regex_replace_all("aabbcc", "b", "x")
+print(result)
+
+# DateTime module
+bring * from "datetime"
+t = timestamp()
+print(t > 0)
+
+# Selective bring
+bring json_parse from "json"
+x = json_parse("[42]")
+print(len(x))
+
+# Multiple selective
+bring regex_match, regex_find from "regex"
+print(regex_match("test", "t..t"))
+
+print("=== Tier 2 OK ===")
