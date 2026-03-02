@@ -32,6 +32,16 @@ namespace xell
             {"from", TokenType::FROM},
             {"as", TokenType::AS},
 
+            // Enum
+            {"enum", TokenType::ENUM},
+
+            // Generator
+            {"yield", TokenType::YIELD},
+
+            // Async
+            {"async", TokenType::ASYNC},
+            {"await", TokenType::AWAIT},
+
             // Literals
             {"true", TokenType::TRUE_KW},
             {"false", TokenType::FALSE_KW},
@@ -305,6 +315,96 @@ namespace xell
         return Token(TokenType::RAW_STRING, str, startLine);
     }
 
+    // Byte string: b"..." — supports \xHH escape sequences
+    Token Lexer::readByteString()
+    {
+        int startLine = line_;
+        advance(); // consume the 'b'
+        advance(); // consume the opening "
+
+        std::string bytes;
+        while (!isAtEnd() && current() != '"')
+        {
+            if (current() == '\\')
+            {
+                advance(); // consume backslash
+                if (isAtEnd())
+                    throw LexerError("Unterminated byte string literal", startLine);
+                char esc = current();
+                if (esc == 'x' || esc == 'X')
+                {
+                    // \xHH — two hex digits
+                    advance();
+                    if (isAtEnd())
+                        throw LexerError("Incomplete \\x escape in byte string", startLine);
+                    char h1 = current();
+                    advance();
+                    if (isAtEnd())
+                        throw LexerError("Incomplete \\x escape in byte string", startLine);
+                    char h2 = current();
+                    advance();
+                    auto hexVal = [](char c) -> int
+                    {
+                        if (c >= '0' && c <= '9')
+                            return c - '0';
+                        if (c >= 'a' && c <= 'f')
+                            return 10 + c - 'a';
+                        if (c >= 'A' && c <= 'F')
+                            return 10 + c - 'A';
+                        return -1;
+                    };
+                    int v1 = hexVal(h1), v2 = hexVal(h2);
+                    if (v1 < 0 || v2 < 0)
+                        throw LexerError("Invalid hex digit in \\x escape", startLine);
+                    bytes += static_cast<char>((v1 << 4) | v2);
+                }
+                else if (esc == '0')
+                {
+                    bytes += '\0';
+                    advance();
+                }
+                else if (esc == 'n')
+                {
+                    bytes += '\n';
+                    advance();
+                }
+                else if (esc == 't')
+                {
+                    bytes += '\t';
+                    advance();
+                }
+                else if (esc == '\\')
+                {
+                    bytes += '\\';
+                    advance();
+                }
+                else if (esc == '"')
+                {
+                    bytes += '"';
+                    advance();
+                }
+                else
+                {
+                    // Unknown escape — keep as-is
+                    bytes += '\\';
+                    bytes += esc;
+                    advance();
+                }
+            }
+            else
+            {
+                bytes += current();
+                advance();
+            }
+        }
+
+        if (isAtEnd())
+            throw LexerError("Unterminated byte string literal", startLine);
+
+        advance(); // consume closing "
+        return Token(TokenType::BYTE_STRING, bytes, startLine);
+    }
+
     Token Lexer::readIdentifierOrKeyword()
     {
         int startLine = line_;
@@ -373,13 +473,19 @@ namespace xell
                 continue;
             }
 
-            // --- Identifier or keyword (also handles raw string r"...") ---
+            // --- Identifier or keyword (also handles raw string r"..." and byte string b"...") ---
             if (isAlpha(c))
             {
                 // Check for raw string: r"..."
                 if (c == 'r' && peek(1) == '"')
                 {
                     tokens.push_back(readRawString());
+                    continue;
+                }
+                // Check for byte string: b"..."
+                if (c == 'b' && peek(1) == '"')
+                {
+                    tokens.push_back(readByteString());
                     continue;
                 }
                 tokens.push_back(readIdentifierOrKeyword());
@@ -682,6 +788,14 @@ namespace xell
                 {
                     throw LexerError("Unexpected character '&' (did you mean '&&'?)", tokenLine);
                 }
+                continue;
+            }
+
+            // @ (decorator)
+            if (c == '@')
+            {
+                tokens.emplace_back(TokenType::AT, "@", tokenLine);
+                advance();
                 continue;
             }
 

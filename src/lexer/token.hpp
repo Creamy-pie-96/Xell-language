@@ -40,6 +40,16 @@ namespace xell
         FROM,
         AS,
 
+        // Enum keyword
+        ENUM,
+
+        // Generator keyword
+        YIELD,
+
+        // Async keywords
+        ASYNC,
+        AWAIT,
+
         // Logical keywords
         AND,
         OR,
@@ -92,6 +102,7 @@ namespace xell
         FAT_ARROW, // =>
         DOT,       // .
         ELLIPSIS,  // ...
+        AT,        // @ (decorator)
 
         // Delimiters
         LPAREN,    // (
@@ -112,6 +123,7 @@ namespace xell
         // Special
         IDENTIFIER,
         NEWLINE,
+        BYTE_STRING, // b"..." byte string literal
         EOF_TOKEN
     };
 
@@ -142,6 +154,10 @@ namespace xell
             {(int)TokenType::BRING, "BRING"},
             {(int)TokenType::FROM, "FROM"},
             {(int)TokenType::AS, "AS"},
+            {(int)TokenType::ENUM, "ENUM"},
+            {(int)TokenType::YIELD, "YIELD"},
+            {(int)TokenType::ASYNC, "ASYNC"},
+            {(int)TokenType::AWAIT, "AWAIT"},
             {(int)TokenType::AND, "AND"},
             {(int)TokenType::OR, "OR"},
             {(int)TokenType::NOT, "NOT"},
@@ -177,6 +193,7 @@ namespace xell
             {(int)TokenType::FAT_ARROW, "FAT_ARROW"},
             {(int)TokenType::DOT, "DOT"},
             {(int)TokenType::ELLIPSIS, "ELLIPSIS"},
+            {(int)TokenType::AT, "AT"},
             {(int)TokenType::LPAREN, "LPAREN"},
             {(int)TokenType::RPAREN, "RPAREN"},
             {(int)TokenType::LBRACKET, "LBRACKET"},
@@ -191,6 +208,7 @@ namespace xell
             {(int)TokenType::PIPE_PIPE, "PIPE_PIPE"},
             {(int)TokenType::IDENTIFIER, "IDENTIFIER"},
             {(int)TokenType::NEWLINE, "NEWLINE"},
+            {(int)TokenType::BYTE_STRING, "BYTE_STRING"},
             {(int)TokenType::EOF_TOKEN, "EOF"},
         };
         return map;

@@ -53,11 +53,13 @@ namespace xell
         StmtPtr parseIfStmt();
         StmtPtr parseForStmt();
         StmtPtr parseWhileStmt();
-        StmtPtr parseFnDef();
+        StmtPtr parseFnDef(bool isAsync = false);
         StmtPtr parseGiveStmt();
         StmtPtr parseBringStmt();
         StmtPtr parseTryCatchStmt();
         StmtPtr parseInCaseStmt();
+        StmtPtr parseEnumDef();
+        StmtPtr parseDecoratedFnDef();
         std::vector<StmtPtr> parseBlock(bool stopAtElifElse = false);
 
         // Expressions (precedence climbing)

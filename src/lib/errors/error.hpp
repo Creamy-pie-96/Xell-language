@@ -269,6 +269,14 @@ namespace xell
 
     // ---- 3n. Command failure (set_e mode) -----------------------------------
 
+    /// Generic runtime error for situations that don't fit other categories.
+    class RuntimeError : public XellError
+    {
+    public:
+        RuntimeError(const std::string &message, int line)
+            : XellError("RuntimeError", message, line) {}
+    };
+
     /// Raised when a command exits non-zero and set_e() is active.
     class CommandFailedError : public XellError
     {

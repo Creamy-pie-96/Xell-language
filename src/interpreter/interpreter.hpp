@@ -46,6 +46,13 @@ namespace xell
     {
     };
 
+    // ---- Control-flow signal for yield (generators) -------------------------
+
+    struct YieldSignal
+    {
+        XObject value;
+    };
+
     // ========================================================================
     // Interpreter
     // ========================================================================
@@ -112,6 +119,8 @@ namespace xell
         void execTryCatch(const TryCatchStmt *node);
         void execInCase(const InCaseStmt *node);
         void execDestructuring(const DestructuringAssignment *node);
+        void execEnumDef(const EnumDef *node);
+        void execDecoratedFnDef(const DecoratedFnDef *node);
 
         // ---- Expression evaluation -----------------------------------------
 
@@ -130,11 +139,18 @@ namespace xell
         XObject evalTernary(const TernaryExpr *node);
         XObject evalLambda(const LambdaExpr *node);
         XObject evalSpread(const SpreadExpr *node);
+        XObject evalYield(const YieldExpr *node);
+        XObject evalAwait(const AwaitExpr *node);
+        XObject evalBytes(const BytesLiteral *node);
 
         // ---- Helpers -------------------------------------------------------
 
         XObject callUserFn(const XFunction &fn, std::vector<XObject> &args, int line);
+        XObject createGenerator(const XFunction &fn, std::vector<XObject> &args, int line);
         std::string interpolate(const std::string &raw, int line);
+
+        // Generator yield context — when non-null, yield is valid
+        GeneratorState *activeGeneratorState_ = nullptr;
     };
 
 } // namespace xell

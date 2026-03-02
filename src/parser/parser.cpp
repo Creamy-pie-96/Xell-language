@@ -74,7 +74,7 @@ namespace xell
 
     bool Parser::canStartPrimary(TokenType type) const
     {
-        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::LESS || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS;
+        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::BYTE_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::LESS || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS || type == TokenType::YIELD || type == TokenType::AWAIT;
     }
 
     // ============================================================
@@ -154,6 +154,9 @@ namespace xell
             case TokenType::BRING:
             case TokenType::TRY:
             case TokenType::INCASE:
+            case TokenType::ENUM:
+            case TokenType::ASYNC:
+            case TokenType::AT:
                 return;
             case TokenType::IDENTIFIER:
                 // IDENT = ... is an assignment → new statement
@@ -229,6 +232,19 @@ namespace xell
             return parseTryCatchStmt();
         if (type == TokenType::INCASE)
             return parseInCaseStmt();
+        if (type == TokenType::ENUM)
+            return parseEnumDef();
+        if (type == TokenType::AT)
+            return parseDecoratedFnDef();
+        if (type == TokenType::ASYNC)
+        {
+            // async fn name(...): ...
+            advance(); // consume async
+            skipNewlines();
+            if (!check(TokenType::FN))
+                throw ParseError("Expected 'fn' after 'async'", current().line);
+            return parseFnDef(true); // isAsync = true
+        }
 
         // --- Augmented assignment: IDENTIFIER += EXPR etc ---
         if (type == TokenType::IDENTIFIER &&
@@ -492,7 +508,7 @@ namespace xell
     // Function definition
     // ============================================================
 
-    StmtPtr Parser::parseFnDef()
+    StmtPtr Parser::parseFnDef(bool isAsync)
     {
         int ln = current().line;
         advance(); // consume FN
@@ -502,6 +518,7 @@ namespace xell
 
         std::vector<std::string> params;
         std::vector<ExprPtr> defaults;
+        std::vector<std::string> paramTypes;
         bool isVariadic = false;
         std::string variadicName;
 
@@ -517,6 +534,25 @@ namespace xell
             else
             {
                 params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name").value);
+                // Check for type annotation: param: Type
+                if (check(TokenType::COLON))
+                {
+                    // Lookahead: is this a type annotation (identifier) or a block start?
+                    // If next token after colon is an identifier followed by , or ) or = → type annotation
+                    if (peekToken(1).type == TokenType::IDENTIFIER)
+                    {
+                        advance(); // consume :
+                        paramTypes.push_back(consume(TokenType::IDENTIFIER, "Expected type name").value);
+                    }
+                    else
+                    {
+                        paramTypes.push_back(""); // no annotation
+                    }
+                }
+                else
+                {
+                    paramTypes.push_back(""); // no annotation
+                }
                 // Check for default value
                 if (check(TokenType::EQUAL))
                 {
@@ -540,6 +576,23 @@ namespace xell
                         break; // variadic must be last
                     }
                     params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name after ','").value);
+                    // Check for type annotation
+                    if (check(TokenType::COLON))
+                    {
+                        if (peekToken(1).type == TokenType::IDENTIFIER)
+                        {
+                            advance(); // consume :
+                            paramTypes.push_back(consume(TokenType::IDENTIFIER, "Expected type name").value);
+                        }
+                        else
+                        {
+                            paramTypes.push_back("");
+                        }
+                    }
+                    else
+                    {
+                        paramTypes.push_back("");
+                    }
                     if (check(TokenType::EQUAL))
                     {
                         advance(); // consume =
@@ -554,6 +607,14 @@ namespace xell
         }
         consume(TokenType::RPAREN, "Expected ')' after parameters");
 
+        // Optional return type annotation: -> Type
+        std::string returnType;
+        if (check(TokenType::ARROW))
+        {
+            advance(); // consume ->
+            returnType = consume(TokenType::IDENTIFIER, "Expected return type after '->'").value;
+        }
+
         consume(TokenType::COLON, "Expected ':' after function signature");
         auto body = parseBlock();
         consume(TokenType::SEMICOLON, "Expected ';' to close function body");
@@ -562,6 +623,9 @@ namespace xell
         fnDef->defaults = std::move(defaults);
         fnDef->isVariadic = isVariadic;
         fnDef->variadicName = std::move(variadicName);
+        fnDef->paramTypes = std::move(paramTypes);
+        fnDef->returnType = std::move(returnType);
+        fnDef->isAsync = isAsync;
         return fnDef;
     }
 
@@ -662,6 +726,94 @@ namespace xell
 
         return std::make_unique<InCaseStmt>(
             std::move(subject), std::move(clauses), std::move(elseBody), ln);
+    }
+
+    // ============================================================
+    // Enum definition: enum Name: Member1, Member2, ...;
+    // Also supports custom values: enum Name: A = 1, B = 2;
+    // ============================================================
+
+    StmtPtr Parser::parseEnumDef()
+    {
+        int ln = current().line;
+        advance(); // consume ENUM
+
+        std::string name = consume(TokenType::IDENTIFIER, "Expected enum name after 'enum'").value;
+        consume(TokenType::COLON, "Expected ':' after enum name");
+        skipNewlines();
+
+        std::vector<std::string> members;
+        std::vector<ExprPtr> memberValues;
+
+        // Parse first member
+        members.push_back(consume(TokenType::IDENTIFIER, "Expected enum member name").value);
+        if (check(TokenType::EQUAL))
+        {
+            advance(); // consume =
+            memberValues.push_back(parseExpression());
+        }
+        else
+        {
+            memberValues.push_back(nullptr); // auto-increment
+        }
+
+        while (check(TokenType::COMMA))
+        {
+            advance(); // consume comma
+            skipNewlines();
+            if (check(TokenType::SEMICOLON))
+                break; // trailing comma
+            members.push_back(consume(TokenType::IDENTIFIER, "Expected enum member name").value);
+            if (check(TokenType::EQUAL))
+            {
+                advance(); // consume =
+                memberValues.push_back(parseExpression());
+            }
+            else
+            {
+                memberValues.push_back(nullptr);
+            }
+        }
+
+        consume(TokenType::SEMICOLON, "Expected ';' to close enum definition");
+
+        return std::make_unique<EnumDef>(name, std::move(members), std::move(memberValues), ln);
+    }
+
+    // ============================================================
+    // Decorated function: @decorator fn name(...): ... ;
+    // Multiple decorators stack: @dec1 @dec2 fn name(...): ... ;
+    // ============================================================
+
+    StmtPtr Parser::parseDecoratedFnDef()
+    {
+        int ln = current().line;
+        std::vector<std::string> decorators;
+
+        // Collect all @decorator tokens
+        while (check(TokenType::AT))
+        {
+            advance(); // consume @
+            decorators.push_back(consume(TokenType::IDENTIFIER, "Expected decorator name after '@'").value);
+            skipNewlines();
+        }
+
+        // Expect fn or async fn
+        bool isAsync = false;
+        if (check(TokenType::ASYNC))
+        {
+            isAsync = true;
+            advance(); // consume async
+            skipNewlines();
+        }
+
+        if (!check(TokenType::FN))
+            throw ParseError("Expected 'fn' after decorator(s)", current().line);
+
+        auto fnStmt = parseFnDef(isAsync);
+        auto fnDef = std::unique_ptr<FnDef>(static_cast<FnDef *>(fnStmt.release()));
+
+        return std::make_unique<DecoratedFnDef>(std::move(decorators), std::move(fnDef), ln);
     }
 
     // ============================================================
@@ -963,6 +1115,31 @@ namespace xell
             return std::make_unique<UnaryExpr>("--", std::move(operand), ln);
         }
 
+        // yield expression: yield or yield expr
+        if (check(TokenType::YIELD))
+        {
+            int ln = current().line;
+            advance(); // consume yield
+            ExprPtr value = nullptr;
+            // yield with no value if followed by statement boundary
+            if (!check(TokenType::NEWLINE) && !check(TokenType::DOT) &&
+                !check(TokenType::SEMICOLON) && !isAtEnd() &&
+                canStartPrimary(current().type))
+            {
+                value = parseExpression();
+            }
+            return std::make_unique<YieldExpr>(std::move(value), ln);
+        }
+
+        // await expression: await expr
+        if (check(TokenType::AWAIT))
+        {
+            int ln = current().line;
+            advance(); // consume await
+            auto operand = parseUnary();
+            return std::make_unique<AwaitExpr>(std::move(operand), ln);
+        }
+
         return parsePrimary();
     }
 
@@ -1013,6 +1190,14 @@ namespace xell
             std::string val = current().value;
             advance();
             return parsePostfix(std::make_unique<StringLiteral>(std::move(val), ln, true));
+        }
+
+        // Byte string literal (b"..." — raw binary data)
+        if (check(TokenType::BYTE_STRING))
+        {
+            std::string val = current().value;
+            advance();
+            return parsePostfix(std::make_unique<BytesLiteral>(std::move(val), ln));
         }
 
         // Boolean literals

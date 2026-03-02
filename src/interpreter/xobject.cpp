@@ -50,6 +50,12 @@ namespace xell
             return "map";
         case XType::FUNCTION:
             return "function";
+        case XType::ENUM:
+            return "enum";
+        case XType::BYTES:
+            return "bytes";
+        case XType::GENERATOR:
+            return "generator";
         }
         return "unknown";
     }
@@ -112,6 +118,22 @@ namespace xell
         return new XData(type, payload);
     }
 
+    // GeneratorState destructor — defined here because XObject is now complete
+    GeneratorState::~GeneratorState()
+    {
+        if (worker.joinable())
+        {
+            // If generator is abandoned, we need to let it finish
+            {
+                std::lock_guard<std::mutex> lk(mtx);
+                phase = DONE; // signal generator to exit
+            }
+            cv.notify_all();
+            worker.join();
+        }
+        delete yieldedValue;
+    }
+
     void XObject::freePayload(XType type, void *payload)
     {
         if (!payload)
@@ -153,6 +175,15 @@ namespace xell
             break;
         case XType::FUNCTION:
             delete static_cast<XFunction *>(payload);
+            break;
+        case XType::ENUM:
+            delete static_cast<XEnum *>(payload);
+            break;
+        case XType::BYTES:
+            delete static_cast<XBytes *>(payload);
+            break;
+        case XType::GENERATOR:
+            delete static_cast<XGenerator *>(payload);
             break;
         }
     }
@@ -278,6 +309,36 @@ namespace xell
         return XObject(allocData(XType::FUNCTION, p));
     }
 
+    XObject XObject::makeEnum(XEnum &&enumDef)
+    {
+        XEnum *p = new XEnum(std::move(enumDef));
+        return XObject(allocData(XType::ENUM, p));
+    }
+
+    XObject XObject::makeBytes(XBytes &&bytes)
+    {
+        XBytes *p = new XBytes(std::move(bytes));
+        return XObject(allocData(XType::BYTES, p));
+    }
+
+    XObject XObject::makeBytes(const std::string &data)
+    {
+        XBytes *p = new XBytes(data);
+        return XObject(allocData(XType::BYTES, p));
+    }
+
+    XObject XObject::makeBytes(std::vector<uint8_t> &&data)
+    {
+        XBytes *p = new XBytes(std::move(data));
+        return XObject(allocData(XType::BYTES, p));
+    }
+
+    XObject XObject::makeGenerator(XGenerator &&gen)
+    {
+        XGenerator *p = new XGenerator(std::move(gen));
+        return XObject(allocData(XType::GENERATOR, p));
+    }
+
     // ========================================================================
     // Default constructor → none
     // ========================================================================
@@ -379,6 +440,9 @@ namespace xell
     bool XObject::isFrozenSet() const { return type() == XType::FROZEN_SET; }
     bool XObject::isMap() const { return type() == XType::MAP; }
     bool XObject::isFunction() const { return type() == XType::FUNCTION; }
+    bool XObject::isEnum() const { return type() == XType::ENUM; }
+    bool XObject::isBytes() const { return type() == XType::BYTES; }
+    bool XObject::isGenerator() const { return type() == XType::GENERATOR; }
 
     // ========================================================================
     // Payload access (unchecked — caller must verify type)
@@ -467,6 +531,31 @@ namespace xell
         return *static_cast<XFunction *>(data_->payload);
     }
 
+    const XEnum &XObject::asEnum() const
+    {
+        return *static_cast<XEnum *>(data_->payload);
+    }
+
+    const XBytes &XObject::asBytes() const
+    {
+        return *static_cast<XBytes *>(data_->payload);
+    }
+
+    XBytes &XObject::asBytesMut()
+    {
+        return *static_cast<XBytes *>(data_->payload);
+    }
+
+    const XGenerator &XObject::asGenerator() const
+    {
+        return *static_cast<XGenerator *>(data_->payload);
+    }
+
+    XGenerator &XObject::asGeneratorMut()
+    {
+        return *static_cast<XGenerator *>(data_->payload);
+    }
+
     // ========================================================================
     // Truthiness
     // ========================================================================
@@ -499,6 +588,12 @@ namespace xell
             return !asMap().empty();
         case XType::FUNCTION:
             return true;
+        case XType::ENUM:
+            return true; // enums are always truthy
+        case XType::BYTES:
+            return !asBytes().data.empty();
+        case XType::GENERATOR:
+            return true; // generators are always truthy
         }
         return false;
     }
@@ -575,6 +670,19 @@ namespace xell
             const auto &fn = asFunction();
             return makeFunction(fn.name, fn.params, fn.body, fn.closureEnv);
         }
+        case XType::ENUM:
+        {
+            XEnum cloned = asEnum();
+            return makeEnum(std::move(cloned));
+        }
+        case XType::BYTES:
+        {
+            XBytes cloned(asBytes().data);
+            return makeBytes(std::move(cloned));
+        }
+        case XType::GENERATOR:
+            // Generators are not cloneable (shared state) — return as-is (ref counted)
+            return *this;
         }
         return makeNone();
     }
@@ -739,6 +847,44 @@ namespace xell
 
         case XType::FUNCTION:
             return "<fn " + asFunction().name + ">";
+
+        case XType::ENUM:
+        {
+            const auto &e = asEnum();
+            std::ostringstream oss;
+            oss << "<enum " << e.name << ": ";
+            for (size_t i = 0; i < e.memberNames.size(); i++)
+            {
+                if (i > 0)
+                    oss << ", ";
+                oss << e.memberNames[i];
+            }
+            oss << ">";
+            return oss.str();
+        }
+
+        case XType::BYTES:
+        {
+            const auto &b = asBytes().data;
+            std::ostringstream oss;
+            oss << "b\"";
+            for (uint8_t byte : b)
+            {
+                if (byte >= 32 && byte < 127 && byte != '"' && byte != '\\')
+                    oss << static_cast<char>(byte);
+                else
+                {
+                    oss << "\\x";
+                    const char hex[] = "0123456789abcdef";
+                    oss << hex[byte >> 4] << hex[byte & 0xF];
+                }
+            }
+            oss << "\"";
+            return oss.str();
+        }
+
+        case XType::GENERATOR:
+            return "<generator " + asGenerator().fnName + ">";
         }
 
         return "unknown";
@@ -855,6 +1001,14 @@ namespace xell
         case XType::FUNCTION:
             // Functions are equal only if they are the same object (already handled above)
             return false;
+        case XType::ENUM:
+            // Enum equality: same name and same members
+            return asEnum().name == other.asEnum().name;
+        case XType::BYTES:
+            return asBytes().data == other.asBytes().data;
+        case XType::GENERATOR:
+            // Generators are equal only if same object (already handled above)
+            return false;
         }
         return false;
     }
@@ -903,6 +1057,8 @@ namespace xell
             }
             return true;
         }
+        case XType::BYTES:
+            return true; // bytes are immutable and hashable
         default:
             return false; // LIST, SET, MAP, FUNCTION are mutable/non-hashable
         }
@@ -972,6 +1128,11 @@ namespace xell
                 h ^= hashXObject(elem, hashFn);
             }
             return h;
+        }
+        case XType::BYTES:
+        {
+            const auto &b = obj.asBytes().data;
+            return hashFn(b.data(), b.size());
         }
         default:
             throw HashError("cannot hash mutable type '" +

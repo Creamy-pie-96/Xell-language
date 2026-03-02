@@ -444,12 +444,12 @@ static void testLexerErrors()
 
     runTest("lexer: unexpected character → LexerError", []()
             {
-        Lexer lex("x = 10 @ y");
+        Lexer lex("x = 10 ^ y");
         bool caught = false;
         try { lex.tokenize(); }
         catch (const LexerError& e) {
             caught = true;
-            XASSERT(contains(e.what(), "@"));
+            XASSERT(contains(e.what(), "^"));
             XASSERT_EQ(e.line(), 1);
         }
         XASSERT(caught); });

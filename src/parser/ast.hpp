@@ -203,6 +203,27 @@ namespace xell
         explicit SpreadExpr(ExprPtr op, int ln = 0) : operand(std::move(op)) { line = ln; }
     };
 
+    // Yield expression: yield value (for generators)
+    struct YieldExpr : Expr
+    {
+        ExprPtr value; // nullptr → yield with no value (yields none)
+        explicit YieldExpr(ExprPtr v, int ln = 0) : value(std::move(v)) { line = ln; }
+    };
+
+    // Await expression: await expr (for async)
+    struct AwaitExpr : Expr
+    {
+        ExprPtr operand;
+        explicit AwaitExpr(ExprPtr op, int ln = 0) : operand(std::move(op)) { line = ln; }
+    };
+
+    // Bytes literal: b"\x48\x65\x6c\x6c\x6f"
+    struct BytesLiteral : Expr
+    {
+        std::string bytes; // raw byte data
+        explicit BytesLiteral(std::string b, int ln = 0) : bytes(std::move(b)) { line = ln; }
+    };
+
     // ============================================================
     // Statement nodes
     // ============================================================
@@ -266,6 +287,12 @@ namespace xell
         bool isVariadic = false;       // true if last param is ...name
         std::string variadicName;      // name of variadic param (without ...)
         std::vector<StmtPtr> body;
+        bool isAsync = false; // true for async fn
+
+        // Type annotations (optional)
+        std::vector<std::string> paramTypes; // type annotation per param (empty string = no annotation)
+        std::string returnType;              // return type annotation (empty = none)
+
         FnDef(std::string name, std::vector<std::string> params, std::vector<StmtPtr> body, int ln = 0)
             : name(std::move(name)), params(std::move(params)), body(std::move(body)) { line = ln; }
     };
@@ -336,6 +363,27 @@ namespace xell
                   std::vector<std::string> aliases, int ln = 0)
             : bringAll(all), names(std::move(names)), path(std::move(path)),
               aliases(std::move(aliases)) { line = ln; }
+    };
+
+    // Enum definition: enum Color: Red, Green, Blue;
+    struct EnumDef : Stmt
+    {
+        std::string name;
+        std::vector<std::string> members;  // member names
+        std::vector<ExprPtr> memberValues; // optional custom values (nullptr = auto)
+        EnumDef(std::string name, std::vector<std::string> members,
+                std::vector<ExprPtr> values, int ln = 0)
+            : name(std::move(name)), members(std::move(members)),
+              memberValues(std::move(values)) { line = ln; }
+    };
+
+    // Decorated function: @decorator fn name(...): ... ;
+    struct DecoratedFnDef : Stmt
+    {
+        std::vector<std::string> decorators; // decorator names (applied bottom-up)
+        std::unique_ptr<FnDef> fnDef;
+        DecoratedFnDef(std::vector<std::string> decorators, std::unique_ptr<FnDef> fn, int ln = 0)
+            : decorators(std::move(decorators)), fnDef(std::move(fn)) { line = ln; }
     };
 
     // ============================================================

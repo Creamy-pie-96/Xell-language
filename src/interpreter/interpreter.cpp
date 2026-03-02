@@ -50,6 +50,96 @@ namespace xell
 {
 
     // ========================================================================
+    // AST helper: detect yield expressions in a function body
+    // ========================================================================
+
+    static bool containsYieldExpr(const Expr *expr);
+    static bool containsYieldStmt(const Stmt *stmt);
+
+    static bool containsYieldExpr(const Expr *expr)
+    {
+        if (!expr)
+            return false;
+        if (dynamic_cast<const YieldExpr *>(expr))
+            return true;
+        if (auto *p = dynamic_cast<const BinaryExpr *>(expr))
+            return containsYieldExpr(p->left.get()) || containsYieldExpr(p->right.get());
+        if (auto *p = dynamic_cast<const UnaryExpr *>(expr))
+            return containsYieldExpr(p->operand.get());
+        if (auto *p = dynamic_cast<const CallExpr *>(expr))
+        {
+            for (const auto &arg : p->args)
+                if (containsYieldExpr(arg.get()))
+                    return true;
+            return false;
+        }
+        if (auto *p = dynamic_cast<const TernaryExpr *>(expr))
+            return containsYieldExpr(p->value.get()) || containsYieldExpr(p->condition.get()) || containsYieldExpr(p->alternative.get());
+        return false;
+    }
+
+    static bool containsYieldStmt(const Stmt *stmt)
+    {
+        if (!stmt)
+            return false;
+        if (auto *p = dynamic_cast<const ExprStmt *>(stmt))
+            return containsYieldExpr(p->expr.get());
+        if (auto *p = dynamic_cast<const Assignment *>(stmt))
+            return containsYieldExpr(p->value.get());
+        if (auto *p = dynamic_cast<const IfStmt *>(stmt))
+        {
+            for (const auto &s : p->body)
+                if (containsYieldStmt(s.get()))
+                    return true;
+            for (const auto &elif : p->elifs)
+                for (const auto &s : elif.body)
+                    if (containsYieldStmt(s.get()))
+                        return true;
+            for (const auto &s : p->elseBody)
+                if (containsYieldStmt(s.get()))
+                    return true;
+            return false;
+        }
+        if (auto *p = dynamic_cast<const ForStmt *>(stmt))
+        {
+            for (const auto &s : p->body)
+                if (containsYieldStmt(s.get()))
+                    return true;
+            return false;
+        }
+        if (auto *p = dynamic_cast<const WhileStmt *>(stmt))
+        {
+            for (const auto &s : p->body)
+                if (containsYieldStmt(s.get()))
+                    return true;
+            return false;
+        }
+        if (auto *p = dynamic_cast<const GiveStmt *>(stmt))
+            return p->value ? containsYieldExpr(p->value.get()) : false;
+        if (auto *p = dynamic_cast<const TryCatchStmt *>(stmt))
+        {
+            for (const auto &s : p->tryBody)
+                if (containsYieldStmt(s.get()))
+                    return true;
+            for (const auto &s : p->catchBody)
+                if (containsYieldStmt(s.get()))
+                    return true;
+            return false;
+        }
+        return false;
+    }
+
+    static bool containsYield(const std::vector<std::unique_ptr<Stmt>> &stmts)
+    {
+        for (const auto &stmt : stmts)
+        {
+            if (containsYieldStmt(stmt.get()))
+                return true;
+        }
+        return false;
+    }
+
+    // ========================================================================
     // Constructor / reset
     // ========================================================================
 
@@ -125,6 +215,10 @@ namespace xell
             return execInCase(p);
         if (auto *p = dynamic_cast<const DestructuringAssignment *>(stmt))
             return execDestructuring(p);
+        if (auto *p = dynamic_cast<const EnumDef *>(stmt))
+            return execEnumDef(p);
+        if (auto *p = dynamic_cast<const DecoratedFnDef *>(stmt))
+            return execDecoratedFnDef(p);
     }
 
     void Interpreter::execBlock(const std::vector<StmtPtr> &stmts, Environment &env)
@@ -275,6 +369,17 @@ namespace xell
         }
         fnRef.isVariadic = node->isVariadic;
         fnRef.variadicName = node->variadicName;
+
+        // Check if this function is a generator (contains yield statements)
+        // We do a simple AST scan
+        fnRef.isGenerator = containsYield(node->body);
+
+        // Async flag
+        fnRef.isAsync = node->isAsync;
+
+        // Store type annotations for runtime checking
+        // (paramTypes and returnType are stored in the FnDef AST node and
+        //  can be accessed via the AST pointer in the function)
 
         currentEnv_->set(node->name, std::move(fn));
     }
@@ -457,6 +562,12 @@ namespace xell
             return evalLambda(p);
         if (auto *p = dynamic_cast<const SpreadExpr *>(expr))
             return evalSpread(p);
+        if (auto *p = dynamic_cast<const YieldExpr *>(expr))
+            return evalYield(p);
+        if (auto *p = dynamic_cast<const AwaitExpr *>(expr))
+            return evalAwait(p);
+        if (auto *p = dynamic_cast<const BytesLiteral *>(expr))
+            return evalBytes(p);
 
         throw NotImplementedError("unknown expression node", expr->line);
     }
@@ -822,6 +933,10 @@ namespace xell
 
     XObject Interpreter::callUserFn(const XFunction &fn, std::vector<XObject> &args, int line)
     {
+        // If this is a generator function, create a generator instead of executing
+        if (fn.isGenerator)
+            return createGenerator(fn, args, line);
+
         size_t minRequired = 0;
         // Count required params (those without defaults)
         for (size_t i = 0; i < fn.params.size(); i++)
@@ -996,6 +1111,23 @@ namespace xell
             return *val;
         }
 
+        // Enum member access: Color->Red
+        if (obj.isEnum())
+        {
+            const auto &e = obj.asEnum();
+            auto it = e.members.find(node->member);
+            if (it == e.members.end())
+                throw KeyError(node->member + " is not a member of enum " + e.name, node->line);
+            return it->second;
+        }
+
+        // Bytes member access for properties
+        if (obj.isBytes())
+        {
+            if (node->member == "length" || node->member == "len")
+                return XObject::makeInt(static_cast<int64_t>(obj.asBytes().data.size()));
+        }
+
         throw TypeError("member access (->) not supported on " +
                             std::string(xtype_name(obj.type())),
                         node->line);
@@ -1141,6 +1273,270 @@ namespace xell
         // When spread appears in a standalone context, just evaluate the operand
         // The actual spreading happens in evalList/evalCall
         return eval(node->operand.get());
+    }
+
+    // ---- Bytes literal: b"..." -------------------------------------------
+
+    XObject Interpreter::evalBytes(const BytesLiteral *node)
+    {
+        // The lexer stores the raw byte content (with escape sequences processed)
+        return XObject::makeBytes(node->bytes);
+    }
+
+    // ---- Yield expression (for generators) --------------------------------
+
+    XObject Interpreter::evalYield(const YieldExpr *node)
+    {
+        if (!activeGeneratorState_)
+            throw TypeError("yield can only be used inside a generator function", node->line);
+
+        XObject value = node->value ? eval(node->value.get()) : XObject::makeNone();
+
+        // Signal the yield to the generator orchestrator
+        auto *gs = activeGeneratorState_;
+        {
+            std::lock_guard<std::mutex> lk(gs->mtx);
+            delete gs->yieldedValue;
+            gs->yieldedValue = new XObject(std::move(value));
+            gs->phase = GeneratorState::YIELDED;
+        }
+        gs->cv.notify_all();
+
+        // Wait for next() to resume us
+        {
+            std::unique_lock<std::mutex> lk(gs->mtx);
+            gs->cv.wait(lk, [gs]
+                        { return gs->phase == GeneratorState::RUNNING || gs->phase == GeneratorState::DONE; });
+        }
+
+        // If DONE was signaled, the generator is being abandoned
+        if (gs->phase == GeneratorState::DONE)
+            throw GiveSignal{XObject::makeNone()}; // unwind the generator
+
+        return XObject::makeNone(); // yield always "returns" none to the generator body
+    }
+
+    // ---- Await expression (for async) ------------------------------------
+
+    XObject Interpreter::evalAwait(const AwaitExpr *node)
+    {
+        XObject obj = eval(node->operand.get());
+
+        // If the operand is a generator, exhaust it and return the last value
+        if (obj.isGenerator())
+        {
+            auto &gen = const_cast<XGenerator &>(obj.asGenerator());
+            auto &gs = gen.state;
+            XObject lastValue = XObject::makeNone();
+
+            while (true)
+            {
+                {
+                    std::unique_lock<std::mutex> lk(gs->mtx);
+                    if (gs->phase == GeneratorState::DONE)
+                        break;
+
+                    // Resume the generator
+                    gs->phase = GeneratorState::RUNNING;
+                }
+                gs->cv.notify_all();
+
+                // Wait for yield or completion
+                {
+                    std::unique_lock<std::mutex> lk(gs->mtx);
+                    gs->cv.wait(lk, [&gs]
+                                { return gs->phase == GeneratorState::YIELDED || gs->phase == GeneratorState::DONE; });
+                }
+
+                if (gs->phase == GeneratorState::YIELDED && gs->yieldedValue)
+                    lastValue = gs->yieldedValue->clone();
+
+                if (gs->phase == GeneratorState::DONE)
+                {
+                    if (gs->error)
+                        std::rethrow_exception(gs->error);
+                    break;
+                }
+            }
+
+            if (gs->worker.joinable())
+                gs->worker.join();
+
+            return lastValue;
+        }
+
+        // For non-generator values, await is a no-op (returns the value as-is)
+        // This allows simple async compatibility
+        return obj;
+    }
+
+    // ---- Enum definition ---------------------------------------------------
+
+    void Interpreter::execEnumDef(const EnumDef *node)
+    {
+        XEnum enumDef(node->name);
+        int64_t autoValue = 0;
+
+        for (size_t i = 0; i < node->members.size(); i++)
+        {
+            const std::string &memberName = node->members[i];
+            enumDef.memberNames.push_back(memberName);
+
+            if (i < node->memberValues.size() && node->memberValues[i])
+            {
+                // Custom value
+                XObject val = eval(node->memberValues[i].get());
+                if (val.isInt())
+                    autoValue = val.asInt() + 1;
+                enumDef.members[memberName] = std::move(val);
+            }
+            else
+            {
+                // Auto-increment integer value
+                enumDef.members[memberName] = XObject::makeInt(autoValue);
+                autoValue++;
+            }
+        }
+
+        currentEnv_->set(node->name, XObject::makeEnum(std::move(enumDef)));
+    }
+
+    // ---- Decorated function definition -------------------------------------
+
+    void Interpreter::execDecoratedFnDef(const DecoratedFnDef *node)
+    {
+        // First, execute the function definition normally
+        execFnDef(node->fnDef.get());
+
+        // Then wrap it with each decorator (bottom-up: last decorator is innermost)
+        std::string fnName = node->fnDef->name;
+        XObject fn = currentEnv_->get(fnName, node->line);
+
+        for (auto it = node->decorators.rbegin(); it != node->decorators.rend(); ++it)
+        {
+            const std::string &decoratorName = *it;
+
+            // Look up decorator function
+            XObject decoratorFn;
+            if (currentEnv_->has(decoratorName))
+            {
+                decoratorFn = currentEnv_->get(decoratorName, node->line);
+            }
+            else
+            {
+                auto bit = builtins_.find(decoratorName);
+                if (bit != builtins_.end())
+                {
+                    // Wrap builtin as a call
+                    std::vector<XObject> args = {fn};
+                    fn = bit->second(args, node->line);
+                    continue;
+                }
+                throw UndefinedVariableError(decoratorName, node->line);
+            }
+
+            if (!decoratorFn.isFunction())
+                throw TypeError("decorator '" + decoratorName + "' is not a function", node->line);
+
+            // Call the decorator with the function as argument
+            std::vector<XObject> args = {fn};
+            fn = callUserFn(decoratorFn.asFunction(), args, node->line);
+        }
+
+        // Replace the function in the environment with the decorated version
+        currentEnv_->set(fnName, std::move(fn));
+    }
+
+    // ---- Generator creation ------------------------------------------------
+
+    XObject Interpreter::createGenerator(const XFunction &fn, std::vector<XObject> &args, int line)
+    {
+        XGenerator gen;
+        gen.fnName = fn.name;
+
+        // Create environment for the generator body
+        Environment *closureEnv = fn.closureEnv ? fn.closureEnv : currentEnv_;
+
+        // Capture a shared owned env for the generator's closure
+        auto genEnv = std::make_shared<Environment>(closureEnv);
+
+        // Bind parameters
+        for (size_t i = 0; i < fn.params.size(); i++)
+        {
+            if (i < args.size())
+                genEnv->define(fn.params[i], std::move(args[i]));
+            else if (i < fn.defaults.size() && fn.defaults[i] != nullptr)
+                genEnv->define(fn.params[i], eval(fn.defaults[i]));
+            else
+                genEnv->define(fn.params[i], XObject::makeNone());
+        }
+
+        // Bind variadic
+        if (fn.isVariadic && !fn.variadicName.empty())
+        {
+            XList varArgs;
+            for (size_t i = fn.params.size(); i < args.size(); i++)
+                varArgs.push_back(std::move(args[i]));
+            genEnv->define(fn.variadicName, XObject::makeList(std::move(varArgs)));
+        }
+
+        // Capture references we need in the worker thread
+        auto state = gen.state;
+        const auto *body = fn.body;
+
+        // Capture builtins_ and output_ references for the generator's own interpreter
+        // We create a new interpreter that shares our builtins
+        auto &outerOutput = output_;
+        auto &outerBuiltins = builtins_;
+        auto &outerShellState = shellState_;
+
+        state->worker = std::thread([state, body, genEnv, &outerOutput, &outerBuiltins, &outerShellState]()
+                                    {
+            // Wait for first next() call
+            {
+                std::unique_lock<std::mutex> lk(state->mtx);
+                state->cv.wait(lk, [&state] {
+                    return state->phase == GeneratorState::RUNNING || state->phase == GeneratorState::DONE;
+                });
+            }
+            if (state->phase == GeneratorState::DONE) return;
+
+            // Create a mini-interpreter for the generator body
+            Interpreter genInterp;
+            genInterp.output_ = {};  // generator captures output separately
+            genInterp.activeGeneratorState_ = state.get();
+
+            // We execute in the generator's env
+            auto *savedEnv = genInterp.currentEnv_;
+            genInterp.currentEnv_ = genEnv.get();
+
+            try {
+                if (body) {
+                    for (const auto &stmt : *body) {
+                        genInterp.exec(stmt.get());
+                    }
+                }
+            } catch (const GiveSignal &sig) {
+                // give from generator = final value (store but mark done)
+                std::lock_guard<std::mutex> lk(state->mtx);
+                delete state->yieldedValue;
+                state->yieldedValue = new XObject(sig.value.clone());
+            } catch (...) {
+                std::lock_guard<std::mutex> lk(state->mtx);
+                state->error = std::current_exception();
+            }
+
+            genInterp.currentEnv_ = savedEnv;
+
+            // Signal completion
+            {
+                std::lock_guard<std::mutex> lk(state->mtx);
+                state->phase = GeneratorState::DONE;
+            }
+            state->cv.notify_all(); });
+
+        state->started = true;
+        return XObject::makeGenerator(std::move(gen));
     }
 
     // ---- Try / Catch / Finally ---------------------------------------------

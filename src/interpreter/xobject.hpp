@@ -42,6 +42,9 @@
 #include <cstdint>
 #include <cmath>
 #include <functional>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 // Modular hash algorithms and ordered hash table
 #include "../hash/hash_algorithm.hpp"
@@ -111,6 +114,9 @@ namespace xell
         FROZEN_SET, // immutable set: <1, 2, 3>
         MAP,
         FUNCTION,
+        ENUM,      // enum type (stored as map of names → values)
+        BYTES,     // raw binary data (vector<uint8_t>)
+        GENERATOR, // lazy generator (thread-based coroutine)
     };
 
     /// Human-readable type name for error messages
@@ -151,11 +157,78 @@ namespace xell
         // keep the environment alive.
         std::shared_ptr<Environment> ownedEnv;
 
+        // Generator/async flags (set by parser/interpreter)
+        bool isGenerator = false; // true if function contains yield
+        bool isAsync = false;     // true for async fn
+
         XFunction(std::string name, std::vector<std::string> params,
                   const std::vector<std::unique_ptr<Stmt>> *body,
                   Environment *closureEnv = nullptr)
             : name(std::move(name)), params(std::move(params)),
               body(body), closureEnv(closureEnv) {}
+    };
+
+    // ========================================================================
+    // XEnum — enumeration with named members and integer values
+    // ========================================================================
+
+    struct XEnum
+    {
+        std::string name;                                 // enum type name
+        std::vector<std::string> memberNames;             // ordered member names
+        std::unordered_map<std::string, XObject> members; // name → value
+
+        XEnum() = default;
+        XEnum(std::string name) : name(std::move(name)) {}
+    };
+
+    // ========================================================================
+    // XBytes — raw binary data
+    // ========================================================================
+
+    struct XBytes
+    {
+        std::vector<uint8_t> data;
+
+        XBytes() = default;
+        explicit XBytes(std::vector<uint8_t> d) : data(std::move(d)) {}
+        explicit XBytes(const std::string &s) : data(s.begin(), s.end()) {}
+    };
+
+    // ========================================================================
+    // XGenerator — lazy generator (thread-based coroutine)
+    // ========================================================================
+    //
+    // Uses a separate thread + mutex/condition_variable to implement
+    // suspend/resume semantics for yield. The generator body runs in
+    // a worker thread that blocks at each yield point until next() is called.
+    // ========================================================================
+
+    struct GeneratorState
+    {
+        std::mutex mtx;
+        std::condition_variable cv;
+        enum Phase
+        {
+            IDLE,
+            RUNNING,
+            YIELDED,
+            DONE
+        } phase = IDLE;
+        XObject *yieldedValue = nullptr; // heap-allocated to avoid incomplete type
+        std::exception_ptr error;        // captures exceptions from generator body
+        std::thread worker;
+        bool started = false;
+
+        ~GeneratorState();
+    };
+
+    struct XGenerator
+    {
+        std::shared_ptr<GeneratorState> state;
+        std::string fnName;
+
+        XGenerator() : state(std::make_shared<GeneratorState>()) {}
     };
 
     // ========================================================================
@@ -236,6 +309,17 @@ namespace xell
                                     const std::vector<std::unique_ptr<Stmt>> *body,
                                     Environment *closureEnv = nullptr);
 
+        /// enum (name → value map)
+        static XObject makeEnum(XEnum &&enumDef);
+
+        /// bytes (raw binary data)
+        static XObject makeBytes(XBytes &&bytes);
+        static XObject makeBytes(const std::string &data);
+        static XObject makeBytes(std::vector<uint8_t> &&data);
+
+        /// generator (lazy coroutine)
+        static XObject makeGenerator(XGenerator &&gen);
+
         // ---- Default constructor → none ----
 
         XObject();
@@ -265,6 +349,9 @@ namespace xell
         bool isFrozenSet() const;
         bool isMap() const;
         bool isFunction() const;
+        bool isEnum() const;
+        bool isBytes() const;
+        bool isGenerator() const;
 
         // ---- Payload access (unchecked — caller must verify type first) ----
 
@@ -284,6 +371,11 @@ namespace xell
         const XMap &asMap() const;
         XMap &asMapMut();
         const XFunction &asFunction() const;
+        const XEnum &asEnum() const;
+        const XBytes &asBytes() const;
+        XBytes &asBytesMut();
+        const XGenerator &asGenerator() const;
+        XGenerator &asGeneratorMut();
 
         // ---- Truthiness (for if/while conditions) ----
         //   none → false, bool → its value, number → false if 0.0
