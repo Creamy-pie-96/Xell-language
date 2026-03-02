@@ -1,9 +1,10 @@
-parser_test 18 0.000272926
-error_test 18 0.000243485
-xobject_test 19 0.000307195
-interpreter_test 14 0.00329769
-os_test 19 0.000796719
-bring_test 17 0.0009162
-shell_test 19 0.00250334
-builtin_test 2 0.0122408
+parser_test 22 0.000181858
+error_test 22 0.000157255
+xobject_test 23 0.00022813
+interpreter_test 18 0.00258543
+os_test 23 0.000634007
+bring_test 21 0.000736552
+shell_test 23 0.00191765
+builtin_test 6 0.00396233
+forloop_test 2 0.00484406
 ---

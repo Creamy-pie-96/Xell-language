@@ -94,5 +94,17 @@
   "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/builtin_test.dir/test/builtin_test.cpp.o -c /home/DATA/CODE/code/Xell/test/builtin_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/builtin_test.cpp",
   "output": "CMakeFiles/builtin_test.dir/test/builtin_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/forloop_test.dir/test/forloop_test.cpp.o -c /home/DATA/CODE/code/Xell/test/forloop_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/forloop_test.cpp",
+  "output": "CMakeFiles/forloop_test.dir/test/forloop_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.o -c /home/DATA/CODE/code/Xell/test/datetime_regex_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/datetime_regex_test.cpp",
+  "output": "CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.o"
 }
 ]

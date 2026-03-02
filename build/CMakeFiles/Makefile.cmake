@@ -50,4 +50,6 @@ set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/bring_test.dir/DependInfo.cmake"
   "CMakeFiles/shell_test.dir/DependInfo.cmake"
   "CMakeFiles/builtin_test.dir/DependInfo.cmake"
+  "CMakeFiles/forloop_test.dir/DependInfo.cmake"
+  "CMakeFiles/datetime_regex_test.dir/DependInfo.cmake"
   )

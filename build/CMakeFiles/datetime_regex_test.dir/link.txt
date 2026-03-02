@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.o -o datetime_regex_test  libxell_lib.a 

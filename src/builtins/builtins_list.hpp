@@ -397,6 +397,59 @@ namespace xell
                 return XObject::makeInt((int64_t)obj.asBytes().data.size());
             throw TypeError("size() expects a collection type", line);
         };
+
+        // enumerate(list [, start]) — returns list of [index, value] pairs
+        t["enumerate"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() < 1 || args.size() > 2)
+                throw ArityError("enumerate", 1, (int)args.size(), line);
+            if (!args[0].isList() && !args[0].isTuple())
+                throw TypeError("enumerate() expects a list or tuple", line);
+
+            int64_t start = 0;
+            if (args.size() == 2)
+            {
+                if (!args[1].isNumber())
+                    throw TypeError("enumerate() start must be a number", line);
+                start = (int64_t)args[1].asNumber();
+            }
+
+            const auto &items = args[0].isList() ? args[0].asList()
+                                                 : std::vector<XObject>(args[0].asTuple().begin(), args[0].asTuple().end());
+            std::vector<XObject> result;
+            for (size_t i = 0; i < items.size(); i++)
+            {
+                std::vector<XObject> pair;
+                pair.push_back(XObject::makeInt(start + (int64_t)i));
+                pair.push_back(items[i].clone());
+                result.push_back(XObject::makeList(std::move(pair)));
+            }
+            return XObject::makeList(std::move(result));
+        };
+
+        // zip_longest(list1, list2 [, fill]) — zip with padding for shorter list
+        t["zip_longest"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() < 2 || args.size() > 3)
+                throw ArityError("zip_longest", 2, (int)args.size(), line);
+            if (!args[0].isList() || !args[1].isList())
+                throw TypeError("zip_longest() expects two lists", line);
+
+            const auto &a = args[0].asList();
+            const auto &b = args[1].asList();
+            XObject fill = (args.size() == 3) ? args[2].clone() : XObject::makeNone();
+
+            size_t maxLen = std::max(a.size(), b.size());
+            std::vector<XObject> result;
+            for (size_t i = 0; i < maxLen; i++)
+            {
+                std::vector<XObject> pair;
+                pair.push_back(i < a.size() ? a[i].clone() : fill.clone());
+                pair.push_back(i < b.size() ? b[i].clone() : fill.clone());
+                result.push_back(XObject::makeList(std::move(pair)));
+            }
+            return XObject::makeList(std::move(result));
+        };
     }
 
 } // namespace xell

@@ -63,3 +63,11 @@ add_test(NAME shell_test COMMAND shell_test)
 add_executable(builtin_test test/builtin_test.cpp)
 target_link_libraries(builtin_test xell_lib)
 add_test(NAME builtin_test COMMAND builtin_test)
+
+add_executable(forloop_test test/forloop_test.cpp)
+target_link_libraries(forloop_test xell_lib)
+add_test(NAME forloop_test COMMAND forloop_test)
+
+add_executable(datetime_regex_test test/datetime_regex_test.cpp)
+target_link_libraries(datetime_regex_test xell_lib)
+add_test(NAME datetime_regex_test COMMAND datetime_regex_test)

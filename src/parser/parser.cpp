@@ -477,14 +477,73 @@ namespace xell
         int ln = current().line;
         advance(); // consume FOR
 
-        std::string varName = consume(TokenType::IDENTIFIER, "Expected loop variable name after 'for'").value;
-        consume(TokenType::IN, "Expected 'in' after for loop variable");
-        ExprPtr iterable = parseExpression();
+        // ---- Parse targets: IDENT { ',' IDENT } [ ',' '...' IDENT ] ----
+        std::vector<std::string> varNames;
+        bool hasRest = false;
+        std::string restName;
+
+        // First target (could be ...rest if single rest target)
+        if (check(TokenType::ELLIPSIS))
+        {
+            advance(); // consume ...
+            restName = consume(TokenType::IDENTIFIER, "Expected variable name after '...'").value;
+            hasRest = true;
+        }
+        else
+        {
+            varNames.push_back(consume(TokenType::IDENTIFIER, "Expected loop variable name after 'for'").value);
+        }
+
+        // Additional targets separated by commas
+        while (!hasRest && check(TokenType::COMMA))
+        {
+            auto nextTok = peekToken(1);
+            if (nextTok.type == TokenType::ELLIPSIS)
+            {
+                advance(); // consume comma
+                advance(); // consume ...
+                restName = consume(TokenType::IDENTIFIER, "Expected variable name after '...'").value;
+                hasRest = true;
+                break;
+            }
+            else if (nextTok.type == TokenType::IDENTIFIER)
+            {
+                // Check if this is still a target: peek further to see if token after ident is COMMA, IN, or ELLIPSIS
+                auto afterIdent = peekToken(2);
+                if (afterIdent.type == TokenType::COMMA || afterIdent.type == TokenType::IN)
+                {
+                    advance(); // consume comma
+                    varNames.push_back(consume(TokenType::IDENTIFIER, "Expected variable name").value);
+                }
+                else
+                {
+                    // Not a target — it's the start of source expressions: for a in expr, expr
+                    break;
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        consume(TokenType::IN, "Expected 'in' after for loop variable(s)");
+
+        // ---- Parse sources: EXPR { ',' EXPR } ----
+        std::vector<ExprPtr> iterables;
+        iterables.push_back(parseExpression());
+        while (check(TokenType::COMMA))
+        {
+            advance(); // consume comma
+            iterables.push_back(parseExpression());
+        }
+
         consume(TokenType::COLON, "Expected ':' after for expression");
         auto body = parseBlock();
         consume(TokenType::SEMICOLON, "Expected ';' to close for block");
 
-        return std::make_unique<ForStmt>(varName, std::move(iterable), std::move(body), ln);
+        return std::make_unique<ForStmt>(std::move(varNames), std::move(iterables),
+                                         std::move(body), hasRest, std::move(restName), ln);
     }
 
     // ============================================================

@@ -548,8 +548,6 @@ Implemented in C++ using `std::filesystem`. Cross-platform, no shelling out.
 
 | Function | Command Style | What It Does |
 |----------|--------------|--------------|
-| `echo(text)` | `echo "hello"` | Print text to stdout — bash-style |
-| `printf(fmt, ...args)` | `printf "%s=%d" key val` | Formatted print like C printf |
 | `head(path, n)` | `head file.txt 10` | Print first N lines (default 10) |
 | `tail(path, n)` | `tail file.txt 10` | Print last N lines (default 10) |
 | `tail_follow(path)` | `tail -f log.txt` | Live-follow file as it grows |
@@ -716,10 +714,8 @@ Implemented in C++ using `std::filesystem`. Cross-platform, no shelling out.
 
 | Function | Command Style | What It Does |
 |----------|--------------|--------------|
-| `print(text)` | `print "hello"` | Print to stdout — Xell native |
-| `echo(text)` | `echo "hello"` | Print to stdout — bash-style alias |
-| `printf(fmt, ...args)` | `printf "%s=%d\n" k v` | Formatted print |
-| `print_err(text)` | — | Print to stderr |
+| `print(text)` | `print "hello"` | Print to stdout — Xell native |\
+| `error(text)` | — | Print to stderr |
 | `clear()` | `clear` | Clear terminal screen |
 | `reset()` | `reset` | Full terminal reset including scrollback |
 | `exit(code)` | `exit 0` | Exit with code |

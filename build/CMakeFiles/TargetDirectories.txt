@@ -8,6 +8,8 @@
 /home/DATA/CODE/code/Xell/build/CMakeFiles/bring_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/shell_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/builtin_test.dir
+/home/DATA/CODE/code/Xell/build/CMakeFiles/forloop_test.dir
+/home/DATA/CODE/code/Xell/build/CMakeFiles/datetime_regex_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/edit_cache.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/rebuild_cache.dir

@@ -387,11 +387,105 @@ namespace xell
 
     void Interpreter::execFor(const ForStmt *node)
     {
-        XObject iterable = eval(node->iterable.get());
-        if (!iterable.isList())
-            throw TypeError("for..in requires a list, got " +
-                                std::string(xtype_name(iterable.type())),
-                            node->line);
+        // ---- Evaluate all source iterables ----
+        std::vector<XObject> sources;
+        for (const auto &iterExpr : node->iterables)
+            sources.push_back(eval(iterExpr.get()));
+
+        // ---- Collect iteration items per source ----
+        // Convert each source to a vector of XObjects to iterate over.
+        // Support lists, tuples, and generators.
+        auto toIterable = [&](XObject &src, int line) -> std::vector<XObject>
+        {
+            if (src.isList())
+                return src.asList();
+            if (src.isTuple())
+            {
+                auto &tup = src.asTuple();
+                return std::vector<XObject>(tup.begin(), tup.end());
+            }
+            if (src.isMap())
+            {
+                // Iterate over map → each element is a [key, value] list
+                std::vector<XObject> items;
+                for (auto it = src.asMap().begin(); it.valid(); it.next())
+                {
+                    std::vector<XObject> pair;
+                    pair.push_back(it.key().clone());
+                    pair.push_back(it.value().clone());
+                    items.push_back(XObject::makeList(std::move(pair)));
+                }
+                return items;
+            }
+            if (src.isSet())
+            {
+                // Iterate over set → each element
+                return src.asSet().elements();
+            }
+            if (src.isString())
+            {
+                // Iterate over string → each character as a string
+                std::vector<XObject> chars;
+                for (char c : src.asString())
+                    chars.push_back(XObject::makeString(std::string(1, c)));
+                return chars;
+            }
+            if (src.isGenerator())
+            {
+                // Eagerly collect generator values
+                std::vector<XObject> items;
+                auto &gen = src.asGeneratorMut();
+                auto &state = gen.state;
+                while (true)
+                {
+                    std::unique_lock<std::mutex> lock(state->mtx);
+                    if (state->phase == GeneratorState::Phase::DONE)
+                        break;
+                    if (!state->started)
+                    {
+                        state->started = true;
+                        state->phase = GeneratorState::Phase::RUNNING;
+                        lock.unlock();
+                        lock.lock();
+                    }
+                    else
+                    {
+                        state->phase = GeneratorState::Phase::RUNNING;
+                        lock.unlock();
+                        state->cv.notify_all();
+                        lock.lock();
+                    }
+                    state->cv.wait(lock, [&]
+                                   { return state->phase == GeneratorState::Phase::YIELDED ||
+                                            state->phase == GeneratorState::Phase::DONE; });
+                    if (state->error)
+                        std::rethrow_exception(state->error);
+                    if (state->phase == GeneratorState::Phase::DONE)
+                        break;
+                    items.push_back(state->yieldedValue ? state->yieldedValue->clone() : XObject::makeNone());
+                }
+                return items;
+            }
+            throw TypeError("for..in requires a list, tuple, map, set, string, or generator, got " +
+                                std::string(xtype_name(src.type())),
+                            line);
+        };
+
+        std::vector<std::vector<XObject>> allItems;
+        for (size_t i = 0; i < sources.size(); i++)
+            allItems.push_back(toIterable(sources[i], node->line));
+
+        // ---- Determine iteration count (zip semantics: shortest) ----
+        size_t iterCount = 0;
+        if (!allItems.empty())
+        {
+            iterCount = allItems[0].size();
+            for (size_t i = 1; i < allItems.size(); i++)
+                iterCount = std::min(iterCount, allItems[i].size());
+        }
+
+        const size_t numTargets = node->varNames.size();
+        const size_t numSources = allItems.size();
 
         Environment loopEnv(currentEnv_);
         auto *savedEnv = currentEnv_;
@@ -399,10 +493,69 @@ namespace xell
 
         try
         {
-            const auto &list = iterable.asList();
-            for (size_t i = 0; i < list.size(); i++)
+            for (size_t i = 0; i < iterCount; i++)
             {
-                loopEnv.define(node->varName, list[i]);
+                if (numSources == 1 && numTargets == 1 && !node->hasRest)
+                {
+                    // ---- Simple case: for x in list ----
+                    loopEnv.define(node->varNames[0], allItems[0][i]);
+                }
+                else if (numSources > 1)
+                {
+                    // ---- Parallel iteration: for a, b in list1, list2 ----
+                    // Each source provides one value per iteration
+                    for (size_t t = 0; t < numTargets && t < numSources; t++)
+                        loopEnv.define(node->varNames[t], allItems[t][i]);
+                    // Rest capture gets remaining sources
+                    if (node->hasRest && numSources > numTargets)
+                    {
+                        std::vector<XObject> rest;
+                        for (size_t t = numTargets; t < numSources; t++)
+                            rest.push_back(allItems[t][i]);
+                        loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+                    }
+                    else if (node->hasRest)
+                    {
+                        loopEnv.define(node->restName, XObject::makeList({}));
+                    }
+                }
+                else
+                {
+                    // ---- Single source, multiple targets: destructuring ----
+                    // Each element of the source is destructured into the target variables
+                    const XObject &elem = allItems[0][i];
+                    std::vector<XObject> inner;
+                    if (elem.isList())
+                        inner = elem.asList();
+                    else if (elem.isTuple())
+                    {
+                        auto &tup = elem.asTuple();
+                        inner = std::vector<XObject>(tup.begin(), tup.end());
+                    }
+                    else
+                    {
+                        throw TypeError("Cannot destructure " + std::string(xtype_name(elem.type())) +
+                                            " in for loop; expected list or tuple",
+                                        node->line);
+                    }
+
+                    // Assign named targets
+                    for (size_t t = 0; t < numTargets && t < inner.size(); t++)
+                        loopEnv.define(node->varNames[t], inner[t]);
+                    // Fill missing targets with none
+                    for (size_t t = inner.size(); t < numTargets; t++)
+                        loopEnv.define(node->varNames[t], XObject::makeNone());
+
+                    // Rest capture
+                    if (node->hasRest)
+                    {
+                        std::vector<XObject> rest;
+                        for (size_t t = numTargets; t < inner.size(); t++)
+                            rest.push_back(inner[t]);
+                        loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+                    }
+                }
+
                 try
                 {
                     for (const auto &stmt : node->body)

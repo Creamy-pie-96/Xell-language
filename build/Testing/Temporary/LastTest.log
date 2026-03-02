@@ -1,10 +1,10 @@
-Start testing: Mar 02 14:41 +06
+Start testing: Mar 02 15:15 +06
 ----------------------------------------------------------
-1/8 Testing: parser_test
-1/8 Test: parser_test
+1/9 Testing: parser_test
+1/9 Test: parser_test
 Command: "/home/DATA/CODE/code/Xell/build/parser_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"parser_test" start time: Mar 02 14:41 +06
+"parser_test" start time: Mar 02 15:15 +06
 Output:
 ----------------------------------------------------------
 
@@ -133,15 +133,15 @@ Output:
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"parser_test" end time: Mar 02 14:41 +06
+"parser_test" end time: Mar 02 15:15 +06
 "parser_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-2/8 Testing: error_test
-2/8 Test: error_test
+2/9 Testing: error_test
+2/9 Test: error_test
 Command: "/home/DATA/CODE/code/Xell/build/error_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"error_test" start time: Mar 02 14:41 +06
+"error_test" start time: Mar 02 15:15 +06
 Output:
 ----------------------------------------------------------
 
@@ -231,15 +231,15 @@ Output:
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"error_test" end time: Mar 02 14:41 +06
+"error_test" end time: Mar 02 15:15 +06
 "error_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-3/8 Testing: xobject_test
-3/8 Test: xobject_test
+3/9 Testing: xobject_test
+3/9 Test: xobject_test
 Command: "/home/DATA/CODE/code/Xell/build/xobject_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"xobject_test" start time: Mar 02 14:41 +06
+"xobject_test" start time: Mar 02 15:15 +06
 Output:
 ----------------------------------------------------------
 
@@ -362,15 +362,15 @@ Output:
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"xobject_test" end time: Mar 02 14:41 +06
+"xobject_test" end time: Mar 02 15:15 +06
 "xobject_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-4/8 Testing: interpreter_test
-4/8 Test: interpreter_test
+4/9 Testing: interpreter_test
+4/9 Test: interpreter_test
 Command: "/home/DATA/CODE/code/Xell/build/interpreter_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"interpreter_test" start time: Mar 02 14:41 +06
+"interpreter_test" start time: Mar 02 15:15 +06
 Output:
 ----------------------------------------------------------
 
@@ -692,15 +692,15 @@ Output:
 Test time =   0.05 sec
 ----------------------------------------------------------
 Test Passed.
-"interpreter_test" end time: Mar 02 14:41 +06
+"interpreter_test" end time: Mar 02 15:15 +06
 "interpreter_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-5/8 Testing: os_test
-5/8 Test: os_test
+5/9 Testing: os_test
+5/9 Test: os_test
 Command: "/home/DATA/CODE/code/Xell/build/os_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"os_test" start time: Mar 02 14:41 +06
+"os_test" start time: Mar 02 15:15 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -784,18 +784,18 @@ Output:
   Total: 61  |  Passed: 61  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.02 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"os_test" end time: Mar 02 14:41 +06
+"os_test" end time: Mar 02 15:15 +06
 "os_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-6/8 Testing: bring_test
-6/8 Test: bring_test
+6/9 Testing: bring_test
+6/9 Test: bring_test
 Command: "/home/DATA/CODE/code/Xell/build/bring_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"bring_test" start time: Mar 02 14:41 +06
+"bring_test" start time: Mar 02 15:15 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -842,15 +842,15 @@ Output:
 Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"bring_test" end time: Mar 02 14:41 +06
+"bring_test" end time: Mar 02 15:15 +06
 "bring_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-7/8 Testing: shell_test
-7/8 Test: shell_test
+7/9 Testing: shell_test
+7/9 Test: shell_test
 Command: "/home/DATA/CODE/code/Xell/build/shell_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"shell_test" start time: Mar 02 14:41 +06
+"shell_test" start time: Mar 02 15:15 +06
 Output:
 ----------------------------------------------------------
 done
@@ -909,18 +909,18 @@ done
   Total: 40  |  Passed: 40  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.05 sec
+Test time =   0.04 sec
 ----------------------------------------------------------
 Test Passed.
-"shell_test" end time: Mar 02 14:41 +06
+"shell_test" end time: Mar 02 15:15 +06
 "shell_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-8/8 Testing: builtin_test
-8/8 Test: builtin_test
+8/9 Testing: builtin_test
+8/9 Test: builtin_test
 Command: "/home/DATA/CODE/code/Xell/build/builtin_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"builtin_test" start time: Mar 02 14:41 +06
+"builtin_test" start time: Mar 02 15:15 +06
 Output:
 ----------------------------------------------------------
 =======================================
@@ -1089,8 +1089,81 @@ Output:
 Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"builtin_test" end time: Mar 02 14:41 +06
+"builtin_test" end time: Mar 02 15:15 +06
 "builtin_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Mar 02 14:41 +06
+9/9 Testing: forloop_test
+9/9 Test: forloop_test
+Command: "/home/DATA/CODE/code/Xell/build/forloop_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"forloop_test" start time: Mar 02 15:15 +06
+Output:
+----------------------------------------------------------
+=======================================
+   Xell For-Loop Tests
+=======================================
+
+===== Basic For Loop =====
+  PASS: for over list
+  PASS: for with break
+  PASS: for with continue
+
+===== Destructuring For Loop =====
+  PASS: for name, age in people list
+  PASS: for x, y in coords tuples
+  PASS: for a, b, c in 3-element lists
+
+===== Parallel For Loop =====
+  PASS: for name, score in names, scores
+  PASS: parallel for with unequal lengths (zip semantics)
+  PASS: for nums, names in groups, labels
+
+===== Rest Capture For Loop =====
+  PASS: for first, ...rest in data
+  PASS: for a, b, ...rest in data
+
+===== Map Iteration =====
+  PASS: for key, value in map
+  PASS: for single var in map gets pair
+
+===== String Iteration =====
+  PASS: for char in string
+
+===== Set Iteration =====
+  PASS: for elem in set
+
+===== Enumerate =====
+  PASS: for i, name in enumerate(names)
+  PASS: enumerate with start offset
+  PASS: enumerate returns correct structure
+
+===== Range Variants =====
+  PASS: range(5) = [0,1,2,3,4]
+  PASS: range(2, 5) = [2,3,4]
+  PASS: range(5, 2) = [5,4,3] descending
+  PASS: range(10, 0) descending
+  PASS: range(0, 10, 2) = [0,2,4,6,8]
+  PASS: range(10, 0, -2) = [10,8,6,4,2]
+  PASS: range(5, 5) = []
+  PASS: range(0) = []
+  PASS: range with step 0 throws error
+  PASS: for i in range(3)
+  PASS: for i in range(5, 0)
+
+===== zip_longest =====
+  PASS: zip_longest with default none
+  PASS: zip_longest with fill value
+
+=======================================
+  Results: 31 passed, 0 failed
+=======================================
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"forloop_test" end time: Mar 02 15:15 +06
+"forloop_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 02 15:15 +06

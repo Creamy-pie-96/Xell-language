@@ -26,6 +26,8 @@
 #include "builtins_map.hpp"
 #include "builtins_bytes.hpp"
 #include "builtins_generator.hpp"
+#include "builtins_datetime.hpp"
+#include "builtins_regex.hpp"
 #include "../interpreter/shell_state.hpp"
 
 namespace xell
@@ -52,6 +54,8 @@ namespace xell
         registerMapBuiltins(t);
         registerBytesBuiltins(t);
         registerGeneratorBuiltins(t);
+        registerDateTimeBuiltins(t);
+        registerRegexBuiltins(t);
     }
 
 } // namespace xell

@@ -911,8 +911,8 @@ void test_parse_for_loop()
         "    print port\n"
         ";");
     auto *forStmt = firstStmt<ForStmt>(prog);
-    XASSERT_EQ(forStmt->varName, std::string("port"));
-    auto *iter = asExpr<Identifier>(forStmt->iterable.get());
+    XASSERT_EQ(forStmt->varNames[0], std::string("port"));
+    auto *iter = asExpr<Identifier>(forStmt->iterables[0].get());
     XASSERT_EQ(iter->name, std::string("ports"));
     XASSERT_EQ(forStmt->body.size(), (size_t)1);
 }
@@ -924,7 +924,7 @@ void test_parse_for_with_call_iterable()
         "    print file\n"
         ";");
     auto *forStmt = firstStmt<ForStmt>(prog);
-    auto *call = asExpr<CallExpr>(forStmt->iterable.get());
+    auto *call = asExpr<CallExpr>(forStmt->iterables[0].get());
     XASSERT_EQ(call->callee, std::string("list_files"));
 }
 

@@ -264,11 +264,15 @@ namespace xell
 
     struct ForStmt : Stmt
     {
-        std::string varName;
-        ExprPtr iterable;
+        std::vector<std::string> varNames; // loop target variables (one or more)
+        bool hasRest = false;              // true if last target is ...name
+        std::string restName;              // name of the rest capture variable
+        std::vector<ExprPtr> iterables;    // one or more source expressions
         std::vector<StmtPtr> body;
-        ForStmt(std::string var, ExprPtr iter, std::vector<StmtPtr> body, int ln = 0)
-            : varName(std::move(var)), iterable(std::move(iter)), body(std::move(body)) { line = ln; }
+        ForStmt(std::vector<std::string> vars, std::vector<ExprPtr> iters,
+                std::vector<StmtPtr> body, bool hasRest, std::string restName, int ln = 0)
+            : varNames(std::move(vars)), hasRest(hasRest), restName(std::move(restName)),
+              iterables(std::move(iters)), body(std::move(body)) { line = ln; }
     };
 
     struct WhileStmt : Stmt

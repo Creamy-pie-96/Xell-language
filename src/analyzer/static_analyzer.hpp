@@ -190,7 +190,10 @@ namespace xell
             }
             else if (auto *forStmt = dynamic_cast<const ForStmt *>(stmt))
             {
-                define(forStmt->varName);
+                for (auto &vn : forStmt->varNames)
+                    define(vn);
+                if (forStmt->hasRest)
+                    define(forStmt->restName);
             }
         }
 
@@ -239,9 +242,13 @@ namespace xell
             }
             else if (auto *forStmt = dynamic_cast<const ForStmt *>(stmt))
             {
-                checkExpr(forStmt->iterable.get());
+                for (auto &iterExpr : forStmt->iterables)
+                    checkExpr(iterExpr.get());
                 pushScope();
-                define(forStmt->varName);
+                for (auto &vn : forStmt->varNames)
+                    define(vn);
+                if (forStmt->hasRest)
+                    define(forStmt->restName);
                 for (auto &s : forStmt->body)
                 {
                     collectDefinitions(s.get());

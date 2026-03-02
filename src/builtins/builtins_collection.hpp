@@ -101,13 +101,16 @@ namespace xell
                     allInt = false;
             }
 
-            double start = 0, end = 0, step = 1;
+            double start = 0, end = 0, step = 0;
+            bool stepProvided = false;
             if (args.size() == 1)
             {
+                // range(to): 0..to
                 end = args[0].asNumber();
             }
             else if (args.size() == 2)
             {
+                // range(from, to): auto-detect step direction
                 start = args[0].asNumber();
                 end = args[1].asNumber();
             }
@@ -116,13 +119,19 @@ namespace xell
                 start = args[0].asNumber();
                 end = args[1].asNumber();
                 step = args[2].asNumber();
+                stepProvided = true;
             }
             else
             {
                 throw ArityError("range", 1, (int)args.size(), line);
             }
-            if (step == 0)
+
+            if (stepProvided && step == 0)
                 throw TypeError("range() step cannot be zero", line);
+
+            // Auto-detect step when not provided
+            if (!stepProvided)
+                step = (start <= end) ? 1 : -1;
 
             XList result;
             if (allInt)

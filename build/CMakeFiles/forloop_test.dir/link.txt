@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/forloop_test.dir/test/forloop_test.cpp.o -o forloop_test  libxell_lib.a 

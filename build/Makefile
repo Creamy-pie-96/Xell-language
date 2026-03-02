@@ -301,6 +301,32 @@ builtin_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/build
 .PHONY : builtin_test/fast
 
+#=============================================================================
+# Target rules for targets named forloop_test
+
+# Build rule for target.
+forloop_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 forloop_test
+.PHONY : forloop_test
+
+# fast build rule for target.
+forloop_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/forloop_test.dir/build.make CMakeFiles/forloop_test.dir/build
+.PHONY : forloop_test/fast
+
+#=============================================================================
+# Target rules for targets named datetime_regex_test
+
+# Build rule for target.
+datetime_regex_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 datetime_regex_test
+.PHONY : datetime_regex_test
+
+# fast build rule for target.
+datetime_regex_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/datetime_regex_test.dir/build.make CMakeFiles/datetime_regex_test.dir/build
+.PHONY : datetime_regex_test/fast
+
 src/interpreter/interpreter.o: src/interpreter/interpreter.cpp.o
 .PHONY : src/interpreter/interpreter.o
 
@@ -541,6 +567,30 @@ test/builtin_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/test/builtin_test.cpp.s
 .PHONY : test/builtin_test.cpp.s
 
+test/datetime_regex_test.o: test/datetime_regex_test.cpp.o
+.PHONY : test/datetime_regex_test.o
+
+# target to build an object file
+test/datetime_regex_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/datetime_regex_test.dir/build.make CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.o
+.PHONY : test/datetime_regex_test.cpp.o
+
+test/datetime_regex_test.i: test/datetime_regex_test.cpp.i
+.PHONY : test/datetime_regex_test.i
+
+# target to preprocess a source file
+test/datetime_regex_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/datetime_regex_test.dir/build.make CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.i
+.PHONY : test/datetime_regex_test.cpp.i
+
+test/datetime_regex_test.s: test/datetime_regex_test.cpp.s
+.PHONY : test/datetime_regex_test.s
+
+# target to generate assembly for a file
+test/datetime_regex_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/datetime_regex_test.dir/build.make CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.s
+.PHONY : test/datetime_regex_test.cpp.s
+
 test/error_test.o: test/error_test.cpp.o
 .PHONY : test/error_test.o
 
@@ -564,6 +614,30 @@ test/error_test.s: test/error_test.cpp.s
 test/error_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/error_test.dir/build.make CMakeFiles/error_test.dir/test/error_test.cpp.s
 .PHONY : test/error_test.cpp.s
+
+test/forloop_test.o: test/forloop_test.cpp.o
+.PHONY : test/forloop_test.o
+
+# target to build an object file
+test/forloop_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/forloop_test.dir/build.make CMakeFiles/forloop_test.dir/test/forloop_test.cpp.o
+.PHONY : test/forloop_test.cpp.o
+
+test/forloop_test.i: test/forloop_test.cpp.i
+.PHONY : test/forloop_test.i
+
+# target to preprocess a source file
+test/forloop_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/forloop_test.dir/build.make CMakeFiles/forloop_test.dir/test/forloop_test.cpp.i
+.PHONY : test/forloop_test.cpp.i
+
+test/forloop_test.s: test/forloop_test.cpp.s
+.PHONY : test/forloop_test.s
+
+# target to generate assembly for a file
+test/forloop_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/forloop_test.dir/build.make CMakeFiles/forloop_test.dir/test/forloop_test.cpp.s
+.PHONY : test/forloop_test.cpp.s
 
 test/interpreter_test.o: test/interpreter_test.cpp.o
 .PHONY : test/interpreter_test.o
@@ -700,7 +774,9 @@ help:
 	@echo "... test"
 	@echo "... bring_test"
 	@echo "... builtin_test"
+	@echo "... datetime_regex_test"
 	@echo "... error_test"
+	@echo "... forloop_test"
 	@echo "... interpreter_test"
 	@echo "... os_test"
 	@echo "... parser_test"
@@ -738,9 +814,15 @@ help:
 	@echo "... test/builtin_test.o"
 	@echo "... test/builtin_test.i"
 	@echo "... test/builtin_test.s"
+	@echo "... test/datetime_regex_test.o"
+	@echo "... test/datetime_regex_test.i"
+	@echo "... test/datetime_regex_test.s"
 	@echo "... test/error_test.o"
 	@echo "... test/error_test.i"
 	@echo "... test/error_test.s"
+	@echo "... test/forloop_test.o"
+	@echo "... test/forloop_test.i"
+	@echo "... test/forloop_test.s"
 	@echo "... test/interpreter_test.o"
 	@echo "... test/interpreter_test.i"
 	@echo "... test/interpreter_test.s"
