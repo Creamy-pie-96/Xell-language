@@ -71,16 +71,16 @@ print(p1)                     # Point(x=42, y=0)
 
 ### Key Decisions
 
-| Feature | Decision | Rationale |
-|---------|----------|-----------|
-| Field access | `->` (arrow) | Already used for map key access in Xell |
-| Default values | Required for all fields | No uninitialized fields ever |
-| Construction | `Name(args)` | Same as function call syntax |
-| Positional + named args | Both supported | Flexible, Python-like |
-| Mutability | Mutable by default | Consistent with Xell variables |
-| Printing | Auto `toString()` | `StructName(field1=val1, field2=val2)` |
-| typeof | Returns struct name | `typeof(p)` → `"Point"` |
-| Equality | Field-by-field comparison | `p1 == p2` if all fields match |
+| Feature                 | Decision                  | Rationale                               |
+| ----------------------- | ------------------------- | --------------------------------------- |
+| Field access            | `->` (arrow)              | Already used for map key access in Xell |
+| Default values          | Required for all fields   | No uninitialized fields ever            |
+| Construction            | `Name(args)`              | Same as function call syntax            |
+| Positional + named args | Both supported            | Flexible, Python-like                   |
+| Mutability              | Mutable by default        | Consistent with Xell variables          |
+| Printing                | Auto `toString()`         | `StructName(field1=val1, field2=val2)`  |
+| typeof                  | Returns struct name       | `typeof(p)` → `"Point"`                 |
+| Equality                | Field-by-field comparison | `p1 == p2` if all fields match          |
 
 ### Grammar Extension
 
@@ -135,17 +135,18 @@ print(c->describe())          # Circle(r=10, area=314.159)
 
 ### Key Decisions
 
-| Feature | Decision | Rationale |
-|---------|----------|-----------|
-| Self reference | Explicit `self` as first parameter | No hidden `this` — Xell is explicit |
-| Method call | `instance->method()` | Reuses arrow syntax |
-| Field access in methods | `self->field` | Consistent with external access |
-| Static methods | `fn method()` (no `self`) | Called as `StructName->method()` |
-| Method vs field | Methods are defined with `fn` | Clear distinction |
+| Feature                 | Decision                           | Rationale                           |
+| ----------------------- | ---------------------------------- | ----------------------------------- |
+| Self reference          | Explicit `self` as first parameter | No hidden `this` — Xell is explicit |
+| Method call             | `instance->method()`               | Reuses arrow syntax                 |
+| Field access in methods | `self->field`                      | Consistent with external access     |
+| Static methods          | `fn method()` (no `self`)          | Called as `StructName->method()`    |
+| Method vs field         | Methods are defined with `fn`      | Clear distinction                   |
 
 ### Method Resolution
 
 When `c->area()` is called:
+
 1. Check if `area` is a field on the instance → no
 2. Check if `area` is a method on the struct definition → yes
 3. Call `area(c)` with `self` bound to the instance
@@ -191,14 +192,14 @@ print(dog->legs)              # 4 (from default)
 
 ### class vs struct
 
-| Feature | `struct` | `class` |
-|---------|----------|---------|
-| Fields | ✅ | ✅ |
-| Default values | Required | Required |
-| Methods | ✅ (Phase 2) | ✅ |
-| Constructor (`init`) | ❌ | ✅ |
-| Inheritance | ❌ | ✅ (Phase 4) |
-| Operator overloading | ❌ | ✅ (Phase 5) |
+| Feature              | `struct`     | `class`      |
+| -------------------- | ------------ | ------------ |
+| Fields               | ✅           | ✅           |
+| Default values       | Required     | Required     |
+| Methods              | ✅ (Phase 2) | ✅           |
+| Constructor (`init`) | ❌           | ✅           |
+| Inheritance          | ❌           | ✅ (Phase 4) |
+| Operator overloading | ❌           | ✅ (Phase 5) |
 
 **Rule:** If you don't need `init` or inheritance, use `struct`. If you do, use `class`.
 
@@ -254,15 +255,15 @@ d is Animal                   # true (inheritance check)
 
 ### Key Decisions
 
-| Feature | Decision | Rationale |
-|---------|----------|-----------|
-| Inheritance keyword | `of` | Already a keyword, reads naturally: "Dog of Animal" |
-| Multiple inheritance | **No** | Keep it simple — composition over inheritance |
-| `super` keyword | `super->method()` | Explicit parent access |
-| `is` check | Works with inheritance chain | `d is Animal` → true |
-| Method override | Implicit (just redefine) | No `override` keyword needed |
-| Abstract methods | **Not supported** | Use duck typing / convention |
-| Mixins/traits | **Not supported initially** | Consider for future |
+| Feature              | Decision                     | Rationale                                           |
+| -------------------- | ---------------------------- | --------------------------------------------------- |
+| Inheritance keyword  | `of`                         | Already a keyword, reads naturally: "Dog of Animal" |
+| Multiple inheritance | **No**                       | Keep it simple — composition over inheritance       |
+| `super` keyword      | `super->method()`            | Explicit parent access                              |
+| `is` check           | Works with inheritance chain | `d is Animal` → true                                |
+| Method override      | Implicit (just redefine)     | No `override` keyword needed                        |
+| Abstract methods     | **Not supported**            | Use duck typing / convention                        |
+| Mixins/traits        | **Not supported initially**  | Consider for future                                 |
 
 ### Grammar Extension
 
@@ -274,6 +275,7 @@ CLASS_BODY := FIELD_DEF | FN_DEF
 ### Method Resolution Order (MRO)
 
 Simple linear MRO since we only support single inheritance:
+
 1. Look in the instance's class
 2. Look in the parent class
 3. Look in the grandparent class
@@ -335,29 +337,30 @@ print(a == b)                 # false          — calls op_eq
 
 ### Supported Operator Methods
 
-| Operator | Method name | Signature |
-|----------|-------------|-----------|
-| `+` | `op_add(self, other)` | Binary addition |
-| `-` | `op_sub(self, other)` | Binary subtraction |
-| `*` | `op_mul(self, other)` | Multiplication |
-| `/` | `op_div(self, other)` | Division |
-| `%` | `op_mod(self, other)` | Modulo |
-| `==` | `op_eq(self, other)` | Equality |
-| `!=` | `op_ne(self, other)` | Inequality |
-| `<` | `op_lt(self, other)` | Less than |
-| `>` | `op_gt(self, other)` | Greater than |
-| `<=` | `op_le(self, other)` | Less or equal |
-| `>=` | `op_ge(self, other)` | Greater or equal |
-| `[]` | `op_index(self, key)` | Index access |
-| `[]=` | `op_index_set(self, key, val)` | Index assignment |
-| `print()` | `op_str(self)` | String conversion |
-| `len()` | `op_len(self)` | Length |
-| unary `-` | `op_neg(self)` | Negation |
-| `not` | `op_not(self)` | Logical not |
+| Operator  | Method name                    | Signature          |
+| --------- | ------------------------------ | ------------------ |
+| `+`       | `op_add(self, other)`          | Binary addition    |
+| `-`       | `op_sub(self, other)`          | Binary subtraction |
+| `*`       | `op_mul(self, other)`          | Multiplication     |
+| `/`       | `op_div(self, other)`          | Division           |
+| `%`       | `op_mod(self, other)`          | Modulo             |
+| `==`      | `op_eq(self, other)`           | Equality           |
+| `!=`      | `op_ne(self, other)`           | Inequality         |
+| `<`       | `op_lt(self, other)`           | Less than          |
+| `>`       | `op_gt(self, other)`           | Greater than       |
+| `<=`      | `op_le(self, other)`           | Less or equal      |
+| `>=`      | `op_ge(self, other)`           | Greater or equal   |
+| `[]`      | `op_index(self, key)`          | Index access       |
+| `[]=`     | `op_index_set(self, key, val)` | Index assignment   |
+| `print()` | `op_str(self)`                 | String conversion  |
+| `len()`   | `op_len(self)`                 | Length             |
+| unary `-` | `op_neg(self)`                 | Negation           |
+| `not`     | `op_not(self)`                 | Logical not        |
 
 ### Implementation Strategy
 
 In `evalBinary()`, before applying the default operator logic:
+
 1. Check if the left operand is a struct/class instance
 2. Check if its class defines the corresponding `op_*` method
 3. If yes, call that method instead
@@ -444,6 +447,7 @@ print(a)                      # (4, 6)
 ## 8. Implementation Roadmap
 
 ### Phase 1: Structs (estimated: ~2 days)
+
 - [ ] Add `STRUCT` token to lexer (`struct` keyword)
 - [ ] Add `StructDef` AST node to parser
 - [ ] Add struct type to XObject (tag + field map)
@@ -455,6 +459,7 @@ print(a)                      # (4, 6)
 - [ ] Tests + documentation
 
 ### Phase 2: Methods (estimated: ~1 day)
+
 - [ ] Allow `fn` definitions inside struct body
 - [ ] Store methods in struct definition (separate from fields)
 - [ ] Wire `instance->method()` to resolve struct methods
@@ -462,6 +467,7 @@ print(a)                      # (4, 6)
 - [ ] Tests
 
 ### Phase 3: Classes (estimated: ~2 days)
+
 - [ ] Add `CLASS` token to lexer (`class` keyword)
 - [ ] Add `ClassDef` AST node (extends StructDef with init + inheritance)
 - [ ] Implement `init` constructor calling
@@ -469,6 +475,7 @@ print(a)                      # (4, 6)
 - [ ] Tests
 
 ### Phase 4: Inheritance (estimated: ~2 days)
+
 - [ ] Parse `class Dog of Animal` syntax
 - [ ] Implement field + method inheritance
 - [ ] Implement `super->method()` resolution
@@ -477,6 +484,7 @@ print(a)                      # (4, 6)
 - [ ] Tests
 
 ### Phase 5: Operator Overloading (estimated: ~1 day)
+
 - [ ] In `evalBinary()`, check for `op_*` methods on struct/class instances
 - [ ] Dispatch to `op_add`, `op_sub`, etc. when defined
 - [ ] `op_str` for print/toString
@@ -492,24 +500,28 @@ print(a)                      # (4, 6)
 Xell already supports full lambdas/closures. Here is the complete reference:
 
 ### Single-parameter inline
+
 ```
 double = x => x * 2
 double(5)                      # 10
 ```
 
 ### Multi-parameter inline
+
 ```
 add = (a, b) => a + b
 add(3, 4)                      # 7
 ```
 
 ### Zero-parameter inline
+
 ```
 greet = () => "hello world"
 greet()                        # "hello world"
 ```
 
 ### Multi-line body
+
 ```
 process = (x, y) => :
     result = x * y + 1
@@ -519,6 +531,7 @@ process(3, 4)                  # 13
 ```
 
 ### As function arguments
+
 ```
 nums = [1, 2, 3, 4, 5]
 
@@ -533,6 +546,7 @@ all(nums, x => x gt 0)                   # true
 ```
 
 ### Closures
+
 ```
 fn make_counter() :
     count = 0
@@ -549,6 +563,7 @@ print(c())                     # 3
 ```
 
 ### Storing in variables and passing around
+
 ```
 fn apply(func, value) :
     give func(value)
@@ -563,19 +578,19 @@ result = apply(x => x * x, 7) # 49
 
 To keep Xell clean and simple:
 
-| Feature | Status | Reason |
-|---------|--------|--------|
-| Multiple inheritance | ❌ Never | Complexity, diamond problem |
-| Abstract classes | ❌ Not planned | Duck typing is sufficient |
-| Interfaces / protocols | ❌ Not planned | Use convention-based duck typing |
-| Private/protected fields | ❌ Not planned | All fields are public (like Python) |
-| Class variables (shared) | ❌ Not planned | Use module-level variables |
-| Metaclasses | ❌ Never | Too complex for Xell's goals |
-| Generics / templates | ❌ Not planned | Dynamic typing handles this |
-| Decorators on classes | ⏳ Maybe later | Already have function decorators |
-| Dataclass-like auto-gen | ⏳ Maybe later | Structs already auto-generate toString/eq |
-| Mixins / traits | ⏳ Maybe later | Composition is preferred |
+| Feature                  | Status         | Reason                                    |
+| ------------------------ | -------------- | ----------------------------------------- |
+| Multiple inheritance     | ❌ Never       | Complexity, diamond problem               |
+| Abstract classes         | ❌ Not planned | Duck typing is sufficient                 |
+| Interfaces / protocols   | ❌ Not planned | Use convention-based duck typing          |
+| Private/protected fields | ❌ Not planned | All fields are public (like Python)       |
+| Class variables (shared) | ❌ Not planned | Use module-level variables                |
+| Metaclasses              | ❌ Never       | Too complex for Xell's goals              |
+| Generics / templates     | ❌ Not planned | Dynamic typing handles this               |
+| Decorators on classes    | ⏳ Maybe later | Already have function decorators          |
+| Dataclass-like auto-gen  | ⏳ Maybe later | Structs already auto-generate toString/eq |
+| Mixins / traits          | ⏳ Maybe later | Composition is preferred                  |
 
 ---
 
-*This document is a proposal. Review and modify the syntax decisions before implementation begins.*
+_This document is a proposal. Review and modify the syntax decisions before implementation begins._

@@ -620,10 +620,32 @@ namespace xell
         {
             // All Xell keywords — these should always go through the parser
             static const std::unordered_set<std::string> keywords = {
-                "fn", "give", "if", "elif", "else", "for", "while", "in",
-                "bring", "from", "as", "and", "or", "not",
-                "is", "eq", "ne", "gt", "lt", "ge", "le", "of",
-                "true", "false", "none", "print",
+                "fn",
+                "give",
+                "if",
+                "elif",
+                "else",
+                "for",
+                "while",
+                "in",
+                "bring",
+                "from",
+                "as",
+                "and",
+                "or",
+                "not",
+                "is",
+                "eq",
+                "ne",
+                "gt",
+                "lt",
+                "ge",
+                "le",
+                "of",
+                "true",
+                "false",
+                "none",
+                "print",
             };
             return keywords.count(word) > 0;
         }
@@ -631,10 +653,14 @@ namespace xell
         /// Is the string a path (starts with / or ./ or ../ or ~/) ?
         static bool isExplicitPath(const std::string &cmd)
         {
-            if (cmd.empty()) return false;
-            if (cmd[0] == '/') return true;
-            if (cmd.size() >= 2 && cmd[0] == '.' && (cmd[1] == '/' || cmd[1] == '.')) return true;
-            if (cmd.size() >= 2 && cmd[0] == '~' && cmd[1] == '/') return true;
+            if (cmd.empty())
+                return false;
+            if (cmd[0] == '/')
+                return true;
+            if (cmd.size() >= 2 && cmd[0] == '.' && (cmd[1] == '/' || cmd[1] == '.'))
+                return true;
+            if (cmd.size() >= 2 && cmd[0] == '~' && cmd[1] == '/')
+                return true;
             return false;
         }
 
@@ -663,7 +689,8 @@ namespace xell
                 while (pos < paths.size())
                 {
                     size_t sep = paths.find(':', pos);
-                    if (sep == std::string::npos) sep = paths.size();
+                    if (sep == std::string::npos)
+                        sep = paths.size();
                     std::string dir = paths.substr(pos, sep - pos);
                     std::string full = dir + "/" + cmd;
                     if (access(full.c_str(), X_OK) == 0)
