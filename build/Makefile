@@ -327,6 +327,19 @@ datetime_regex_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/datetime_regex_test.dir/build.make CMakeFiles/datetime_regex_test.dir/build
 .PHONY : datetime_regex_test/fast
 
+#=============================================================================
+# Target rules for targets named fs_test
+
+# Build rule for target.
+fs_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 fs_test
+.PHONY : fs_test
+
+# fast build rule for target.
+fs_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fs_test.dir/build.make CMakeFiles/fs_test.dir/build
+.PHONY : fs_test/fast
+
 src/interpreter/interpreter.o: src/interpreter/interpreter.cpp.o
 .PHONY : src/interpreter/interpreter.o
 
@@ -639,6 +652,30 @@ test/forloop_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/forloop_test.dir/build.make CMakeFiles/forloop_test.dir/test/forloop_test.cpp.s
 .PHONY : test/forloop_test.cpp.s
 
+test/fs_test.o: test/fs_test.cpp.o
+.PHONY : test/fs_test.o
+
+# target to build an object file
+test/fs_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fs_test.dir/build.make CMakeFiles/fs_test.dir/test/fs_test.cpp.o
+.PHONY : test/fs_test.cpp.o
+
+test/fs_test.i: test/fs_test.cpp.i
+.PHONY : test/fs_test.i
+
+# target to preprocess a source file
+test/fs_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fs_test.dir/build.make CMakeFiles/fs_test.dir/test/fs_test.cpp.i
+.PHONY : test/fs_test.cpp.i
+
+test/fs_test.s: test/fs_test.cpp.s
+.PHONY : test/fs_test.s
+
+# target to generate assembly for a file
+test/fs_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fs_test.dir/build.make CMakeFiles/fs_test.dir/test/fs_test.cpp.s
+.PHONY : test/fs_test.cpp.s
+
 test/interpreter_test.o: test/interpreter_test.cpp.o
 .PHONY : test/interpreter_test.o
 
@@ -777,6 +814,7 @@ help:
 	@echo "... datetime_regex_test"
 	@echo "... error_test"
 	@echo "... forloop_test"
+	@echo "... fs_test"
 	@echo "... interpreter_test"
 	@echo "... os_test"
 	@echo "... parser_test"
@@ -823,6 +861,9 @@ help:
 	@echo "... test/forloop_test.o"
 	@echo "... test/forloop_test.i"
 	@echo "... test/forloop_test.s"
+	@echo "... test/fs_test.o"
+	@echo "... test/fs_test.i"
+	@echo "... test/fs_test.s"
 	@echo "... test/interpreter_test.o"
 	@echo "... test/interpreter_test.i"
 	@echo "... test/interpreter_test.s"

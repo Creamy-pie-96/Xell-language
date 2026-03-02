@@ -1,10 +1,10 @@
-Start testing: Mar 02 15:15 +06
+Start testing: Mar 02 16:11 +06
 ----------------------------------------------------------
-1/9 Testing: parser_test
-1/9 Test: parser_test
+1/11 Testing: parser_test
+1/11 Test: parser_test
 Command: "/home/DATA/CODE/code/Xell/build/parser_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"parser_test" start time: Mar 02 15:15 +06
+"parser_test" start time: Mar 02 16:11 +06
 Output:
 ----------------------------------------------------------
 
@@ -130,18 +130,18 @@ Output:
 ============================================
 
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"parser_test" end time: Mar 02 15:15 +06
+"parser_test" end time: Mar 02 16:11 +06
 "parser_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-2/9 Testing: error_test
-2/9 Test: error_test
+2/11 Testing: error_test
+2/11 Test: error_test
 Command: "/home/DATA/CODE/code/Xell/build/error_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"error_test" start time: Mar 02 15:15 +06
+"error_test" start time: Mar 02 16:11 +06
 Output:
 ----------------------------------------------------------
 
@@ -231,15 +231,15 @@ Output:
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"error_test" end time: Mar 02 15:15 +06
+"error_test" end time: Mar 02 16:11 +06
 "error_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-3/9 Testing: xobject_test
-3/9 Test: xobject_test
+3/11 Testing: xobject_test
+3/11 Test: xobject_test
 Command: "/home/DATA/CODE/code/Xell/build/xobject_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"xobject_test" start time: Mar 02 15:15 +06
+"xobject_test" start time: Mar 02 16:11 +06
 Output:
 ----------------------------------------------------------
 
@@ -362,15 +362,15 @@ Output:
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"xobject_test" end time: Mar 02 15:15 +06
+"xobject_test" end time: Mar 02 16:11 +06
 "xobject_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-4/9 Testing: interpreter_test
-4/9 Test: interpreter_test
+4/11 Testing: interpreter_test
+4/11 Test: interpreter_test
 Command: "/home/DATA/CODE/code/Xell/build/interpreter_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"interpreter_test" start time: Mar 02 15:15 +06
+"interpreter_test" start time: Mar 02 16:11 +06
 Output:
 ----------------------------------------------------------
 
@@ -689,18 +689,18 @@ Output:
   Total: 243  |  Passed: 243  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.05 sec
+Test time =   0.06 sec
 ----------------------------------------------------------
 Test Passed.
-"interpreter_test" end time: Mar 02 15:15 +06
+"interpreter_test" end time: Mar 02 16:11 +06
 "interpreter_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-5/9 Testing: os_test
-5/9 Test: os_test
+5/11 Testing: os_test
+5/11 Test: os_test
 Command: "/home/DATA/CODE/code/Xell/build/os_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"os_test" start time: Mar 02 15:15 +06
+"os_test" start time: Mar 02 16:11 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -784,18 +784,18 @@ Output:
   Total: 61  |  Passed: 61  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.01 sec
+Test time =   0.03 sec
 ----------------------------------------------------------
 Test Passed.
-"os_test" end time: Mar 02 15:15 +06
+"os_test" end time: Mar 02 16:11 +06
 "os_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-6/9 Testing: bring_test
-6/9 Test: bring_test
+6/11 Testing: bring_test
+6/11 Test: bring_test
 Command: "/home/DATA/CODE/code/Xell/build/bring_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"bring_test" start time: Mar 02 15:15 +06
+"bring_test" start time: Mar 02 16:11 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -839,18 +839,18 @@ Output:
   Total: 21  |  Passed: 21  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.02 sec
+Test time =   0.05 sec
 ----------------------------------------------------------
 Test Passed.
-"bring_test" end time: Mar 02 15:15 +06
+"bring_test" end time: Mar 02 16:11 +06
 "bring_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-7/9 Testing: shell_test
-7/9 Test: shell_test
+7/11 Testing: shell_test
+7/11 Test: shell_test
 Command: "/home/DATA/CODE/code/Xell/build/shell_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"shell_test" start time: Mar 02 15:15 +06
+"shell_test" start time: Mar 02 16:11 +06
 Output:
 ----------------------------------------------------------
 done
@@ -909,18 +909,18 @@ done
   Total: 40  |  Passed: 40  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.04 sec
+Test time =   0.09 sec
 ----------------------------------------------------------
 Test Passed.
-"shell_test" end time: Mar 02 15:15 +06
+"shell_test" end time: Mar 02 16:11 +06
 "shell_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-8/9 Testing: builtin_test
-8/9 Test: builtin_test
+8/11 Testing: builtin_test
+8/11 Test: builtin_test
 Command: "/home/DATA/CODE/code/Xell/build/builtin_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"builtin_test" start time: Mar 02 15:15 +06
+"builtin_test" start time: Mar 02 16:11 +06
 Output:
 ----------------------------------------------------------
 =======================================
@@ -1086,18 +1086,18 @@ Output:
   Results: 139 passed, 0 failed
 =======================================
 <end of output>
-Test time =   0.02 sec
+Test time =   0.05 sec
 ----------------------------------------------------------
 Test Passed.
-"builtin_test" end time: Mar 02 15:15 +06
+"builtin_test" end time: Mar 02 16:11 +06
 "builtin_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-9/9 Testing: forloop_test
-9/9 Test: forloop_test
+9/11 Testing: forloop_test
+9/11 Test: forloop_test
 Command: "/home/DATA/CODE/code/Xell/build/forloop_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"forloop_test" start time: Mar 02 15:15 +06
+"forloop_test" start time: Mar 02 16:11 +06
 Output:
 ----------------------------------------------------------
 =======================================
@@ -1159,11 +1159,245 @@ Output:
   Results: 31 passed, 0 failed
 =======================================
 <end of output>
-Test time =   0.01 sec
+Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"forloop_test" end time: Mar 02 15:15 +06
+"forloop_test" end time: Mar 02 16:11 +06
 "forloop_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Mar 02 15:15 +06
+10/11 Testing: datetime_regex_test
+10/11 Test: datetime_regex_test
+Command: "/home/DATA/CODE/code/Xell/build/datetime_regex_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"datetime_regex_test" start time: Mar 02 16:11 +06
+Output:
+----------------------------------------------------------
+===== DateTime & Regex Builtin Tests =====
+
+[DateTime — now]
+  PASS: now returns map with year
+  PASS: now returns map with month
+  PASS: now returns map with day
+  PASS: now returns map with hour
+  PASS: now returns map with minute
+  PASS: now returns map with second
+  PASS: now returns map with weekday 0-6
+  PASS: now returns map with yearday 1-366
+  PASS: now arity error
+
+[DateTime — timestamp / timestamp_ms]
+  PASS: timestamp returns positive integer
+  PASS: timestamp is reasonable (after 2024-01-01)
+  PASS: timestamp_ms returns positive integer
+  PASS: timestamp_ms >= timestamp * 1000 approx
+  PASS: timestamp arity error
+  PASS: timestamp_ms arity error
+
+[DateTime — format_date]
+  PASS: format_date with %Y-%m-%d
+  PASS: format_date with %H:%M:%S
+  PASS: format_date full datetime
+  PASS: format_date defaults missing fields to zero
+  PASS: format_date type error (non-map)
+  PASS: format_date arity error
+
+[DateTime — parse_date]
+  PASS: parse_date %Y-%m-%d
+  PASS: parse_date with time
+  PASS: parse_date invalid string throws
+  PASS: parse_date type error
+  PASS: parse_date arity error
+
+[DateTime — sleep / sleep_sec]
+  PASS: sleep(1) completes quickly
+  PASS: sleep_sec(0.001) completes quickly
+  PASS: sleep(0) is a no-op
+  PASS: sleep type error
+  PASS: sleep_sec type error
+
+[DateTime — time_since]
+  PASS: time_since returns positive value
+  PASS: time_since with old timestamp gives large value
+  PASS: time_since type error
+  PASS: time_since arity error
+
+[Regex — regex_match / regex_match_full]
+  PASS: regex_match partial match
+  PASS: regex_match no match
+  PASS: regex_match with digit pattern
+  PASS: regex_match_full exact match
+  PASS: regex_match_full partial fails
+  PASS: regex_match_full full pattern
+  PASS: regex_match type error
+  PASS: regex_match_full type error
+  PASS: regex_match invalid pattern
+
+[Regex — regex_find / regex_find_all]
+  PASS: regex_find first match
+  PASS: regex_find no match returns empty
+  PASS: regex_find_all all matches
+  PASS: regex_find_all no matches returns empty list
+  PASS: regex_find_all words
+  PASS: regex_find type error
+  PASS: regex_find_all arity error
+
+[Regex — regex_replace / regex_replace_all]
+  PASS: regex_replace first only
+  PASS: regex_replace_all all occurrences
+  PASS: regex_replace with pattern
+  PASS: regex_replace_all with pattern
+  PASS: regex_replace no match returns original
+  PASS: regex_replace_all type error
+  PASS: regex_replace arity error
+
+[Regex — regex_split]
+  PASS: regex_split by whitespace
+  PASS: regex_split by comma-space
+  PASS: regex_split by digits
+  PASS: regex_split no match returns whole string
+  PASS: regex_split type error
+
+[Regex — regex_groups]
+  PASS: regex_groups date captures
+  PASS: regex_groups single group
+  PASS: regex_groups no groups returns empty
+  PASS: regex_groups no match returns empty
+  PASS: regex_groups multiple groups
+  PASS: regex_groups type error
+  PASS: regex_groups arity error
+
+[Integration — DateTime + Regex]
+  PASS: format then parse round-trip
+  PASS: regex on formatted date
+  PASS: timestamp consistency check
+
+===== Results: 73 passed, 0 failed =====
+<end of output>
+Test time =   0.04 sec
+----------------------------------------------------------
+Test Passed.
+"datetime_regex_test" end time: Mar 02 16:11 +06
+"datetime_regex_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+11/11 Testing: fs_test
+11/11 Test: fs_test
+Command: "/home/DATA/CODE/code/Xell/build/fs_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"fs_test" start time: Mar 02 16:11 +06
+Output:
+----------------------------------------------------------
+===== File System Builtin Tests =====
+
+[File Ops — touch, cat, read_lines, write_lines]
+  PASS: touch creates file
+  PASS: touch existing file no error
+  PASS: cat reads file content
+  PASS: cat nonexistent throws
+  PASS: read_lines reads lines
+  PASS: write_lines writes list
+  PASS: write_lines + read_lines round-trip
+
+[ls_all, pwd]
+  PASS: ls_all lists files
+  PASS: pwd returns path
+
+[Symlinks — symlink, hardlink, ln, readlink, is_symlink]
+  PASS: symlink creates symlink
+  PASS: readlink resolves symlink
+  PASS: hardlink creates hard link
+  PASS: ln creates soft link by default
+  PASS: ln hard link with false
+  PASS: is_symlink false for regular file
+
+[stat, modified_time, created_time, chmod]
+  PASS: stat returns map with fields
+  PASS: stat size is correct
+  PASS: stat for directory
+  PASS: modified_time returns number
+  PASS: created_time returns number
+  PASS: chmod sets permissions
+
+[find, find_regex, locate, glob]
+  PASS: find *.txt recursively
+  PASS: find *.xel recursively
+  PASS: find_regex pattern
+  PASS: glob in directory
+  PASS: locate finds file
+
+[diff, tree]
+  PASS: file_diff identical files
+  PASS: file_diff different files
+  PASS: tree returns string
+  PASS: tree contains filenames
+  PASS: tree with depth limit
+
+[Path ops — extension, stem, realpath, join_path, normalize, is_absolute, relative_path]
+  PASS: extension returns .ext
+  PASS: extension no ext returns empty
+  PASS: stem returns name without ext
+  PASS: stem with dotfiles
+  PASS: realpath resolves path
+  PASS: join_path joins
+  PASS: normalize resolves dots
+  PASS: is_absolute true for /path
+  PASS: is_absolute false for relative
+  PASS: relative_path computes relative
+  PASS: basename returns filename
+  PASS: dirname returns parent
+
+[home_dir, temp_dir, cwd]
+  PASS: home_dir returns non-empty
+  PASS: temp_dir returns non-empty
+  PASS: cwd matches pwd
+
+[disk_usage, disk_free]
+  PASS: disk_usage on file
+  PASS: disk_usage on directory
+  PASS: disk_free returns positive
+
+[xxd, strings]
+  PASS: xxd returns hex dump
+  PASS: xxd contains hex values
+  PASS: strings extracts printable strings
+  PASS: strings with custom min length
+
+[Regression — existing OS builtins]
+  PASS: mkdir + exists
+  PASS: write + read
+  PASS: append adds content
+  PASS: is_file true for file
+  PASS: is_dir true for directory
+  PASS: file_size returns correct size
+  PASS: cp copies file
+  PASS: mv renames file
+  PASS: rm removes file
+  PASS: ls lists directory contents
+  PASS: abspath returns absolute
+  PASS: ext returns extension
+
+[Error handling]
+  PASS: touch arity error
+  PASS: cat type error
+  PASS: read_lines type error
+  PASS: write_lines arity error
+  PASS: symlink arity error
+  PASS: stat nonexistent throws
+  PASS: find nonexistent dir throws
+  PASS: file_diff missing file throws
+  PASS: xxd missing file throws
+  PASS: chmod arity error
+  PASS: join_path no args throws
+  PASS: disk_free nonexistent throws
+
+===== Results: 77 passed, 0 failed =====
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"fs_test" end time: Mar 02 16:11 +06
+"fs_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 02 16:11 +06

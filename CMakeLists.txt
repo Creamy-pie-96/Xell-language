@@ -71,3 +71,7 @@ add_test(NAME forloop_test COMMAND forloop_test)
 add_executable(datetime_regex_test test/datetime_regex_test.cpp)
 target_link_libraries(datetime_regex_test xell_lib)
 add_test(NAME datetime_regex_test COMMAND datetime_regex_test)
+
+add_executable(fs_test test/fs_test.cpp)
+target_link_libraries(fs_test xell_lib)
+add_test(NAME fs_test COMMAND fs_test)

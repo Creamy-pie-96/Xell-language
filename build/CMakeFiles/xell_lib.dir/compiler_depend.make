@@ -7,6 +7,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /home/DATA/CODE/code/Xell/src/builtins/builtins_bytes.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_collection.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_datetime.hpp \
+  /home/DATA/CODE/code/Xell/src/builtins/builtins_fs.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_generator.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_hash.hpp \
   /home/DATA/CODE/code/Xell/src/builtins/builtins_io.hpp \
@@ -31,8 +32,12 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /home/DATA/CODE/code/Xell/src/interpreter/shell_state.hpp \
   /home/DATA/CODE/code/Xell/src/interpreter/xobject.hpp \
   /usr/include/alloca.h \
+  /usr/include/asm-generic/bitsperlong.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
+  /usr/include/asm-generic/int-ll64.h \
+  /usr/include/asm-generic/posix_types.h \
+  /usr/include/asm-generic/types.h \
   /usr/include/assert.h \
   /usr/include/c++/13/algorithm \
   /usr/include/c++/13/array \
@@ -65,6 +70,10 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/c++/13/bits/exception.h \
   /usr/include/c++/13/bits/exception_defines.h \
   /usr/include/c++/13/bits/exception_ptr.h \
+  /usr/include/c++/13/bits/fs_dir.h \
+  /usr/include/c++/13/bits/fs_fwd.h \
+  /usr/include/c++/13/bits/fs_ops.h \
+  /usr/include/c++/13/bits/fs_path.h \
   /usr/include/c++/13/bits/fstream.tcc \
   /usr/include/c++/13/bits/functexcept.h \
   /usr/include/c++/13/bits/functional_hash.h \
@@ -162,6 +171,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/c++/13/chrono \
   /usr/include/c++/13/clocale \
   /usr/include/c++/13/cmath \
+  /usr/include/c++/13/codecvt \
   /usr/include/c++/13/compare \
   /usr/include/c++/13/condition_variable \
   /usr/include/c++/13/cstddef \
@@ -183,6 +193,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/c++/13/ext/numeric_traits.h \
   /usr/include/c++/13/ext/string_conversions.h \
   /usr/include/c++/13/ext/type_traits.h \
+  /usr/include/c++/13/filesystem \
   /usr/include/c++/13/fstream \
   /usr/include/c++/13/functional \
   /usr/include/c++/13/initializer_list \
@@ -238,11 +249,18 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/errno.h \
   /usr/include/features-time64.h \
   /usr/include/features.h \
+  /usr/include/grp.h \
   /usr/include/libintl.h \
+  /usr/include/linux/close_range.h \
   /usr/include/linux/errno.h \
+  /usr/include/linux/posix_types.h \
+  /usr/include/linux/stat.h \
+  /usr/include/linux/stddef.h \
+  /usr/include/linux/types.h \
   /usr/include/locale.h \
   /usr/include/math.h \
   /usr/include/pthread.h \
+  /usr/include/pwd.h \
   /usr/include/sched.h \
   /usr/include/stdc-predef.h \
   /usr/include/stdint.h \
@@ -251,20 +269,29 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/string.h \
   /usr/include/strings.h \
   /usr/include/time.h \
+  /usr/include/unistd.h \
   /usr/include/wchar.h \
   /usr/include/wctype.h \
+  /usr/include/x86_64-linux-gnu/asm/bitsperlong.h \
   /usr/include/x86_64-linux-gnu/asm/errno.h \
+  /usr/include/x86_64-linux-gnu/asm/posix_types.h \
+  /usr/include/x86_64-linux-gnu/asm/posix_types_64.h \
+  /usr/include/x86_64-linux-gnu/asm/types.h \
   /usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h \
   /usr/include/x86_64-linux-gnu/bits/byteswap.h \
+  /usr/include/x86_64-linux-gnu/bits/confname.h \
   /usr/include/x86_64-linux-gnu/bits/cpu-set.h \
   /usr/include/x86_64-linux-gnu/bits/endian.h \
   /usr/include/x86_64-linux-gnu/bits/endianness.h \
+  /usr/include/x86_64-linux-gnu/bits/environments.h \
   /usr/include/x86_64-linux-gnu/bits/errno.h \
   /usr/include/x86_64-linux-gnu/bits/floatn-common.h \
   /usr/include/x86_64-linux-gnu/bits/floatn.h \
   /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h \
   /usr/include/x86_64-linux-gnu/bits/fp-fast.h \
   /usr/include/x86_64-linux-gnu/bits/fp-logb.h \
+  /usr/include/x86_64-linux-gnu/bits/getopt_core.h \
+  /usr/include/x86_64-linux-gnu/bits/getopt_posix.h \
   /usr/include/x86_64-linux-gnu/bits/iscanonical.h \
   /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
   /usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h \
@@ -274,12 +301,17 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h \
   /usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h \
   /usr/include/x86_64-linux-gnu/bits/mathcalls.h \
+  /usr/include/x86_64-linux-gnu/bits/posix_opt.h \
   /usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h \
   /usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h \
   /usr/include/x86_64-linux-gnu/bits/pthreadtypes.h \
   /usr/include/x86_64-linux-gnu/bits/sched.h \
   /usr/include/x86_64-linux-gnu/bits/select.h \
   /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/stat.h \
+  /usr/include/x86_64-linux-gnu/bits/statvfs.h \
+  /usr/include/x86_64-linux-gnu/bits/statx-generic.h \
+  /usr/include/x86_64-linux-gnu/bits/statx.h \
   /usr/include/x86_64-linux-gnu/bits/stdint-intn.h \
   /usr/include/x86_64-linux-gnu/bits/stdint-least.h \
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
@@ -287,6 +319,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/x86_64-linux-gnu/bits/stdlib-float.h \
   /usr/include/x86_64-linux-gnu/bits/struct_mutex.h \
   /usr/include/x86_64-linux-gnu/bits/struct_rwlock.h \
+  /usr/include/x86_64-linux-gnu/bits/struct_stat.h \
   /usr/include/x86_64-linux-gnu/bits/thread-shared-types.h \
   /usr/include/x86_64-linux-gnu/bits/time.h \
   /usr/include/x86_64-linux-gnu/bits/time64.h \
@@ -311,6 +344,8 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
   /usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h \
   /usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct_statx.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct_statx_timestamp.h \
   /usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h \
   /usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h \
   /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h \
@@ -319,6 +354,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/x86_64-linux-gnu/bits/types/wint_t.h \
   /usr/include/x86_64-linux-gnu/bits/typesizes.h \
   /usr/include/x86_64-linux-gnu/bits/uintn-identity.h \
+  /usr/include/x86_64-linux-gnu/bits/unistd_ext.h \
   /usr/include/x86_64-linux-gnu/bits/waitflags.h \
   /usr/include/x86_64-linux-gnu/bits/waitstatus.h \
   /usr/include/x86_64-linux-gnu/bits/wchar.h \
@@ -345,6 +381,8 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: /home/DATA/CODE/code/
   /usr/include/x86_64-linux-gnu/sys/cdefs.h \
   /usr/include/x86_64-linux-gnu/sys/select.h \
   /usr/include/x86_64-linux-gnu/sys/single_threaded.h \
+  /usr/include/x86_64-linux-gnu/sys/stat.h \
+  /usr/include/x86_64-linux-gnu/sys/statvfs.h \
   /usr/include/x86_64-linux-gnu/sys/types.h \
   /usr/lib/gcc/x86_64-linux-gnu/13/include/stdarg.h \
   /usr/lib/gcc/x86_64-linux-gnu/13/include/stddef.h \
@@ -1643,11 +1681,7 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
   /usr/lib/gcc/x86_64-linux-gnu/13/include/stdint.h
 
 
-/home/DATA/CODE/code/Xell/src/parser/parser.cpp:
-
 /usr/include/x86_64-linux-gnu/sys/ucontext.h:
-
-/usr/include/x86_64-linux-gnu/bits/unistd_ext.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/stack_t.h:
 
@@ -1663,8 +1697,6 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/sigthread.h:
 
-/usr/include/x86_64-linux-gnu/bits/sigstksz.h:
-
 /usr/include/x86_64-linux-gnu/bits/sigstack.h:
 
 /usr/include/x86_64-linux-gnu/bits/siginfo-consts-arch.h:
@@ -1673,39 +1705,13 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/sigevent-consts.h:
 
-/usr/include/x86_64-linux-gnu/bits/posix_opt.h:
-
-/usr/include/x86_64-linux-gnu/bits/getopt_core.h:
-
-/usr/include/unistd.h:
-
-/usr/include/linux/close_range.h:
-
 /home/DATA/CODE/code/Xell/src/os/process.cpp:
-
-/usr/include/c++/13/filesystem:
-
-/usr/include/c++/13/codecvt:
-
-/usr/include/c++/13/bits/fs_path.h:
-
-/usr/include/c++/13/bits/fs_ops.h:
-
-/usr/include/x86_64-linux-gnu/bits/sigaction.h:
-
-/usr/include/c++/13/bits/fs_fwd.h:
-
-/usr/include/c++/13/bits/fs_dir.h:
-
-/home/DATA/CODE/code/Xell/src/os/env.cpp:
 
 /home/DATA/CODE/code/Xell/src/interpreter/xobject.cpp:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/stdint.h:
 
-/usr/include/x86_64-linux-gnu/bits/environments.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/13/include/stddef.h:
+/usr/include/x86_64-linux-gnu/sys/stat.h:
 
 /usr/include/x86_64-linux-gnu/sys/single_threaded.h:
 
@@ -1743,13 +1749,17 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/waitflags.h:
 
+/usr/include/x86_64-linux-gnu/bits/unistd_ext.h:
+
 /usr/include/x86_64-linux-gnu/bits/uintn-identity.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/time_t.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h:
+/usr/include/x86_64-linux-gnu/bits/types/struct_statx_timestamp.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
+/usr/include/x86_64-linux-gnu/bits/types/struct_statx.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/locale_t.h:
 
@@ -1789,11 +1799,23 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/stdint-least.h:
 
+/home/DATA/CODE/code/Xell/src/parser/parser.cpp:
+
+/usr/include/x86_64-linux-gnu/bits/statx-generic.h:
+
+/usr/include/x86_64-linux-gnu/bits/statvfs.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigstksz.h:
+
+/usr/include/x86_64-linux-gnu/bits/stat.h:
+
 /usr/include/x86_64-linux-gnu/bits/sched.h:
 
 /usr/include/x86_64-linux-gnu/bits/pthreadtypes.h:
 
 /usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h:
+
+/usr/include/x86_64-linux-gnu/bits/posix_opt.h:
 
 /usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h:
 
@@ -1809,27 +1831,65 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
 
+/usr/include/x86_64-linux-gnu/bits/getopt_core.h:
+
 /usr/include/x86_64-linux-gnu/bits/fp-logb.h:
 
 /usr/include/x86_64-linux-gnu/bits/fp-fast.h:
 
 /usr/include/x86_64-linux-gnu/bits/floatn.h:
 
-/usr/include/c++/13/bits/stl_construct.h:
+/usr/lib/gcc/x86_64-linux-gnu/13/include/stddef.h:
 
-/usr/include/c++/13/bits/std_mutex.h:
+/usr/include/x86_64-linux-gnu/bits/environments.h:
 
-/usr/include/c++/13/bits/stl_bvector.h:
+/usr/include/x86_64-linux-gnu/bits/endian.h:
 
-/usr/include/c++/13/bits/stl_algo.h:
+/usr/include/x86_64-linux-gnu/bits/byteswap.h:
 
-/usr/include/c++/13/cstddef:
+/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h:
+
+/usr/include/x86_64-linux-gnu/asm/types.h:
+
+/usr/include/x86_64-linux-gnu/bits/cpu-set.h:
+
+/usr/include/x86_64-linux-gnu/asm/posix_types_64.h:
+
+/usr/include/x86_64-linux-gnu/asm/errno.h:
+
+/usr/include/x86_64-linux-gnu/asm/bitsperlong.h:
+
+/usr/include/x86_64-linux-gnu/bits/statx.h:
+
+/usr/include/unistd.h:
+
+/usr/include/x86_64-linux-gnu/bits/setjmp.h:
+
+/usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
+
+/usr/include/time.h:
+
+/usr/include/string.h:
+
+/usr/include/stdc-predef.h:
+
+/usr/include/wctype.h:
+
+/usr/include/sched.h:
+
+/usr/include/pthread.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
+
+/usr/include/math.h:
 
 /home/DATA/CODE/code/Xell/src/interpreter/interpreter.hpp:
 
 /usr/include/c++/13/cstdint:
 
 /usr/include/c++/13/bits/sstream.tcc:
+
+/usr/include/x86_64-linux-gnu/asm/posix_types.h:
 
 /usr/include/c++/13/cwctype:
 
@@ -1839,13 +1899,9 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/bits/erase_if.h:
 
-/usr/include/c++/13/bits/stl_deque.h:
-
 /usr/include/x86_64-linux-gnu/bits/floatn-common.h:
 
 /usr/include/c++/13/bits/requires_hosted.h:
-
-/usr/include/c++/13/bits/locale_facets.tcc:
 
 /usr/include/c++/13/cstdlib:
 
@@ -1862,6 +1918,12 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 /usr/include/c++/13/bits/postypes.h:
 
 /usr/include/c++/13/bits/uses_allocator.h:
+
+/usr/include/signal.h:
+
+/usr/include/strings.h:
+
+/usr/include/c++/13/iomanip:
 
 /usr/include/c++/13/bits/quoted_string.h:
 
@@ -1885,51 +1947,29 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/libintl.h:
 
-/usr/include/signal.h:
-
-/usr/include/c++/13/iomanip:
-
-/usr/include/strings.h:
-
-/usr/include/c++/13/bits/ptr_traits.h:
-
 /usr/include/c++/13/bits/std_abs.h:
 
 /usr/include/c++/13/bits/parse_numbers.h:
 
 /usr/include/c++/13/bits/ostream.tcc:
 
-/usr/include/c++/13/bits/stl_function.h:
-
-/usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h:
-
-/usr/include/c++/13/bits/utility.h:
-
-/usr/include/c++/13/tr1/beta_function.tcc:
-
 /usr/include/c++/13/bits/move.h:
 
 /usr/include/c++/13/bits/memoryfwd.h:
 
-/usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
+/usr/include/x86_64-linux-gnu/bits/sigaction.h:
 
-/usr/include/x86_64-linux-gnu/bits/setjmp.h:
-
-/usr/include/time.h:
-
-/usr/include/c++/13/bits/stl_heap.h:
-
-/usr/include/c++/13/utility:
-
-/usr/include/x86_64-linux-gnu/bits/confname.h:
-
-/usr/include/c++/13/bits/locale_facets_nonio.h:
+/usr/include/c++/13/bits/fs_fwd.h:
 
 /usr/include/c++/13/bits/locale_facets.h:
+
+/usr/include/x86_64-linux-gnu/sys/statvfs.h:
 
 /usr/include/x86_64-linux-gnu/bits/timesize.h:
 
 /usr/include/c++/13/bits/locale_classes.h:
+
+/usr/include/c++/13/bits/fs_ops.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/error_t.h:
 
@@ -1947,27 +1987,79 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/errno.h:
 
+/usr/include/c++/13/bits/fs_path.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:
+
+/usr/include/c++/13/bits/charconv.h:
+
+/usr/include/x86_64-linux-gnu/bits/signum-arch.h:
+
+/usr/include/x86_64-linux-gnu/bits/errno.h:
+
+/usr/include/c++/13/bits/stl_pair.h:
+
+/usr/include/c++/13/cstdio:
+
+/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp:
+
+/usr/include/c++/13/fstream:
+
+/usr/include/x86_64-linux-gnu/bits/confname.h:
+
+/usr/include/c++/13/bits/locale_facets_nonio.h:
+
+/usr/include/c++/13/bits/fs_dir.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h:
+
+/usr/include/c++/13/sstream:
+
 /usr/include/c++/13/bits/localefwd.h:
+
+/usr/include/c++/13/bits/ptr_traits.h:
+
+/usr/include/linux/posix_types.h:
 
 /usr/include/x86_64-linux-gnu/bits/waitstatus.h:
 
 /usr/include/c++/13/bits/exception_defines.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
-
-/usr/include/math.h:
-
 /usr/include/c++/13/bits/enable_special_members.h:
+
+/usr/include/c++/13/bits/deque.tcc:
+
+/usr/include/c++/13/bits/hashtable_policy.h:
+
+/usr/include/x86_64-linux-gnu/bits/signal_ext.h:
+
+/usr/include/x86_64-linux-gnu/c++/13/bits/ctype_inline.h:
+
+/usr/include/pwd.h:
+
+/usr/include/c++/13/bits/std_function.h:
+
+/usr/include/c++/13/bits/char_traits.h:
+
+/usr/include/c++/13/bits/exception.h:
+
+/usr/include/c++/13/bits/memory_resource.h:
+
+/usr/include/c++/13/streambuf:
+
+/usr/include/c++/13/bits/cxxabi_init_exception.h:
+
+/usr/include/x86_64-linux-gnu/c++/13/bits/c++io.h:
+
+/usr/include/c++/13/typeinfo:
+
+/usr/include/c++/13/bits/cxxabi_forced.h:
 
 /usr/include/c++/13/bits/basic_ios.tcc:
 
 /usr/include/c++/13/pstl/execution_defs.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h:
-
-/home/DATA/CODE/code/Xell/src/interpreter/xobject.hpp:
-
-/home/DATA/CODE/code/Xell/src/parser/parser.hpp:
+/usr/include/linux/stddef.h:
 
 /usr/include/c++/13/bits/regex_scanner.tcc:
 
@@ -1976,6 +2068,10 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 /usr/include/c++/13/bits/shared_ptr.h:
 
 /home/DATA/CODE/code/Xell/src/hash/hash_algorithm.hpp:
+
+/usr/include/c++/13/bits/cpp_type_traits.h:
+
+/usr/include/c++/13/cassert:
 
 /usr/include/c++/13/tr1/poly_hermite.tcc:
 
@@ -1986,6 +2082,18 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 /usr/include/c++/13/pstl/glue_algorithm_defs.h:
 
 /home/DATA/CODE/code/Xell/src/lexer/lexer.hpp:
+
+/home/DATA/CODE/code/Xell/src/parser/parser.hpp:
+
+/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h:
+
+/home/DATA/CODE/code/Xell/src/interpreter/xobject.hpp:
+
+/usr/include/c++/13/bits/exception_ptr.h:
+
+/usr/include/c++/13/bits/locale_conv.h:
+
+/usr/include/c++/13/bits/istream.tcc:
 
 /usr/include/c++/13/bits/ostream_insert.h:
 
@@ -2011,12 +2119,6 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /home/DATA/CODE/code/Xell/src/builtins/builtins_io.hpp:
 
-/usr/include/c++/13/bits/exception_ptr.h:
-
-/usr/include/c++/13/bits/locale_conv.h:
-
-/usr/include/c++/13/bits/istream.tcc:
-
 /home/DATA/CODE/code/Xell/src/builtins/builtins_bytes.hpp:
 
 /usr/include/c++/13/cmath:
@@ -2027,15 +2129,9 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /home/DATA/CODE/code/Xell/src/builtins/builtins_collection.hpp:
 
-/usr/include/c++/13/bits/cxxabi_forced.h:
-
 /usr/include/x86_64-linux-gnu/bits/types/timer_t.h:
 
 /usr/include/c++/13/bits/regex_compiler.tcc:
-
-/usr/include/c++/13/bits/allocator.h:
-
-/usr/include/c++/13/unordered_map:
 
 /home/DATA/CODE/code/Xell/src/interpreter/shell_state.hpp:
 
@@ -2075,9 +2171,19 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /home/DATA/CODE/code/Xell/src/builtins/builtins_math.hpp:
 
+/usr/include/x86_64-linux-gnu/bits/struct_stat.h:
+
 /home/DATA/CODE/code/Xell/src/builtins/builtins_os.hpp:
 
 /usr/include/c++/13/bits/random.h:
+
+/home/DATA/CODE/code/Xell/src/lexer/token.hpp:
+
+/home/DATA/CODE/code/Xell/src/builtins/builtins_util.hpp:
+
+/usr/include/asm-generic/int-ll64.h:
+
+/usr/include/c++/13/thread:
 
 /usr/include/c++/13/bits/refwrap.h:
 
@@ -2085,9 +2191,9 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/bits/regex_automaton.tcc:
 
-/usr/include/c++/13/stdexcept:
-
 /usr/include/assert.h:
+
+/usr/include/c++/13/stdexcept:
 
 /usr/include/c++/13/backward/auto_ptr.h:
 
@@ -2095,9 +2201,25 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /home/DATA/CODE/code/Xell/src/os/os.hpp:
 
-/home/DATA/CODE/code/Xell/src/builtins/builtins_util.hpp:
+/usr/include/stdlib.h:
 
-/home/DATA/CODE/code/Xell/src/lexer/token.hpp:
+/home/DATA/CODE/code/Xell/src/builtins/builtins_fs.hpp:
+
+/usr/include/c++/13/cctype:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_tm.h:
+
+/usr/include/c++/13/ext/atomicity.h:
+
+/usr/include/c++/13/tr1/gamma.tcc:
+
+/usr/include/wchar.h:
+
+/usr/include/c++/13/bits/shared_ptr_base.h:
+
+/usr/include/c++/13/bits/regex_error.h:
+
+/usr/include/c++/13/bits/basic_ios.h:
 
 /home/DATA/CODE/code/Xell/src/builtins/builtins_type.hpp:
 
@@ -2105,15 +2227,33 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/asm-generic/errno.h:
 
-/usr/include/c++/13/algorithm:
+/home/DATA/CODE/code/Xell/src/os/env.cpp:
 
-/usr/include/c++/13/bits/hash_bytes.h:
+/usr/include/asm-generic/posix_types.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigcontext.h:
+
+/usr/include/c++/13/tr1/special_function_util.h:
+
+/usr/include/c++/13/bits/concept_check.h:
+
+/usr/include/c++/13/bits/alloc_traits.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
+
+/usr/include/asm-generic/bitsperlong.h:
+
+/usr/include/asm-generic/types.h:
 
 /usr/include/x86_64-linux-gnu/sys/wait.h:
 
 /usr/include/c++/13/bits/stl_iterator_base_funcs.h:
 
 /usr/include/asm-generic/errno-base.h:
+
+/usr/include/c++/13/algorithm:
+
+/usr/include/c++/13/bits/hash_bytes.h:
 
 /usr/include/c++/13/array:
 
@@ -2125,83 +2265,57 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/bits/atomic_lockfree_defines.h:
 
-/usr/include/x86_64-linux-gnu/asm/errno.h:
-
 /usr/include/c++/13/bits/allocated_ptr.h:
 
 /usr/include/c++/13/bit:
 
 /usr/include/c++/13/bits/basic_string.tcc:
 
-/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:
-
-/usr/include/c++/13/bits/charconv.h:
-
-/usr/include/x86_64-linux-gnu/bits/signum-arch.h:
-
-/usr/include/x86_64-linux-gnu/bits/errno.h:
-
-/usr/include/c++/13/bits/stl_pair.h:
-
-/usr/include/c++/13/cstdio:
-
-/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp:
-
-/usr/include/c++/13/fstream:
-
 /usr/include/c++/13/bits/regex.h:
 
 /usr/include/c++/13/backward/binders.h:
+
+/usr/include/c++/13/unordered_map:
+
+/usr/include/c++/13/bits/allocator.h:
+
+/usr/include/c++/13/bits/stl_bvector.h:
 
 /usr/include/x86_64-linux-gnu/bits/long-double.h:
 
 /usr/include/c++/13/bits/algorithmfwd.h:
 
-/usr/include/c++/13/bits/alloc_traits.h:
-
-/usr/include/c++/13/bits/concept_check.h:
-
-/usr/include/wchar.h:
-
-/usr/include/c++/13/bits/shared_ptr_base.h:
-
-/usr/include/c++/13/bits/regex_error.h:
-
-/usr/include/c++/13/bits/basic_ios.h:
-
 /usr/include/c++/13/atomic:
 
 /usr/include/alloca.h:
 
-/usr/include/x86_64-linux-gnu/bits/signal_ext.h:
+/usr/include/c++/13/bits/std_mutex.h:
 
-/usr/include/x86_64-linux-gnu/c++/13/bits/ctype_inline.h:
+/usr/include/c++/13/bits/stl_construct.h:
 
-/usr/include/c++/13/bits/std_function.h:
+/usr/include/c++/13/bits/stl_algo.h:
 
-/usr/include/c++/13/bits/char_traits.h:
+/usr/include/c++/13/cstddef:
 
-/usr/include/c++/13/bits/hashtable_policy.h:
+/usr/include/c++/13/bits/stl_deque.h:
 
-/usr/include/c++/13/bits/deque.tcc:
+/usr/include/c++/13/bits/stl_function.h:
 
-/usr/include/x86_64-linux-gnu/bits/endian.h:
+/usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h:
 
-/usr/include/c++/13/cassert:
+/usr/include/c++/13/bits/utility.h:
 
-/usr/include/c++/13/bits/cpp_type_traits.h:
+/usr/include/c++/13/tr1/beta_function.tcc:
 
-/usr/include/c++/13/bits/exception.h:
+/usr/include/c++/13/utility:
 
-/usr/include/c++/13/bits/memory_resource.h:
+/usr/include/c++/13/bits/stl_heap.h:
 
-/usr/include/c++/13/streambuf:
+/usr/include/stdio.h:
 
-/usr/include/c++/13/bits/cxxabi_init_exception.h:
+/usr/include/c++/13/bits/regex_compiler.h:
 
-/usr/include/x86_64-linux-gnu/c++/13/bits/c++io.h:
-
-/usr/include/c++/13/typeinfo:
+/usr/include/c++/13/bits/stl_iterator_base_types.h:
 
 /usr/include/c++/13/bits/stl_numeric.h:
 
@@ -2239,6 +2353,10 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/bits/streambuf.tcc:
 
+/usr/include/stdint.h:
+
+/usr/include/endian.h:
+
 /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h:
 
 /usr/include/c++/13/bits/streambuf_iterator.h:
@@ -2271,27 +2389,23 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/type_traits:
 
-/usr/include/c++/13/cctype:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_tm.h:
-
-/usr/include/c++/13/ext/atomicity.h:
-
-/usr/include/c++/13/tr1/gamma.tcc:
-
 /usr/include/c++/13/cerrno:
 
 /usr/include/c++/13/chrono:
+
+/usr/include/c++/13/codecvt:
+
+/usr/include/c++/13/ctime:
+
+/usr/include/c++/13/deque:
 
 /usr/include/c++/13/system_error:
 
 /usr/include/c++/13/compare:
 
+/usr/include/c++/13/filesystem:
+
 /usr/include/c++/13/cstring:
-
-/usr/include/c++/13/ctime:
-
-/usr/include/c++/13/deque:
 
 /usr/include/x86_64-linux-gnu/sys/select.h:
 
@@ -2323,9 +2437,9 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/functional:
 
-/usr/include/c++/13/bits/std_thread.h:
-
 /usr/include/c++/13/tr1/bessel_function.tcc:
+
+/usr/include/c++/13/bits/std_thread.h:
 
 /usr/include/c++/13/initializer_list:
 
@@ -2351,10 +2465,6 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/c++/13/regex:
 
-/usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h:
-
-/usr/include/c++/13/sstream:
-
 /usr/include/x86_64-linux-gnu/bits/stdint-intn.h:
 
 /usr/include/c++/13/string:
@@ -2367,8 +2477,6 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/features-time64.h:
 
-/usr/include/c++/13/thread:
-
 /usr/include/c++/13/tr1/ell_integral.tcc:
 
 /home/DATA/CODE/code/Xell/src/lib/errors/error.hpp:
@@ -2376,12 +2484,6 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 /usr/include/c++/13/tr1/exp_integral.tcc:
 
 /usr/include/c++/13/tr1/legendre_function.tcc:
-
-/usr/include/x86_64-linux-gnu/bits/sigcontext.h:
-
-/usr/include/c++/13/tr1/special_function_util.h:
-
-/usr/include/stdc-predef.h:
 
 /usr/include/c++/13/bits/regex_executor.h:
 
@@ -2397,32 +2499,16 @@ CMakeFiles/xell_lib.dir/src/parser/parser.cpp.o: /home/DATA/CODE/code/Xell/src/p
 
 /usr/include/features.h:
 
+/usr/include/grp.h:
+
+/usr/include/linux/close_range.h:
+
 /usr/include/c++/13/debug/debug.h:
 
 /usr/include/linux/errno.h:
 
-/usr/include/pthread.h:
+/usr/include/c++/13/bits/locale_facets.tcc:
 
-/usr/include/wctype.h:
+/usr/include/linux/stat.h:
 
-/usr/include/sched.h:
-
-/usr/include/endian.h:
-
-/usr/include/stdint.h:
-
-/usr/include/c++/13/bits/regex_compiler.h:
-
-/usr/include/c++/13/bits/stl_iterator_base_types.h:
-
-/usr/include/stdio.h:
-
-/usr/include/stdlib.h:
-
-/usr/include/string.h:
-
-/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h:
-
-/usr/include/x86_64-linux-gnu/bits/byteswap.h:
-
-/usr/include/x86_64-linux-gnu/bits/cpu-set.h:
+/usr/include/linux/types.h:

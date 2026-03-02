@@ -106,5 +106,11 @@
   "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.o -c /home/DATA/CODE/code/Xell/test/datetime_regex_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/datetime_regex_test.cpp",
   "output": "CMakeFiles/datetime_regex_test.dir/test/datetime_regex_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -g -std=gnu++17 -o CMakeFiles/fs_test.dir/test/fs_test.cpp.o -c /home/DATA/CODE/code/Xell/test/fs_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/fs_test.cpp",
+  "output": "CMakeFiles/fs_test.dir/test/fs_test.cpp.o"
 }
 ]

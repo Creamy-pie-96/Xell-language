@@ -28,6 +28,7 @@
 #include "builtins_generator.hpp"
 #include "builtins_datetime.hpp"
 #include "builtins_regex.hpp"
+#include "builtins_fs.hpp"
 #include "../interpreter/shell_state.hpp"
 
 namespace xell
@@ -56,6 +57,7 @@ namespace xell
         registerGeneratorBuiltins(t);
         registerDateTimeBuiltins(t);
         registerRegexBuiltins(t);
+        registerFSBuiltins(t);
     }
 
 } // namespace xell
