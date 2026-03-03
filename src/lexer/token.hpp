@@ -120,6 +120,9 @@ namespace xell
         AMP_AMP,   // &&
         PIPE_PIPE, // ||
 
+        // Prefix operator
+        TILDE,     // ~ (smart-cast prefix)
+
         // Special
         IDENTIFIER,
         NEWLINE,
@@ -206,6 +209,7 @@ namespace xell
             {(int)TokenType::PIPE, "PIPE"},
             {(int)TokenType::AMP_AMP, "AMP_AMP"},
             {(int)TokenType::PIPE_PIPE, "PIPE_PIPE"},
+            {(int)TokenType::TILDE, "TILDE"},
             {(int)TokenType::IDENTIFIER, "IDENTIFIER"},
             {(int)TokenType::NEWLINE, "NEWLINE"},
             {(int)TokenType::BYTE_STRING, "BYTE_STRING"},

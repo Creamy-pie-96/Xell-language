@@ -375,6 +375,7 @@ CMakeFiles/xell_lib.dir/src/interpreter/interpreter.cpp.o: \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_archive.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_json.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_shell.hpp \
+ /home/DATA/CODE/code/Xell/src/interpreter/../builtins/builtins_casting.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../lexer/lexer.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../lexer/token.hpp \
  /home/DATA/CODE/code/Xell/src/interpreter/../parser/parser.hpp \

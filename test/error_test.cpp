@@ -465,14 +465,14 @@ static void testLexerErrors()
         }
         XASSERT(caught); });
 
-    runTest("lexer: unexpected character ~ → LexerError", []()
+    runTest("lexer: unexpected character \\ → LexerError", []()
             {
-        Lexer lex("a ~ b");
+        Lexer lex("a \\ b");
         bool caught = false;
         try { lex.tokenize(); }
         catch (const LexerError& e) {
             caught = true;
-            XASSERT(contains(e.what(), "~"));
+            XASSERT(contains(e.what(), "\\"));
         }
         XASSERT(caught); });
 

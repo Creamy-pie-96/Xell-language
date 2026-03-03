@@ -1,10 +1,10 @@
-Start testing: Mar 02 21:37 +06
+Start testing: Mar 03 01:15 +06
 ----------------------------------------------------------
-1/16 Testing: parser_test
-1/16 Test: parser_test
+1/17 Testing: parser_test
+1/17 Test: parser_test
 Command: "/home/DATA/CODE/code/Xell/build/parser_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"parser_test" start time: Mar 02 21:37 +06
+"parser_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 
@@ -133,15 +133,15 @@ Output:
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"parser_test" end time: Mar 02 21:37 +06
+"parser_test" end time: Mar 03 01:15 +06
 "parser_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-2/16 Testing: error_test
-2/16 Test: error_test
+2/17 Testing: error_test
+2/17 Test: error_test
 Command: "/home/DATA/CODE/code/Xell/build/error_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"error_test" start time: Mar 02 21:37 +06
+"error_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 
@@ -196,7 +196,7 @@ Output:
   PASS: lexer: unterminated string on line 3 → correct line
   PASS: lexer: unexpected character → LexerError
   PASS: lexer: unexpected character $ → LexerError
-  PASS: lexer: unexpected character ~ → LexerError
+  PASS: lexer: unexpected character \ → LexerError
   PASS: lexer: LexerError is also catchable as XellError
 
 ===== Parser Error Integration =====
@@ -231,15 +231,15 @@ Output:
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"error_test" end time: Mar 02 21:37 +06
+"error_test" end time: Mar 03 01:15 +06
 "error_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-3/16 Testing: xobject_test
-3/16 Test: xobject_test
+3/17 Testing: xobject_test
+3/17 Test: xobject_test
 Command: "/home/DATA/CODE/code/Xell/build/xobject_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"xobject_test" start time: Mar 02 21:37 +06
+"xobject_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 
@@ -362,15 +362,15 @@ Output:
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"xobject_test" end time: Mar 02 21:37 +06
+"xobject_test" end time: Mar 03 01:15 +06
 "xobject_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-4/16 Testing: interpreter_test
-4/16 Test: interpreter_test
+4/17 Testing: interpreter_test
+4/17 Test: interpreter_test
 Command: "/home/DATA/CODE/code/Xell/build/interpreter_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"interpreter_test" start time: Mar 02 21:37 +06
+"interpreter_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 
@@ -689,18 +689,18 @@ Output:
   Total: 243  |  Passed: 243  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.14 sec
+Test time =   0.17 sec
 ----------------------------------------------------------
 Test Passed.
-"interpreter_test" end time: Mar 02 21:37 +06
+"interpreter_test" end time: Mar 03 01:15 +06
 "interpreter_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-5/16 Testing: os_test
-5/16 Test: os_test
+5/17 Testing: os_test
+5/17 Test: os_test
 Command: "/home/DATA/CODE/code/Xell/build/os_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"os_test" start time: Mar 02 21:37 +06
+"os_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -787,15 +787,15 @@ Output:
 Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"os_test" end time: Mar 02 21:37 +06
+"os_test" end time: Mar 03 01:15 +06
 "os_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-6/16 Testing: bring_test
-6/16 Test: bring_test
+6/17 Testing: bring_test
+6/17 Test: bring_test
 Command: "/home/DATA/CODE/code/Xell/build/bring_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"bring_test" start time: Mar 02 21:37 +06
+"bring_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 ============================================
@@ -839,18 +839,18 @@ Output:
   Total: 21  |  Passed: 21  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.03 sec
+Test time =   0.04 sec
 ----------------------------------------------------------
 Test Passed.
-"bring_test" end time: Mar 02 21:37 +06
+"bring_test" end time: Mar 03 01:15 +06
 "bring_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-7/16 Testing: shell_test
-7/16 Test: shell_test
+7/17 Testing: shell_test
+7/17 Test: shell_test
 Command: "/home/DATA/CODE/code/Xell/build/shell_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"shell_test" start time: Mar 02 21:37 +06
+"shell_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 done
@@ -909,18 +909,18 @@ done
   Total: 40  |  Passed: 40  |  Failed: 0
 ============================================
 <end of output>
-Test time =   0.06 sec
+Test time =   0.07 sec
 ----------------------------------------------------------
 Test Passed.
-"shell_test" end time: Mar 02 21:37 +06
+"shell_test" end time: Mar 03 01:15 +06
 "shell_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-8/16 Testing: builtin_test
-8/16 Test: builtin_test
+8/17 Testing: builtin_test
+8/17 Test: builtin_test
 Command: "/home/DATA/CODE/code/Xell/build/builtin_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"builtin_test" start time: Mar 02 21:37 +06
+"builtin_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 =======================================
@@ -1086,18 +1086,18 @@ Output:
   Results: 139 passed, 0 failed
 =======================================
 <end of output>
-Test time =   0.08 sec
+Test time =   0.09 sec
 ----------------------------------------------------------
 Test Passed.
-"builtin_test" end time: Mar 02 21:37 +06
+"builtin_test" end time: Mar 03 01:15 +06
 "builtin_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-9/16 Testing: forloop_test
-9/16 Test: forloop_test
+9/17 Testing: forloop_test
+9/17 Test: forloop_test
 Command: "/home/DATA/CODE/code/Xell/build/forloop_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"forloop_test" start time: Mar 02 21:37 +06
+"forloop_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 =======================================
@@ -1162,15 +1162,15 @@ Output:
 Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"forloop_test" end time: Mar 02 21:37 +06
+"forloop_test" end time: Mar 03 01:15 +06
 "forloop_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-10/16 Testing: datetime_regex_test
-10/16 Test: datetime_regex_test
+10/17 Testing: datetime_regex_test
+10/17 Test: datetime_regex_test
 Command: "/home/DATA/CODE/code/Xell/build/datetime_regex_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"datetime_regex_test" start time: Mar 02 21:37 +06
+"datetime_regex_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 ===== DateTime & Regex Builtin Tests =====
@@ -1274,18 +1274,18 @@ Output:
 
 ===== Results: 73 passed, 0 failed =====
 <end of output>
-Test time =   0.05 sec
+Test time =   0.06 sec
 ----------------------------------------------------------
 Test Passed.
-"datetime_regex_test" end time: Mar 02 21:37 +06
+"datetime_regex_test" end time: Mar 03 01:15 +06
 "datetime_regex_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-11/16 Testing: fs_test
-11/16 Test: fs_test
+11/17 Testing: fs_test
+11/17 Test: fs_test
 Command: "/home/DATA/CODE/code/Xell/build/fs_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"fs_test" start time: Mar 02 21:37 +06
+"fs_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 ===== File System Builtin Tests =====
@@ -1393,18 +1393,18 @@ Output:
 
 ===== Results: 77 passed, 0 failed =====
 <end of output>
-Test time =   0.06 sec
+Test time =   0.07 sec
 ----------------------------------------------------------
 Test Passed.
-"fs_test" end time: Mar 02 21:37 +06
+"fs_test" end time: Mar 03 01:15 +06
 "fs_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-12/16 Testing: textproc_test
-12/16 Test: textproc_test
+12/17 Testing: textproc_test
+12/17 Test: textproc_test
 Command: "/home/DATA/CODE/code/Xell/build/textproc_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"textproc_test" start time: Mar 02 21:37 +06
+"textproc_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 ===== Text Processing Builtin Tests =====
@@ -1500,15 +1500,15 @@ Output:
 Test time =   0.04 sec
 ----------------------------------------------------------
 Test Passed.
-"textproc_test" end time: Mar 02 21:37 +06
+"textproc_test" end time: Mar 03 01:15 +06
 "textproc_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-13/16 Testing: process_sysmon_test
-13/16 Test: process_sysmon_test
+13/17 Testing: process_sysmon_test
+13/17 Test: process_sysmon_test
 Command: "/home/DATA/CODE/code/Xell/build/process_sysmon_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"process_sysmon_test" start time: Mar 02 21:37 +06
+"process_sysmon_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 hello
@@ -1598,23 +1598,23 @@ hi
 
 ===== Results: 61 passed, 0 failed =====
 <end of output>
-Test time =   0.37 sec
+Test time =   0.36 sec
 ----------------------------------------------------------
 Test Passed.
-"process_sysmon_test" end time: Mar 02 21:37 +06
+"process_sysmon_test" end time: Mar 03 01:15 +06
 "process_sysmon_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-14/16 Testing: network_archive_test
-14/16 Test: network_archive_test
+14/17 Testing: network_archive_test
+14/17 Test: network_archive_test
 Command: "/home/DATA/CODE/code/Xell/build/network_archive_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"network_archive_test" start time: Mar 02 21:37 +06
+"network_archive_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
   adding: ziptest.txt (stored 0%)
-Archive:  /tmp/xell_netarch_test_29689380159275/test.zip
- extracting: /tmp/xell_netarch_test_29689380159275/zip_extract/ziptest.txt  
+Archive:  /tmp/xell_netarch_test_42764210761439/test.zip
+ extracting: /tmp/xell_netarch_test_42764210761439/zip_extract/ziptest.txt  
 tar: Removing leading `/' from member names
 ===== Network & Archive Builtin Tests =====
 
@@ -1717,18 +1717,18 @@ tar: Removing leading `/' from member names
 
 ===== Results: 73 passed, 0 failed =====
 <end of output>
-Test time =  11.71 sec
+Test time =  10.74 sec
 ----------------------------------------------------------
 Test Passed.
-"network_archive_test" end time: Mar 02 21:37 +06
-"network_archive_test" time elapsed: 00:00:11
+"network_archive_test" end time: Mar 03 01:15 +06
+"network_archive_test" time elapsed: 00:00:10
 ----------------------------------------------------------
 
-15/16 Testing: json_shell_test
-15/16 Test: json_shell_test
+15/17 Testing: json_shell_test
+15/17 Test: json_shell_test
 Command: "/home/DATA/CODE/code/Xell/build/json_shell_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"json_shell_test" start time: Mar 02 21:37 +06
+"json_shell_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 === JSON Parse Tests ===
@@ -1858,15 +1858,15 @@ test
 Test time =   0.09 sec
 ----------------------------------------------------------
 Test Passed.
-"json_shell_test" end time: Mar 02 21:37 +06
+"json_shell_test" end time: Mar 03 01:15 +06
 "json_shell_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-16/16 Testing: module_test
-16/16 Test: module_test
+16/17 Testing: module_test
+16/17 Test: module_test
 Command: "/home/DATA/CODE/code/Xell/build/module_test"
 Directory: /home/DATA/CODE/code/Xell/build
-"module_test" start time: Mar 02 21:37 +06
+"module_test" start time: Mar 03 01:15 +06
 Output:
 ----------------------------------------------------------
 ═══════════════════════════════════════════
@@ -1950,11 +1950,140 @@ Output:
   Results: 49/49 passed
 ═══════════════════════════════════════════
 <end of output>
-Test time =   0.03 sec
+Test time =   0.04 sec
 ----------------------------------------------------------
 Test Passed.
-"module_test" end time: Mar 02 21:37 +06
+"module_test" end time: Mar 03 01:15 +06
 "module_test" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Mar 02 21:37 +06
+17/17 Testing: casting_overload_test
+17/17 Test: casting_overload_test
+Command: "/home/DATA/CODE/code/Xell/build/casting_overload_test"
+Directory: /home/DATA/CODE/code/Xell/build
+"casting_overload_test" start time: Mar 03 01:15 +06
+Output:
+----------------------------------------------------------
+============================================
+  Type Casting & Overloading Tests
+============================================
+
+===== Int() Conversion =====
+  PASS: Int from float
+  PASS: Int from string
+  PASS: Int from bool true
+  PASS: Int from bool false
+  PASS: Int from int (passthrough)
+  PASS: Int from complex (real only)
+  PASS: Int from invalid string → error
+  PASS: Int from complex with imag → error
+
+===== Float() Conversion =====
+  PASS: Float from int
+  PASS: Float from string
+  PASS: Float from bool
+  PASS: Float from float (passthrough)
+  PASS: Float from invalid string → error
+
+===== String() Conversion =====
+  PASS: String from int
+  PASS: String from float
+  PASS: String from bool
+  PASS: String from list
+  PASS: String from none
+
+===== Complex() Conversion =====
+  PASS: Complex from int
+  PASS: Complex from two args
+  PASS: Complex from float
+
+===== Bool() Conversion =====
+  PASS: Bool from int 0
+  PASS: Bool from int 1
+  PASS: Bool from empty string
+  PASS: Bool from non-empty string
+  PASS: Bool from empty list
+  PASS: Bool from non-empty list
+  PASS: Bool from none
+
+===== number() and auto() Conversion =====
+  PASS: number from string int
+  PASS: number from string float
+  PASS: number from bool
+  PASS: number from invalid string → error
+  PASS: auto from string int
+  PASS: auto from string float
+  PASS: auto from string bool
+  PASS: auto from string none
+  PASS: auto from non-string passthrough
+  PASS: auto from plain string stays string
+
+===== List() Conversion =====
+  PASS: List from tuple
+  PASS: List from set
+  PASS: List from string (comma separated)
+  PASS: List from number (wraps in list)
+  PASS: List from list passthrough
+
+===== Tuple() Conversion =====
+  PASS: Tuple from list
+  PASS: Tuple from string
+  PASS: Tuple from number
+
+===== Set() and iSet() Conversion =====
+  PASS: Set from list
+  PASS: Set from tuple
+  PASS: Set from string
+  PASS: iSet from list (frozen)
+  PASS: iSet from list (immutable)
+
+===== ~List() Smart-Cast =====
+  PASS: ~List from string with mixed types
+  PASS: ~List values are correct
+  PASS: ~List with none detection
+  PASS: ~List with nested list in string
+  PASS: ~List from existing list auto-casts string elements
+  PASS: regular List from same string keeps strings
+
+===== ~Tuple(), ~Set(), ~iSet() Smart-Cast =====
+  PASS: ~Tuple from string
+  PASS: ~Set from string
+  PASS: ~iSet from string
+
+===== Count-Based Overloading =====
+  PASS: overload: 0, 1, 2 params
+  PASS: overload: different return values
+  PASS: overload: wrong arity → error
+
+===== Type-Based Overloading =====
+  PASS: type overload: str vs int
+  PASS: type overload: str vs int vs bool
+  PASS: type overload: no match → error
+
+===== Mixed Count + Type Overloading =====
+  PASS: mixed: count + type
+  PASS: mixed: type-specific + dynamic 3-param
+  PASS: type overload resolution: type match beats dynamic
+
+===== Overloading Edge Cases =====
+  PASS: redefine function (same arity, no types) → overwrite
+  PASS: conflict: dynamic + typed at same arity → error
+  PASS: overload with two type params
+  PASS: overload with list type
+  PASS: overload with float type
+
+===== Colon Type Annotations (backward compat) =====
+  PASS: colon annotation still works
+
+============================================
+  Total: 75  |  Passed: 75  |  Failed: 0
+============================================
+<end of output>
+Test time =   0.05 sec
+----------------------------------------------------------
+Test Passed.
+"casting_overload_test" end time: Mar 03 01:15 +06
+"casting_overload_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 03 01:15 +06

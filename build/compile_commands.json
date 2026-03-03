@@ -142,5 +142,11 @@
   "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/module_test.dir/test/module_test.cpp.o -c /home/DATA/CODE/code/Xell/test/module_test.cpp",
   "file": "/home/DATA/CODE/code/Xell/test/module_test.cpp",
   "output": "CMakeFiles/module_test.dir/test/module_test.cpp.o"
+},
+{
+  "directory": "/home/DATA/CODE/code/Xell/build",
+  "command": "/usr/bin/c++  -I/home/DATA/CODE/code/Xell/src -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/casting_overload_test.dir/test/casting_overload_test.cpp.o -c /home/DATA/CODE/code/Xell/test/casting_overload_test.cpp",
+  "file": "/home/DATA/CODE/code/Xell/test/casting_overload_test.cpp",
+  "output": "CMakeFiles/casting_overload_test.dir/test/casting_overload_test.cpp.o"
 }
 ]

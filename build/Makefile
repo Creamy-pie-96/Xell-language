@@ -405,6 +405,19 @@ module_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/module_test.dir/build.make CMakeFiles/module_test.dir/build
 .PHONY : module_test/fast
 
+#=============================================================================
+# Target rules for targets named casting_overload_test
+
+# Build rule for target.
+casting_overload_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 casting_overload_test
+.PHONY : casting_overload_test
+
+# fast build rule for target.
+casting_overload_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/casting_overload_test.dir/build.make CMakeFiles/casting_overload_test.dir/build
+.PHONY : casting_overload_test/fast
+
 src/interpreter/interpreter.o: src/interpreter/interpreter.cpp.o
 .PHONY : src/interpreter/interpreter.o
 
@@ -644,6 +657,30 @@ test/builtin_test.s: test/builtin_test.cpp.s
 test/builtin_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/builtin_test.dir/build.make CMakeFiles/builtin_test.dir/test/builtin_test.cpp.s
 .PHONY : test/builtin_test.cpp.s
+
+test/casting_overload_test.o: test/casting_overload_test.cpp.o
+.PHONY : test/casting_overload_test.o
+
+# target to build an object file
+test/casting_overload_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/casting_overload_test.dir/build.make CMakeFiles/casting_overload_test.dir/test/casting_overload_test.cpp.o
+.PHONY : test/casting_overload_test.cpp.o
+
+test/casting_overload_test.i: test/casting_overload_test.cpp.i
+.PHONY : test/casting_overload_test.i
+
+# target to preprocess a source file
+test/casting_overload_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/casting_overload_test.dir/build.make CMakeFiles/casting_overload_test.dir/test/casting_overload_test.cpp.i
+.PHONY : test/casting_overload_test.cpp.i
+
+test/casting_overload_test.s: test/casting_overload_test.cpp.s
+.PHONY : test/casting_overload_test.s
+
+# target to generate assembly for a file
+test/casting_overload_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/casting_overload_test.dir/build.make CMakeFiles/casting_overload_test.dir/test/casting_overload_test.cpp.s
+.PHONY : test/casting_overload_test.cpp.s
 
 test/datetime_regex_test.o: test/datetime_regex_test.cpp.o
 .PHONY : test/datetime_regex_test.o
@@ -996,6 +1033,7 @@ help:
 	@echo "... test"
 	@echo "... bring_test"
 	@echo "... builtin_test"
+	@echo "... casting_overload_test"
 	@echo "... datetime_regex_test"
 	@echo "... error_test"
 	@echo "... forloop_test"
@@ -1042,6 +1080,9 @@ help:
 	@echo "... test/builtin_test.o"
 	@echo "... test/builtin_test.i"
 	@echo "... test/builtin_test.s"
+	@echo "... test/casting_overload_test.o"
+	@echo "... test/casting_overload_test.i"
+	@echo "... test/casting_overload_test.s"
 	@echo "... test/datetime_regex_test.o"
 	@echo "... test/datetime_regex_test.i"
 	@echo "... test/datetime_regex_test.s"

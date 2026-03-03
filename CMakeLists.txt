@@ -95,3 +95,7 @@ add_test(NAME json_shell_test COMMAND json_shell_test)
 add_executable(module_test test/module_test.cpp)
 target_link_libraries(module_test xell_lib)
 add_test(NAME module_test COMMAND module_test)
+
+add_executable(casting_overload_test test/casting_overload_test.cpp)
+target_link_libraries(casting_overload_test xell_lib)
+add_test(NAME casting_overload_test COMMAND casting_overload_test)

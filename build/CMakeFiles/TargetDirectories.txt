@@ -16,6 +16,7 @@
 /home/DATA/CODE/code/Xell/build/CMakeFiles/network_archive_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/json_shell_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/module_test.dir
+/home/DATA/CODE/code/Xell/build/CMakeFiles/casting_overload_test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/test.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/edit_cache.dir
 /home/DATA/CODE/code/Xell/build/CMakeFiles/rebuild_cache.dir

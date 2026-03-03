@@ -799,6 +799,14 @@ namespace xell
                 continue;
             }
 
+            // ~ (smart-cast prefix)
+            if (c == '~')
+            {
+                tokens.emplace_back(TokenType::TILDE, "~", tokenLine);
+                advance();
+                continue;
+            }
+
             // Unknown character
             throw LexerError("Unexpected character '" + std::string(1, c) + "'", tokenLine);
         }

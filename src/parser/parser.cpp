@@ -74,7 +74,7 @@ namespace xell
 
     bool Parser::canStartPrimary(TokenType type) const
     {
-        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::BYTE_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::LESS || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS || type == TokenType::YIELD || type == TokenType::AWAIT;
+        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::BYTE_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::LESS || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS || type == TokenType::YIELD || type == TokenType::AWAIT || type == TokenType::TILDE;
     }
 
     // ============================================================
@@ -592,25 +592,79 @@ namespace xell
             }
             else
             {
-                params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name").value);
-                // Check for type annotation: param: Type
-                if (check(TokenType::COLON))
+                // Check for typed parameter: Type(name) syntax
+                // If IDENTIFIER followed by LPAREN, it could be Type(name)
+                if (check(TokenType::IDENTIFIER) && peekToken(1).type == TokenType::LPAREN)
                 {
-                    // Lookahead: is this a type annotation (identifier) or a block start?
-                    // If next token after colon is an identifier followed by , or ) or = → type annotation
-                    if (peekToken(1).type == TokenType::IDENTIFIER)
+                    // Lookahead: IDENTIFIER LPAREN IDENTIFIER RPAREN → Type(name)
+                    size_t savedPos = pos_;
+                    std::string potentialType = current().value;
+                    advance(); // consume potential type name
+                    advance(); // consume (
+                    if (check(TokenType::IDENTIFIER))
                     {
-                        advance(); // consume :
-                        paramTypes.push_back(consume(TokenType::IDENTIFIER, "Expected type name").value);
+                        std::string paramName = current().value;
+                        advance(); // consume param name
+                        if (check(TokenType::RPAREN))
+                        {
+                            advance(); // consume )
+                            params.push_back(paramName);
+                            paramTypes.push_back(potentialType);
+                        }
+                        else
+                        {
+                            // Not Type(name), backtrack
+                            pos_ = savedPos;
+                            params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name").value);
+                            // Check for colon type annotation
+                            if (check(TokenType::COLON) && peekToken(1).type == TokenType::IDENTIFIER)
+                            {
+                                advance(); // consume :
+                                paramTypes.push_back(consume(TokenType::IDENTIFIER, "Expected type name").value);
+                            }
+                            else
+                            {
+                                paramTypes.push_back("");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Not Type(name), backtrack
+                        pos_ = savedPos;
+                        params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name").value);
+                        if (check(TokenType::COLON) && peekToken(1).type == TokenType::IDENTIFIER)
+                        {
+                            advance();
+                            paramTypes.push_back(consume(TokenType::IDENTIFIER, "Expected type name").value);
+                        }
+                        else
+                        {
+                            paramTypes.push_back("");
+                        }
+                    }
+                }
+                else
+                {
+                    params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name").value);
+                    // Check for type annotation: param: Type
+                    if (check(TokenType::COLON))
+                    {
+                        // Lookahead: is this a type annotation (identifier) or a block start?
+                        if (peekToken(1).type == TokenType::IDENTIFIER)
+                        {
+                            advance(); // consume :
+                            paramTypes.push_back(consume(TokenType::IDENTIFIER, "Expected type name").value);
+                        }
+                        else
+                        {
+                            paramTypes.push_back(""); // no annotation
+                        }
                     }
                     else
                     {
                         paramTypes.push_back(""); // no annotation
                     }
-                }
-                else
-                {
-                    paramTypes.push_back(""); // no annotation
                 }
                 // Check for default value
                 if (check(TokenType::EQUAL))
@@ -634,23 +688,73 @@ namespace xell
                         isVariadic = true;
                         break; // variadic must be last
                     }
-                    params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name after ','").value);
-                    // Check for type annotation
-                    if (check(TokenType::COLON))
+                    // Check for typed parameter: Type(name) syntax
+                    if (check(TokenType::IDENTIFIER) && peekToken(1).type == TokenType::LPAREN)
                     {
-                        if (peekToken(1).type == TokenType::IDENTIFIER)
+                        size_t savedPos = pos_;
+                        std::string potentialType = current().value;
+                        advance(); // consume potential type name
+                        advance(); // consume (
+                        if (check(TokenType::IDENTIFIER))
                         {
-                            advance(); // consume :
-                            paramTypes.push_back(consume(TokenType::IDENTIFIER, "Expected type name").value);
+                            std::string paramName = current().value;
+                            advance(); // consume param name
+                            if (check(TokenType::RPAREN))
+                            {
+                                advance(); // consume )
+                                params.push_back(paramName);
+                                paramTypes.push_back(potentialType);
+                            }
+                            else
+                            {
+                                pos_ = savedPos;
+                                params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name after ','").value);
+                                if (check(TokenType::COLON) && peekToken(1).type == TokenType::IDENTIFIER)
+                                {
+                                    advance();
+                                    paramTypes.push_back(consume(TokenType::IDENTIFIER, "Expected type name").value);
+                                }
+                                else
+                                {
+                                    paramTypes.push_back("");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            pos_ = savedPos;
+                            params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name after ','").value);
+                            if (check(TokenType::COLON) && peekToken(1).type == TokenType::IDENTIFIER)
+                            {
+                                advance();
+                                paramTypes.push_back(consume(TokenType::IDENTIFIER, "Expected type name").value);
+                            }
+                            else
+                            {
+                                paramTypes.push_back("");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter name after ','").value);
+                        // Check for type annotation
+                        if (check(TokenType::COLON))
+                        {
+                            if (peekToken(1).type == TokenType::IDENTIFIER)
+                            {
+                                advance(); // consume :
+                                paramTypes.push_back(consume(TokenType::IDENTIFIER, "Expected type name").value);
+                            }
+                            else
+                            {
+                                paramTypes.push_back("");
+                            }
                         }
                         else
                         {
                             paramTypes.push_back("");
                         }
-                    }
-                    else
-                    {
-                        paramTypes.push_back("");
                     }
                     if (check(TokenType::EQUAL))
                     {
@@ -1302,6 +1406,27 @@ namespace xell
             advance(); // consume ...
             auto operand = parsePrimary();
             return std::make_unique<SpreadExpr>(std::move(operand), ln);
+        }
+
+        // Smart-cast prefix: ~List(args), ~Tuple(args), etc.
+        if (check(TokenType::TILDE))
+        {
+            advance(); // consume ~
+            if (check(TokenType::IDENTIFIER))
+            {
+                std::string name = "~" + current().value;
+                advance(); // consume identifier
+                if (check(TokenType::LPAREN))
+                {
+                    advance(); // consume (
+                    auto args = parseArgList();
+                    consume(TokenType::RPAREN, "Expected ')' after smart-cast arguments");
+                    return parsePostfix(std::make_unique<CallExpr>(name, std::move(args), ln));
+                }
+                // ~name without parens → treat as identifier (future bitwise NOT)
+                throw ParseError("Expected '(' after '~" + name.substr(1) + "'", ln);
+            }
+            throw ParseError("Expected identifier after '~'", ln);
         }
 
         // Grouped expression or lambda: ( expr ) or (a, b) => expr

@@ -161,6 +161,12 @@ namespace xell
         bool isGenerator = false; // true if function contains yield
         bool isAsync = false;     // true for async fn
 
+        // Type annotations for overload resolution (e.g. "str", "int", "bool")
+        std::vector<std::string> typeAnnotations; // one per param, empty = dynamic
+
+        // Overloaded variants of this function (same name, different signature)
+        std::vector<XObject> overloads;
+
         XFunction(std::string name, std::vector<std::string> params,
                   const std::vector<std::unique_ptr<Stmt>> *body,
                   Environment *closureEnv = nullptr)

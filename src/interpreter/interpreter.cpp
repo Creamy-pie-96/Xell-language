@@ -655,15 +655,89 @@ namespace xell
         fnRef.variadicName = node->variadicName;
 
         // Check if this function is a generator (contains yield statements)
-        // We do a simple AST scan
         fnRef.isGenerator = containsYield(node->body);
 
         // Async flag
         fnRef.isAsync = node->isAsync;
 
-        // Store type annotations for runtime checking
-        // (paramTypes and returnType are stored in the FnDef AST node and
-        //  can be accessed via the AST pointer in the function)
+        // Store type annotations for overload resolution
+        fnRef.typeAnnotations = node->paramTypes;
+
+        // ---- Overload detection ----
+        // Check if a function with this name already exists — if so, build overload set
+        if (currentEnv_->has(node->name))
+        {
+            try
+            {
+                XObject existing = currentEnv_->get(node->name, node->line);
+                if (existing.isFunction())
+                {
+                    const XFunction &existingFn = existing.asFunction();
+
+                    // Check if the new function has type annotations
+                    bool newHasTypes = false;
+                    for (const auto &t : fnRef.typeAnnotations)
+                        if (!t.empty()) { newHasTypes = true; break; }
+
+                    bool existingHasTypes = false;
+                    for (const auto &t : existingFn.typeAnnotations)
+                        if (!t.empty()) { existingHasTypes = true; break; }
+
+                    size_t newArity = fnRef.params.size();
+                    size_t existingArity = existingFn.params.size();
+
+                    // Same arity, both dynamic (no types) → just overwrite (redefine)
+                    if (newArity == existingArity && !newHasTypes && !existingHasTypes)
+                    {
+                        // Normal redefinition — no overloading
+                    }
+                    else
+                    {
+                        // Validation: can't add typed overload if dynamic exists at same arity
+                        auto checkConflict = [&](const XFunction &dynFn, const XFunction &typedFn)
+                        {
+                            bool dynHasT = false;
+                            for (const auto &t : dynFn.typeAnnotations)
+                                if (!t.empty()) { dynHasT = true; break; }
+                            bool typedHasT = false;
+                            for (const auto &t : typedFn.typeAnnotations)
+                                if (!t.empty()) { typedHasT = true; break; }
+
+                            if (dynFn.params.size() == typedFn.params.size() &&
+                                !dynHasT && typedHasT)
+                            {
+                                throw ParseError("Cannot add type-specific overload for '" + node->name +
+                                    "' — a dynamic overload with " + std::to_string(dynFn.params.size()) +
+                                    " param(s) already exists", node->line);
+                            }
+                        };
+
+                        // Check existing function against new
+                        checkConflict(existingFn, fnRef);
+                        checkConflict(fnRef, existingFn);
+
+                        // Also check existing overloads
+                        for (const auto &ovl : existingFn.overloads)
+                        {
+                            if (ovl.isFunction())
+                            {
+                                checkConflict(ovl.asFunction(), fnRef);
+                                checkConflict(fnRef, ovl.asFunction());
+                            }
+                        }
+
+                        // Build overload set: collect existing overloads + existing fn
+                        for (const auto &ovl : existingFn.overloads)
+                            fnRef.overloads.push_back(ovl);
+                        fnRef.overloads.push_back(existing);
+                    }
+                }
+            }
+            catch (const UndefinedVariableError &)
+            {
+                // Variable exists but not accessible — proceed normally
+            }
+        }
 
         currentEnv_->set(node->name, std::move(fn));
     }
@@ -1205,6 +1279,66 @@ namespace xell
         return XObject::makeFloat(oldVal); // postfix returns old value
     }
 
+    // ---- Overload resolution helpers -----------------------------------------
+
+    static bool matchesType(const XObject &obj, const std::string &typeName)
+    {
+        if (typeName.empty()) return true; // no annotation = accepts anything
+        if (typeName == "str" || typeName == "string" || typeName == "String") return obj.isString();
+        if (typeName == "int" || typeName == "Int") return obj.isInt();
+        if (typeName == "float" || typeName == "Float") return obj.isFloat();
+        if (typeName == "bool") return obj.isBool();
+        if (typeName == "list" || typeName == "List") return obj.isList();
+        if (typeName == "map" || typeName == "Map") return obj.isMap();
+        if (typeName == "fn" || typeName == "func") return obj.isFunction();
+        if (typeName == "set" || typeName == "Set") return obj.isSet();
+        if (typeName == "tuple" || typeName == "Tuple") return obj.isTuple();
+        if (typeName == "complex" || typeName == "Complex") return obj.isComplex();
+        if (typeName == "num" || typeName == "number") return obj.isNumber();
+        if (typeName == "none") return obj.isNone();
+        if (typeName == "bytes") return obj.isBytes();
+        if (typeName == "frozen_set" || typeName == "iset" || typeName == "iSet") return obj.isFrozenSet();
+        return false; // unknown type name
+    }
+
+    static bool fnHasTypeAnnotations(const XFunction &fn)
+    {
+        for (const auto &t : fn.typeAnnotations)
+            if (!t.empty()) return true;
+        return false;
+    }
+
+    static bool typesMatchFn(const XFunction &fn, const std::vector<XObject> &args)
+    {
+        for (size_t i = 0; i < fn.params.size() && i < args.size(); i++)
+        {
+            if (i < fn.typeAnnotations.size() && !fn.typeAnnotations[i].empty())
+            {
+                if (!matchesType(args[i], fn.typeAnnotations[i]))
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    static size_t countRequiredParams(const XFunction &fn)
+    {
+        size_t minReq = 0;
+        for (size_t i = 0; i < fn.params.size(); i++)
+        {
+            if (i >= fn.defaults.size() || fn.defaults[i] == nullptr)
+                minReq = i + 1;
+        }
+        return minReq;
+    }
+
+    static bool arityMatches(const XFunction &fn, size_t argCount)
+    {
+        size_t minReq = countRequiredParams(fn);
+        size_t maxReq = fn.isVariadic ? SIZE_MAX : fn.params.size();
+        return argCount >= minReq && argCount <= maxReq;
+    }
+
     // ---- Function calls ----------------------------------------------------
 
     XObject Interpreter::evalCall(const CallExpr *node)
@@ -1235,7 +1369,56 @@ namespace xell
         {
             XObject fnObj = currentEnv_->get(node->callee, node->line);
             if (fnObj.isFunction())
-                return callUserFn(fnObj.asFunction(), args, node->line);
+            {
+                const XFunction &fn = fnObj.asFunction();
+                // If this function has overloads, resolve the best match
+                if (!fn.overloads.empty())
+                {
+                    // Collect all candidates
+                    std::vector<const XFunction *> candidates;
+                    candidates.push_back(&fn);
+                    for (const auto &ovl : fn.overloads)
+                    {
+                        if (ovl.isFunction())
+                            candidates.push_back(&ovl.asFunction());
+                    }
+
+                    // Resolution: exact type match first, then arity-only (dynamic)
+                    const XFunction *typeMatch = nullptr;
+                    const XFunction *arityMatch = nullptr;
+
+                    for (const auto *cand : candidates)
+                    {
+                        if (!arityMatches(*cand, args.size()))
+                            continue;
+
+                        if (fnHasTypeAnnotations(*cand))
+                        {
+                            if (typesMatchFn(*cand, args))
+                            {
+                                typeMatch = cand;
+                                break; // first exact type match wins
+                            }
+                        }
+                        else
+                        {
+                            if (!arityMatch)
+                                arityMatch = cand; // first arity match (dynamic)
+                        }
+                    }
+
+                    if (typeMatch)
+                        return callUserFn(*typeMatch, args, node->line);
+                    if (arityMatch)
+                        return callUserFn(*arityMatch, args, node->line);
+
+                    // No match found
+                    throw TypeError("no matching overload for '" + node->callee +
+                                    "' with " + std::to_string(args.size()) + " argument(s)",
+                                    node->line);
+                }
+                return callUserFn(fn, args, node->line);
+            }
         }
 
         auto bit = builtins_.find(node->callee);
@@ -1259,7 +1442,39 @@ namespace xell
         if (!fnObj.isFunction())
             throw TypeError("'" + node->callee + "' is not a function", node->line);
 
-        return callUserFn(fnObj.asFunction(), args, node->line);
+        const XFunction &fn = fnObj.asFunction();
+        if (!fn.overloads.empty())
+        {
+            std::vector<const XFunction *> candidates;
+            candidates.push_back(&fn);
+            for (const auto &ovl : fn.overloads)
+                if (ovl.isFunction())
+                    candidates.push_back(&ovl.asFunction());
+
+            const XFunction *typeMatch = nullptr;
+            const XFunction *arityMatch = nullptr;
+            for (const auto *cand : candidates)
+            {
+                if (!arityMatches(*cand, args.size()))
+                    continue;
+                if (fnHasTypeAnnotations(*cand))
+                {
+                    if (typesMatchFn(*cand, args))
+                    { typeMatch = cand; break; }
+                }
+                else
+                {
+                    if (!arityMatch) arityMatch = cand;
+                }
+            }
+            if (typeMatch) return callUserFn(*typeMatch, args, node->line);
+            if (arityMatch) return callUserFn(*arityMatch, args, node->line);
+            throw TypeError("no matching overload for '" + node->callee +
+                            "' with " + std::to_string(args.size()) + " argument(s)",
+                            node->line);
+        }
+
+        return callUserFn(fn, args, node->line);
     }
 
     XObject Interpreter::callUserFn(const XFunction &fn, std::vector<XObject> &args, int line)

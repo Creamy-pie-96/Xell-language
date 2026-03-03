@@ -51,6 +51,7 @@
 #include "builtins_archive.hpp"
 #include "builtins_json.hpp"
 #include "builtins_shell.hpp"
+#include "builtins_casting.hpp"
 #include "../interpreter/shell_state.hpp"
 
 namespace xell
@@ -84,6 +85,7 @@ namespace xell
         registerArchiveBuiltins(t);
         registerJSONBuiltins(t);
         registerShellBuiltins(t, output);
+        registerCastingBuiltins(t);
     }
 
     // ---- Module-aware registration (used by top-level interpreter) ----------
@@ -155,6 +157,8 @@ namespace xell
                   { registerGeneratorBuiltins(t); });
         regModule("shell", false, [&](BuiltinTable &t)
                   { registerShellBuiltins(t, output); });
+        regModule("casting", false, [&](BuiltinTable &t)
+                  { registerCastingBuiltins(t); });
 
         // ── Tier 2: require `bring * from "module"` ────────────────────
 

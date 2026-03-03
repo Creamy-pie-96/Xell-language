@@ -189,7 +189,7 @@ class Dog inherits Animal :
     breed = ""
 
     fn __init__(self, name, breed) :
-        parent.__init__(name, "Woof")
+        parent->__init__(name, "Woof")
         self->breed = breed
     ;
 
@@ -217,11 +217,11 @@ class Circle inherits Shape, Geometry implements Drawable, Serializable :
 
 ```xell
 fn __init__(self, name) :
-    parent.__init__(name, "Woof")    # calls Animal.__init__(self, name, "Woof")
+    parent->__init__(name, "Woof")    # calls Animal.__init__(self, name, "Woof")
 ;
 
 fn speak(self) :
-    parent.speak()                   # call parent's version first
+    parent->speak()                   # call parent's version first
     print "and also fetches!"
 ;
 ```
@@ -234,7 +234,7 @@ fn speak(self) :
 | Multiple inheritance     | ✅ Allowed                          | `inherits A, B`                                      |
 | Interface implementation | `implements`                       | Separate from inheritance — distinct concept         |
 | Parent call keyword      | `parent`                           | Explicit — no magic method resolution                |
-| Parent call syntax       | `parent.__init__(args)`            | Dot notation — `self` is implicit                    |
+| Parent call syntax       | `parent->__init__(args)`            | Dot notation — `self` is implicit                    |
 | `is` check               | Works with full inheritance chain  | `d is Animal` → `true`                               |
 | Method override          | Implicit (just redefine)           | No `override` keyword needed                         |
 
@@ -545,7 +545,7 @@ u->log("created")              # [User] created
 ```xell
 class Dog inherits Animal with Loggable, Serializable implements Drawable :
     fn __init__(self, name) :
-        parent.__init__(name, "Woof")
+        parent->__init__(name, "Woof")
         self->log("Dog created")
     ;
 ;
@@ -909,7 +909,7 @@ class Dog inherits Animal implements Trainable :
     breed = ""
 
     fn __init__(self, name, breed) :
-        parent.__init__(name, "Woof")
+        parent->__init__(name, "Woof")
         self->breed = breed
     ;
 
@@ -1115,7 +1115,7 @@ print(a)                        # (4, 6)
 - [ ] Parse `inherits A, B` (multiple)
 - [ ] Parse `implements X, Y`
 - [ ] Implement field + method inheritance (C3 MRO for multiple)
-- [ ] Implement `parent.__init__(args)` resolution
+- [ ] Implement `parent->__init__(args)` resolution
 - [ ] Implement `instance is ClassName` check up chain
 - [ ] Method override resolution
 - [ ] Tests
@@ -1384,7 +1384,7 @@ Side-by-side comparison of every decision that changed between the original draf
 | 20 | **Named arg syntax** | `Point(x = 10, y = 20)` (equals sign) | `Point(x: 10, y: 20)` (colon) |
 | 21 | **`of` keyword role** | Inheritance keyword — `class Dog of Animal` | Field-read alias — `name of user` = `user->name` |
 | 22 | **Parent call keyword** | `super` | `parent` |
-| 23 | **Parent call syntax** | `super->init(self, name)` — explicit `self`, arrow notation | `parent.__init__(name)` — `self` is implicit, dot notation |
+| 23 | **Parent call syntax** | `super->init(self, name)` — explicit `self`, arrow notation | `parent->__init__(name)` — `self` is implicit, dot notation |
 | 24 | **Function overloading** | Not planned | ✅ Count-based (always) + type-based (`str(p)`, `int(p)`, etc.) |
 | 25 | **`__hash__` detail** | Not detailed | User defines logic, calls built-in (`hash_int`, `hash_sha256`, etc.) |
 | 26 | **MRO for multiple inheritance** | N/A (single only) | C3 linearization (left-to-right, depth-first) |
