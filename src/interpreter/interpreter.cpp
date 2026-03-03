@@ -589,6 +589,7 @@ namespace xell
                         state->started = true;
                         state->phase = GeneratorState::Phase::RUNNING;
                         lock.unlock();
+                        state->cv.notify_all(); // wake worker thread
                         lock.lock();
                     }
                     else
@@ -1585,8 +1586,10 @@ namespace xell
 
     XObject Interpreter::evalCall(const CallExpr *node)
     {
-        // Evaluate arguments, handling spread
+        // Evaluate arguments, handling spread and named (keyword) args
         std::vector<XObject> args;
+        std::vector<std::pair<std::string, XObject>> namedArgs;
+        bool hasNamedArgs = false;
         for (const auto &arg : node->args)
         {
             if (auto *spread = dynamic_cast<const SpreadExpr *>(arg.get()))
@@ -1601,14 +1604,19 @@ namespace xell
             }
             else if (auto *named = dynamic_cast<const NamedArgExpr *>(arg.get()))
             {
-                // Named args: evaluate the value (name is used by struct construction from raw AST)
-                args.push_back(eval(named->value.get()));
+                // Collect named args separately for keyword argument matching
+                namedArgs.emplace_back(named->name, eval(named->value.get()));
+                hasNamedArgs = true;
             }
             else
             {
+                if (hasNamedArgs)
+                    throw TypeError("positional argument follows keyword argument", node->line);
                 args.push_back(eval(arg.get()));
             }
         }
+        const std::vector<std::pair<std::string, XObject>> *namedArgsPtr =
+            hasNamedArgs ? &namedArgs : nullptr;
 
         // Check builtins first, BUT user-defined functions take precedence
         // (allows shadowing builtins, like Python)
@@ -1655,16 +1663,16 @@ namespace xell
                     }
 
                     if (typeMatch)
-                        return callUserFn(*typeMatch, args, node->line);
+                        return callUserFn(*typeMatch, args, node->line, nullptr, namedArgsPtr);
                     if (arityMatch)
-                        return callUserFn(*arityMatch, args, node->line);
+                        return callUserFn(*arityMatch, args, node->line, nullptr, namedArgsPtr);
 
                     // No match found
                     throw TypeError("no matching overload for '" + node->callee +
                                         "' with " + std::to_string(args.size()) + " argument(s)",
                                     node->line);
                 }
-                return callUserFn(fn, args, node->line);
+                return callUserFn(fn, args, node->line, nullptr, namedArgsPtr);
             }
 
             // ---- Struct/Class construction: Name(args...) ----
@@ -1717,7 +1725,7 @@ namespace xell
                             parentDef = initOwner->parents[0];
                         auto *savedMethodClass = executingMethodClass_;
                         executingMethodClass_ = initOwner;
-                        callUserFn(initMethodInfo->fnObject.asFunction(), initArgs, node->line, parentDef);
+                        callUserFn(initMethodInfo->fnObject.asFunction(), initArgs, node->line, parentDef, namedArgsPtr);
                         executingMethodClass_ = savedMethodClass;
                         // @immutable: freeze instance after __init__ completes
                         if (def.isImmutable)
@@ -1732,6 +1740,12 @@ namespace xell
                     else
                     {
                         // No __init__: fall through to struct-style positional/named construction
+                        // Merge named arg values into args for raw AST field matching
+                        if (hasNamedArgs)
+                        {
+                            for (auto &[n, v] : namedArgs)
+                                args.push_back(std::move(v));
+                        }
                         // Check for named arguments
                         bool hasNamed = false;
                         for (const auto &rawArg : node->args)
@@ -1783,6 +1797,13 @@ namespace xell
                     // Struct construction (no __init__): Initialize all fields to their defaults
                     for (const auto &fi : def.fields)
                         inst.fields[fi.name] = fi.defaultValue.clone();
+
+                    // Merge named arg values into args for raw AST field matching
+                    if (hasNamedArgs)
+                    {
+                        for (auto &[n, v] : namedArgs)
+                            args.push_back(std::move(v));
+                    }
 
                     // Check for named arguments (NamedArgExpr) from the raw AST
                     bool hasNamed = false;
@@ -1948,7 +1969,7 @@ namespace xell
                                 parentDef = initOwner->parents[0];
                             auto *savedMethodClass = executingMethodClass_;
                             executingMethodClass_ = initOwner;
-                            callUserFn(initMethodInfo->fnObject.asFunction(), initArgs, node->line, parentDef);
+                            callUserFn(initMethodInfo->fnObject.asFunction(), initArgs, node->line, parentDef, namedArgsPtr);
                             executingMethodClass_ = savedMethodClass;
                             // Freeze after __init__ — result shares same XData
                             result.asInstanceMut().frozen = true;
@@ -1957,6 +1978,12 @@ namespace xell
                         else
                         {
                             // No __init__: struct-style positional/named
+                            // Merge named arg values into args for raw AST field matching
+                            if (hasNamedArgs)
+                            {
+                                for (auto &[n, v] : namedArgs)
+                                    args.push_back(std::move(v));
+                            }
                             bool hasNamed = false;
                             for (const auto &rawArg : node->args)
                                 if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
@@ -1999,6 +2026,13 @@ namespace xell
                         // Struct frozen construction (original)
                         for (const auto &fi : def.fields)
                             inst.fields[fi.name] = fi.defaultValue.clone();
+
+                        // Merge named arg values into args for raw AST field matching
+                        if (hasNamedArgs)
+                        {
+                            for (auto &[n, v] : namedArgs)
+                                args.push_back(std::move(v));
+                        }
 
                         bool hasNamed = false;
                         for (const auto &rawArg : node->args)
@@ -2120,20 +2154,72 @@ namespace xell
                 }
             }
             if (typeMatch)
-                return callUserFn(*typeMatch, args, node->line);
+                return callUserFn(*typeMatch, args, node->line, nullptr, namedArgsPtr);
             if (arityMatch)
-                return callUserFn(*arityMatch, args, node->line);
+                return callUserFn(*arityMatch, args, node->line, nullptr, namedArgsPtr);
             throw TypeError("no matching overload for '" + node->callee +
                                 "' with " + std::to_string(args.size()) + " argument(s)",
                             node->line);
         }
 
-        return callUserFn(fn, args, node->line);
+        return callUserFn(fn, args, node->line, nullptr, namedArgsPtr);
     }
 
     XObject Interpreter::callUserFn(const XFunction &fn, std::vector<XObject> &args, int line,
-                                    std::shared_ptr<XStructDef> parentClassDef)
+                                    std::shared_ptr<XStructDef> parentClassDef,
+                                    const std::vector<std::pair<std::string, XObject>> *namedArgs)
     {
+        // ---- Keyword argument resolution ----
+        // If named args are provided, reorder/fill them into the positional args
+        // vector to match parameter names. Done BEFORE generator check so kwargs
+        // work with generators too.
+        if (namedArgs && !namedArgs->empty())
+        {
+            // Build a map of param_name -> index
+            std::unordered_map<std::string, size_t> paramIndex;
+            for (size_t i = 0; i < fn.params.size(); i++)
+                paramIndex[fn.params[i]] = i;
+
+            // Expand args to full param size, filling with sentinel "unfilled" values
+            size_t totalParams = fn.params.size();
+            std::vector<XObject> resolved(totalParams, XObject::makeNone());
+            std::vector<bool> filled(totalParams, false);
+
+            // First, place positional args
+            for (size_t i = 0; i < args.size() && i < totalParams; i++)
+            {
+                resolved[i] = std::move(args[i]);
+                filled[i] = true;
+            }
+
+            // Then, place named args by matching parameter names
+            for (const auto &[name, value] : *namedArgs)
+            {
+                auto it = paramIndex.find(name);
+                if (it == paramIndex.end())
+                    throw TypeError("'" + fn.name + "()' got an unexpected keyword argument '" + name + "'", line);
+                size_t idx = it->second;
+                if (filled[idx])
+                    throw TypeError("'" + fn.name + "()' got multiple values for argument '" + name + "'", line);
+                resolved[idx] = value;
+                filled[idx] = true;
+            }
+
+            // Fill unfilled slots with defaults
+            for (size_t i = 0; i < totalParams; i++)
+            {
+                if (!filled[i])
+                {
+                    if (i < fn.defaults.size() && fn.defaults[i] != nullptr)
+                        resolved[i] = eval(fn.defaults[i]);
+                    else
+                        throw TypeError("'" + fn.name + "()' missing required argument: '" + fn.params[i] + "'", line);
+                }
+            }
+
+            args = std::move(resolved);
+        }
+
         // If this is a generator function, create a generator instead of executing
         if (fn.isGenerator)
             return createGenerator(fn, args, line);
@@ -3330,7 +3416,11 @@ namespace xell
         }
 
         // Capture references we need in the worker thread
-        auto state = gen.state;
+        // IMPORTANT: capture raw pointer, NOT shared_ptr, to avoid circular dependency.
+        // The thread holding a shared_ptr would prevent ~GeneratorState from running,
+        // but ~GeneratorState::join() is what terminates the thread — deadlock.
+        // Raw pointer is safe because ~GeneratorState() joins the thread before cleanup.
+        GeneratorState *stateRaw = gen.state.get();
         const auto *body = fn.body;
 
         // Capture builtins_ and output_ references for the generator's own interpreter
@@ -3339,21 +3429,21 @@ namespace xell
         auto &outerBuiltins = builtins_;
         auto &outerShellState = shellState_;
 
-        state->worker = std::thread([state, body, genEnv, &outerOutput, &outerBuiltins, &outerShellState]()
-                                    {
+        gen.state->worker = std::thread([stateRaw, body, genEnv, &outerOutput, &outerBuiltins, &outerShellState]()
+                                        {
             // Wait for first next() call
             {
-                std::unique_lock<std::mutex> lk(state->mtx);
-                state->cv.wait(lk, [&state] {
-                    return state->phase == GeneratorState::RUNNING || state->phase == GeneratorState::DONE;
+                std::unique_lock<std::mutex> lk(stateRaw->mtx);
+                stateRaw->cv.wait(lk, [stateRaw] {
+                    return stateRaw->phase == GeneratorState::RUNNING || stateRaw->phase == GeneratorState::DONE;
                 });
             }
-            if (state->phase == GeneratorState::DONE) return;
+            if (stateRaw->phase == GeneratorState::DONE) return;
 
             // Create a mini-interpreter for the generator body
             Interpreter genInterp;
             genInterp.output_ = {};  // generator captures output separately
-            genInterp.activeGeneratorState_ = state.get();
+            genInterp.activeGeneratorState_ = stateRaw;
 
             // We execute in the generator's env
             auto *savedEnv = genInterp.currentEnv_;
@@ -3367,24 +3457,24 @@ namespace xell
                 }
             } catch (const GiveSignal &sig) {
                 // give from generator = final value (store but mark done)
-                std::lock_guard<std::mutex> lk(state->mtx);
-                delete state->yieldedValue;
-                state->yieldedValue = new XObject(sig.value.clone());
+                std::lock_guard<std::mutex> lk(stateRaw->mtx);
+                delete stateRaw->yieldedValue;
+                stateRaw->yieldedValue = new XObject(sig.value.clone());
             } catch (...) {
-                std::lock_guard<std::mutex> lk(state->mtx);
-                state->error = std::current_exception();
+                std::lock_guard<std::mutex> lk(stateRaw->mtx);
+                stateRaw->error = std::current_exception();
             }
 
             genInterp.currentEnv_ = savedEnv;
 
             // Signal completion
             {
-                std::lock_guard<std::mutex> lk(state->mtx);
-                state->phase = GeneratorState::DONE;
+                std::lock_guard<std::mutex> lk(stateRaw->mtx);
+                stateRaw->phase = GeneratorState::DONE;
             }
-            state->cv.notify_all(); });
+            stateRaw->cv.notify_all(); });
 
-        state->started = true;
+        gen.state->started = true;
         return XObject::makeGenerator(std::move(gen));
     }
 

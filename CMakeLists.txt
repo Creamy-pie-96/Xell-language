@@ -139,3 +139,7 @@ add_test(NAME decorator_test COMMAND decorator_test)
 add_executable(magic_test test/magic_test.cpp)
 target_link_libraries(magic_test xell_lib)
 add_test(NAME magic_test COMMAND magic_test)
+
+add_executable(kwargs_test test/kwargs_test.cpp)
+target_link_libraries(kwargs_test xell_lib)
+add_test(NAME kwargs_test COMMAND kwargs_test)

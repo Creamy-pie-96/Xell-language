@@ -173,7 +173,8 @@ namespace xell
         // ---- Helpers -------------------------------------------------------
 
         XObject callUserFn(const XFunction &fn, std::vector<XObject> &args, int line,
-                           std::shared_ptr<XStructDef> parentClassDef = nullptr);
+                           std::shared_ptr<XStructDef> parentClassDef = nullptr,
+                           const std::vector<std::pair<std::string, XObject>> *namedArgs = nullptr);
         XObject createGenerator(const XFunction &fn, std::vector<XObject> &args, int line);
         std::string interpolate(const std::string &raw, int line);
 

@@ -6,7 +6,8 @@
 //
 // This module provides raw hash algorithms that operate on byte sequences.
 // They are used internally by XObjectHash for set/map hashing, and are also
-// exposed to Xell users via the `hash()` builtin + importable `bring` modules.
+// exposed to Xell users via the `hash()` / `hashme()` builtins + importable
+// `bring` modules.
 //
 // Algorithms:
 //   - FNV-1a   (default)  : Fast, excellent distribution, simple
@@ -18,6 +19,11 @@
 //   - hash_int(int64_t)   : Canonical integer hashing
 //   - hash_float(double)  : IEEE 754-aware float hashing (normalizes ±0, NaN)
 //   - hash_string(str)    : Convenience for std::string
+//
+// High-level API:
+//   - resolveAlgorithm(name)       : Resolve algorithm name to HashFn pointer
+//   - hashRaw(data, len, algo)     : Hash raw bytes with named algorithm
+//   - hashTyped(dtype, value, algo): Hash typed value with named algorithm
 //
 // Seeded variants:
 //   - fnv1a_seeded(data, len, seed)
@@ -353,6 +359,100 @@ namespace xell
         // ====================================================================
 
         using HashFn = size_t (*)(const void *, size_t);
+
+        // ====================================================================
+        // High-level API — resolve algorithm by name, hash typed values
+        // ====================================================================
+        // These functions provide a clean interface for the builtins layer.
+        // They abstract away the raw byte-level details and algorithm dispatch.
+
+        /// Resolve an algorithm name string to a HashFn pointer.
+        /// Supported names: "fnv1a" (default), "djb2", "murmur3", "siphash"
+        /// Returns nullptr if the name is unknown.
+        inline HashFn resolveAlgorithm(const std::string &name)
+        {
+            if (name == "fnv1a")
+                return fnv1a;
+            if (name == "djb2")
+                return djb2;
+            if (name == "murmur3")
+                return murmur3;
+            if (name == "siphash")
+                return siphash;
+            return nullptr;
+        }
+
+        /// Hash raw bytes with a named algorithm (defaults to "fnv1a").
+        inline size_t hashRaw(const void *data, size_t len,
+                              const std::string &algo = "fnv1a")
+        {
+            HashFn fn = resolveAlgorithm(algo);
+            if (!fn)
+                fn = fnv1a; // fallback
+            return fn(data, len);
+        }
+
+        /// Hash a typed value with a named algorithm.
+        /// dtype: "int", "float", "complex", "string", "bool"
+        /// For complex: value is expected to be two doubles packed as {real, imag}.
+        inline size_t hashTyped(const std::string &dtype,
+                                const void *value, size_t valueSize,
+                                const std::string &algo = "fnv1a")
+        {
+            HashFn fn = resolveAlgorithm(algo);
+            if (!fn)
+                fn = fnv1a;
+
+            if (dtype == "int" && valueSize == sizeof(int64_t))
+            {
+                // Use specialized integer hash for fnv1a
+                if (fn == fnv1a)
+                {
+                    int64_t v;
+                    std::memcpy(&v, value, sizeof(v));
+                    return hash_int(v);
+                }
+                return fn(value, valueSize);
+            }
+
+            if (dtype == "float" && valueSize == sizeof(double))
+            {
+                if (fn == fnv1a)
+                {
+                    double d;
+                    std::memcpy(&d, value, sizeof(d));
+                    return hash_float(d);
+                }
+                // Normalize -0.0
+                double d;
+                std::memcpy(&d, value, sizeof(d));
+                if (d == 0.0)
+                    d = 0.0;
+                return fn(&d, sizeof(d));
+            }
+
+            if (dtype == "complex" && valueSize == 2 * sizeof(double))
+            {
+                double parts[2];
+                std::memcpy(parts, value, sizeof(parts));
+                if (parts[0] == 0.0)
+                    parts[0] = 0.0;
+                if (parts[1] == 0.0)
+                    parts[1] = 0.0;
+                size_t h1 = fn(&parts[0], sizeof(double));
+                size_t h2 = fn(&parts[1], sizeof(double));
+                return hash_combine(h1, h2);
+            }
+
+            if (dtype == "string")
+                return fn(value, valueSize);
+
+            if (dtype == "bool" && valueSize == 1)
+                return fn(value, 1);
+
+            // Fallback: hash raw bytes
+            return fn(value, valueSize);
+        }
 
     } // namespace hash
 } // namespace xell

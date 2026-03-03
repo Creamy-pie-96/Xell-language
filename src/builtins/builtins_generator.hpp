@@ -36,8 +36,7 @@ namespace xell
                 state->started = true;
                 state->phase = GeneratorState::Phase::RUNNING;
                 lock.unlock();
-                // The worker thread should already be launched by createGenerator.
-                // We just need to wait for it to yield or finish.
+                state->cv.notify_all(); // wake worker thread
                 lock.lock();
             }
             else
@@ -105,6 +104,7 @@ namespace xell
                     state->started = true;
                     state->phase = GeneratorState::Phase::RUNNING;
                     lock.unlock();
+                    state->cv.notify_all(); // wake worker thread
                     lock.lock();
                 }
                 else

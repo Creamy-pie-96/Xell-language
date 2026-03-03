@@ -805,8 +805,7 @@ print(items)
         XASSERT_EQ(out[0], "[10, 20]"); });
 
     runTest("__iter__: error if no __iter__ defined", []()
-            {
-        XASSERT_THROWS(runXell(R"XEL(
+            { XASSERT_THROWS(runXell(R"XEL(
 class Foo :
     x = 1
 ;
@@ -817,8 +816,7 @@ for i in f :
 )XEL")); });
 
     runTest("__iter__: error if __iter__ returns non-iterable", []()
-            {
-        XASSERT_THROWS(runXell(R"XEL(
+            { XASSERT_THROWS(runXell(R"XEL(
 class Bad :
     fn __iter__(self) :
         give 42
@@ -911,8 +909,7 @@ print(is_hashable(f))
         XASSERT_EQ(out[0], "false"); });
 
     runTest("__hash__: hash error on mutable instance", []()
-            {
-        XASSERT_THROWS(runXell(R"XEL(
+            { XASSERT_THROWS(runXell(R"XEL(
 class Point :
     x = 0
     fn __hash__(self) :
