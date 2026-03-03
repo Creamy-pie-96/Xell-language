@@ -311,6 +311,7 @@ namespace xell
         std::string variadicName;      // name of variadic param (without ...)
         std::vector<StmtPtr> body;
         bool isAsync = false; // true for async fn
+        bool isStatic = false; // true for static class members
         AccessLevel access = AccessLevel::PUBLIC; // access level when used as class method
 
         // Type annotations (optional)
@@ -409,6 +410,7 @@ namespace xell
         ExprPtr defaultValue;
         int line = 0;
         AccessLevel access = AccessLevel::PUBLIC;
+        bool isStatic = false;
     };
 
     struct StructDef : Stmt

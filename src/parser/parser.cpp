@@ -1174,6 +1174,46 @@ namespace xell
                 continue;
             }
 
+            // Static members: static fn name(...) : ... ; or static name = expr
+            if (check(TokenType::STATIC))
+            {
+                advance(); // consume 'static'
+
+                if (check(TokenType::FN))
+                {
+                    auto fnStmt = parseFnDef();
+                    auto *fn = dynamic_cast<FnDef *>(fnStmt.get());
+                    if (fn)
+                    {
+                        fn->access = currentAccess;
+                        fn->isStatic = true;
+                        fnStmt.release();
+                        methods.push_back(std::unique_ptr<FnDef>(fn));
+                    }
+                    skipNewlines();
+                    continue;
+                }
+
+                if (check(TokenType::IDENTIFIER) && peekToken(1).type == TokenType::EQUAL)
+                {
+                    StructFieldDef field;
+                    field.line = current().line;
+                    field.name = current().value;
+                    field.access = currentAccess;
+                    field.isStatic = true;
+                    advance(); // consume field name
+                    advance(); // consume =
+                    field.defaultValue = parseExpression();
+                    fields.push_back(std::move(field));
+                    if (check(TokenType::NEWLINE) || check(TokenType::DOT))
+                        advance();
+                    skipNewlines();
+                    continue;
+                }
+
+                throw ParseError("Expected field or method after 'static'", current().line);
+            }
+
             // Method definition: fn name(...) : ... ;
             if (check(TokenType::FN))
             {

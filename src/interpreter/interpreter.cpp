@@ -1656,6 +1656,16 @@ namespace xell
             const XStructDef &calledParentDef = args[0].asStructDef();
             if (calledParentDef.isClass)
             {
+                // Check for static method call first: ClassName->static_method(args)
+                // Static methods don't take `self`, so strip the class def from args
+                const XStructMethodInfo *smi = calledParentDef.findStaticMethod(node->callee);
+                if (smi && smi->fnObject.isFunction())
+                {
+                    // Remove the class def from args — static methods have no self
+                    args.erase(args.begin());
+                    return callUserFn(smi->fnObject.asFunction(), args, node->line);
+                }
+
                 auto [mi, ownerClass] = calledParentDef.findMethodWithOwner(node->callee);
                 if (mi && mi->fnObject.isFunction())
                 {
@@ -2162,16 +2172,27 @@ namespace xell
             throw AttributeError("'" + inst.typeName + "' has no field '" + node->member + "'", node->line);
         }
 
-        // Struct/Class definition member access — allows parent->method references
+        // Struct/Class definition member access — allows parent->method and static member references
         if (obj.isStructDef())
         {
             const XStructDef &def = obj.asStructDef();
-            // Allow method lookup on class definitions (for parent->method patterns)
+
+            // Check static fields first (ClassName->staticField)
+            const XStructFieldInfo *sfi = def.findStaticField(node->member);
+            if (sfi)
+                return sfi->defaultValue;
+
+            // Check static methods (ClassName->staticMethod)
+            const XStructMethodInfo *smi = def.findStaticMethod(node->member);
+            if (smi)
+                return smi->fnObject;
+
+            // Allow instance method lookup on class definitions (for parent->method patterns)
             const XStructMethodInfo *mi = def.findMethod(node->member);
             if (mi)
                 return mi->fnObject;
             std::string kind = def.isClass ? "class" : "struct";
-            throw AttributeError("'" + def.name + "' " + kind + " has no method '" + node->member + "'", node->line);
+            throw AttributeError("'" + def.name + "' " + kind + " has no member '" + node->member + "'", node->line);
         }
 
         throw TypeError("member access (->) not supported on " +
@@ -2558,7 +2579,7 @@ namespace xell
             def->parents.push_back(parentObj.asStructDefShared());
         }
 
-        // Evaluate field default values
+        // Evaluate field default values — separate static from instance
         for (const auto &field : node->fields)
         {
             XStructFieldInfo fi;
@@ -2566,10 +2587,13 @@ namespace xell
             fi.defaultValue = field.defaultValue ? eval(field.defaultValue.get())
                                                  : XObject::makeNone();
             fi.access = astToRuntimeAccess(field.access);
-            def->fields.push_back(std::move(fi));
+            if (field.isStatic)
+                def->staticFields.push_back(std::move(fi));
+            else
+                def->fields.push_back(std::move(fi));
         }
 
-        // Compile methods: create XFunction objects
+        // Compile methods: create XFunction objects — separate static from instance
         for (const auto &method : node->methods)
         {
             XStructMethodInfo mi;
@@ -2588,7 +2612,10 @@ namespace xell
             fnRef.isAsync = method->isAsync;
             fnRef.typeAnnotations = method->paramTypes;
             mi.fnObject = std::move(fnObj);
-            def->methods.push_back(std::move(mi));
+            if (method->isStatic)
+                def->staticMethods.push_back(std::move(mi));
+            else
+                def->methods.push_back(std::move(mi));
         }
 
         currentEnv_->set(node->name, XObject::makeStructDef(def));
@@ -2648,6 +2675,20 @@ namespace xell
             XObject key = XObject::makeString(node->member);
             obj.asMapMut().set(key, std::move(value));
             return;
+        }
+
+        // Static field assignment: ClassName->staticField = value
+        if (obj.isStructDef())
+        {
+            XStructDef &def = const_cast<XStructDef &>(obj.asStructDef());
+            XStructFieldInfo *sfi = def.findStaticFieldMut(node->member);
+            if (sfi)
+            {
+                sfi->defaultValue = std::move(value);
+                return;
+            }
+            std::string kind = def.isClass ? "class" : "struct";
+            throw AttributeError("'" + def.name + "' " + kind + " has no static field '" + node->member + "'", node->line);
         }
 
         throw TypeError("member assignment not supported on " +

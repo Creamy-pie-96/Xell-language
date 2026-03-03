@@ -544,6 +544,8 @@ namespace xell
         std::string name;
         std::vector<XStructFieldInfo> fields;             // ordered field definitions
         std::vector<XStructMethodInfo> methods;           // method definitions
+        std::vector<XStructFieldInfo> staticFields;           // static field definitions
+        std::vector<XStructMethodInfo> staticMethods;         // static method definitions
         bool isClass = false;                             // true if defined with `class`, false for `struct`
         std::vector<std::shared_ptr<XStructDef>> parents; // parent classes (inheritance chain)
 
@@ -622,6 +624,51 @@ namespace xell
                 if (parent->isOrInherits(typeName))
                     return true;
             return false;
+        }
+
+        // Look up a static field by name (own then parents)
+        const XStructFieldInfo *findStaticField(const std::string &fieldName) const
+        {
+            for (const auto &fi : staticFields)
+                if (fi.name == fieldName)
+                    return &fi;
+            for (const auto &parent : parents)
+            {
+                const XStructFieldInfo *found = parent->findStaticField(fieldName);
+                if (found)
+                    return found;
+            }
+            return nullptr;
+        }
+
+        // Look up a static method by name (own then parents)
+        const XStructMethodInfo *findStaticMethod(const std::string &methodName) const
+        {
+            for (const auto &mi : staticMethods)
+                if (mi.name == methodName)
+                    return &mi;
+            for (const auto &parent : parents)
+            {
+                const XStructMethodInfo *found = parent->findStaticMethod(methodName);
+                if (found)
+                    return found;
+            }
+            return nullptr;
+        }
+
+        // Mutable static field lookup — returns mutable pointer for assignment
+        XStructFieldInfo *findStaticFieldMut(const std::string &fieldName)
+        {
+            for (auto &fi : staticFields)
+                if (fi.name == fieldName)
+                    return &fi;
+            for (auto &parent : parents)
+            {
+                XStructFieldInfo *found = parent->findStaticFieldMut(fieldName);
+                if (found)
+                    return found;
+            }
+            return nullptr;
         }
 
         // Collect all fields from the entire inheritance chain (parents first, then own)

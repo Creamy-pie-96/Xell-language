@@ -42,6 +42,7 @@ namespace xell
             {"immutable", TokenType::IMMUTABLE},            {"private", TokenType::PRIVATE},
             {"protected", TokenType::PROTECTED},
             {"public", TokenType::PUBLIC},
+            {"static", TokenType::STATIC},
             // Generator
             {"yield", TokenType::YIELD},
 

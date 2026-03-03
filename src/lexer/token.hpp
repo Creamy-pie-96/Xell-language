@@ -51,6 +51,7 @@ namespace xell
         PRIVATE,
         PROTECTED,
         PUBLIC,
+        STATIC,
 
         // Generator keyword
         YIELD,
@@ -174,6 +175,7 @@ namespace xell
             {(int)TokenType::PRIVATE, "PRIVATE"},
             {(int)TokenType::PROTECTED, "PROTECTED"},
             {(int)TokenType::PUBLIC, "PUBLIC"},
+            {(int)TokenType::STATIC, "STATIC"},
             {(int)TokenType::YIELD, "YIELD"},
             {(int)TokenType::ASYNC, "ASYNC"},
             {(int)TokenType::AWAIT, "AWAIT"},
