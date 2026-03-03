@@ -70,13 +70,14 @@ static int executeFile(const std::string &path)
 {
     std::string source = readFile(path);
 
+    xell::Interpreter interpreter;
+
     try
     {
         xell::Lexer lexer(source);
         auto tokens = lexer.tokenize();
         xell::Parser parser(tokens);
         auto program = parser.parse();
-        xell::Interpreter interpreter;
         interpreter.setSourceFile(path);
         interpreter.run(program);
 
@@ -88,11 +89,16 @@ static int executeFile(const std::string &path)
     }
     catch (const xell::XellError &e)
     {
+        // Flush any output that was generated before the error
+        for (auto &line : interpreter.output())
+            std::cout << line << "\n";
         std::cerr << e.what() << "\n";
         return 1;
     }
     catch (const std::exception &e)
     {
+        for (auto &line : interpreter.output())
+            std::cout << line << "\n";
         std::cerr << "Fatal error: " << e.what() << "\n";
         return 2;
     }

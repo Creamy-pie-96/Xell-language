@@ -117,6 +117,8 @@ namespace xell
         ENUM,      // enum type (stored as map of names → values)
         BYTES,     // raw binary data (vector<uint8_t>)
         GENERATOR, // lazy generator (thread-based coroutine)
+        STRUCT_DEF, // struct type definition (XStructDef)
+        INSTANCE,   // struct/class instance (XInstance)
     };
 
     /// Human-readable type name for error messages
@@ -237,6 +239,12 @@ namespace xell
         XGenerator() : state(std::make_shared<GeneratorState>()) {}
     };
 
+    // Forward declarations — full definitions after XObject class
+    struct XStructFieldInfo;
+    struct XStructMethodInfo;
+    struct XStructDef;
+    struct XInstance;
+
     // ========================================================================
     // XData — the heap-allocated control block
     // ========================================================================
@@ -326,6 +334,12 @@ namespace xell
         /// generator (lazy coroutine)
         static XObject makeGenerator(XGenerator &&gen);
 
+        /// struct type definition
+        static XObject makeStructDef(std::shared_ptr<XStructDef> def);
+
+        /// struct/class instance
+        static XObject makeInstance(XInstance &&inst);
+
         // ---- Default constructor → none ----
 
         XObject();
@@ -358,6 +372,8 @@ namespace xell
         bool isEnum() const;
         bool isBytes() const;
         bool isGenerator() const;
+        bool isStructDef() const;
+        bool isInstance() const;
 
         // ---- Payload access (unchecked — caller must verify type first) ----
 
@@ -382,6 +398,10 @@ namespace xell
         XBytes &asBytesMut();
         const XGenerator &asGenerator() const;
         XGenerator &asGeneratorMut();
+        const XStructDef &asStructDef() const;
+        std::shared_ptr<XStructDef> asStructDefShared() const;
+        const XInstance &asInstance() const;
+        XInstance &asInstanceMut();
 
         // ---- Truthiness (for if/while conditions) ----
         //   none → false, bool → its value, number → false if 0.0
@@ -498,6 +518,48 @@ namespace xell
         void clear();
 
         Table::Iterator begin() const { return table.begin(); }
+    };
+
+    // ========================================================================
+    // XStructDef — a struct type definition (blueprint for instances)
+    // ========================================================================
+
+    struct XStructFieldInfo
+    {
+        std::string name;
+        XObject defaultValue;
+    };
+
+    struct XStructMethodInfo
+    {
+        std::string name;
+        XObject fnObject; // XObject wrapping an XFunction
+    };
+
+    struct XStructDef
+    {
+        std::string name;
+        std::vector<XStructFieldInfo> fields;     // ordered field definitions
+        std::vector<XStructMethodInfo> methods;    // method definitions
+
+        XStructDef() = default;
+        XStructDef(std::string name) : name(std::move(name)) {}
+    };
+
+    // ========================================================================
+    // XInstance — a struct/class instance with field values
+    // ========================================================================
+
+    struct XInstance
+    {
+        std::string typeName;                              // "Point", "Animal", etc.
+        std::shared_ptr<XStructDef> structDef;             // reference to the type definition
+        std::unordered_map<std::string, XObject> fields;   // field name → current value
+        bool frozen = false;                               // true if created with ~ prefix
+
+        XInstance() = default;
+        XInstance(std::string typeName, std::shared_ptr<XStructDef> def)
+            : typeName(std::move(typeName)), structDef(std::move(def)) {}
     };
 
 } // namespace xell

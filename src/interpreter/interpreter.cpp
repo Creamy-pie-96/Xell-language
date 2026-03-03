@@ -350,6 +350,18 @@ namespace xell
             return execEnumDef(p);
         if (auto *p = dynamic_cast<const DecoratedFnDef *>(stmt))
             return execDecoratedFnDef(p);
+        if (auto *p = dynamic_cast<const StructDef *>(stmt))
+            return execStructDef(p);
+        if (auto *p = dynamic_cast<const ImmutableBinding *>(stmt))
+        {
+            XObject value = eval(p->value.get());
+            currentEnv_->defineImmutable(p->name, std::move(value));
+            return;
+        }
+        if (auto *p = dynamic_cast<const MemberAssignment *>(stmt))
+            return execMemberAssignment(p);
+        if (auto *p = dynamic_cast<const IndexAssignment *>(stmt))
+            return execIndexAssignment(p);
     }
 
     void Interpreter::execBlock(const std::vector<StmtPtr> &stmts, Environment &env)
@@ -374,7 +386,7 @@ namespace xell
     void Interpreter::execAssignment(const Assignment *node)
     {
         XObject value = eval(node->value.get());
-        currentEnv_->set(node->name, std::move(value));
+        currentEnv_->set(node->name, std::move(value), node->line);
     }
 
     void Interpreter::execIf(const IfStmt *node)
@@ -1357,6 +1369,11 @@ namespace xell
                 for (const auto &item : val.asList())
                     args.push_back(item);
             }
+            else if (auto *named = dynamic_cast<const NamedArgExpr *>(arg.get()))
+            {
+                // Named args: evaluate the value (name is used by struct construction from raw AST)
+                args.push_back(eval(named->value.get()));
+            }
             else
             {
                 args.push_back(eval(arg.get()));
@@ -1419,12 +1436,129 @@ namespace xell
                 }
                 return callUserFn(fn, args, node->line);
             }
+
+            // ---- Struct construction: Name(args...) ----
+            if (fnObj.isStructDef())
+            {
+                const XStructDef &def = fnObj.asStructDef();
+                auto defPtr = fnObj.asStructDefShared();
+                XInstance inst(def.name, defPtr);
+
+                // Initialize all fields to their defaults
+                for (const auto &fi : def.fields)
+                    inst.fields[fi.name] = fi.defaultValue.clone();
+
+                // Check for named arguments (NamedArgExpr) from the raw AST
+                bool hasNamed = false;
+                for (const auto &rawArg : node->args)
+                {
+                    if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
+                    { hasNamed = true; break; }
+                }
+
+                if (hasNamed)
+                {
+                    // Named argument mode: Point(x: 10, y: 20)
+                    // Values are already evaluated in `args` in the same order
+                    size_t ai = 0;
+                    for (const auto &rawArg : node->args)
+                    {
+                        auto *na = dynamic_cast<const NamedArgExpr *>(rawArg.get());
+                        if (!na)
+                            throw ParseError("cannot mix positional and named arguments in struct construction", node->line);
+                        // Verify the field exists
+                        bool found = false;
+                        for (const auto &fi : def.fields)
+                            if (fi.name == na->name) { found = true; break; }
+                        if (!found)
+                            throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
+                        inst.fields[na->name] = std::move(args[ai++]);
+                    }
+                }
+                else
+                {
+                    // Positional argument mode: Point(3, 7)
+                    if (args.size() > def.fields.size())
+                        throw ArityError(def.name, (int)def.fields.size(), (int)args.size(), node->line);
+                    for (size_t i = 0; i < args.size(); i++)
+                        inst.fields[def.fields[i].name] = std::move(args[i]);
+                }
+
+                return XObject::makeInstance(std::move(inst));
+            }
+        }
+
+        // ---- Instance method call: obj->method(args) ----
+        // The parser rewrites obj->method(a, b) as CallExpr("method", [obj, a, b])
+        // So if the first arg is an instance, check its struct for the method.
+        // This must be checked BEFORE builtins so struct methods shadow builtin names.
+        if (!args.empty() && args[0].isInstance())
+        {
+            const XInstance &inst = args[0].asInstance();
+            for (const auto &mi : inst.structDef->methods)
+            {
+                if (mi.name == node->callee && mi.fnObject.isFunction())
+                {
+                    return callUserFn(mi.fnObject.asFunction(), args, node->line);
+                }
+            }
         }
 
         auto bit = builtins_.find(node->callee);
         if (bit != builtins_.end())
         {
             return bit->second(args, node->line);
+        }
+
+        // ---- Frozen struct construction: ~Name(args...) ----
+        if (node->callee.size() > 1 && node->callee[0] == '~')
+        {
+            std::string baseName = node->callee.substr(1);
+            if (currentEnv_->has(baseName))
+            {
+                XObject fnObj = currentEnv_->get(baseName, node->line);
+                if (fnObj.isStructDef())
+                {
+                    const XStructDef &def = fnObj.asStructDef();
+                    auto defPtr = fnObj.asStructDefShared();
+                    XInstance inst(def.name, defPtr);
+                    inst.frozen = true;
+
+                    for (const auto &fi : def.fields)
+                        inst.fields[fi.name] = fi.defaultValue.clone();
+
+                    bool hasNamed = false;
+                    for (const auto &rawArg : node->args)
+                        if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
+                        { hasNamed = true; break; }
+
+                    if (hasNamed)
+                    {
+                        size_t ai = 0;
+                        for (const auto &rawArg : node->args)
+                        {
+                            auto *na = dynamic_cast<const NamedArgExpr *>(rawArg.get());
+                            if (!na)
+                                throw ParseError("cannot mix positional and named arguments in struct construction", node->line);
+                            bool found = false;
+                            for (const auto &fi : def.fields)
+                                if (fi.name == na->name) { found = true; break; }
+                            if (!found)
+                                throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
+                            inst.fields[na->name] = std::move(args[ai++]);
+                        }
+                    }
+                    else
+                    {
+                        if (args.size() > def.fields.size())
+                            throw ArityError(def.name, (int)def.fields.size(), (int)args.size(), node->line);
+                        for (size_t i = 0; i < args.size(); i++)
+                            inst.fields[def.fields[i].name] = std::move(args[i]);
+                    }
+
+                    return XObject::makeInstance(std::move(inst));
+                }
+            }
         }
 
         // If the function exists in a Tier 2 module, give a helpful error
@@ -1435,6 +1569,22 @@ namespace xell
             throw RuntimeError("'" + node->callee + "' requires: bring * from \"" +
                                    modName + "\"",
                                node->line);
+        }
+
+        // ---- Instance method call: obj->method(args) ----
+        // (Already checked above before builtins, this is a second pass
+        //  for the case where the first arg became an instance after the
+        //  Tier 2 module check.)
+        if (!args.empty() && args[0].isInstance())
+        {
+            const XInstance &inst = args[0].asInstance();
+            for (const auto &mi : inst.structDef->methods)
+            {
+                if (mi.name == node->callee && mi.fnObject.isFunction())
+                {
+                    return callUserFn(mi.fnObject.asFunction(), args, node->line);
+                }
+            }
         }
 
         // Look up user-defined function (throws if not found)
@@ -1672,6 +1822,31 @@ namespace xell
         {
             if (node->member == "length" || node->member == "len")
                 return XObject::makeInt(static_cast<int64_t>(obj.asBytes().data.size()));
+        }
+
+        // Instance field access: inst->field
+        if (obj.isInstance())
+        {
+            const XInstance &inst = obj.asInstance();
+            auto it = inst.fields.find(node->member);
+            if (it != inst.fields.end())
+                return it->second;
+
+            // Check if it's a method name (for passing methods as values)
+            for (const auto &mi : inst.structDef->methods)
+            {
+                if (mi.name == node->member)
+                    return mi.fnObject;
+            }
+
+            throw AttributeError("'" + inst.typeName + "' has no field '" + node->member + "'", node->line);
+        }
+
+        // Struct definition member access (static methods could go here)
+        if (obj.isStructDef())
+        {
+            const XStructDef &def = obj.asStructDef();
+            throw AttributeError("'" + def.name + "' is a struct type, not an instance", node->line);
         }
 
         throw TypeError("member access (->) not supported on " +
@@ -1945,6 +2120,116 @@ namespace xell
         }
 
         currentEnv_->set(node->name, XObject::makeEnum(std::move(enumDef)));
+    }
+
+    // ---- Struct definition -------------------------------------------------
+
+    void Interpreter::execStructDef(const StructDef *node)
+    {
+        auto def = std::make_shared<XStructDef>(node->name);
+
+        // Evaluate field default values
+        for (const auto &field : node->fields)
+        {
+            XStructFieldInfo fi;
+            fi.name = field.name;
+            fi.defaultValue = field.defaultValue ? eval(field.defaultValue.get())
+                                                  : XObject::makeNone();
+            def->fields.push_back(std::move(fi));
+        }
+
+        // Compile methods: create XFunction objects
+        for (const auto &method : node->methods)
+        {
+            XStructMethodInfo mi;
+            mi.name = method->name;
+            auto fnObj = XObject::makeFunction(method->name, method->params,
+                                               &method->body, currentEnv_);
+            // Copy default parameter info
+            XFunction &fnRef = const_cast<XFunction &>(fnObj.asFunction());
+            fnRef.defaults.clear();
+            for (const auto &d : method->defaults)
+                fnRef.defaults.push_back(d.get());
+            fnRef.isVariadic = method->isVariadic;
+            fnRef.variadicName = method->variadicName;
+            fnRef.isGenerator = containsYield(method->body);
+            fnRef.isAsync = method->isAsync;
+            fnRef.typeAnnotations = method->paramTypes;
+            mi.fnObject = std::move(fnObj);
+            def->methods.push_back(std::move(mi));
+        }
+
+        currentEnv_->set(node->name, XObject::makeStructDef(def));
+    }
+
+    // ---- Member assignment: obj->field = value -----------------------------
+
+    void Interpreter::execMemberAssignment(const MemberAssignment *node)
+    {
+        // Evaluate the object — ref-counted, so mutations propagate
+        XObject obj = eval(node->object.get());
+        XObject value = eval(node->value.get());
+
+        if (obj.isInstance())
+        {
+            XInstance &inst = obj.asInstanceMut();
+            // Check if instance is frozen (created with ~ prefix)
+            if (inst.frozen)
+                throw ImmutabilityError("cannot modify field '" + node->member +
+                    "' on frozen instance of '" + inst.typeName + "'", node->line);
+            // Only allow setting fields that exist in the struct definition
+            bool found = false;
+            for (const auto &fi : inst.structDef->fields)
+            {
+                if (fi.name == node->member) { found = true; break; }
+            }
+            if (!found)
+                throw AttributeError("'" + inst.typeName + "' has no field '" + node->member + "'", node->line);
+            inst.fields[node->member] = std::move(value);
+            return;
+        }
+
+        if (obj.isMap())
+        {
+            // Map member assignment: m->key = value
+            XObject key = XObject::makeString(node->member);
+            obj.asMapMut().set(key, std::move(value));
+            return;
+        }
+
+        throw TypeError("member assignment not supported on " +
+                         std::string(xtype_name(obj.type())), node->line);
+    }
+
+    // ---- Index assignment: list[i] = val  or  map[key] = val ---------------
+
+    void Interpreter::execIndexAssignment(const IndexAssignment *node)
+    {
+        XObject obj = eval(node->object.get());
+        XObject idx = eval(node->index.get());
+        XObject value = eval(node->value.get());
+
+        if (obj.isList())
+        {
+            if (!idx.isNumber())
+                throw TypeError("list index must be a number", node->line);
+            int index = (int)idx.asNumber();
+            auto &list = obj.asListMut();
+            if (index < 0) index += (int)list.size();
+            if (index < 0 || index >= (int)list.size())
+                throw IndexError("list index " + std::to_string(index) + " out of range", node->line);
+            list[index] = std::move(value);
+            return;
+        }
+
+        if (obj.isMap())
+        {
+            obj.asMapMut().set(idx, std::move(value));
+            return;
+        }
+
+        throw TypeError("index assignment not supported on " +
+                         std::string(xtype_name(obj.type())), node->line);
     }
 
     // ---- Decorated function definition -------------------------------------

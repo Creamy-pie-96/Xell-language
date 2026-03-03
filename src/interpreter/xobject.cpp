@@ -56,6 +56,10 @@ namespace xell
             return "bytes";
         case XType::GENERATOR:
             return "generator";
+        case XType::STRUCT_DEF:
+            return "struct_def";
+        case XType::INSTANCE:
+            return "instance";
         }
         return "unknown";
     }
@@ -184,6 +188,12 @@ namespace xell
             break;
         case XType::GENERATOR:
             delete static_cast<XGenerator *>(payload);
+            break;
+        case XType::STRUCT_DEF:
+            delete static_cast<std::shared_ptr<XStructDef> *>(payload);
+            break;
+        case XType::INSTANCE:
+            delete static_cast<XInstance *>(payload);
             break;
         }
     }
@@ -339,6 +349,18 @@ namespace xell
         return XObject(allocData(XType::GENERATOR, p));
     }
 
+    XObject XObject::makeStructDef(std::shared_ptr<XStructDef> def)
+    {
+        auto *p = new std::shared_ptr<XStructDef>(std::move(def));
+        return XObject(allocData(XType::STRUCT_DEF, p));
+    }
+
+    XObject XObject::makeInstance(XInstance &&inst)
+    {
+        auto *p = new XInstance(std::move(inst));
+        return XObject(allocData(XType::INSTANCE, p));
+    }
+
     // ========================================================================
     // Default constructor → none
     // ========================================================================
@@ -443,6 +465,8 @@ namespace xell
     bool XObject::isEnum() const { return type() == XType::ENUM; }
     bool XObject::isBytes() const { return type() == XType::BYTES; }
     bool XObject::isGenerator() const { return type() == XType::GENERATOR; }
+    bool XObject::isStructDef() const { return type() == XType::STRUCT_DEF; }
+    bool XObject::isInstance() const { return type() == XType::INSTANCE; }
 
     // ========================================================================
     // Payload access (unchecked — caller must verify type)
@@ -556,6 +580,26 @@ namespace xell
         return *static_cast<XGenerator *>(data_->payload);
     }
 
+    const XStructDef &XObject::asStructDef() const
+    {
+        return **static_cast<std::shared_ptr<XStructDef> *>(data_->payload);
+    }
+
+    std::shared_ptr<XStructDef> XObject::asStructDefShared() const
+    {
+        return *static_cast<std::shared_ptr<XStructDef> *>(data_->payload);
+    }
+
+    const XInstance &XObject::asInstance() const
+    {
+        return *static_cast<XInstance *>(data_->payload);
+    }
+
+    XInstance &XObject::asInstanceMut()
+    {
+        return *static_cast<XInstance *>(data_->payload);
+    }
+
     // ========================================================================
     // Truthiness
     // ========================================================================
@@ -594,6 +638,10 @@ namespace xell
             return !asBytes().data.empty();
         case XType::GENERATOR:
             return true; // generators are always truthy
+        case XType::STRUCT_DEF:
+            return true; // struct definitions are always truthy
+        case XType::INSTANCE:
+            return true; // instances are always truthy
         }
         return false;
     }
@@ -683,6 +731,17 @@ namespace xell
         case XType::GENERATOR:
             // Generators are not cloneable (shared state) — return as-is (ref counted)
             return *this;
+        case XType::STRUCT_DEF:
+            // Struct defs are shared — return as-is (ref counted shared_ptr)
+            return *this;
+        case XType::INSTANCE:
+        {
+            const auto &inst = asInstance();
+            XInstance cloned(inst.typeName, inst.structDef);
+            for (const auto &[k, v] : inst.fields)
+                cloned.fields[k] = v.clone();
+            return makeInstance(std::move(cloned));
+        }
         }
         return makeNone();
     }
@@ -885,6 +944,35 @@ namespace xell
 
         case XType::GENERATOR:
             return "<generator " + asGenerator().fnName + ">";
+
+        case XType::STRUCT_DEF:
+            return "<struct " + asStructDef().name + ">";
+
+        case XType::INSTANCE:
+        {
+            const auto &inst = asInstance();
+            std::ostringstream oss;
+            oss << inst.typeName << "(";
+            // Print fields in definition order
+            const auto &def = *inst.structDef;
+            bool first = true;
+            for (const auto &fi : def.fields)
+            {
+                auto it = inst.fields.find(fi.name);
+                if (it != inst.fields.end())
+                {
+                    if (!first) oss << ", ";
+                    first = false;
+                    oss << fi.name << "=";
+                    if (it->second.isString())
+                        oss << "\"" << it->second.asString() << "\"";
+                    else
+                        oss << it->second.toString();
+                }
+            }
+            oss << ")";
+            return oss.str();
+        }
         }
 
         return "unknown";
@@ -1009,6 +1097,26 @@ namespace xell
         case XType::GENERATOR:
             // Generators are equal only if same object (already handled above)
             return false;
+        case XType::STRUCT_DEF:
+            // Struct defs are equal only if same definition
+            return asStructDef().name == other.asStructDef().name;
+        case XType::INSTANCE:
+        {
+            // Field-by-field comparison: same type + same field values
+            const auto &a = asInstance();
+            const auto &b = other.asInstance();
+            if (a.typeName != b.typeName)
+                return false;
+            if (a.fields.size() != b.fields.size())
+                return false;
+            for (const auto &[key, val] : a.fields)
+            {
+                auto it = b.fields.find(key);
+                if (it == b.fields.end() || !val.equals(it->second))
+                    return false;
+            }
+            return true;
+        }
         }
         return false;
     }

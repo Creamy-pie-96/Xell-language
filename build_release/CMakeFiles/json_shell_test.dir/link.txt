@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/json_shell_test.dir/test/json_shell_test.cpp.o -o json_shell_test  libxell_lib.a 

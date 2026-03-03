@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/forloop_test.dir/test/forloop_test.cpp.o -o forloop_test  libxell_lib.a 

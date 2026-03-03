@@ -25,6 +25,7 @@
 #include "xobject.hpp"
 #include "../lib/errors/error.hpp"
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 
 namespace xell
@@ -55,7 +56,7 @@ namespace xell
         ///   1. Walk up the chain looking for an existing binding.
         ///   2. If found, update it in-place (preserves scope level).
         ///   3. If not found anywhere, create it in the *current* scope.
-        void set(const std::string &name, XObject value)
+        void set(const std::string &name, XObject value, int line = 0)
         {
             Environment *env = this;
             while (env)
@@ -63,6 +64,9 @@ namespace xell
                 auto it = env->vars_.find(name);
                 if (it != env->vars_.end())
                 {
+                    // Check if the variable is immutable
+                    if (env->immutables_.count(name))
+                        throw ImmutabilityError("cannot reassign immutable variable '" + name + "'", line);
                     it->second = std::move(value);
                     return;
                 }
@@ -76,6 +80,23 @@ namespace xell
         void define(const std::string &name, XObject value)
         {
             vars_[name] = std::move(value);
+        }
+
+        /// Define an immutable variable in the current scope
+        void defineImmutable(const std::string &name, XObject value)
+        {
+            vars_[name] = std::move(value);
+            immutables_.insert(name);
+        }
+
+        /// Check whether a variable is immutable
+        bool isImmutable(const std::string &name) const
+        {
+            if (immutables_.count(name))
+                return true;
+            if (parent_)
+                return parent_->isImmutable(name);
+            return false;
         }
 
         /// Check whether a variable exists anywhere in the chain
@@ -107,6 +128,7 @@ namespace xell
 
     private:
         std::unordered_map<std::string, XObject> vars_;
+        std::unordered_set<std::string> immutables_;
         Environment *parent_;
     };
 

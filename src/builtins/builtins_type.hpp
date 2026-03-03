@@ -16,6 +16,11 @@ namespace xell
         {
             if (args.size() != 1)
                 throw ArityError("type", 1, (int)args.size(), line);
+            // For instances, return the struct/class name instead of "instance"
+            if (args[0].isInstance())
+                return XObject::makeString(args[0].asInstance().typeName);
+            if (args[0].isStructDef())
+                return XObject::makeString("struct");
             return XObject::makeString(xtype_name(args[0].type()));
         };
 

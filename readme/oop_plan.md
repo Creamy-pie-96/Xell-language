@@ -126,6 +126,12 @@ XObject
 
 ---
 
+## Phase 1.5: Immutability:
+okay i made plan:okay we will allow both(object immutability and also the binding. here  is how. we will introduce new keyword immutable which will trigger binding immutibility. and ~ before the object will trigger object immutability.
+
+it will work like this: immutable p = Point(...). it means you can not later do p = q. but you can do p->x = 2. and p = ~Point(...) means it cant do p->x =2 but do p=q. and immutable p = ~point(...) means can not reassign can not change objects properties too.
+And very important: we support hashing via __hash__ to use the oject as hash key for maps or other, but we need to ensure if that __hash__ magic is defiend then the class or struct must always be proper immutable(which immutability is needed  to preserve the proper hash) or we throw error(add new errors too). do this, it's part of our desing plan
+
 ## 3. Phase 2: Classes
 
 Classes are the full OOP unit: fields + constructor + methods + optional inheritance.

@@ -43,6 +43,10 @@ namespace xell
         // Enum keyword
         ENUM,
 
+        // OOP keywords
+        STRUCT,
+        IMMUTABLE,  // immutable binding: immutable x = expr
+
         // Generator keyword
         YIELD,
 
@@ -158,6 +162,8 @@ namespace xell
             {(int)TokenType::FROM, "FROM"},
             {(int)TokenType::AS, "AS"},
             {(int)TokenType::ENUM, "ENUM"},
+            {(int)TokenType::STRUCT, "STRUCT"},
+            {(int)TokenType::IMMUTABLE, "IMMUTABLE"},
             {(int)TokenType::YIELD, "YIELD"},
             {(int)TokenType::ASYNC, "ASYNC"},
             {(int)TokenType::AWAIT, "AWAIT"},

@@ -256,6 +256,16 @@ namespace xell
             : XellError("ImmutabilityError", message, line) {}
     };
 
+    // ---- 3p. Attribute errors -----------------------------------------------
+
+    /// Access to a non-existent field/attribute on a struct/class instance.
+    class AttributeError : public XellError
+    {
+    public:
+        AttributeError(const std::string &message, int line)
+            : XellError("AttributeError", message, line) {}
+    };
+
     // ---- 3o. Not-implemented placeholder ------------------------------------
 
     /// Feature or built-in that is stubbed but not yet implemented.

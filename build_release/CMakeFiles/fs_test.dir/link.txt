@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/fs_test.dir/test/fs_test.cpp.o -o fs_test  libxell_lib.a 

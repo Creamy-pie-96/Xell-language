@@ -234,6 +234,17 @@ namespace xell
             return parseInCaseStmt();
         if (type == TokenType::ENUM)
             return parseEnumDef();
+        if (type == TokenType::STRUCT)
+            return parseStructDef();
+        if (type == TokenType::IMMUTABLE)
+        {
+            int ln = current().line;
+            advance(); // consume 'immutable'
+            std::string name = consume(TokenType::IDENTIFIER, "Expected variable name after 'immutable'").value;
+            consume(TokenType::EQUAL, "Expected '=' after immutable variable name");
+            auto value = parseExpression();
+            return std::make_unique<ImmutableBinding>(name, std::move(value), ln);
+        }
         if (type == TokenType::AT)
             return parseDecoratedFnDef();
         if (type == TokenType::ASYNC)
@@ -371,6 +382,93 @@ namespace xell
                 }
 
                 expr = std::make_unique<CallExpr>(callee, std::move(args), ln);
+            }
+        }
+
+        // Member assignment: expr->field = value  (e.g., self->x = 42, p1->name = "hello")
+        if (auto *mem = dynamic_cast<MemberAccess *>(expr.get()))
+        {
+            if (check(TokenType::EQUAL))
+            {
+                advance(); // consume =
+                ExprPtr value = parseExpression();
+                std::string member = mem->member;
+                ExprPtr object = std::move(mem->object);
+                consumeStatementEnd();
+                return std::make_unique<MemberAssignment>(std::move(object), member, std::move(value), ln);
+            }
+            // Augmented member assignment: expr->field += value  etc.
+            if (check(TokenType::PLUS_EQUAL) || check(TokenType::MINUS_EQUAL) ||
+                check(TokenType::STAR_EQUAL) || check(TokenType::SLASH_EQUAL) ||
+                check(TokenType::PERCENT_EQUAL))
+            {
+                std::string op;
+                switch (current().type) {
+                case TokenType::PLUS_EQUAL: op = "+"; break;
+                case TokenType::MINUS_EQUAL: op = "-"; break;
+                case TokenType::STAR_EQUAL: op = "*"; break;
+                case TokenType::SLASH_EQUAL: op = "/"; break;
+                case TokenType::PERCENT_EQUAL: op = "%"; break;
+                default: op = "+"; break;
+                }
+                advance(); // consume +=
+                ExprPtr rhs = parseExpression();
+                std::string member = mem->member;
+                // Clone the object expression for reading (LHS of the augmented assignment)
+                // Desugar: obj->field += expr → obj->field = obj->field + expr
+                // We rebuild the MemberAccess for reading
+                ExprPtr objForRead = std::move(mem->object);
+                // We need the object twice: once for read, once for write
+                // Since we moved it, parse a fresh read from the original source
+                // Actually, let's be smarter: store the result in a temp
+                // For now, use a simpler approach: wrap as MemberAccess read + BinaryExpr
+                // But we already consumed the object... We need to duplicate it.
+                // Since expressions are unique_ptr, we can't copy. Instead, create
+                // the full RHS from scratch by evaluating at runtime.
+                // The MemberAssignment node will handle this: obj->field = obj->field op rhs
+                // We need the object expression for both read and write.
+                // Let's store the original member access result + op + rhs in the value.
+                // Actually, simplest: just store a BinaryExpr where left = MemberAccess
+                // and rebuild the MemberAccess for reading.
+                // Problem: we moved objForRead. Let's not overcomplicate.
+                // Since we have the name, use the approach: store value as BinaryExpr with
+                // a placeholder read. The interpreter can handle augmented member assignment.
+                // Let's use a special value: BinaryExpr(MemberAccess(null, member), op, rhs)
+                // No — let's just make MemberAssignment store an optional augmented op.
+                // Simplest: just create MemberAssignment with value = BinaryExpr
+                // where the left is a reconstructed MemberAccess. But we need the object.
+                // Since we only have one copy, we'll reconstruct using Identifier if possible.
+                // Actually: let's just handle this in the interpreter using a flag.
+                // For MVP, don't support augmented member assignment yet. KISS.
+                // Reset and let it fall through as an error or expression.
+                // Actually, the simplest correct solution: reconstruct.
+                // If the object was an Identifier (e.g., "self"), we can recreate it.
+                auto *idObj = dynamic_cast<Identifier *>(objForRead.get());
+                if (idObj) {
+                    std::string objName = idObj->name;
+                    int objLn = idObj->line;
+                    ExprPtr readObj = std::make_unique<Identifier>(objName, objLn);
+                    ExprPtr readMember = std::make_unique<MemberAccess>(std::move(readObj), member, ln);
+                    ExprPtr combined = std::make_unique<BinaryExpr>(std::move(readMember), op, std::move(rhs), ln);
+                    consumeStatementEnd();
+                    return std::make_unique<MemberAssignment>(std::move(objForRead), member, std::move(combined), ln);
+                }
+                // Fallback: not supported for complex object expressions
+                throw ParseError("Augmented member assignment only supported on simple identifiers", ln);
+            }
+        }
+
+        // Index assignment: expr[idx] = value  (e.g., list[0] = 42, map["key"] = val)
+        if (auto *idx = dynamic_cast<IndexAccess *>(expr.get()))
+        {
+            if (check(TokenType::EQUAL))
+            {
+                advance(); // consume =
+                ExprPtr value = parseExpression();
+                ExprPtr object = std::move(idx->object);
+                ExprPtr index = std::move(idx->index);
+                consumeStatementEnd();
+                return std::make_unique<IndexAssignment>(std::move(object), std::move(index), std::move(value), ln);
             }
         }
 
@@ -941,6 +1039,68 @@ namespace xell
         consume(TokenType::SEMICOLON, "Expected ';' to close enum definition");
 
         return std::make_unique<EnumDef>(name, std::move(members), std::move(memberValues), ln);
+    }
+
+    // ============================================================
+    // Struct definition: struct Name : field = default ... fn method(...) : ... ; ;
+    // ============================================================
+
+    StmtPtr Parser::parseStructDef()
+    {
+        int ln = current().line;
+        advance(); // consume STRUCT
+
+        std::string name = consume(TokenType::IDENTIFIER, "Expected struct name after 'struct'").value;
+        consume(TokenType::COLON, "Expected ':' after struct name");
+        skipNewlines();
+
+        std::vector<StructFieldDef> fields;
+        std::vector<std::unique_ptr<FnDef>> methods;
+
+        // Parse struct body until closing ';'
+        while (!check(TokenType::SEMICOLON) && !isAtEnd())
+        {
+            skipNewlines();
+            if (check(TokenType::SEMICOLON))
+                break;
+
+            // Method definition: fn name(...) : ... ;
+            if (check(TokenType::FN))
+            {
+                auto fnStmt = parseFnDef();
+                auto *fn = dynamic_cast<FnDef *>(fnStmt.get());
+                if (fn)
+                {
+                    fnStmt.release();
+                    methods.push_back(std::unique_ptr<FnDef>(fn));
+                }
+                skipNewlines();
+                continue;
+            }
+
+            // Field definition: name = expr
+            if (check(TokenType::IDENTIFIER) && peekToken(1).type == TokenType::EQUAL)
+            {
+                StructFieldDef field;
+                field.line = current().line;
+                field.name = current().value;
+                advance(); // consume field name
+                advance(); // consume =
+                field.defaultValue = parseExpression();
+                fields.push_back(std::move(field));
+                // Consume optional newline/dot statement terminator
+                if (check(TokenType::NEWLINE) || check(TokenType::DOT))
+                    advance();
+                skipNewlines();
+                continue;
+            }
+
+            throw ParseError("Expected field definition or method in struct body", current().line);
+        }
+
+        consume(TokenType::SEMICOLON, "Expected ';' to close struct definition");
+
+        return std::make_unique<StructDef>(name, std::move(fields), std::move(methods), ln);
     }
 
     // ============================================================
@@ -1825,34 +1985,36 @@ namespace xell
     {
         std::vector<ExprPtr> args;
         skipNewlines();
-        if (!check(TokenType::RPAREN))
-        {
+
+        auto parseOneArg = [&]() -> ExprPtr {
             if (check(TokenType::ELLIPSIS))
             {
                 int sln = current().line;
                 advance(); // consume ...
                 auto operand = parseExpression();
-                args.push_back(std::make_unique<SpreadExpr>(std::move(operand), sln));
+                return std::make_unique<SpreadExpr>(std::move(operand), sln);
             }
-            else
+            // Check for named argument: identifier COLON expr
+            if (check(TokenType::IDENTIFIER) && peekToken(1).type == TokenType::COLON)
             {
-                args.push_back(parseExpression());
+                int sln = current().line;
+                std::string name = current().value;
+                advance(); // consume identifier
+                advance(); // consume colon
+                auto val = parseExpression();
+                return std::make_unique<NamedArgExpr>(std::move(name), std::move(val), sln);
             }
+            return parseExpression();
+        };
+
+        if (!check(TokenType::RPAREN))
+        {
+            args.push_back(parseOneArg());
             while (check(TokenType::COMMA))
             {
                 advance();
                 skipNewlines();
-                if (check(TokenType::ELLIPSIS))
-                {
-                    int sln = current().line;
-                    advance(); // consume ...
-                    auto operand = parseExpression();
-                    args.push_back(std::make_unique<SpreadExpr>(std::move(operand), sln));
-                }
-                else
-                {
-                    args.push_back(parseExpression());
-                }
+                args.push_back(parseOneArg());
             }
         }
         skipNewlines();

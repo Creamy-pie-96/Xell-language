@@ -203,6 +203,15 @@ namespace xell
         explicit SpreadExpr(ExprPtr op, int ln = 0) : operand(std::move(op)) { line = ln; }
     };
 
+    // Named argument: name: value (used in struct construction)
+    struct NamedArgExpr : Expr
+    {
+        std::string name;
+        ExprPtr value;
+        NamedArgExpr(std::string name, ExprPtr val, int ln = 0)
+            : name(std::move(name)), value(std::move(val)) { line = ln; }
+    };
+
     // Yield expression: yield value (for generators)
     struct YieldExpr : Expr
     {
@@ -239,6 +248,15 @@ namespace xell
         std::string name;
         ExprPtr value;
         Assignment(std::string n, ExprPtr v, int ln = 0)
+            : name(std::move(n)), value(std::move(v)) { line = ln; }
+    };
+
+    // Immutable binding: immutable x = expr
+    struct ImmutableBinding : Stmt
+    {
+        std::string name;
+        ExprPtr value;
+        ImmutableBinding(std::string n, ExprPtr v, int ln = 0)
             : name(std::move(n)), value(std::move(v)) { line = ln; }
     };
 
@@ -379,6 +397,46 @@ namespace xell
                 std::vector<ExprPtr> values, int ln = 0)
             : name(std::move(name)), members(std::move(members)),
               memberValues(std::move(values)) { line = ln; }
+    };
+
+    // ---- OOP: Struct definition ----
+    // struct Point : x = 0  y = 0  fn distance(self, other) : ... ; ;
+    struct StructFieldDef
+    {
+        std::string name;
+        ExprPtr defaultValue;
+        int line = 0;
+    };
+
+    struct StructDef : Stmt
+    {
+        std::string name;
+        std::vector<StructFieldDef> fields;
+        std::vector<std::unique_ptr<FnDef>> methods;
+        StructDef(std::string name, std::vector<StructFieldDef> fields,
+                  std::vector<std::unique_ptr<FnDef>> methods, int ln = 0)
+            : name(std::move(name)), fields(std::move(fields)),
+              methods(std::move(methods)) { line = ln; }
+    };
+
+    // Member assignment: obj->field = expr
+    struct MemberAssignment : Stmt
+    {
+        ExprPtr object;       // the object expression (e.g., self, p1)
+        std::string member;   // field name
+        ExprPtr value;        // RHS expression
+        MemberAssignment(ExprPtr obj, std::string mem, ExprPtr val, int ln = 0)
+            : object(std::move(obj)), member(std::move(mem)), value(std::move(val)) { line = ln; }
+    };
+
+    // Index assignment: list[i] = expr  or  map[key] = expr
+    struct IndexAssignment : Stmt
+    {
+        ExprPtr object; // the container
+        ExprPtr index;  // the index/key
+        ExprPtr value;  // RHS
+        IndexAssignment(ExprPtr obj, ExprPtr idx, ExprPtr val, int ln = 0)
+            : object(std::move(obj)), index(std::move(idx)), value(std::move(val)) { line = ln; }
     };
 
     // Decorated function: @decorator fn name(...): ... ;

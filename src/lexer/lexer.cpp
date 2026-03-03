@@ -35,6 +35,10 @@ namespace xell
             // Enum
             {"enum", TokenType::ENUM},
 
+            // OOP
+            {"struct", TokenType::STRUCT},
+            {"immutable", TokenType::IMMUTABLE},
+
             // Generator
             {"yield", TokenType::YIELD},
 

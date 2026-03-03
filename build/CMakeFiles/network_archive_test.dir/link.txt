@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/network_archive_test.dir/test/network_archive_test.cpp.o -o network_archive_test  libxell_lib.a 

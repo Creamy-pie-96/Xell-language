@@ -1,0 +1,32 @@
+# Build directories
+build/
+build_release/
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+compile_commands.json
+Testing/
+
+# Compiled objects and binaries
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# Editor / IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary test files
+/tmp/

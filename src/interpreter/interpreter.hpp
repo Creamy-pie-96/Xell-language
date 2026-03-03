@@ -137,6 +137,9 @@ namespace xell
         void execDestructuring(const DestructuringAssignment *node);
         void execEnumDef(const EnumDef *node);
         void execDecoratedFnDef(const DecoratedFnDef *node);
+        void execStructDef(const StructDef *node);
+        void execMemberAssignment(const MemberAssignment *node);
+        void execIndexAssignment(const IndexAssignment *node);
 
         // ---- Expression evaluation -----------------------------------------
 
