@@ -1476,8 +1476,8 @@ namespace xell
     }
 
     // ============================================================
-    // Decorated function: @decorator fn name(...): ... ;
-    // Multiple decorators stack: @dec1 @dec2 fn name(...): ... ;
+    // Decorated function/class: @decorator fn/class/abstract/mixin ...
+    // Multiple decorators stack: @dec1 @dec2 fn/class name(...): ... ;
     // ============================================================
 
     StmtPtr Parser::parseDecoratedFnDef()
@@ -1489,8 +1489,46 @@ namespace xell
         while (check(TokenType::AT))
         {
             advance(); // consume @
-            decorators.push_back(consume(TokenType::IDENTIFIER, "Expected decorator name after '@'").value);
+            // Accept IDENTIFIER or keyword tokens that can serve as decorator names
+            if (check(TokenType::IDENTIFIER))
+            {
+                decorators.push_back(current().value);
+                advance();
+            }
+            else if (check(TokenType::IMMUTABLE))
+            {
+                decorators.push_back("immutable");
+                advance();
+            }
+            else
+            {
+                throw ParseError("Expected decorator name after '@'", current().line);
+            }
             skipNewlines();
+        }
+
+        // Check for class / abstract class / mixin after decorators
+        if (check(TokenType::CLASS))
+        {
+            auto classStmt = parseClassDef();
+            auto classDef = std::unique_ptr<ClassDef>(static_cast<ClassDef *>(classStmt.release()));
+            return std::make_unique<DecoratedClassDef>(std::move(decorators), std::move(classDef), ln);
+        }
+        if (check(TokenType::ABSTRACT))
+        {
+            advance(); // consume abstract
+            skipNewlines();
+            auto classStmt = parseClassDef(true, false);
+            auto classDef = std::unique_ptr<ClassDef>(static_cast<ClassDef *>(classStmt.release()));
+            return std::make_unique<DecoratedClassDef>(std::move(decorators), std::move(classDef), ln);
+        }
+        if (check(TokenType::MIXIN))
+        {
+            advance(); // consume mixin
+            skipNewlines();
+            auto classStmt = parseClassDef(false, true);
+            auto classDef = std::unique_ptr<ClassDef>(static_cast<ClassDef *>(classStmt.release()));
+            return std::make_unique<DecoratedClassDef>(std::move(decorators), std::move(classDef), ln);
         }
 
         // Expect fn or async fn
@@ -1503,7 +1541,7 @@ namespace xell
         }
 
         if (!check(TokenType::FN))
-            throw ParseError("Expected 'fn' after decorator(s)", current().line);
+            throw ParseError("Expected 'fn', 'class', 'abstract', or 'mixin' after decorator(s)", current().line);
 
         auto fnStmt = parseFnDef(isAsync);
         auto fnDef = std::unique_ptr<FnDef>(static_cast<FnDef *>(fnStmt.release()));

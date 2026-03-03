@@ -510,6 +510,15 @@ namespace xell
             : decorators(std::move(decorators)), fnDef(std::move(fn)) { line = ln; }
     };
 
+    // Decorated class: @decorator class Name : ... ;
+    struct DecoratedClassDef : Stmt
+    {
+        std::vector<std::string> decorators; // decorator names (applied bottom-up)
+        std::unique_ptr<ClassDef> classDef;
+        DecoratedClassDef(std::vector<std::string> decorators, std::unique_ptr<ClassDef> cls, int ln = 0)
+            : decorators(std::move(decorators)), classDef(std::move(cls)) { line = ln; }
+    };
+
     // ============================================================
     // Top-level program
     // ============================================================

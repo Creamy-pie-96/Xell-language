@@ -561,6 +561,11 @@ namespace xell
         bool isInterface = false;                         // true if defined with `interface`
         bool isAbstract = false;                          // true if defined with `abstract`
         bool isMixin = false;                             // true if defined with `mixin`
+        // Decorator flags
+        bool isDataclass = false;                         // @dataclass: auto-generate __init__/__eq__/__print__
+        bool isImmutable = false;                         // @immutable: freeze instances after __init__
+        bool isSingleton = false;                         // @singleton: only one instance ever created
+        mutable XObject singletonInstance;                // cached singleton instance (if isSingleton)
         std::vector<std::shared_ptr<XStructDef>> parents; // parent classes (inheritance chain)
         std::vector<std::shared_ptr<XStructDef>> mixins;      // mixed-in method bundles
         std::vector<std::shared_ptr<XStructDef>> interfaces; // implemented interfaces

@@ -350,6 +350,8 @@ namespace xell
             return execEnumDef(p);
         if (auto *p = dynamic_cast<const DecoratedFnDef *>(stmt))
             return execDecoratedFnDef(p);
+        if (auto *p = dynamic_cast<const DecoratedClassDef *>(stmt))
+            return execDecoratedClassDef(p);
         if (auto *p = dynamic_cast<const StructDef *>(stmt))
             return execStructDef(p);
         if (auto *p = dynamic_cast<const ClassDef *>(stmt))
@@ -1504,6 +1506,10 @@ namespace xell
                 if (def.isMixin)
                     throw TypeError("cannot instantiate mixin '" + def.name + "'", node->line);
 
+                // Singleton: return cached instance if it already exists
+                if (def.isSingleton && !def.singletonInstance.isNone())
+                    return def.singletonInstance;
+
                 auto defPtr = fnObj.asStructDefShared();
                 XInstance inst(def.name, defPtr);
 
@@ -1535,6 +1541,12 @@ namespace xell
                         executingMethodClass_ = initOwner;
                         callUserFn(initMethodInfo->fnObject.asFunction(), initArgs, node->line, parentDef);
                         executingMethodClass_ = savedMethodClass;
+                        // @immutable: freeze instance after __init__ completes
+                        if (def.isImmutable)
+                            result.asInstanceMut().frozen = true;
+                        // @singleton: cache the instance
+                        if (def.isSingleton)
+                            defPtr->singletonInstance = result;
                         // Return the instance — `result` shares the same XData,
                         // so mutations by __init__ are visible
                         return result;
@@ -1578,7 +1590,14 @@ namespace xell
                             for (size_t i = 0; i < args.size(); i++)
                                 inst.fields[allFields[i].name] = std::move(args[i]);
                         }
-                        return XObject::makeInstance(std::move(inst));
+                        // @immutable: freeze instance after construction
+                        if (def.isImmutable)
+                            inst.frozen = true;
+                        auto resultObj = XObject::makeInstance(std::move(inst));
+                        // @singleton: cache the instance
+                        if (def.isSingleton)
+                            defPtr->singletonInstance = resultObj;
+                        return resultObj;
                     }
                 }
                 else
@@ -1718,6 +1737,11 @@ namespace xell
                 if (fnObj.isStructDef())
                 {
                     const XStructDef &def = fnObj.asStructDef();
+
+                    // Singleton: return cached instance if it already exists
+                    if (def.isSingleton && !def.singletonInstance.isNone())
+                        return def.singletonInstance;
+
                     auto defPtr = fnObj.asStructDefShared();
                     XInstance inst(def.name, defPtr);
                     inst.frozen = true;
@@ -2990,6 +3014,80 @@ namespace xell
 
         // Replace the function in the environment with the decorated version
         currentEnv_->set(fnName, std::move(fn));
+    }
+
+    // ---- Decorated class definition -----------------------------------------
+
+    void Interpreter::execDecoratedClassDef(const DecoratedClassDef *node)
+    {
+        // First, execute the class definition normally
+        execClassDef(node->classDef.get());
+
+        // Then apply decorators (bottom-up: last decorator is innermost)
+        std::string className = node->classDef->name;
+
+        for (auto it = node->decorators.rbegin(); it != node->decorators.rend(); ++it)
+        {
+            const std::string &decoratorName = *it;
+
+            // Built-in class decorators: set flags on the XStructDef
+            if (decoratorName == "dataclass")
+            {
+                XObject classObj = currentEnv_->get(className, node->line);
+                if (!classObj.isStructDef())
+                    throw TypeError("@dataclass can only be applied to classes", node->line);
+                auto defPtr = classObj.asStructDefShared();
+                defPtr->isDataclass = true;
+                // @dataclass: the class already supports field-based construction.
+                // No __init__ needed — the default struct-style construction handles it.
+                continue;
+            }
+            if (decoratorName == "immutable")
+            {
+                XObject classObj = currentEnv_->get(className, node->line);
+                if (!classObj.isStructDef())
+                    throw TypeError("@immutable can only be applied to classes", node->line);
+                auto defPtr = classObj.asStructDefShared();
+                defPtr->isImmutable = true;
+                continue;
+            }
+            if (decoratorName == "singleton")
+            {
+                XObject classObj = currentEnv_->get(className, node->line);
+                if (!classObj.isStructDef())
+                    throw TypeError("@singleton can only be applied to classes", node->line);
+                auto defPtr = classObj.asStructDefShared();
+                defPtr->isSingleton = true;
+                continue;
+            }
+
+            // User-defined class decorators: call decorator(classObj) and replace
+            XObject classObj = currentEnv_->get(className, node->line);
+            XObject decoratorFn;
+            if (currentEnv_->has(decoratorName))
+            {
+                decoratorFn = currentEnv_->get(decoratorName, node->line);
+            }
+            else
+            {
+                auto bit = builtins_.find(decoratorName);
+                if (bit != builtins_.end())
+                {
+                    std::vector<XObject> args = {classObj};
+                    classObj = bit->second(args, node->line);
+                    currentEnv_->set(className, std::move(classObj));
+                    continue;
+                }
+                throw UndefinedVariableError(decoratorName, node->line);
+            }
+
+            if (!decoratorFn.isFunction())
+                throw TypeError("decorator '" + decoratorName + "' is not a function", node->line);
+
+            std::vector<XObject> args = {classObj};
+            classObj = callUserFn(decoratorFn.asFunction(), args, node->line);
+            currentEnv_->set(className, std::move(classObj));
+        }
     }
 
     // ---- Generator creation ------------------------------------------------

@@ -142,6 +142,7 @@ namespace xell
         void execDestructuring(const DestructuringAssignment *node);
         void execEnumDef(const EnumDef *node);
         void execDecoratedFnDef(const DecoratedFnDef *node);
+        void execDecoratedClassDef(const DecoratedClassDef *node);
         void execStructDef(const StructDef *node);
         void execClassDef(const ClassDef *node);
         void execInterfaceDef(const InterfaceDef *node);
