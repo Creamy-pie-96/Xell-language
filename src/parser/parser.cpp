@@ -236,6 +236,8 @@ namespace xell
             return parseEnumDef();
         if (type == TokenType::STRUCT)
             return parseStructDef();
+        if (type == TokenType::CLASS)
+            return parseClassDef();
         if (type == TokenType::IMMUTABLE)
         {
             int ln = current().line;
@@ -1104,6 +1106,81 @@ namespace xell
     }
 
     // ============================================================
+    // Class definition: class Name [inherits Parent1, Parent2] : body ;
+    // ============================================================
+
+    StmtPtr Parser::parseClassDef()
+    {
+        int ln = current().line;
+        advance(); // consume CLASS
+
+        std::string name = consume(TokenType::IDENTIFIER, "Expected class name after 'class'").value;
+
+        // Parse optional 'inherits' clause
+        std::vector<std::string> parents;
+        if (check(TokenType::INHERITS))
+        {
+            advance(); // consume INHERITS
+            parents.push_back(consume(TokenType::IDENTIFIER, "Expected parent class name after 'inherits'").value);
+            while (check(TokenType::COMMA))
+            {
+                advance(); // consume comma
+                parents.push_back(consume(TokenType::IDENTIFIER, "Expected parent class name").value);
+            }
+        }
+
+        consume(TokenType::COLON, "Expected ':' after class name");
+        skipNewlines();
+
+        std::vector<StructFieldDef> fields;
+        std::vector<std::unique_ptr<FnDef>> methods;
+
+        // Parse class body until closing ';'
+        while (!check(TokenType::SEMICOLON) && !isAtEnd())
+        {
+            skipNewlines();
+            if (check(TokenType::SEMICOLON))
+                break;
+
+            // Method definition: fn name(...) : ... ;
+            if (check(TokenType::FN))
+            {
+                auto fnStmt = parseFnDef();
+                auto *fn = dynamic_cast<FnDef *>(fnStmt.get());
+                if (fn)
+                {
+                    fnStmt.release();
+                    methods.push_back(std::unique_ptr<FnDef>(fn));
+                }
+                skipNewlines();
+                continue;
+            }
+
+            // Field definition: name = expr
+            if (check(TokenType::IDENTIFIER) && peekToken(1).type == TokenType::EQUAL)
+            {
+                StructFieldDef field;
+                field.line = current().line;
+                field.name = current().value;
+                advance(); // consume field name
+                advance(); // consume =
+                field.defaultValue = parseExpression();
+                fields.push_back(std::move(field));
+                if (check(TokenType::NEWLINE) || check(TokenType::DOT))
+                    advance();
+                skipNewlines();
+                continue;
+            }
+
+            throw ParseError("Expected field definition or method in class body", current().line);
+        }
+
+        consume(TokenType::SEMICOLON, "Expected ';' to close class definition");
+
+        return std::make_unique<ClassDef>(name, std::move(parents), std::move(fields), std::move(methods), ln);
+    }
+
+    // ============================================================
     // Decorated function: @decorator fn name(...): ... ;
     // Multiple decorators stack: @dec1 @dec2 fn name(...): ... ;
     // ============================================================
@@ -1309,7 +1386,9 @@ namespace xell
             advance();
 
             std::string op;
-            if (opType == TokenType::EQUAL_EQUAL || opType == TokenType::IS || opType == TokenType::EQ)
+            if (opType == TokenType::IS)
+                op = "is";   // instance-of check: obj is ClassName
+            else if (opType == TokenType::EQUAL_EQUAL || opType == TokenType::EQ)
                 op = "==";
             else
                 op = "!=";

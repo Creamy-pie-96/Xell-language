@@ -352,6 +352,8 @@ namespace xell
             return execDecoratedFnDef(p);
         if (auto *p = dynamic_cast<const StructDef *>(stmt))
             return execStructDef(p);
+        if (auto *p = dynamic_cast<const ClassDef *>(stmt))
+            return execClassDef(p);
         if (auto *p = dynamic_cast<const ImmutableBinding *>(stmt))
         {
             XObject value = eval(p->value.get());
@@ -1073,6 +1075,19 @@ namespace xell
         if (op == "!=")
             return XObject::makeBool(!left.equals(right));
 
+        // Instance-of check: obj is ClassName
+        if (op == "is")
+        {
+            if (left.isInstance() && right.isStructDef())
+            {
+                const XInstance &inst = left.asInstance();
+                const XStructDef &def = right.asStructDef();
+                return XObject::makeBool(inst.structDef->isOrInherits(def.name));
+            }
+            // Fallback: treat as equality for non-instance operands
+            return XObject::makeBool(left.equals(right));
+        }
+
         // Arithmetic / string concatenation
         if (op == "+")
         {
@@ -1437,100 +1452,88 @@ namespace xell
                 return callUserFn(fn, args, node->line);
             }
 
-            // ---- Struct construction: Name(args...) ----
+            // ---- Struct/Class construction: Name(args...) ----
             if (fnObj.isStructDef())
             {
                 const XStructDef &def = fnObj.asStructDef();
                 auto defPtr = fnObj.asStructDefShared();
                 XInstance inst(def.name, defPtr);
 
-                // Initialize all fields to their defaults
-                for (const auto &fi : def.fields)
-                    inst.fields[fi.name] = fi.defaultValue.clone();
-
-                // Check for named arguments (NamedArgExpr) from the raw AST
-                bool hasNamed = false;
-                for (const auto &rawArg : node->args)
+                if (def.isClass)
                 {
-                    if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
-                    { hasNamed = true; break; }
-                }
+                    // Class construction: initialize ALL inherited fields to defaults
+                    auto allFields = def.allFields();
+                    for (const auto &fi : allFields)
+                        inst.fields[fi.name] = fi.defaultValue.clone();
 
-                if (hasNamed)
-                {
-                    // Named argument mode: Point(x: 10, y: 20)
-                    // Values are already evaluated in `args` in the same order
-                    size_t ai = 0;
-                    for (const auto &rawArg : node->args)
+                    // Look for __init__ method (own or inherited)
+                    auto [initMethodInfo, initOwner] = def.findMethodWithOwner("__init__");
+                    if (initMethodInfo && initMethodInfo->fnObject.isFunction())
                     {
-                        auto *na = dynamic_cast<const NamedArgExpr *>(rawArg.get());
-                        if (!na)
-                            throw ParseError("cannot mix positional and named arguments in struct construction", node->line);
-                        // Verify the field exists
-                        bool found = false;
-                        for (const auto &fi : def.fields)
-                            if (fi.name == na->name) { found = true; break; }
-                        if (!found)
-                            throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
-                        inst.fields[na->name] = std::move(args[ai++]);
+                        // Call __init__(self, args...)
+                        // Create the instance object — ref-counted so copies share data
+                        XObject instObj = XObject::makeInstance(std::move(inst));
+                        // Keep a copy — callUserFn will move from initArgs[0]
+                        XObject result = instObj;
+                        std::vector<XObject> initArgs;
+                        initArgs.push_back(std::move(instObj));
+                        for (auto &a : args)
+                            initArgs.push_back(std::move(a));
+                        // Pass correct parent for the class that defines __init__
+                        std::shared_ptr<XStructDef> parentDef = nullptr;
+                        if (initOwner && initOwner->isClass && !initOwner->parents.empty())
+                            parentDef = initOwner->parents[0];
+                        callUserFn(initMethodInfo->fnObject.asFunction(), initArgs, node->line, parentDef);
+                        // Return the instance — `result` shares the same XData,
+                        // so mutations by __init__ are visible
+                        return result;
+                    }
+                    else
+                    {
+                        // No __init__: fall through to struct-style positional/named construction
+                        // Check for named arguments
+                        bool hasNamed = false;
+                        for (const auto &rawArg : node->args)
+                            if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
+                            { hasNamed = true; break; }
+
+                        if (hasNamed)
+                        {
+                            size_t ai = 0;
+                            for (const auto &rawArg : node->args)
+                            {
+                                auto *na = dynamic_cast<const NamedArgExpr *>(rawArg.get());
+                                if (!na) throw ParseError("cannot mix positional and named arguments in class construction", node->line);
+                                bool found = false;
+                                for (const auto &fi : allFields)
+                                    if (fi.name == na->name) { found = true; break; }
+                                if (!found) throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
+                                inst.fields[na->name] = std::move(args[ai++]);
+                            }
+                        }
+                        else
+                        {
+                            if (args.size() > allFields.size())
+                                throw ArityError(def.name, (int)allFields.size(), (int)args.size(), node->line);
+                            for (size_t i = 0; i < args.size(); i++)
+                                inst.fields[allFields[i].name] = std::move(args[i]);
+                        }
+                        return XObject::makeInstance(std::move(inst));
                     }
                 }
                 else
                 {
-                    // Positional argument mode: Point(3, 7)
-                    if (args.size() > def.fields.size())
-                        throw ArityError(def.name, (int)def.fields.size(), (int)args.size(), node->line);
-                    for (size_t i = 0; i < args.size(); i++)
-                        inst.fields[def.fields[i].name] = std::move(args[i]);
-                }
-
-                return XObject::makeInstance(std::move(inst));
-            }
-        }
-
-        // ---- Instance method call: obj->method(args) ----
-        // The parser rewrites obj->method(a, b) as CallExpr("method", [obj, a, b])
-        // So if the first arg is an instance, check its struct for the method.
-        // This must be checked BEFORE builtins so struct methods shadow builtin names.
-        if (!args.empty() && args[0].isInstance())
-        {
-            const XInstance &inst = args[0].asInstance();
-            for (const auto &mi : inst.structDef->methods)
-            {
-                if (mi.name == node->callee && mi.fnObject.isFunction())
-                {
-                    return callUserFn(mi.fnObject.asFunction(), args, node->line);
-                }
-            }
-        }
-
-        auto bit = builtins_.find(node->callee);
-        if (bit != builtins_.end())
-        {
-            return bit->second(args, node->line);
-        }
-
-        // ---- Frozen struct construction: ~Name(args...) ----
-        if (node->callee.size() > 1 && node->callee[0] == '~')
-        {
-            std::string baseName = node->callee.substr(1);
-            if (currentEnv_->has(baseName))
-            {
-                XObject fnObj = currentEnv_->get(baseName, node->line);
-                if (fnObj.isStructDef())
-                {
-                    const XStructDef &def = fnObj.asStructDef();
-                    auto defPtr = fnObj.asStructDefShared();
-                    XInstance inst(def.name, defPtr);
-                    inst.frozen = true;
-
+                    // Struct construction (no __init__): Initialize all fields to their defaults
                     for (const auto &fi : def.fields)
                         inst.fields[fi.name] = fi.defaultValue.clone();
 
+                    // Check for named arguments (NamedArgExpr) from the raw AST
                     bool hasNamed = false;
                     for (const auto &rawArg : node->args)
+                    {
                         if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
                         { hasNamed = true; break; }
+                    }
 
                     if (hasNamed)
                     {
@@ -1561,6 +1564,176 @@ namespace xell
             }
         }
 
+        // ---- Instance method call: obj->method(args) ----
+        // The parser rewrites obj->method(a, b) as CallExpr("method", [obj, a, b])
+        // So if the first arg is an instance, check its struct for the method.
+        // This must be checked BEFORE builtins so struct methods shadow builtin names.
+        // Uses findMethodWithOwner() to get the defining class, enabling correct
+        // parent resolution in deep inheritance hierarchies.
+        if (!args.empty() && args[0].isInstance())
+        {
+            const XInstance &inst = args[0].asInstance();
+            auto [mi, ownerClass] = inst.structDef->findMethodWithOwner(node->callee);
+            if (mi && mi->fnObject.isFunction())
+            {
+                // Pass the first parent of the DEFINING class as parentClassDef
+                std::shared_ptr<XStructDef> parentDef = nullptr;
+                if (ownerClass && ownerClass->isClass && !ownerClass->parents.empty())
+                    parentDef = ownerClass->parents[0];
+                return callUserFn(mi->fnObject.asFunction(), args, node->line, parentDef);
+            }
+        }
+
+        // ---- Parent method call: parent->method(args) ----
+        // Inside a class method, `parent` is the parent class definition.
+        // parent->method(args) should call the parent's method with `self` injected.
+        // The parser rewrites parent->method(a, b) as CallExpr("method", [parent, a, b])
+        // We detect that the first arg is a STRUCT_DEF (class), look up the method,
+        // then replace the first arg with `self` from the current scope.
+        // We use findMethodWithOwner to correctly set `parent` for the called method.
+        if (!args.empty() && args[0].isStructDef())
+        {
+            const XStructDef &calledParentDef = args[0].asStructDef();
+            if (calledParentDef.isClass)
+            {
+                auto [mi, ownerClass] = calledParentDef.findMethodWithOwner(node->callee);
+                if (mi && mi->fnObject.isFunction())
+                {
+                    // Inject `self` from current scope instead of the class def
+                    if (currentEnv_->has("self"))
+                    {
+                        args[0] = currentEnv_->get("self", node->line);
+                        // Pass the owner class's first parent for correct parent chain
+                        std::shared_ptr<XStructDef> nextParent = nullptr;
+                        if (ownerClass && ownerClass->isClass && !ownerClass->parents.empty())
+                            nextParent = ownerClass->parents[0];
+                        return callUserFn(mi->fnObject.asFunction(), args, node->line, nextParent);
+                    }
+                }
+            }
+        }
+
+        auto bit = builtins_.find(node->callee);
+        if (bit != builtins_.end())
+        {
+            return bit->second(args, node->line);
+        }
+
+        // ---- Frozen struct/class construction: ~Name(args...) ----
+        if (node->callee.size() > 1 && node->callee[0] == '~')
+        {
+            std::string baseName = node->callee.substr(1);
+            if (currentEnv_->has(baseName))
+            {
+                XObject fnObj = currentEnv_->get(baseName, node->line);
+                if (fnObj.isStructDef())
+                {
+                    const XStructDef &def = fnObj.asStructDef();
+                    auto defPtr = fnObj.asStructDefShared();
+                    XInstance inst(def.name, defPtr);
+                    inst.frozen = true;
+
+                    if (def.isClass)
+                    {
+                        // Class frozen construction: use allFields, support __init__
+                        auto allFields = def.allFields();
+                        for (const auto &fi : allFields)
+                            inst.fields[fi.name] = fi.defaultValue.clone();
+
+                        auto [initMethodInfo, initOwner] = def.findMethodWithOwner("__init__");
+                        if (initMethodInfo && initMethodInfo->fnObject.isFunction())
+                        {
+                            // Call __init__ — but freeze AFTER init completes
+                            inst.frozen = false;
+                            XObject instObj = XObject::makeInstance(std::move(inst));
+                            // Keep a copy — callUserFn will move from initArgs[0]
+                            XObject result = instObj;
+                            std::vector<XObject> initArgs;
+                            initArgs.push_back(std::move(instObj));
+                            for (auto &a : args)
+                                initArgs.push_back(std::move(a));
+                            std::shared_ptr<XStructDef> parentDef = nullptr;
+                            if (initOwner && initOwner->isClass && !initOwner->parents.empty())
+                                parentDef = initOwner->parents[0];
+                            callUserFn(initMethodInfo->fnObject.asFunction(), initArgs, node->line, parentDef);
+                            // Freeze after __init__ — result shares same XData
+                            result.asInstanceMut().frozen = true;
+                            return result;
+                        }
+                        else
+                        {
+                            // No __init__: struct-style positional/named
+                            bool hasNamed = false;
+                            for (const auto &rawArg : node->args)
+                                if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
+                                { hasNamed = true; break; }
+                            if (hasNamed)
+                            {
+                                size_t ai = 0;
+                                for (const auto &rawArg : node->args)
+                                {
+                                    auto *na = dynamic_cast<const NamedArgExpr *>(rawArg.get());
+                                    if (!na)
+                                        throw ParseError("cannot mix positional and named arguments in class construction", node->line);
+                                    bool found = false;
+                                    for (const auto &fi : allFields)
+                                        if (fi.name == na->name) { found = true; break; }
+                                    if (!found)
+                                        throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
+                                    inst.fields[na->name] = std::move(args[ai++]);
+                                }
+                            }
+                            else
+                            {
+                                if (args.size() > allFields.size())
+                                    throw ArityError(def.name, (int)allFields.size(), (int)args.size(), node->line);
+                                for (size_t i = 0; i < args.size(); i++)
+                                    inst.fields[allFields[i].name] = std::move(args[i]);
+                            }
+                            return XObject::makeInstance(std::move(inst));
+                        }
+                    }
+                    else
+                    {
+                        // Struct frozen construction (original)
+                        for (const auto &fi : def.fields)
+                            inst.fields[fi.name] = fi.defaultValue.clone();
+
+                        bool hasNamed = false;
+                        for (const auto &rawArg : node->args)
+                            if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
+                            { hasNamed = true; break; }
+
+                        if (hasNamed)
+                        {
+                            size_t ai = 0;
+                            for (const auto &rawArg : node->args)
+                            {
+                                auto *na = dynamic_cast<const NamedArgExpr *>(rawArg.get());
+                                if (!na)
+                                    throw ParseError("cannot mix positional and named arguments in struct construction", node->line);
+                                bool found = false;
+                                for (const auto &fi : def.fields)
+                                    if (fi.name == na->name) { found = true; break; }
+                                if (!found)
+                                    throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
+                                inst.fields[na->name] = std::move(args[ai++]);
+                            }
+                        }
+                        else
+                        {
+                            if (args.size() > def.fields.size())
+                                throw ArityError(def.name, (int)def.fields.size(), (int)args.size(), node->line);
+                            for (size_t i = 0; i < args.size(); i++)
+                                inst.fields[def.fields[i].name] = std::move(args[i]);
+                        }
+
+                        return XObject::makeInstance(std::move(inst));
+                    }
+                }
+            }
+        }
+
         // If the function exists in a Tier 2 module, give a helpful error
         auto abit = allBuiltins_.find(node->callee);
         if (abit != allBuiltins_.end())
@@ -1578,12 +1751,13 @@ namespace xell
         if (!args.empty() && args[0].isInstance())
         {
             const XInstance &inst = args[0].asInstance();
-            for (const auto &mi : inst.structDef->methods)
+            auto [mi, ownerClass] = inst.structDef->findMethodWithOwner(node->callee);
+            if (mi && mi->fnObject.isFunction())
             {
-                if (mi.name == node->callee && mi.fnObject.isFunction())
-                {
-                    return callUserFn(mi.fnObject.asFunction(), args, node->line);
-                }
+                std::shared_ptr<XStructDef> parentDef = nullptr;
+                if (ownerClass && ownerClass->isClass && !ownerClass->parents.empty())
+                    parentDef = ownerClass->parents[0];
+                return callUserFn(mi->fnObject.asFunction(), args, node->line, parentDef);
             }
         }
 
@@ -1627,7 +1801,8 @@ namespace xell
         return callUserFn(fn, args, node->line);
     }
 
-    XObject Interpreter::callUserFn(const XFunction &fn, std::vector<XObject> &args, int line)
+    XObject Interpreter::callUserFn(const XFunction &fn, std::vector<XObject> &args, int line,
+                                     std::shared_ptr<XStructDef> parentClassDef)
     {
         // If this is a generator function, create a generator instead of executing
         if (fn.isGenerator)
@@ -1691,6 +1866,39 @@ namespace xell
                 varArgs.push_back(std::move(args[i]));
             }
             fnEnv.define(fn.variadicName, XObject::makeList(std::move(varArgs)));
+        }
+
+        // If a parent class definition was explicitly provided, bind `parent`
+        // This enables parent->method(args) calls inside class methods.
+        // The parentClassDef is the FIRST parent of the class that DEFINES the
+        // method being called, ensuring correct parent resolution in deep hierarchies.
+        if (parentClassDef)
+        {
+            fnEnv.define("parent", XObject::makeStructDef(parentClassDef));
+        }
+        else
+        {
+            // Fallback: if no explicit parent provided but self is a class instance
+            // parameter, use the instance's class parents (works for single-level
+            // hierarchies). We check fn.params rather than walking the scope chain
+            // to avoid traversing potentially-dangling closure environments.
+            bool hasSelfParam = false;
+            for (const auto &p : fn.params)
+                if (p == "self") { hasSelfParam = true; break; }
+            if (hasSelfParam && fnEnv.has("self"))
+            {
+                XObject selfObj = fnEnv.get("self", line);
+                if (selfObj.isInstance())
+                {
+                    const XInstance &selfInst = selfObj.asInstance();
+                    if (selfInst.structDef && selfInst.structDef->isClass &&
+                        !selfInst.structDef->parents.empty())
+                    {
+                        fnEnv.define("parent",
+                            XObject::makeStructDef(selfInst.structDef->parents[0]));
+                    }
+                }
+            }
         }
 
         // Execute body, catching GiveSignal for return values
@@ -1833,20 +2041,24 @@ namespace xell
                 return it->second;
 
             // Check if it's a method name (for passing methods as values)
-            for (const auto &mi : inst.structDef->methods)
-            {
-                if (mi.name == node->member)
-                    return mi.fnObject;
-            }
+            // Uses findMethod() to search the full inheritance chain
+            const XStructMethodInfo *mi = inst.structDef->findMethod(node->member);
+            if (mi)
+                return mi->fnObject;
 
             throw AttributeError("'" + inst.typeName + "' has no field '" + node->member + "'", node->line);
         }
 
-        // Struct definition member access (static methods could go here)
+        // Struct/Class definition member access — allows parent->method references
         if (obj.isStructDef())
         {
             const XStructDef &def = obj.asStructDef();
-            throw AttributeError("'" + def.name + "' is a struct type, not an instance", node->line);
+            // Allow method lookup on class definitions (for parent->method patterns)
+            const XStructMethodInfo *mi = def.findMethod(node->member);
+            if (mi)
+                return mi->fnObject;
+            std::string kind = def.isClass ? "class" : "struct";
+            throw AttributeError("'" + def.name + "' " + kind + " has no method '" + node->member + "'", node->line);
         }
 
         throw TypeError("member access (->) not supported on " +
@@ -2162,6 +2374,59 @@ namespace xell
         currentEnv_->set(node->name, XObject::makeStructDef(def));
     }
 
+    // ---- Class definition: class Name [inherits P1, P2] : body ; ----------
+
+    void Interpreter::execClassDef(const ClassDef *node)
+    {
+        auto def = std::make_shared<XStructDef>(node->name);
+        def->isClass = true;
+
+        // Resolve parent classes from the current environment
+        for (const auto &parentName : node->parents)
+        {
+            XObject parentObj = currentEnv_->get(parentName, node->line);
+            if (!parentObj.isStructDef())
+                throw TypeError("'" + parentName + "' is not a class/struct", node->line);
+            const XStructDef &parentDef = parentObj.asStructDef();
+            if (!parentDef.isClass)
+                throw TypeError("'" + parentName + "' is a struct, not a class (cannot inherit from structs)", node->line);
+            def->parents.push_back(parentObj.asStructDefShared());
+        }
+
+        // Evaluate field default values
+        for (const auto &field : node->fields)
+        {
+            XStructFieldInfo fi;
+            fi.name = field.name;
+            fi.defaultValue = field.defaultValue ? eval(field.defaultValue.get())
+                                                  : XObject::makeNone();
+            def->fields.push_back(std::move(fi));
+        }
+
+        // Compile methods: create XFunction objects
+        for (const auto &method : node->methods)
+        {
+            XStructMethodInfo mi;
+            mi.name = method->name;
+            auto fnObj = XObject::makeFunction(method->name, method->params,
+                                               &method->body, currentEnv_);
+            // Copy default parameter info
+            XFunction &fnRef = const_cast<XFunction &>(fnObj.asFunction());
+            fnRef.defaults.clear();
+            for (const auto &d : method->defaults)
+                fnRef.defaults.push_back(d.get());
+            fnRef.isVariadic = method->isVariadic;
+            fnRef.variadicName = method->variadicName;
+            fnRef.isGenerator = containsYield(method->body);
+            fnRef.isAsync = method->isAsync;
+            fnRef.typeAnnotations = method->paramTypes;
+            mi.fnObject = std::move(fnObj);
+            def->methods.push_back(std::move(mi));
+        }
+
+        currentEnv_->set(node->name, XObject::makeStructDef(def));
+    }
+
     // ---- Member assignment: obj->field = value -----------------------------
 
     void Interpreter::execMemberAssignment(const MemberAssignment *node)
@@ -2177,11 +2442,19 @@ namespace xell
             if (inst.frozen)
                 throw ImmutabilityError("cannot modify field '" + node->member +
                     "' on frozen instance of '" + inst.typeName + "'", node->line);
-            // Only allow setting fields that exist in the struct definition
+            // Only allow setting fields that exist in the struct/class definition
+            // For classes, use findField() to search the full inheritance chain
             bool found = false;
-            for (const auto &fi : inst.structDef->fields)
+            if (inst.structDef->isClass)
             {
-                if (fi.name == node->member) { found = true; break; }
+                found = (inst.structDef->findField(node->member) != nullptr);
+            }
+            else
+            {
+                for (const auto &fi : inst.structDef->fields)
+                {
+                    if (fi.name == node->member) { found = true; break; }
+                }
             }
             if (!found)
                 throw AttributeError("'" + inst.typeName + "' has no field '" + node->member + "'", node->line);

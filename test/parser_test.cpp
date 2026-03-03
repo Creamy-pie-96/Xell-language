@@ -549,7 +549,7 @@ void test_parse_equality_is_keyword()
     auto prog = parseSource("x = a is b");
     auto *assign = firstStmt<Assignment>(prog);
     auto *bin = asExpr<BinaryExpr>(assign->value.get());
-    XASSERT_EQ(bin->op, std::string("==")); // normalized
+    XASSERT_EQ(bin->op, std::string("is")); // instance-of check
 }
 
 void test_parse_equality_eq_keyword()

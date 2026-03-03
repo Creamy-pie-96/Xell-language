@@ -419,6 +419,21 @@ namespace xell
               methods(std::move(methods)) { line = ln; }
     };
 
+    // ---- OOP: Class definition ----
+    // class Animal [inherits Base1, Base2] : fields + methods + __init__ ;
+    struct ClassDef : Stmt
+    {
+        std::string name;
+        std::vector<std::string> parents;                 // inherits list (may be empty)
+        std::vector<StructFieldDef> fields;
+        std::vector<std::unique_ptr<FnDef>> methods;      // includes __init__ if present
+        ClassDef(std::string name, std::vector<std::string> parents,
+                 std::vector<StructFieldDef> fields,
+                 std::vector<std::unique_ptr<FnDef>> methods, int ln = 0)
+            : name(std::move(name)), parents(std::move(parents)),
+              fields(std::move(fields)), methods(std::move(methods)) { line = ln; }
+    };
+
     // Member assignment: obj->field = expr
     struct MemberAssignment : Stmt
     {

@@ -45,6 +45,8 @@ namespace xell
 
         // OOP keywords
         STRUCT,
+        CLASS,
+        INHERITS,
         IMMUTABLE,  // immutable binding: immutable x = expr
 
         // Generator keyword
@@ -163,6 +165,8 @@ namespace xell
             {(int)TokenType::AS, "AS"},
             {(int)TokenType::ENUM, "ENUM"},
             {(int)TokenType::STRUCT, "STRUCT"},
+            {(int)TokenType::CLASS, "CLASS"},
+            {(int)TokenType::INHERITS, "INHERITS"},
             {(int)TokenType::IMMUTABLE, "IMMUTABLE"},
             {(int)TokenType::YIELD, "YIELD"},
             {(int)TokenType::ASYNC, "ASYNC"},

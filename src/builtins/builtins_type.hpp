@@ -20,7 +20,10 @@ namespace xell
             if (args[0].isInstance())
                 return XObject::makeString(args[0].asInstance().typeName);
             if (args[0].isStructDef())
-                return XObject::makeString("struct");
+            {
+                const XStructDef &def = args[0].asStructDef();
+                return XObject::makeString(def.isClass ? "class" : "struct");
+            }
             return XObject::makeString(xtype_name(args[0].type()));
         };
 

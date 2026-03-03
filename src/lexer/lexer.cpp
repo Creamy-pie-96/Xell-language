@@ -37,6 +37,8 @@ namespace xell
 
             // OOP
             {"struct", TokenType::STRUCT},
+            {"class", TokenType::CLASS},
+            {"inherits", TokenType::INHERITS},
             {"immutable", TokenType::IMMUTABLE},
 
             // Generator

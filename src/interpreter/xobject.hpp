@@ -541,9 +541,94 @@ namespace xell
         std::string name;
         std::vector<XStructFieldInfo> fields;     // ordered field definitions
         std::vector<XStructMethodInfo> methods;    // method definitions
+        bool isClass = false;                     // true if defined with `class`, false for `struct`
+        std::vector<std::shared_ptr<XStructDef>> parents; // parent classes (inheritance chain)
 
         XStructDef() = default;
         XStructDef(std::string name) : name(std::move(name)) {}
+
+        // Look up a method by name, searching own methods then parents (left-to-right DFS)
+        const XStructMethodInfo *findMethod(const std::string &methodName) const
+        {
+            for (const auto &mi : methods)
+                if (mi.name == methodName) return &mi;
+            for (const auto &parent : parents)
+            {
+                const XStructMethodInfo *found = parent->findMethod(methodName);
+                if (found) return found;
+            }
+            return nullptr;
+        }
+
+        // Like findMethod, but also returns which class in the hierarchy owns the method
+        // Returns {method, owningClass} — owningClass is the XStructDef that defined the method
+        std::pair<const XStructMethodInfo *, const XStructDef *>
+        findMethodWithOwner(const std::string &methodName) const
+        {
+            for (const auto &mi : methods)
+                if (mi.name == methodName) return {&mi, this};
+            for (const auto &parent : parents)
+            {
+                auto result = parent->findMethodWithOwner(methodName);
+                if (result.first) return result;
+            }
+            return {nullptr, nullptr};
+        }
+
+        // Look up a field default by name, searching own fields then parents
+        const XStructFieldInfo *findField(const std::string &fieldName) const
+        {
+            for (const auto &fi : fields)
+                if (fi.name == fieldName) return &fi;
+            for (const auto &parent : parents)
+            {
+                const XStructFieldInfo *found = parent->findField(fieldName);
+                if (found) return found;
+            }
+            return nullptr;
+        }
+
+        // Check if this class/struct is or inherits from a given name
+        bool isOrInherits(const std::string &typeName) const
+        {
+            if (name == typeName) return true;
+            for (const auto &parent : parents)
+                if (parent->isOrInherits(typeName)) return true;
+            return false;
+        }
+
+        // Collect all fields from the entire inheritance chain (parents first, then own)
+        std::vector<XStructFieldInfo> allFields() const
+        {
+            std::vector<XStructFieldInfo> result;
+            for (const auto &parent : parents)
+            {
+                auto pfields = parent->allFields();
+                for (auto &f : pfields)
+                {
+                    // Don't add if already present (child overrides parent)
+                    bool exists = false;
+                    for (const auto &r : result)
+                        if (r.name == f.name) { exists = true; break; }
+                    if (!exists) result.push_back(std::move(f));
+                }
+            }
+            for (const auto &fi : fields)
+            {
+                // Child fields override parent fields with same name
+                bool found = false;
+                for (auto &r : result)
+                    if (r.name == fi.name) { r.defaultValue = fi.defaultValue.clone(); found = true; break; }
+                if (!found)
+                {
+                    XStructFieldInfo copy;
+                    copy.name = fi.name;
+                    copy.defaultValue = fi.defaultValue.clone();
+                    result.push_back(std::move(copy));
+                }
+            }
+            return result;
+        }
     };
 
     // ========================================================================

@@ -103,3 +103,7 @@ add_test(NAME casting_overload_test COMMAND casting_overload_test)
 add_executable(struct_test test/struct_test.cpp)
 target_link_libraries(struct_test xell_lib)
 add_test(NAME struct_test COMMAND struct_test)
+
+add_executable(class_test test/class_test.cpp)
+target_link_libraries(class_test xell_lib)
+add_test(NAME class_test COMMAND class_test)
