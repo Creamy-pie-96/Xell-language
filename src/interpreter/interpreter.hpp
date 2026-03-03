@@ -189,6 +189,10 @@ namespace xell
 
         // Generator yield context — when non-null, yield is valid
         GeneratorState *activeGeneratorState_ = nullptr;
+
+        // Static callback for __hash__ — called from xobject.cpp hash system
+        static bool instanceHashCallback(const XObject &instance, int64_t &result);
+        static Interpreter *currentInterpreter_;
     };
 
 } // namespace xell

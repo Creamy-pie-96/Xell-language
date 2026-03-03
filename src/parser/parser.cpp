@@ -2214,6 +2214,21 @@ namespace xell
                 continue;
             }
 
+            // "of" keyword: name of obj → obj->name (alias for member access)
+            // Only valid when expr is an Identifier
+            if (check(TokenType::OF))
+            {
+                auto *ident = dynamic_cast<const Identifier *>(expr.get());
+                if (ident)
+                {
+                    std::string memberName = ident->name;
+                    advance();               // consume 'of'
+                    auto obj = parseUnary(); // parse the object expression
+                    expr = std::make_unique<MemberAccess>(std::move(obj), memberName, ln);
+                    continue;
+                }
+            }
+
             break;
         }
         return expr;

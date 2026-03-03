@@ -147,6 +147,8 @@ namespace xell
     Interpreter::Interpreter()
         : currentEnv_(&globalEnv_)
     {
+        currentInterpreter_ = this;
+        setInstanceHashCallback(&Interpreter::instanceHashCallback);
         registerBuiltins();
     }
 
@@ -607,7 +609,29 @@ namespace xell
                 }
                 return items;
             }
-            throw TypeError("for..in requires a list, tuple, map, set, string, or generator, got " +
+            if (src.isInstance())
+            {
+                // Check for __iter__ magic method → should return a list
+                XObject iterResult;
+                std::vector<XObject> iterArgs;
+                if (callMagicMethod(src, "__iter__", iterArgs, line, iterResult))
+                {
+                    if (iterResult.isList())
+                        return iterResult.asList();
+                    if (iterResult.isTuple())
+                    {
+                        auto &tup = iterResult.asTuple();
+                        return std::vector<XObject>(tup.begin(), tup.end());
+                    }
+                    throw TypeError("__iter__ must return a list or tuple, got " +
+                                        std::string(xtype_name(iterResult.type())),
+                                    line);
+                }
+                throw IterationError("'" + src.asInstance().typeName +
+                                         "' is not iterable (no __iter__ method defined)",
+                                     line);
+            }
+            throw TypeError("for..in requires a list, tuple, map, set, string, generator, or iterable instance, got " +
                                 std::string(xtype_name(src.type())),
                             line);
         };
@@ -1225,9 +1249,14 @@ namespace xell
                     std::vector<XObject> eqArgs = {std::move(magicArgs[0])};
                     if (callMagicMethod(left, "__eq__", eqArgs, node->line, result))
                         return XObject::makeBool(!result.truthy());
+                    // Restore right from eqArgs (magicArgs[0] was moved into eqArgs)
+                    right = std::move(eqArgs[0]);
                 }
-                // Restore right for fallback
-                right = std::move(magicArgs[0]);
+                else
+                {
+                    // Restore right for fallback
+                    right = std::move(magicArgs[0]);
+                }
             }
         }
 
@@ -3461,6 +3490,35 @@ namespace xell
             else
                 currentEnv_->set(node->names[i], XObject::makeNone());
         }
+    }
+
+    // ========================================================================
+    // Static members for __hash__ callback
+    // ========================================================================
+
+    Interpreter *Interpreter::currentInterpreter_ = nullptr;
+
+    bool Interpreter::instanceHashCallback(const XObject &instance, int64_t &result)
+    {
+        if (!currentInterpreter_)
+            return false;
+        XObject hashResult;
+        std::vector<XObject> args;
+        if (currentInterpreter_->callMagicMethod(instance, "__hash__", args, 0, hashResult))
+        {
+            if (hashResult.isInt())
+            {
+                result = hashResult.asInt();
+                return true;
+            }
+            if (hashResult.isFloat())
+            {
+                result = static_cast<int64_t>(hashResult.asNumber());
+                return true;
+            }
+            throw HashError("__hash__ must return an integer", 0);
+        }
+        return false;
     }
 
     // ========================================================================

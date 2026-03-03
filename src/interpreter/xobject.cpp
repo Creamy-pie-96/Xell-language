@@ -953,7 +953,7 @@ namespace xell
             const auto &inst = asInstance();
             std::ostringstream oss;
             oss << inst.typeName << "(";
-            // Print fields in definition order
+            // Default print format: StructName(field1=val1, field2=val2)
             const auto &def = *inst.structDef;
             bool first = true;
             for (const auto &fi : def.fields)
@@ -1135,6 +1135,12 @@ namespace xell
     // Hash support
     // ========================================================================
 
+    // Global instance hash callback — set by Interpreter
+    static InstanceHashCallback g_instanceHashCallback = nullptr;
+
+    void setInstanceHashCallback(InstanceHashCallback cb) { g_instanceHashCallback = cb; }
+    InstanceHashCallback getInstanceHashCallback() { return g_instanceHashCallback; }
+
     bool isHashable(const XObject &obj)
     {
         switch (obj.type())
@@ -1148,7 +1154,6 @@ namespace xell
             return true;
         case XType::TUPLE:
         {
-            // Tuple is hashable only if ALL elements are hashable
             for (const auto &elem : obj.asTuple())
             {
                 if (!isHashable(elem))
@@ -1158,7 +1163,6 @@ namespace xell
         }
         case XType::FROZEN_SET:
         {
-            // Frozen set is hashable only if ALL elements are hashable
             for (const auto &elem : obj.asFrozenSet().elements())
             {
                 if (!isHashable(elem))
@@ -1167,9 +1171,20 @@ namespace xell
             return true;
         }
         case XType::BYTES:
-            return true; // bytes are immutable and hashable
+            return true;
+        case XType::INSTANCE:
+        {
+            // Instance is hashable if it's frozen (object-immutable) AND has __hash__
+            const auto &inst = obj.asInstance();
+            if (!inst.frozen)
+                return false;
+            if (!inst.structDef)
+                return false;
+            auto mi = inst.structDef->findMethod("__hash__");
+            return mi != nullptr;
+        }
         default:
-            return false; // LIST, SET, MAP, FUNCTION are mutable/non-hashable
+            return false;
         }
     }
 
@@ -1242,6 +1257,20 @@ namespace xell
         {
             const auto &b = obj.asBytes().data;
             return hashFn(b.data(), b.size());
+        }
+        case XType::INSTANCE:
+        {
+            // Call __hash__ via the interpreter callback
+            auto cb = getInstanceHashCallback();
+            if (cb)
+            {
+                int64_t hashVal = 0;
+                if (cb(obj, hashVal))
+                    return static_cast<size_t>(hashVal);
+            }
+            throw HashError("cannot hash instance of '" + obj.asInstance().typeName +
+                                "' (no __hash__ method or instance is not frozen)",
+                            0);
         }
         default:
             throw HashError("cannot hash mutable type '" +

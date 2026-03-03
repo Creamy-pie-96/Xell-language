@@ -362,6 +362,42 @@ print(c >= a)
         XASSERT_EQ(out[0], "true");
         XASSERT_EQ(out[1], "true");
         XASSERT_EQ(out[2], "false"); });
+
+    runTest("!= on instance with no magic methods (use-after-move regression)", []()
+            {
+        auto out = runXell(R"XEL(
+class Simple :
+    val = 0
+
+    fn __init__(self, v) :
+        self->val = v
+    ;
+;
+
+a = Simple(1)
+b = Simple(2)
+print(a != b)
+print(a == b)
+)XEL");
+        XASSERT_EQ(out.size(), 2u);
+        XASSERT_EQ(out[0], "true");
+        XASSERT_EQ(out[1], "false"); });
+
+    runTest("__ne__ explicit overrides __eq__ derivation", []()
+            {
+        auto out = runXell(R"XEL(
+class AlwaysNe :
+    fn __ne__(self, other) :
+        give true
+    ;
+;
+
+a = AlwaysNe()
+b = AlwaysNe()
+print(a != b)
+)XEL");
+        XASSERT_EQ(out.size(), 1u);
+        XASSERT_EQ(out[0], "true"); });
 }
 
 // ============================================================================
@@ -702,6 +738,258 @@ print(a == Vector(1, 2))
 }
 
 // ============================================================================
+// __iter__ — for..in iteration
+// ============================================================================
+
+void testIter()
+{
+    std::cout << "\n===== __iter__ =====\n";
+
+    runTest("__iter__: for..in calls __iter__", []()
+            {
+        auto out = runXell(R"XEL(
+class Range :
+    start = 0
+    stop  = 0
+
+    fn __init__(self, s, e) :
+        self->start = s
+        self->stop  = e
+    ;
+
+    fn __iter__(self) :
+        result = []
+        i = self->start
+        while i < self->stop :
+            result = result + [i]
+            i = i + 1
+        ;
+        give result
+    ;
+;
+
+r = Range(1, 4)
+for x in r :
+    print(x)
+;
+)XEL");
+        XASSERT_EQ(out.size(), 3u);
+        XASSERT_EQ(out[0], "1");
+        XASSERT_EQ(out[1], "2");
+        XASSERT_EQ(out[2], "3"); });
+
+    runTest("__iter__: collect into list via for", []()
+            {
+        auto out = runXell(R"XEL(
+class Pair :
+    a = 0
+    b = 0
+
+    fn __init__(self, a, b) :
+        self->a = a
+        self->b = b
+    ;
+
+    fn __iter__(self) :
+        give [self->a, self->b]
+    ;
+;
+
+p = Pair(10, 20)
+items = []
+for x in p :
+    items = items + [x]
+;
+print(items)
+)XEL");
+        XASSERT_EQ(out[0], "[10, 20]"); });
+
+    runTest("__iter__: error if no __iter__ defined", []()
+            {
+        XASSERT_THROWS(runXell(R"XEL(
+class Foo :
+    x = 1
+;
+f = Foo()
+for i in f :
+    print(i)
+;
+)XEL")); });
+
+    runTest("__iter__: error if __iter__ returns non-iterable", []()
+            {
+        XASSERT_THROWS(runXell(R"XEL(
+class Bad :
+    fn __iter__(self) :
+        give 42
+    ;
+;
+b = Bad()
+for i in b :
+    print(i)
+;
+)XEL")); });
+}
+
+// ============================================================================
+// __hash__ — hash() on instances
+// ============================================================================
+
+void testHash()
+{
+    std::cout << "\n===== __hash__ =====\n";
+
+    runTest("__hash__: hash frozen instance", []()
+            {
+        auto out = runXell(R"XEL(
+class Point :
+    x = 0
+    y = 0
+
+    fn __init__(self, x, y) :
+        self->x = x
+        self->y = y
+    ;
+
+    fn __hash__(self) :
+        give self->x * 31 + self->y
+    ;
+;
+
+p = ~Point(3, 7)
+h = hash(p)
+print(type(h))
+print(h == 3 * 31 + 7)
+)XEL");
+        XASSERT_EQ(out[0], "int");
+        XASSERT_EQ(out[1], "true"); });
+
+    runTest("__hash__: is_hashable true for frozen + __hash__", []()
+            {
+        auto out = runXell(R"XEL(
+class Point :
+    x = 0
+    y = 0
+
+    fn __hash__(self) :
+        give self->x + self->y
+    ;
+;
+
+p = ~Point()
+print(is_hashable(p))
+)XEL");
+        XASSERT_EQ(out[0], "true"); });
+
+    runTest("__hash__: non-frozen is not hashable", []()
+            {
+        auto out = runXell(R"XEL(
+class Point :
+    x = 0
+    y = 0
+
+    fn __hash__(self) :
+        give self->x + self->y
+    ;
+;
+
+p = Point()
+print(is_hashable(p))
+)XEL");
+        XASSERT_EQ(out[0], "false"); });
+
+    runTest("__hash__: no __hash__ method = not hashable", []()
+            {
+        auto out = runXell(R"XEL(
+class Foo :
+    x = 1
+;
+
+f = ~Foo()
+print(is_hashable(f))
+)XEL");
+        XASSERT_EQ(out[0], "false"); });
+
+    runTest("__hash__: hash error on mutable instance", []()
+            {
+        XASSERT_THROWS(runXell(R"XEL(
+class Point :
+    x = 0
+    fn __hash__(self) :
+        give self->x
+    ;
+;
+p = Point()
+h = hash(p)
+)XEL")); });
+}
+
+// ============================================================================
+// `of` keyword — field of obj syntax
+// ============================================================================
+
+void testOfKeyword()
+{
+    std::cout << "\n===== `of` keyword =====\n";
+
+    runTest("of: field of obj access", []()
+            {
+        auto out = runXell(R"XEL(
+class Dog :
+    name = ""
+    age  = 0
+
+    fn __init__(self, name, age) :
+        self->name = name
+        self->age  = age
+    ;
+;
+
+d = Dog("Rex", 5)
+print(name of d)
+print(age of d)
+)XEL");
+        XASSERT_EQ(out[0], "Rex");
+        XASSERT_EQ(out[1], "5"); });
+
+    runTest("of: method of obj call", []()
+            {
+        auto out = runXell(R"XEL(
+class Greeter :
+    msg = ""
+
+    fn __init__(self, msg) :
+        self->msg = msg
+    ;
+
+    fn greet(self) :
+        give self->msg
+    ;
+;
+
+g = Greeter("hello")
+print(msg of g)
+)XEL");
+        XASSERT_EQ(out[0], "hello"); });
+
+    runTest("of: nested of access", []()
+            {
+        auto out = runXell(R"XEL(
+struct Inner :
+    val = 42
+;
+
+struct Outer :
+    inner = Inner()
+;
+
+o = Outer()
+print(val of inner of o)
+)XEL");
+        XASSERT_EQ(out[0], "42"); });
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -717,6 +1005,9 @@ int main()
     testGetSet();
     testCall();
     testContains();
+    testIter();
+    testHash();
+    testOfKeyword();
     testVectorExample();
 
     std::cout << "\n========================================\n";

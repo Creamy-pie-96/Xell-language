@@ -452,10 +452,20 @@ namespace xell
     // Hash support for XObject
     // ========================================================================
 
+    /// Callback type for hashing instances via __hash__ magic method.
+    /// The interpreter sets this so xobject.cpp can call back into it.
+    /// Returns true if __hash__ was found and result is set, false otherwise.
+    using InstanceHashCallback = bool (*)(const XObject &instance, int64_t &result);
+
+    /// Set/get the global instance hash callback (set by Interpreter on construction).
+    void setInstanceHashCallback(InstanceHashCallback cb);
+    InstanceHashCallback getInstanceHashCallback();
+
     /// Check if an XObject is of an immutable (hashable) type.
     /// Hashable: none, int, float, complex, bool, string,
-    ///           tuple (if all elements hashable), frozen_set (if all elements hashable)
-    /// NOT hashable: list, set, map, function
+    ///           tuple (if all elements hashable), frozen_set (if all elements hashable),
+    ///           frozen instances with __hash__ defined
+    /// NOT hashable: list, set, map, function, mutable instances
     bool isHashable(const XObject &obj);
 
     /// Hash a single XObject using a specific algorithm function.

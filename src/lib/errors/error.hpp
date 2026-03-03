@@ -276,6 +276,16 @@ namespace xell
             : XellError("AccessError", message, line) {}
     };
 
+    // ---- 3r. Iteration errors -----------------------------------------------
+
+    /// Attempt to iterate over a non-iterable type (no __iter__ method).
+    class IterationError : public XellError
+    {
+    public:
+        IterationError(const std::string &message, int line)
+            : XellError("IterationError", message, line) {}
+    };
+
     // ---- 3o. Not-implemented placeholder ------------------------------------
 
     /// Feature or built-in that is stubbed but not yet implemented.
