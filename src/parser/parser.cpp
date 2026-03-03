@@ -154,6 +154,7 @@ namespace xell
             case TokenType::BRING:
             case TokenType::TRY:
             case TokenType::INCASE:
+            case TokenType::LET:
             case TokenType::ENUM:
             case TokenType::ASYNC:
             case TokenType::AT:
@@ -232,6 +233,8 @@ namespace xell
             return parseTryCatchStmt();
         if (type == TokenType::INCASE)
             return parseInCaseStmt();
+        if (type == TokenType::LET)
+            return parseLetStmt();
         if (type == TokenType::ENUM)
             return parseEnumDef();
         if (type == TokenType::STRUCT)
@@ -2448,6 +2451,64 @@ namespace xell
         }
         skipNewlines();
         return args;
+    }
+
+    // ---- let EXPR be NAME [, EXPR be NAME]* : BLOCK ; ----
+    StmtPtr Parser::parseLetStmt()
+    {
+        int ln = current().line;
+        advance(); // consume 'let'
+        skipNewlines();
+
+        std::vector<LetBinding> bindings;
+
+        // Parse first binding (at least one required)
+        for (;;)
+        {
+            // Parse the resource expression
+            ExprPtr expr = parseExpression();
+
+            // Expect 'be'
+            if (!check(TokenType::BE))
+                throw ParseError("Expected 'be' after expression in let ... be", current().line);
+            advance(); // consume 'be'
+            skipNewlines();
+
+            // Expect identifier or '_'
+            if (!check(TokenType::IDENTIFIER))
+                throw ParseError("Expected identifier after 'be' in let ... be", current().line);
+            std::string name = current().value;
+            int bindLn = current().line;
+            advance(); // consume identifier
+            skipNewlines();
+
+            LetBinding binding;
+            binding.expr = std::move(expr);
+            binding.name = std::move(name);
+            binding.line = bindLn;
+            bindings.push_back(std::move(binding));
+
+            // Check for comma (more bindings) or colon (start of block)
+            if (check(TokenType::COMMA))
+            {
+                advance(); // consume ','
+                skipNewlines();
+                continue;
+            }
+            break;
+        }
+
+        // Expect ':'
+        consume(TokenType::COLON, "Expected ':' after let ... be bindings");
+        skipNewlines();
+
+        // Parse block body
+        auto body = parseBlock();
+
+        // Expect ';'
+        consume(TokenType::SEMICOLON, "Expected ';' to close let ... be block");
+
+        return std::make_unique<LetStmt>(std::move(bindings), std::move(body), ln);
     }
 
 } // namespace xell

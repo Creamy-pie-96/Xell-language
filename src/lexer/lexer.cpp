@@ -26,6 +26,8 @@ namespace xell
             {"catch", TokenType::CATCH},
             {"finally", TokenType::FINALLY},
             {"incase", TokenType::INCASE},
+            {"let", TokenType::LET},
+            {"be", TokenType::BE},
 
             // Import
             {"bring", TokenType::BRING},

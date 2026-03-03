@@ -448,6 +448,8 @@ namespace xell
             return execTryCatch(p);
         if (auto *p = dynamic_cast<const InCaseStmt *>(stmt))
             return execInCase(p);
+        if (auto *p = dynamic_cast<const LetStmt *>(stmt))
+            return execLet(p);
         if (auto *p = dynamic_cast<const DestructuringAssignment *>(stmt))
             return execDestructuring(p);
         if (auto *p = dynamic_cast<const EnumDef *>(stmt))
@@ -3532,6 +3534,133 @@ namespace xell
             Environment finallyEnv(currentEnv_);
             execBlock(node->finallyBody, finallyEnv);
         }
+    }
+
+    // ---- let ... be (RAII / Context Manager) ---------------------------------
+
+    void Interpreter::execLet(const LetStmt *node)
+    {
+        int ln = node->line;
+        Environment letEnv(currentEnv_);
+
+        // Track entered resources for reverse-order cleanup
+        struct EnteredResource
+        {
+            XObject resource; // the original object (call __exit__ on this)
+            int line;
+        };
+        std::vector<EnteredResource> entered;
+
+        // Helper: call __exit__ on all entered resources in reverse order.
+        // Returns true if all __exit__ calls succeeded; if one throws, captures it.
+        auto callExitsReverse = [&](std::exception_ptr &exitExc)
+        {
+            for (int i = (int)entered.size() - 1; i >= 0; --i)
+            {
+                try
+                {
+                    std::vector<XObject> noArgs;
+                    XObject ignored;
+                    if (!callMagicMethod(entered[i].resource, "__exit__",
+                                         noArgs, entered[i].line, ignored))
+                    {
+                        throw TypeError("__exit__ not found on resource", entered[i].line);
+                    }
+                }
+                catch (...)
+                {
+                    if (!exitExc)
+                        exitExc = std::current_exception();
+                    // Continue calling remaining __exit__ methods even if one fails
+                }
+            }
+        };
+
+        // Phase 1: Evaluate each binding, call __enter__, bind result
+        // Use letEnv so earlier bindings are visible to later binding expressions
+        auto *savedEnv = currentEnv_;
+        currentEnv_ = &letEnv;
+        for (size_t i = 0; i < node->bindings.size(); ++i)
+        {
+            const auto &binding = node->bindings[i];
+            try
+            {
+                // Evaluate the resource expression
+                XObject resource = eval(binding.expr.get());
+
+                // Validate the resource has __enter__ and __exit__
+                if (!resource.isInstance())
+                    throw TypeError("let ... be requires an instance with __enter__ and __exit__", binding.line);
+
+                // Call __enter__
+                std::vector<XObject> noArgs;
+                XObject enterResult;
+                if (!callMagicMethod(resource, "__enter__", noArgs, binding.line, enterResult))
+                    throw TypeError("let ... be requires __enter__ on '" +
+                                    (resource.asInstance().structDef
+                                         ? resource.asInstance().structDef->name
+                                         : std::string("unknown")) +
+                                    "'", binding.line);
+
+                // Check __exit__ exists too (fail early)
+                const XInstance &inst = resource.asInstance();
+                if (inst.structDef)
+                {
+                    auto [mi, _] = inst.structDef->findMethodWithOwner("__exit__");
+                    if (!mi)
+                        throw TypeError("let ... be requires __exit__ on '" +
+                                        inst.structDef->name + "'", binding.line);
+                }
+
+                // Track the resource for cleanup
+                entered.push_back({resource, binding.line});
+
+                // Bind the __enter__ result to the name (unless "_" discard)
+                if (binding.name != "_")
+                    letEnv.define(binding.name, std::move(enterResult));
+            }
+            catch (...)
+            {
+                // __enter__ of binding i failed — clean up already-entered (0..i-1)
+                std::exception_ptr exitExc;
+                callExitsReverse(exitExc);
+                currentEnv_ = savedEnv;
+                // Re-throw the original __enter__ failure (exitExc lost if both fail)
+                throw;
+            }
+        }
+
+        // Phase 2: Execute the body block, then always run __exit__ in reverse
+        // currentEnv_ is already pointing to letEnv from Phase 1
+        std::exception_ptr bodyExc;
+        try
+        {
+            for (const auto &stmt : node->body)
+                exec(stmt.get());
+        }
+        catch (...)
+        {
+            bodyExc = std::current_exception();
+        }
+
+        // Restore parent environment
+        currentEnv_ = savedEnv;
+
+        // Phase 3: Call __exit__ on all resources in reverse order
+        std::exception_ptr exitExc;
+        callExitsReverse(exitExc);
+
+        // Phase 4: Propagate exceptions
+        // If the body threw, re-throw it (even if __exit__ also threw — body error takes priority,
+        // unless we want __exit__ to replace it like Python. Per the plan: __exit__ error replaces.)
+        if (bodyExc)
+        {
+            if (exitExc)
+                std::rethrow_exception(exitExc); // __exit__ error replaces body error (per plan)
+            std::rethrow_exception(bodyExc);
+        }
+        if (exitExc)
+            std::rethrow_exception(exitExc);
     }
 
     // ---- InCase (switch/match) ---------------------------------------------

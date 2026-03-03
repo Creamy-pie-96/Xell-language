@@ -519,6 +519,22 @@ namespace xell
             : decorators(std::move(decorators)), classDef(std::move(cls)) { line = ln; }
     };
 
+    // let EXPR be NAME, EXPR be NAME : BLOCK ;   (RAII / context manager)
+    struct LetBinding
+    {
+        ExprPtr expr;      // resource expression (evaluated, then __enter__ called)
+        std::string name;  // binding name (receives __enter__ return value), "_" = discard
+        int line = 0;
+    };
+
+    struct LetStmt : Stmt
+    {
+        std::vector<LetBinding> bindings; // one or more (expr, name) pairs
+        std::vector<StmtPtr> body;        // block executed with resources in scope
+        LetStmt(std::vector<LetBinding> bindings, std::vector<StmtPtr> body, int ln = 0)
+            : bindings(std::move(bindings)), body(std::move(body)) { line = ln; }
+    };
+
     // ============================================================
     // Top-level program
     // ============================================================

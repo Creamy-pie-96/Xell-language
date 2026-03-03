@@ -139,6 +139,7 @@ namespace xell
         void execBring(const BringStmt *node);
         void execTryCatch(const TryCatchStmt *node);
         void execInCase(const InCaseStmt *node);
+        void execLet(const LetStmt *node);
         void execDestructuring(const DestructuringAssignment *node);
         void execEnumDef(const EnumDef *node);
         void execDecoratedFnDef(const DecoratedFnDef *node);

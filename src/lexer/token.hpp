@@ -34,6 +34,8 @@ namespace xell
         CATCH,
         FINALLY,
         INCASE,
+        LET, // let ... be (RAII / context manager)
+        BE,  // let ... be (RAII / context manager)
 
         // Import keywords
         BRING,
@@ -169,6 +171,8 @@ namespace xell
             {(int)TokenType::CATCH, "CATCH"},
             {(int)TokenType::FINALLY, "FINALLY"},
             {(int)TokenType::INCASE, "INCASE"},
+            {(int)TokenType::LET, "LET"},
+            {(int)TokenType::BE, "BE"},
             {(int)TokenType::BRING, "BRING"},
             {(int)TokenType::FROM, "FROM"},
             {(int)TokenType::AS, "AS"},

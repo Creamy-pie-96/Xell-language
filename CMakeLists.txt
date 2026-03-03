@@ -143,3 +143,7 @@ add_test(NAME magic_test COMMAND magic_test)
 add_executable(kwargs_test test/kwargs_test.cpp)
 target_link_libraries(kwargs_test xell_lib)
 add_test(NAME kwargs_test COMMAND kwargs_test)
+
+add_executable(let_be_test test/let_be_test.cpp)
+target_link_libraries(let_be_test xell_lib)
+add_test(NAME let_be_test COMMAND let_be_test)

@@ -63,6 +63,7 @@ namespace xell
         StmtPtr parseClassDef(bool isAbstract = false, bool isMixin = false);
         StmtPtr parseInterfaceDef();
         StmtPtr parseDecoratedFnDef();
+        StmtPtr parseLetStmt();
         std::vector<StmtPtr> parseBlock(bool stopAtElifElse = false);
 
         // Expressions (precedence climbing)
