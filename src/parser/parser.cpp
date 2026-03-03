@@ -238,6 +238,8 @@ namespace xell
             return parseStructDef();
         if (type == TokenType::CLASS)
             return parseClassDef();
+        if (type == TokenType::INTERFACE)
+            return parseInterfaceDef();
         if (type == TokenType::IMMUTABLE)
         {
             int ln = current().line;
@@ -1143,6 +1145,19 @@ namespace xell
             }
         }
 
+        // Parse optional 'implements' clause
+        std::vector<std::string> interfaces;
+        if (check(TokenType::IMPLEMENTS))
+        {
+            advance(); // consume IMPLEMENTS
+            interfaces.push_back(consume(TokenType::IDENTIFIER, "Expected interface name after 'implements'").value);
+            while (check(TokenType::COMMA))
+            {
+                advance(); // consume comma
+                interfaces.push_back(consume(TokenType::IDENTIFIER, "Expected interface name").value);
+            }
+        }
+
         consume(TokenType::COLON, "Expected ':' after class name");
         skipNewlines();
 
@@ -1324,7 +1339,67 @@ namespace xell
 
         consume(TokenType::SEMICOLON, "Expected ';' to close class definition");
 
-        return std::make_unique<ClassDef>(name, std::move(parents), std::move(fields), std::move(methods), std::move(properties), ln);
+        return std::make_unique<ClassDef>(name, std::move(parents), std::move(interfaces), std::move(fields), std::move(methods), std::move(properties), ln);
+    }
+
+    // ============================================================
+    // Interface definition: interface Name : fn method(self) ; fn method2(self, x) ; ;
+    // ============================================================
+
+    StmtPtr Parser::parseInterfaceDef()
+    {
+        int ln = current().line;
+        advance(); // consume INTERFACE
+
+        std::string name = consume(TokenType::IDENTIFIER, "Expected interface name after 'interface'").value;
+
+        consume(TokenType::COLON, "Expected ':' after interface name");
+        skipNewlines();
+
+        std::vector<InterfaceMethodSig> sigs;
+
+        while (!check(TokenType::SEMICOLON) && !isAtEnd())
+        {
+            skipNewlines();
+            if (check(TokenType::SEMICOLON))
+                break;
+
+            // Each method signature: fn name(params) ;
+            if (!check(TokenType::FN))
+                throw ParseError("Expected 'fn' in interface body (interfaces can only contain method signatures)", current().line);
+
+            advance(); // consume FN
+            std::string methodName = consume(TokenType::IDENTIFIER, "Expected method name in interface").value;
+            consume(TokenType::LPAREN, "Expected '(' after method name in interface");
+
+            int paramCount = 0;
+            if (!check(TokenType::RPAREN))
+            {
+                consume(TokenType::IDENTIFIER, "Expected parameter name"); // first param (typically 'self')
+                paramCount++;
+                while (check(TokenType::COMMA))
+                {
+                    advance(); // consume comma
+                    consume(TokenType::IDENTIFIER, "Expected parameter name");
+                    paramCount++;
+                }
+            }
+            consume(TokenType::RPAREN, "Expected ')' after interface method parameters");
+
+            // Interface methods have NO body — just end with ;
+            consume(TokenType::SEMICOLON, "Expected ';' after interface method signature (no body allowed)");
+            skipNewlines();
+
+            InterfaceMethodSig sig;
+            sig.name = methodName;
+            sig.paramCount = paramCount;
+            sig.line = ln;
+            sigs.push_back(std::move(sig));
+        }
+
+        consume(TokenType::SEMICOLON, "Expected ';' to close interface definition");
+
+        return std::make_unique<InterfaceDef>(name, std::move(sigs), ln);
     }
 
     // ============================================================

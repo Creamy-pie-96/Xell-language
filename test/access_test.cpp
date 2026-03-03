@@ -163,8 +163,7 @@ static void testPrivateAccess()
     std::cout << "\n===== Private Access =====\n";
 
     runTest("Private field read from outside throws AccessError", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Secret :
     private:
         code = 1234
@@ -174,8 +173,7 @@ print(s->code)
 )XEL")); });
 
     runTest("Private field write from outside throws AccessError", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Secret :
     private:
         code = 1234
@@ -185,8 +183,7 @@ s->code = 9999
 )XEL")); });
 
     runTest("Private method call from outside throws AccessError", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Secret :
     private:
         fn internal(self) :
@@ -273,8 +270,7 @@ static void testProtectedAccess()
     std::cout << "\n===== Protected Access =====\n";
 
     runTest("Protected field read from outside throws AccessError", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Base :
     protected:
         secret = 42
@@ -284,8 +280,7 @@ print(b->secret)
 )XEL")); });
 
     runTest("Protected field write from outside throws AccessError", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Base :
     protected:
         secret = 42
@@ -295,8 +290,7 @@ b->secret = 99
 )XEL")); });
 
     runTest("Protected method call from outside throws AccessError", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Base :
     protected:
         fn helper(self) :
@@ -419,8 +413,7 @@ static void testPrivateInheritance()
     std::cout << "\n===== Private Not Accessible from Subclass =====\n";
 
     runTest("Private field of parent NOT accessible from subclass method", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Base :
     private:
         secret = 42
@@ -436,8 +429,7 @@ c->reveal()
 )XEL")); });
 
     runTest("Private method of parent NOT callable from subclass method", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Base :
     private:
         fn hidden(self) :
@@ -455,8 +447,7 @@ c->try_call()
 )XEL")); });
 
     runTest("Private field of parent NOT writable from subclass method", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Base :
     private:
         val = 0
@@ -514,8 +505,7 @@ print(a->get_id())
         XASSERT_EQ(out[2], "42"); });
 
     runTest("Private balance not accessible from outside", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Account :
     private:
         balance = 0
@@ -525,8 +515,7 @@ print(a->balance)
 )XEL")); });
 
     runTest("Protected internal_id not accessible from outside", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Account :
     protected:
         internal_id = 42
@@ -595,8 +584,7 @@ print(w->get_cash())
         XASSERT_EQ(out[0], "100"); });
 
     runTest("Private field set in __init__ not readable outside", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Wallet :
     fn __init__(self, amount) :
         self->cash = amount
@@ -650,8 +638,7 @@ print(acc->get_balance())
         XASSERT_EQ(out[0], "500"); });
 
     runTest("BankAccount: balance is private", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class BankAccount :
     private:
         balance = 0
@@ -661,8 +648,7 @@ print(acc->balance)
 )XEL")); });
 
     runTest("BankAccount: internal_id is protected", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class BankAccount :
     protected:
         internal_id = 42
@@ -751,8 +737,7 @@ print(a->sum())
         XASSERT_EQ(out[0], "3"); });
 
     runTest("Two instances share access rules", []()
-            {
-        XASSERT(expectError<AccessError>(R"XEL(
+            { XASSERT(expectError<AccessError>(R"XEL(
 class Foo :
     private:
         val = 42

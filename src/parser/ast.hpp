@@ -434,20 +434,40 @@ namespace xell
         AccessLevel access = AccessLevel::PUBLIC;
     };
 
+    // ---- OOP: Interface definition ----
+    // interface Drawable : fn draw(self) ; fn resize(self, factor) ; ;
+    struct InterfaceMethodSig
+    {
+        std::string name;
+        int paramCount; // number of params including self
+        int line = 0;
+    };
+
+    struct InterfaceDef : Stmt
+    {
+        std::string name;
+        std::vector<InterfaceMethodSig> methodSigs;
+        InterfaceDef(std::string name, std::vector<InterfaceMethodSig> sigs, int ln = 0)
+            : name(std::move(name)), methodSigs(std::move(sigs)) { line = ln; }
+    };
+
     // ---- OOP: Class definition ----
-    // class Animal [inherits Base1, Base2] : fields + methods + __init__ ;
+    // class Animal [inherits Base1, Base2] [implements Iface1, Iface2] : fields + methods + __init__ ;
     struct ClassDef : Stmt
     {
         std::string name;
-        std::vector<std::string> parents; // inherits list (may be empty)
+        std::vector<std::string> parents;    // inherits list (may be empty)
+        std::vector<std::string> interfaces; // implements list (may be empty)
         std::vector<StructFieldDef> fields;
         std::vector<std::unique_ptr<FnDef>> methods; // includes __init__ if present
         std::vector<PropertyDef> properties;          // get/set property definitions
         ClassDef(std::string name, std::vector<std::string> parents,
+                 std::vector<std::string> interfaces,
                  std::vector<StructFieldDef> fields,
                  std::vector<std::unique_ptr<FnDef>> methods,
                  std::vector<PropertyDef> properties, int ln = 0)
             : name(std::move(name)), parents(std::move(parents)),
+              interfaces(std::move(interfaces)),
               fields(std::move(fields)), methods(std::move(methods)),
               properties(std::move(properties)) { line = ln; }
     };

@@ -557,7 +557,9 @@ namespace xell
         std::vector<XStructMethodInfo> staticMethods;         // static method definitions
         std::vector<XPropertyInfo> properties;                // get/set properties
         bool isClass = false;                             // true if defined with `class`, false for `struct`
+        bool isInterface = false;                         // true if defined with `interface`
         std::vector<std::shared_ptr<XStructDef>> parents; // parent classes (inheritance chain)
+        std::vector<std::shared_ptr<XStructDef>> interfaces; // implemented interfaces
 
         XStructDef() = default;
         XStructDef(std::string name) : name(std::move(name)) {}

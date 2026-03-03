@@ -264,8 +264,7 @@ print(o->val)
         XASSERT_EQ(out[0], "42"); });
 
     runTest("Read-only property rejects write", []()
-            {
-        XASSERT(expectError<AttributeError>(R"XEL(
+            { XASSERT(expectError<AttributeError>(R"XEL(
 class Immutable :
     _val = 42
 
@@ -278,8 +277,7 @@ o->val = 99
 )XEL")); });
 
     runTest("Write-only property rejects read", []()
-            {
-        XASSERT(expectError<AttributeError>(R"XEL(
+            { XASSERT(expectError<AttributeError>(R"XEL(
 class Logger :
     _log = ""
 

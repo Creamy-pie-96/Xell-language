@@ -53,15 +53,15 @@
 
 ## 2. New Keywords
 
-| Keyword    | Role                                                              |
-| ---------- | ----------------------------------------------------------------- |
-| `module`   | Declares a named module block (top-level or nested)              |
-| `export`   | Marks a declaration as publicly importable from outside          |
-| `bring`    | Imports a module or parts of a module (replaces old `bring`)     |
-| `from`     | Specifies a directory to search first before the default path    |
-| `of`       | Separates what you're bringing from which module it comes from   |
-| `as`       | Gives an alias to brought module(s) or item(s)                   |
-| `and`      | Chains multiple bring targets in a single statement              |
+| Keyword  | Role                                                           |
+| -------- | -------------------------------------------------------------- |
+| `module` | Declares a named module block (top-level or nested)            |
+| `export` | Marks a declaration as publicly importable from outside        |
+| `bring`  | Imports a module or parts of a module (replaces old `bring`)   |
+| `from`   | Specifies a directory to search first before the default path  |
+| `of`     | Separates what you're bringing from which module it comes from |
+| `as`     | Gives an alias to brought module(s) or item(s)                 |
+| `and`    | Chains multiple bring targets in a single statement            |
 
 > `of`, `and` and `as` were already in Xell. `from`, `module`, `export` are new additions.
 
@@ -130,14 +130,14 @@ anything.xell
 
 ## 4. Export Rules
 
-| What you write | What it means |
-| -------------- | ------------- |
-| `export fn foo()` | `foo` is importable from outside |
-| `export class Bar` | `Bar` is importable from outside |
-| `export x = 10` | Variable `x` is importable from outside |
-| `export module math_lib :` | Entire submodule is importable, including all its own exports |
-| `fn foo()` (no export) | Completely private — invisible to `bring`, not even in error messages |
-| `module sub :` (no export) | Private submodule — cannot be brought in |
+| What you write             | What it means                                                         |
+| -------------------------- | --------------------------------------------------------------------- |
+| `export fn foo()`          | `foo` is importable from outside                                      |
+| `export class Bar`         | `Bar` is importable from outside                                      |
+| `export x = 10`            | Variable `x` is importable from outside                               |
+| `export module math_lib :` | Entire submodule is importable, including all its own exports         |
+| `fn foo()` (no export)     | Completely private — invisible to `bring`, not even in error messages |
+| `module sub :` (no export) | Private submodule — cannot be brought in                              |
 
 ```xell
 module lib :
@@ -182,13 +182,13 @@ bring lib, json, regex as l, j, r
 ### From a specific search directory
 
 ```xell
-from "./libs" bring lib as l
+from "./libs" bring lib as l -->the search dir will be reletive to the current code file(like the code file we wrote the bring in)
 ```
 
 ### Specific submodule aliased
 
 ```xell
-bring math_lib of lib as math
+bring math_lib of mylib->lib as math  (the module structure is like mylib-->lib-->math_lib)
 math->add(1, 2)
 ```
 
@@ -347,6 +347,7 @@ Xell's module system is **smart import** — not a dumb text inclusion like C++.
 ```
 
 ### Key guarantee: a module file is **executed at most once per session** regardless of how many
+
 times it is brought.
 
 ---
@@ -376,11 +377,11 @@ project/
 
 ### File types
 
-| File | Location | Contents |
-| ---- | -------- | -------- |
-| `.xell_meta` | Each directory | JSON index: module names → files + export list |
-| `*.xelc` | `__xelcache__/` | Compiled Xell bytecode |
-| `*.xelc.hash` | `__xelcache__/` | SHA-256 of source file, used for invalidation |
+| File          | Location        | Contents                                       |
+| ------------- | --------------- | ---------------------------------------------- |
+| `.xell_meta`  | Each directory  | JSON index: module names → files + export list |
+| `*.xelc`      | `__xelcache__/` | Compiled Xell bytecode                         |
+| `*.xelc.hash` | `__xelcache__/` | SHA-256 of source file, used for invalidation  |
 
 ### `.gitignore` rules
 
@@ -427,13 +428,13 @@ modules->math->add(1, 2)
 
 ### Module object fields
 
-| Field | Type | Meaning |
-| ----- | ---- | ------- |
-| `__name__` | string | Module's declared name |
-| `__path__` | string | Absolute path to source file |
-| `__exports__` | list | Names of all exported items |
-| `__submodules__` | list | Names of exported submodules |
-| `__version__` | string | Optional — if module declares a version |
+| Field            | Type   | Meaning                                 |
+| ---------------- | ------ | --------------------------------------- |
+| `__name__`       | string | Module's declared name                  |
+| `__path__`       | string | Absolute path to source file            |
+| `__exports__`    | list   | Names of all exported items             |
+| `__submodules__` | list   | Names of exported submodules            |
+| `__version__`    | string | Optional — if module declares a version |
 
 ---
 
@@ -446,40 +447,40 @@ and records their export lists. This makes runtime lookup O(1) — no file scann
 
 ```json
 {
-    "xell_meta_version": 1,
-    "generated": "2026-03-03T10:00:00",
-    "directory": "./libs",
-    "modules": {
-        "lib": {
-            "file": "math.xell",
-            "hash": "a3f9c2d1e7b4f0...",
-            "exports": ["add", "sub", "PI", "Vector", "math_lib", "string_lib"],
-            "submodules": {
-                "math_lib": {
-                    "exports": ["add", "sub"]
-                },
-                "string_lib": {
-                    "exports": ["shout", "whisper"]
-                }
-            }
+  "xell_meta_version": 1,
+  "generated": "2026-03-03T10:00:00",
+  "directory": "./libs",
+  "modules": {
+    "lib": {
+      "file": "math.xell",
+      "hash": "a3f9c2d1e7b4f0...",
+      "exports": ["add", "sub", "PI", "Vector", "math_lib", "string_lib"],
+      "submodules": {
+        "math_lib": {
+          "exports": ["add", "sub"]
         },
-        "another_lib": {
-            "file": "math.xell",
-            "hash": "a3f9c2d1e7b4f0...",
-            "exports": ["greet"],
-            "submodules": {}
-        },
-        "physics": {
-            "file": "science.xell",
-            "hash": "b7d1e4a9c2f3...",
-            "exports": ["gravity", "solar"],
-            "submodules": {
-                "mechanics": {
-                    "exports": ["force", "mass"]
-                }
-            }
+        "string_lib": {
+          "exports": ["shout", "whisper"]
         }
+      }
+    },
+    "another_lib": {
+      "file": "math.xell",
+      "hash": "a3f9c2d1e7b4f0...",
+      "exports": ["greet"],
+      "submodules": {}
+    },
+    "physics": {
+      "file": "science.xell",
+      "hash": "b7d1e4a9c2f3...",
+      "exports": ["gravity", "solar"],
+      "submodules": {
+        "mechanics": {
+          "exports": ["force", "mass"]
+        }
+      }
     }
+  }
 }
 ```
 
@@ -649,11 +650,11 @@ add(1, 2)                            # callable directly
 
 ### Warning behavior
 
-| Context | Behavior |
-| ------- | -------- |
-| REPL (interactive) | Silent — no warning |
+| Context             | Behavior                                   |
+| ------------------- | ------------------------------------------ |
+| REPL (interactive)  | Silent — no warning                        |
 | `.xell` script file | Emits warning about global scope pollution |
-| `@no_warn` present | Suppresses warning |
+| `@no_warn` present  | Suppresses warning                         |
 
 ```xell
 @no_warn
@@ -827,11 +828,11 @@ print compute(l->math_lib)   # 300
 
 ## 20. Summary: All Files Introduced
 
-| File | Where | Purpose | Commit? |
-| ---- | ----- | ------- | ------- |
-| `.xell_meta` | Each directory | Module name → file mapping + export index | ✅ Yes |
-| `*.xelc` | `__xelcache__/` | Compiled Xell bytecode | ❌ No |
-| `*.xelc.hash` | `__xelcache__/` | SHA-256 of source for cache invalidation | ❌ No |
+| File          | Where           | Purpose                                   | Commit? |
+| ------------- | --------------- | ----------------------------------------- | ------- |
+| `.xell_meta`  | Each directory  | Module name → file mapping + export index | ✅ Yes  |
+| `*.xelc`      | `__xelcache__/` | Compiled Xell bytecode                    | ❌ No   |
+| `*.xelc.hash` | `__xelcache__/` | SHA-256 of source for cache invalidation  | ❌ No   |
 
 `.gitignore` addition:
 
@@ -934,40 +935,40 @@ __xelcache__/
 
 ## 22. Appendix A: Comparison with Python and C++
 
-| Feature | C++ | Python | Xell |
-| ------- | --- | ------ | ---- |
-| File = module name | YES forced | YES forced | **NO — free** |
-| Multiple modules per file | YES (namespaces) | NO | **YES** |
-| Nested modules | YES | YES (packages only) | **YES — inline** |
-| Smart caching | NO | YES `__pycache__` | **YES `__xelcache__`** |
-| Metadata index | NO | NO | **YES `.xell_meta`** |
-| Module as object | NO | YES | **YES** |
-| Explicit exports | NO (public/private) | NO (`__all__` optional) | **YES (`export` keyword)** |
-| Privacy by default | Partial | NO | **YES** |
-| Dump all | YES `#include` | YES `import *` | **YES `bring *`** |
-| Named import | NO | YES `as` | **YES `as`** |
-| Selective import | Partial | YES `from x import y` | **YES `bring y of x`** |
-| Path override | NO | YES `sys.path` | **YES `from "dir" bring`** |
-| Multi-source chain | NO | NO | **YES `and` keyword** |
-| Self-healing cache | NO | Partial | **YES — automatic** |
-| Executed once | YES (include guards) | YES | **YES** |
+| Feature                   | C++                  | Python                  | Xell                       |
+| ------------------------- | -------------------- | ----------------------- | -------------------------- |
+| File = module name        | YES forced           | YES forced              | **NO — free**              |
+| Multiple modules per file | YES (namespaces)     | NO                      | **YES**                    |
+| Nested modules            | YES                  | YES (packages only)     | **YES — inline**           |
+| Smart caching             | NO                   | YES `__pycache__`       | **YES `__xelcache__`**     |
+| Metadata index            | NO                   | NO                      | **YES `.xell_meta`**       |
+| Module as object          | NO                   | YES                     | **YES**                    |
+| Explicit exports          | NO (public/private)  | NO (`__all__` optional) | **YES (`export` keyword)** |
+| Privacy by default        | Partial              | NO                      | **YES**                    |
+| Dump all                  | YES `#include`       | YES `import *`          | **YES `bring *`**          |
+| Named import              | NO                   | YES `as`                | **YES `as`**               |
+| Selective import          | Partial              | YES `from x import y`   | **YES `bring y of x`**     |
+| Path override             | NO                   | YES `sys.path`          | **YES `from "dir" bring`** |
+| Multi-source chain        | NO                   | NO                      | **YES `and` keyword**      |
+| Self-healing cache        | NO                   | Partial                 | **YES — automatic**        |
+| Executed once             | YES (include guards) | YES                     | **YES**                    |
 
 ---
 
 ## 23. Appendix B: What We're NOT Doing
 
-| Feature | Status | Reason |
-| ------- | ------ | ------ |
-| Filename = module name | ❌ Never | Explicitly against this design |
-| C-style `#include` text dump | ❌ Never | Smart import only |
-| Circular imports | ❌ Error | Detected at runtime with full cycle shown |
-| Private submodule visibility | ❌ Never | Private means invisible — not even in errors |
+| Feature                           | Status         | Reason                                            |
+| --------------------------------- | -------------- | ------------------------------------------------- |
+| Filename = module name            | ❌ Never       | Explicitly against this design                    |
+| C-style `#include` text dump      | ❌ Never       | Smart import only                                 |
+| Circular imports                  | ❌ Error       | Detected at runtime with full cycle shown         |
+| Private submodule visibility      | ❌ Never       | Private means invisible — not even in errors      |
 | Module versioning in bring syntax | ❌ Not planned | Use `from "dir"` to point to specific version dir |
-| Dynamic bring (runtime strings) | ⏳ Maybe later | `bring(module_name_variable)` — defer to later |
-| Package registry / installer | ⏳ Maybe later | `xell install` command — out of scope for now |
-| Interface-style module contracts | ❌ Not planned | Modules don't declare required imports |
-| Lazy loading | ⏳ Maybe later | `bring lazy lib` — defer until needed |
-| Wildcard file glob in bring | ❌ Not planned | Use `--make_module` to pre-register |
+| Dynamic bring (runtime strings)   | ⏳ Maybe later | `bring(module_name_variable)` — defer to later    |
+| Package registry / installer      | ⏳ Maybe later | `xell install` command — out of scope for now     |
+| Interface-style module contracts  | ❌ Not planned | Modules don't declare required imports            |
+| Lazy loading                      | ⏳ Maybe later | `bring lazy lib` — defer until needed             |
+| Wildcard file glob in bring       | ❌ Not planned | Use `--make_module` to pre-register               |
 
 ---
 

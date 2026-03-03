@@ -144,6 +144,7 @@ namespace xell
         void execDecoratedFnDef(const DecoratedFnDef *node);
         void execStructDef(const StructDef *node);
         void execClassDef(const ClassDef *node);
+        void execInterfaceDef(const InterfaceDef *node);
         void execMemberAssignment(const MemberAssignment *node);
         void execIndexAssignment(const IndexAssignment *node);
 

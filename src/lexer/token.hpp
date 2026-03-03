@@ -52,6 +52,10 @@ namespace xell
         PROTECTED,
         PUBLIC,
         STATIC,
+        INTERFACE,
+        IMPLEMENTS,
+        ABSTRACT,
+        MIXIN,
 
         // Generator keyword
         YIELD,
@@ -176,6 +180,10 @@ namespace xell
             {(int)TokenType::PROTECTED, "PROTECTED"},
             {(int)TokenType::PUBLIC, "PUBLIC"},
             {(int)TokenType::STATIC, "STATIC"},
+            {(int)TokenType::INTERFACE, "INTERFACE"},
+            {(int)TokenType::IMPLEMENTS, "IMPLEMENTS"},
+            {(int)TokenType::ABSTRACT, "ABSTRACT"},
+            {(int)TokenType::MIXIN, "MIXIN"},
             {(int)TokenType::YIELD, "YIELD"},
             {(int)TokenType::ASYNC, "ASYNC"},
             {(int)TokenType::AWAIT, "AWAIT"},

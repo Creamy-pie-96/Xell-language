@@ -354,6 +354,8 @@ namespace xell
             return execStructDef(p);
         if (auto *p = dynamic_cast<const ClassDef *>(stmt))
             return execClassDef(p);
+        if (auto *p = dynamic_cast<const InterfaceDef *>(stmt))
+            return execInterfaceDef(p);
         if (auto *p = dynamic_cast<const ImmutableBinding *>(stmt))
         {
             XObject value = eval(p->value.get());
@@ -1489,6 +1491,11 @@ namespace xell
             if (fnObj.isStructDef())
             {
                 const XStructDef &def = fnObj.asStructDef();
+
+                // Interfaces cannot be instantiated
+                if (def.isInterface)
+                    throw TypeError("cannot instantiate interface '" + def.name + "'", node->line);
+
                 auto defPtr = fnObj.asStructDefShared();
                 XInstance inst(def.name, defPtr);
 
@@ -2601,6 +2608,18 @@ namespace xell
             def->parents.push_back(parentObj.asStructDefShared());
         }
 
+        // Resolve implemented interfaces
+        for (const auto &ifaceName : node->interfaces)
+        {
+            XObject ifaceObj = currentEnv_->get(ifaceName, node->line);
+            if (!ifaceObj.isStructDef())
+                throw TypeError("'" + ifaceName + "' is not an interface", node->line);
+            const XStructDef &ifaceDef = ifaceObj.asStructDef();
+            if (!ifaceDef.isInterface)
+                throw TypeError("'" + ifaceName + "' is not an interface (use 'inherits' for classes)", node->line);
+            def->interfaces.push_back(ifaceObj.asStructDefShared());
+        }
+
         // Evaluate field default values — separate static from instance
         for (const auto &field : node->fields)
         {
@@ -2669,6 +2688,58 @@ namespace xell
                 pi.setter = XObject::makeNone();
             }
             def->properties.push_back(std::move(pi));
+        }
+
+        // Validate interface implementation — check all required methods exist
+        for (const auto &iface : def->interfaces)
+        {
+            for (const auto &reqMethod : iface->methods)
+            {
+                // Search for the method in the class (including inherited methods)
+                const XStructMethodInfo *found = def->findMethod(reqMethod.name);
+                if (!found)
+                {
+                    throw TypeError("class '" + node->name + "' does not implement method '" +
+                                        reqMethod.name + "' required by interface '" + iface->name + "'",
+                                    node->line);
+                }
+                // Check parameter count matches
+                const XFunction &reqFn = reqMethod.fnObject.asFunction();
+                const XFunction &implFn = found->fnObject.asFunction();
+                if (implFn.params.size() != reqFn.params.size())
+                {
+                    throw TypeError("method '" + reqMethod.name + "' in class '" + node->name +
+                                        "' has " + std::to_string(implFn.params.size()) +
+                                        " parameter(s), but interface '" + iface->name +
+                                        "' requires " + std::to_string(reqFn.params.size()),
+                                    node->line);
+                }
+            }
+        }
+
+        currentEnv_->set(node->name, XObject::makeStructDef(def));
+    }
+
+    // ---- Interface definition ------------------------------------------------
+
+    void Interpreter::execInterfaceDef(const InterfaceDef *node)
+    {
+        auto def = std::make_shared<XStructDef>(node->name);
+        def->isInterface = true;
+
+        // Store method signatures as methods with empty bodies
+        // (they serve as contract declarations)
+        for (const auto &sig : node->methodSigs)
+        {
+            XStructMethodInfo mi;
+            mi.name = sig.name;
+            mi.access = AccessLevel::PUBLIC;
+            // Store param count in a lightweight way — we create a minimal function placeholder
+            std::vector<std::string> params;
+            for (int i = 0; i < sig.paramCount; i++)
+                params.push_back("_p" + std::to_string(i));
+            mi.fnObject = XObject::makeFunction(sig.name, params, nullptr, currentEnv_);
+            def->methods.push_back(std::move(mi));
         }
 
         currentEnv_->set(node->name, XObject::makeStructDef(def));

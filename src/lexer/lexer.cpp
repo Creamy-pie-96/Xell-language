@@ -43,6 +43,10 @@ namespace xell
             {"protected", TokenType::PROTECTED},
             {"public", TokenType::PUBLIC},
             {"static", TokenType::STATIC},
+            {"interface", TokenType::INTERFACE},
+            {"implements", TokenType::IMPLEMENTS},
+            {"abstract", TokenType::ABSTRACT},
+            {"mixin", TokenType::MIXIN},
             // Generator
             {"yield", TokenType::YIELD},
 
