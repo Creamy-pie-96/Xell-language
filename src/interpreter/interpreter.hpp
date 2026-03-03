@@ -177,6 +177,11 @@ namespace xell
         XObject createGenerator(const XFunction &fn, std::vector<XObject> &args, int line);
         std::string interpolate(const std::string &raw, int line);
 
+        // Call a magic method (__dunder__) on an instance if it exists.
+        // Returns true and sets result if the method was found and called.
+        bool callMagicMethod(const XObject &instance, const std::string &methodName,
+                             std::vector<XObject> &args, int line, XObject &result);
+
         // Access control: check if the current scope can access a member
         // with the given access level on the given class. Throws AccessError if not.
         void checkAccess(AccessLevel access, const std::string &memberName,

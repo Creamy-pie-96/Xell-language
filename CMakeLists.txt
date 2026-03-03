@@ -135,3 +135,7 @@ add_test(NAME mixin_test COMMAND mixin_test)
 add_executable(decorator_test test/decorator_test.cpp)
 target_link_libraries(decorator_test xell_lib)
 add_test(NAME decorator_test COMMAND decorator_test)
+
+add_executable(magic_test test/magic_test.cpp)
+target_link_libraries(magic_test xell_lib)
+add_test(NAME magic_test COMMAND magic_test)

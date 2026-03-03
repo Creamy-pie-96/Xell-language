@@ -310,9 +310,9 @@ namespace xell
         bool isVariadic = false;       // true if last param is ...name
         std::string variadicName;      // name of variadic param (without ...)
         std::vector<StmtPtr> body;
-        bool isAsync = false; // true for async fn
-        bool isStatic = false; // true for static class members
-        bool isAbstract = false; // true for abstract methods (no body)
+        bool isAsync = false;                     // true for async fn
+        bool isStatic = false;                    // true for static class members
+        bool isAbstract = false;                  // true for abstract methods (no body)
         AccessLevel access = AccessLevel::PUBLIC; // access level when used as class method
 
         // Type annotations (optional)
@@ -463,9 +463,9 @@ namespace xell
         std::vector<std::string> interfaces; // implements list (may be empty)
         std::vector<StructFieldDef> fields;
         std::vector<std::unique_ptr<FnDef>> methods; // includes __init__ if present
-        std::vector<PropertyDef> properties;          // get/set property definitions
-        bool isAbstract = false;                      // true if defined with 'abstract' keyword
-        bool isMixin = false;                         // true if defined with 'mixin' keyword
+        std::vector<PropertyDef> properties;         // get/set property definitions
+        bool isAbstract = false;                     // true if defined with 'abstract' keyword
+        bool isMixin = false;                        // true if defined with 'mixin' keyword
         ClassDef(std::string name, std::vector<std::string> parents,
                  std::vector<std::string> mixins,
                  std::vector<std::string> interfaces,

@@ -552,22 +552,22 @@ namespace xell
     struct XStructDef
     {
         std::string name;
-        std::vector<XStructFieldInfo> fields;             // ordered field definitions
-        std::vector<XStructMethodInfo> methods;           // method definitions
-        std::vector<XStructFieldInfo> staticFields;           // static field definitions
-        std::vector<XStructMethodInfo> staticMethods;         // static method definitions
-        std::vector<XPropertyInfo> properties;                // get/set properties
-        bool isClass = false;                             // true if defined with `class`, false for `struct`
-        bool isInterface = false;                         // true if defined with `interface`
-        bool isAbstract = false;                          // true if defined with `abstract`
-        bool isMixin = false;                             // true if defined with `mixin`
+        std::vector<XStructFieldInfo> fields;         // ordered field definitions
+        std::vector<XStructMethodInfo> methods;       // method definitions
+        std::vector<XStructFieldInfo> staticFields;   // static field definitions
+        std::vector<XStructMethodInfo> staticMethods; // static method definitions
+        std::vector<XPropertyInfo> properties;        // get/set properties
+        bool isClass = false;                         // true if defined with `class`, false for `struct`
+        bool isInterface = false;                     // true if defined with `interface`
+        bool isAbstract = false;                      // true if defined with `abstract`
+        bool isMixin = false;                         // true if defined with `mixin`
         // Decorator flags
-        bool isDataclass = false;                         // @dataclass: auto-generate __init__/__eq__/__print__
-        bool isImmutable = false;                         // @immutable: freeze instances after __init__
-        bool isSingleton = false;                         // @singleton: only one instance ever created
-        mutable XObject singletonInstance;                // cached singleton instance (if isSingleton)
-        std::vector<std::shared_ptr<XStructDef>> parents; // parent classes (inheritance chain)
-        std::vector<std::shared_ptr<XStructDef>> mixins;      // mixed-in method bundles
+        bool isDataclass = false;                            // @dataclass: auto-generate __init__/__eq__/__print__
+        bool isImmutable = false;                            // @immutable: freeze instances after __init__
+        bool isSingleton = false;                            // @singleton: only one instance ever created
+        mutable XObject singletonInstance;                   // cached singleton instance (if isSingleton)
+        std::vector<std::shared_ptr<XStructDef>> parents;    // parent classes (inheritance chain)
+        std::vector<std::shared_ptr<XStructDef>> mixins;     // mixed-in method bundles
         std::vector<std::shared_ptr<XStructDef>> interfaces; // implemented interfaces
 
         XStructDef() = default;

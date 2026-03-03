@@ -93,8 +93,7 @@ static void testBasicMixin()
     std::cout << "\n===== Basic Mixin Definition =====\n";
 
     runTest("Define a simple mixin", []()
-            {
-        runXell(R"XEL(
+            { runXell(R"XEL(
 mixin Loggable :
     fn log(self, msg) :
         print("[LOG] " + msg)
@@ -103,8 +102,7 @@ mixin Loggable :
 )XEL"); });
 
     runTest("Mixin cannot be instantiated", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 mixin Loggable :
     fn log(self, msg) :
         print(msg)
@@ -114,8 +112,7 @@ x = Loggable()
 )XEL")); });
 
     runTest("Mixin cannot have __init__", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 mixin Bad :
     fn __init__(self) :
         print("bad")
@@ -185,8 +182,7 @@ print(i->tag())
         XASSERT_EQ(out[1], "tagged"); });
 
     runTest("Non-mixin in 'with' clause throws error", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 class Foo :
     fn bar(self) :
         print("bar")

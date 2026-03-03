@@ -104,8 +104,7 @@ abstract Shape :
 )XEL"); });
 
     runTest("Abstract class cannot be instantiated", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 abstract Shape :
     fn area(self) ;
 ;
@@ -166,8 +165,7 @@ print(r->perimeter())
         XASSERT_EQ(out[1], "18"); });
 
     runTest("Missing abstract method throws error", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 abstract Shape :
     fn area(self) ;
     fn perimeter(self) ;
@@ -375,8 +373,7 @@ c->bar()
         XASSERT_EQ(out[1], "bar"); });
 
     runTest("Missing inherited abstract method throws error", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 abstract Base :
     fn foo(self) ;
 ;

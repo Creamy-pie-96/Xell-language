@@ -1261,7 +1261,7 @@ namespace xell
             // Property getter: get name(self) : ... ;
             // Property setter: set name(self, val) : ... ;
             // "get" and "set" are contextual keywords (identifiers outside class bodies)
-            if (check(TokenType::IDENTIFIER) && 
+            if (check(TokenType::IDENTIFIER) &&
                 (current().value == "get" || current().value == "set") &&
                 peekToken(1).type == TokenType::IDENTIFIER)
             {
@@ -1269,8 +1269,9 @@ namespace xell
                 int propLine = current().line;
                 advance(); // consume get/set
 
-                std::string propName = consume(TokenType::IDENTIFIER, 
-                    isGetter ? "Expected property name after 'get'" : "Expected property name after 'set'").value;
+                std::string propName = consume(TokenType::IDENTIFIER,
+                                               isGetter ? "Expected property name after 'get'" : "Expected property name after 'set'")
+                                           .value;
 
                 // Parse as a function definition: (params) : body ;
                 consume(TokenType::LPAREN, "Expected '(' after property name");
@@ -1365,7 +1366,7 @@ namespace xell
                                 // Abstract method — no body
                                 advance(); // consume ;
                                 auto fn = std::make_unique<FnDef>(methodName, std::move(params),
-                                                                   std::vector<StmtPtr>{}, methodLn);
+                                                                  std::vector<StmtPtr>{}, methodLn);
                                 fn->access = currentAccess;
                                 fn->isAbstract = true;
                                 methods.push_back(std::move(fn));

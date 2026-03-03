@@ -605,4 +605,203 @@ This keeps the protocol clean — if you need error-aware cleanup, handle it ins
 
 ---
 
+# Wait update of the plan:
+This plan is solid and complete honestly. Let me break it down simply — what's there, what's missing, and what each missing thing enables:
+
+---
+
+## What's Already Covered — Well Done
+
+Every core case is handled:
+- Single and multiple resources
+- Reverse teardown order
+- Cleanup on error, on `give`, on `break/continue`
+- Partial init failure — no leaks
+- Proxy pattern via `__enter__` return value
+- `_` discard name
+- Duck typing — no base class needed
+
+The implementation roadmap is detailed and realistic. ~5 days estimate looks right.
+
+---
+
+## What's Missing and What Each Enables
+
+### 1. Error Info in `__exit__` — Currently Intentionally Removed
+
+You decided `__exit__(self)` takes no error args. That's fine and simpler. But it means this pattern is **impossible**:
+
+```xell
+class Transaction :
+    fn __exit__(self) :        # can't tell if block succeeded or failed
+        self->commit()         # always commits — even on error
+    ;
+;
+```
+
+With error info you could do:
+```xell
+class Transaction :
+    fn __exit__(self, had_error) :
+        if had_error :
+            self->rollback()
+        else :
+            self->commit()
+        ;
+    ;
+;
+```
+
+**Without it** the workaround is:
+```xell
+let db->transaction() be tx :
+    do_work()
+    tx->commit()       # user manually commits on success
+;                      # __exit__ only rolls back if commit wasn't called
+```
+
+Not terrible. The plan correctly notes this — handle errors inside the block. Acceptable tradeoff.
+
+---
+
+### 2. Error Suppression — Currently Intentionally Removed
+
+Python lets `__exit__` return `true` to swallow an error silently. You removed this. Good decision — it's the most confusing Python feature. No action needed.
+
+---
+
+### 3. Async Context Managers — Deferred
+
+```xell
+# would look like this when async exists
+let await AsyncDB->connect() be db :
+    await db->query("SELECT 1")
+;
+```
+
+**Enables:** RAII with async resources — database connections, HTTP sessions, async file handles. Can't be designed until async/await is designed. Correctly deferred.
+
+---
+
+### 4. Generator-based Context Managers — Not Planned
+
+Python's `@contextmanager` lets you write context managers with `yield` instead of a class:
+
+```python
+# Python
+@contextmanager
+def managed_file(path):
+    f = open(path)
+    yield f           # everything before yield = __enter__
+    f.close()         # everything after yield = __exit__
+```
+
+Xell equivalent would be:
+```xell
+@context
+gen managed_file(path) :
+    f = open(path)
+    yield f              # __enter__ equivalent
+    f->close()           # __exit__ equivalent — runs after block
+;
+
+let managed_file("a.txt") be f :
+    print f->read()
+;
+```
+
+**What this enables:** Writing context managers without defining a full class. Much lighter syntax for simple cases. Worth adding eventually once generators exist — the `@context` decorator on a generator would be the natural way.
+
+**Currently missing because:** Generators aren't implemented yet. This depends on generators. Add it to the generator design phase later.
+
+---
+
+### 5. `let` Without `be` — Currently Not Planned
+
+```xell
+let Lock() :           # no name — just managed, not accessed
+    shared_data += 1
+;
+```
+
+You require `_` instead:
+```xell
+let Lock() be _ :
+    shared_data += 1
+;
+```
+
+The `_` approach is fine and more consistent with the grammar. No action needed.
+
+---
+
+### 6. Name Reuse After Block — Currently Not Planned
+
+```xell
+let File("a.txt") be f :
+    content = f->read()
+;
+print f->read()    # ERROR — f out of scope
+```
+
+This is correct behavior. File is closed, `f` should not be accessible. No action needed.
+
+---
+
+### 7. One Thing Actually Missing — `let` Inside `try/catch`
+
+The plan doesn't address this interaction:
+
+```xell
+try :
+    let File("missing.txt", "r") be f :
+        content = f->read()
+    ;
+; catch FileNotFoundError e :
+    print "file not found"
+;
+```
+
+**Questions that need answering:**
+- If `__enter__` throws — does `catch` see it? **Yes, it should.**
+- If the block throws — `__exit__` runs first, THEN does `catch` see it? **Yes.**
+- If `__exit__` throws — does `catch` see it? **Yes — it replaces the original error.**
+
+This isn't really missing from the design — it follows logically from the rules already stated. But it should be added as a test case in Phase 7 explicitly.
+
+---
+
+### 8. One Thing Actually Missing — `let` + `incase`
+
+What happens here:
+
+```xell
+let File("a.txt") be f :
+    incase mode :
+        is "read" :
+            give f->read()    # give inside incase inside let
+        ;
+    ;
+;
+```
+
+`give` inside `incase` inside `let` — does `__exit__` still fire? It should. The plan covers `give` in the block but the test cases don't explicitly test `give` nested inside control flow inside the `let` block. Add this to Phase 7.
+
+---
+
+## Summary — What to Actually Do
+
+| Item | Action |
+|------|--------|
+| Error args in `__exit__` | Keep removed — workaround is clean enough |
+| Error suppression | Keep removed — good decision |
+| Async context managers | Defer — design when async/await is designed |
+| Generator-based context managers | Defer — design when generators exist, add `@context` decorator |
+| `let` without `be` | Keep `_` requirement — more consistent |
+| Name after block | Keep out of scope — correct behavior |
+| `let` inside `try/catch` interaction | Add 3 test cases to Phase 7 |
+| `give` nested in control flow in `let` | Add 2 test cases to Phase 7 |
+
+**The plan is 95% complete.** Only two small additions needed — both are just extra test cases in Phase 7, not design changes. The implementation roadmap can be followed as-is.
+
 _This document reflects the confirmed `let ... be` design. Implement after OOP phases are stable._

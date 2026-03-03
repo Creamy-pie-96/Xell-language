@@ -13,38 +13,46 @@
 static int g_passed = 0;
 static int g_failed = 0;
 
-#define XASSERT_EQ(a, b)                                                          \
-    do                                                                             \
-    {                                                                              \
-        auto _a = (a);                                                             \
-        auto _b = (b);                                                             \
-        if (_a != _b)                                                              \
-        {                                                                          \
-            std::ostringstream os;                                                 \
-            os << "  ASSERTION FAILED: " << #a << " == " << #b << "\n"             \
-               << "        got: [" << _a << "] vs [" << _b << "]";                 \
-            throw std::runtime_error(os.str());                                    \
-        }                                                                          \
+#define XASSERT_EQ(a, b)                                               \
+    do                                                                 \
+    {                                                                  \
+        auto _a = (a);                                                 \
+        auto _b = (b);                                                 \
+        if (_a != _b)                                                  \
+        {                                                              \
+            std::ostringstream os;                                     \
+            os << "  ASSERTION FAILED: " << #a << " == " << #b << "\n" \
+               << "        got: [" << _a << "] vs [" << _b << "]";     \
+            throw std::runtime_error(os.str());                        \
+        }                                                              \
     } while (0)
 
-#define XASSERT_CONTAINS(haystack, needle)                                         \
-    do                                                                             \
-    {                                                                              \
-        if ((haystack).find(needle) == std::string::npos)                          \
-        {                                                                          \
-            std::ostringstream os;                                                 \
-            os << "  ASSERTION FAILED: output should contain \"" << (needle)       \
-               << "\"\n        got: [" << (haystack) << "]";                       \
-            throw std::runtime_error(os.str());                                    \
-        }                                                                          \
+#define XASSERT_CONTAINS(haystack, needle)                                   \
+    do                                                                       \
+    {                                                                        \
+        if ((haystack).find(needle) == std::string::npos)                    \
+        {                                                                    \
+            std::ostringstream os;                                           \
+            os << "  ASSERTION FAILED: output should contain \"" << (needle) \
+               << "\"\n        got: [" << (haystack) << "]";                 \
+            throw std::runtime_error(os.str());                              \
+        }                                                                    \
     } while (0)
 
-#define XASSERT_THROWS(expr)                                                       \
-    do                                                                             \
-    {                                                                              \
-        bool caught = false;                                                       \
-        try { expr; } catch (...) { caught = true; }                               \
-        if (!caught) throw std::runtime_error("  Expected exception but none thrown"); \
+#define XASSERT_THROWS(expr)                                                  \
+    do                                                                        \
+    {                                                                         \
+        bool caught = false;                                                  \
+        try                                                                   \
+        {                                                                     \
+            expr;                                                             \
+        }                                                                     \
+        catch (...)                                                           \
+        {                                                                     \
+            caught = true;                                                    \
+        }                                                                     \
+        if (!caught)                                                          \
+            throw std::runtime_error("  Expected exception but none thrown"); \
     } while (0)
 
 // ---- Include the interpreter directly (single-header style) ----
@@ -205,8 +213,7 @@ void testImmutable()
     std::cout << "\n===== @immutable Decorator =====\n";
 
     runTest("@immutable prevents field modification after construction", []()
-            {
-        XASSERT_THROWS(runXell(R"XEL(
+            { XASSERT_THROWS(runXell(R"XEL(
 @immutable
 class Config :
     host = ""
@@ -245,8 +252,7 @@ print(cfg->port)
         XASSERT_EQ(out[1], "8080"); });
 
     runTest("@immutable without __init__ (field defaults)", []()
-            {
-        XASSERT_THROWS(runXell(R"XEL(
+            { XASSERT_THROWS(runXell(R"XEL(
 @immutable
 class Frozen :
     x = 42
@@ -388,8 +394,7 @@ void testDecoratorCombinations()
     std::cout << "\n===== Decorator Combinations =====\n";
 
     runTest("@dataclass + @immutable", []()
-            {
-        XASSERT_THROWS(runXell(R"XEL(
+            { XASSERT_THROWS(runXell(R"XEL(
 @immutable
 @dataclass
 class FrozenPoint :

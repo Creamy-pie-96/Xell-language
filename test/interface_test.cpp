@@ -103,16 +103,14 @@ interface Drawable :
 )XEL"); });
 
     runTest("Interface with single method", []()
-            {
-        runXell(R"XEL(
+            { runXell(R"XEL(
 interface Printable :
     fn to_string(self) ;
 ;
 )XEL"); });
 
     runTest("Interface cannot be instantiated", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 interface Drawable :
     fn draw(self) ;
 ;
@@ -179,8 +177,7 @@ print(u->to_json())
         XASSERT_EQ(out[0], "json:Alice"); });
 
     runTest("Missing interface method throws error", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 interface Drawable :
     fn draw(self) ;
     fn resize(self, factor) ;
@@ -194,8 +191,7 @@ class Box implements Drawable :
 )XEL")); });
 
     runTest("Wrong parameter count throws error", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 interface Drawable :
     fn draw(self) ;
 ;
@@ -249,8 +245,7 @@ print(w->to_string())
         XASSERT_EQ(out[1], "Widget(btn)"); });
 
     runTest("Missing method from second interface throws error", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 interface Drawable :
     fn draw(self) ;
 ;
@@ -334,8 +329,7 @@ c->draw()
         XASSERT_EQ(out[0], "base draw"); });
 
     runTest("Non-interface in implements clause throws error", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 class Foo :
     fn bar(self) :
         print("bar")

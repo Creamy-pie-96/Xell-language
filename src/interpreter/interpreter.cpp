@@ -312,6 +312,108 @@ namespace xell
         // Mirror the 5 HOF builtins into allBuiltins_ so they're discoverable
         for (const auto &name : {"map", "filter", "reduce", "any", "all"})
             allBuiltins_[name] = builtins_[name];
+
+        // ---- Override print to support __print__/__str__ magic methods ----
+        builtins_["print"] = [this](std::vector<XObject> &args, int line) -> XObject
+        {
+            std::string lineStr;
+            for (size_t i = 0; i < args.size(); i++)
+            {
+                if (i > 0)
+                    lineStr += " ";
+                // Check for __print__ or __str__ magic method on instances
+                if (args[i].isInstance())
+                {
+                    XObject result;
+                    std::vector<XObject> noArgs;
+                    if (callMagicMethod(args[i], "__print__", noArgs, line, result))
+                    {
+                        lineStr += result.toString();
+                        continue;
+                    }
+                    if (callMagicMethod(args[i], "__str__", noArgs, line, result))
+                    {
+                        lineStr += result.toString();
+                        continue;
+                    }
+                }
+                lineStr += args[i].toString();
+            }
+            output_.push_back(lineStr);
+            return XObject::makeInt(0);
+        };
+        allBuiltins_["print"] = builtins_["print"];
+
+        // ---- Override len to support __len__ magic method ----
+        builtins_["len"] = [this](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 1)
+                throw ArityError("len", 1, (int)args.size(), line);
+            auto &obj = args[0];
+            // Check for __len__ magic method on instances
+            if (obj.isInstance())
+            {
+                XObject result;
+                std::vector<XObject> noArgs;
+                if (callMagicMethod(obj, "__len__", noArgs, line, result))
+                    return result;
+            }
+            if (obj.isString())
+                return XObject::makeInt((int64_t)obj.asString().size());
+            if (obj.isList())
+                return XObject::makeInt((int64_t)obj.asList().size());
+            if (obj.isTuple())
+                return XObject::makeInt((int64_t)obj.asTuple().size());
+            if (obj.isSet())
+                return XObject::makeInt((int64_t)obj.asSet().size());
+            if (obj.isFrozenSet())
+                return XObject::makeInt((int64_t)obj.asFrozenSet().size());
+            if (obj.isMap())
+                return XObject::makeInt((int64_t)obj.asMap().size());
+            throw TypeError("len() expects a string, list, tuple, set, frozen_set, or map", line);
+        };
+        allBuiltins_["len"] = builtins_["len"];
+
+        // ---- Override contains to support __contains__ magic method ----
+        builtins_["contains"] = [this](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 2)
+                throw ArityError("contains", 2, (int)args.size(), line);
+            auto &collection = args[0];
+            auto &element = args[1];
+            // Check for __contains__ magic method on instances
+            if (collection.isInstance())
+            {
+                XObject result;
+                std::vector<XObject> containsArgs = {element};
+                if (callMagicMethod(collection, "__contains__", containsArgs, line, result))
+                    return result;
+            }
+            if (collection.isString() && element.isString())
+                return XObject::makeBool(collection.asString().find(element.asString()) != std::string::npos);
+            if (collection.isList())
+            {
+                for (const auto &item : collection.asList())
+                    if (item.equals(element))
+                        return XObject::makeBool(true);
+                return XObject::makeBool(false);
+            }
+            if (collection.isTuple())
+            {
+                for (const auto &item : collection.asTuple())
+                    if (item.equals(element))
+                        return XObject::makeBool(true);
+                return XObject::makeBool(false);
+            }
+            if (collection.isSet())
+                return XObject::makeBool(collection.asSet().has(element));
+            if (collection.isFrozenSet())
+                return XObject::makeBool(collection.asFrozenSet().has(element));
+            if (collection.isMap())
+                return XObject::makeBool(collection.asMap().has(element));
+            throw TypeError("contains() expects a string, list, tuple, set, frozen_set, or map as first argument", line);
+        };
+        allBuiltins_["contains"] = builtins_["contains"];
     }
 
     // ========================================================================
@@ -1090,6 +1192,45 @@ namespace xell
         XObject left = eval(node->left.get());
         XObject right = eval(node->right.get());
 
+        // ================================================================
+        // Magic method dispatch for operator overloading on instances
+        // Check if the left operand is an instance with the corresponding
+        // __op__ method before falling through to default behavior.
+        // ================================================================
+        if (left.isInstance())
+        {
+            static const std::unordered_map<std::string, std::string> opToMagic = {
+                {"+", "__add__"},
+                {"-", "__sub__"},
+                {"*", "__mul__"},
+                {"/", "__div__"},
+                {"%", "__mod__"},
+                {"==", "__eq__"},
+                {"!=", "__ne__"},
+                {"<", "__lt__"},
+                {">", "__gt__"},
+                {"<=", "__le__"},
+                {">=", "__ge__"},
+            };
+            auto it = opToMagic.find(op);
+            if (it != opToMagic.end())
+            {
+                XObject result;
+                std::vector<XObject> magicArgs = {std::move(right)};
+                if (callMagicMethod(left, it->second, magicArgs, node->line, result))
+                    return result;
+                // If __ne__ not defined but __eq__ is, derive != from ==
+                if (op == "!=")
+                {
+                    std::vector<XObject> eqArgs = {std::move(magicArgs[0])};
+                    if (callMagicMethod(left, "__eq__", eqArgs, node->line, result))
+                        return XObject::makeBool(!result.truthy());
+                }
+                // Restore right for fallback
+                right = std::move(magicArgs[0]);
+            }
+        }
+
         // Equality / inequality (any types)
         if (op == "==")
             return XObject::makeBool(left.equals(right));
@@ -1264,6 +1405,14 @@ namespace xell
         if (op == "-")
         {
             XObject val = eval(node->operand.get());
+            // Magic method: __neg__
+            if (val.isInstance())
+            {
+                XObject result;
+                std::vector<XObject> noArgs;
+                if (callMagicMethod(val, "__neg__", noArgs, node->line, result))
+                    return result;
+            }
             if (val.isInt())
                 return XObject::makeInt(-val.asInt());
             if (val.isFloat())
@@ -1899,6 +2048,16 @@ namespace xell
 
         // Look up user-defined function (throws if not found)
         XObject fnObj = currentEnv_->get(node->callee, node->line);
+
+        // Magic method: __call__ — if the callee is an instance with __call__
+        if (fnObj.isInstance())
+        {
+            XObject result;
+            if (callMagicMethod(fnObj, "__call__", args, node->line, result))
+                return result;
+            throw TypeError("'" + node->callee + "' is not callable (no __call__ method)", node->line);
+        }
+
         if (!fnObj.isFunction())
             throw TypeError("'" + node->callee + "' is not a function", node->line);
 
@@ -2084,6 +2243,15 @@ namespace xell
     {
         XObject obj = eval(node->object.get());
         XObject idx = eval(node->index.get());
+
+        // Magic method: __get__(self, key) for instances
+        if (obj.isInstance())
+        {
+            XObject result;
+            std::vector<XObject> getArgs = {idx};
+            if (callMagicMethod(obj, "__get__", getArgs, node->line, result))
+                return result;
+        }
 
         if (obj.isList())
         {
@@ -2596,7 +2764,7 @@ namespace xell
     //   PRIVATE   — accessible only from this class (self is in scope and
     //               self's class name matches owning class name)
     void Interpreter::checkAccess(AccessLevel access, const std::string &memberName,
-                                   const XStructDef &owningClass, int line)
+                                  const XStructDef &owningClass, int line)
     {
         if (access == AccessLevel::PUBLIC)
             return; // always OK
@@ -2945,6 +3113,15 @@ namespace xell
         XObject idx = eval(node->index.get());
         XObject value = eval(node->value.get());
 
+        // Magic method: __set__(self, key, val) for instances
+        if (obj.isInstance())
+        {
+            XObject result;
+            std::vector<XObject> setArgs = {idx, std::move(value)};
+            if (callMagicMethod(obj, "__set__", setArgs, node->line, result))
+                return;
+        }
+
         if (obj.isList())
         {
             if (!idx.isNumber())
@@ -3287,6 +3464,38 @@ namespace xell
     }
 
     // ========================================================================
+    // Magic method helper: call __dunder__ on an instance if it exists
+    // ========================================================================
+
+    bool Interpreter::callMagicMethod(const XObject &instance, const std::string &methodName,
+                                      std::vector<XObject> &args, int line, XObject &result)
+    {
+        if (!instance.isInstance())
+            return false;
+        const XInstance &inst = instance.asInstance();
+        if (!inst.structDef)
+            return false;
+        auto [mi, ownerClass] = inst.structDef->findMethodWithOwner(methodName);
+        if (!mi || !mi->fnObject.isFunction())
+            return false;
+
+        // Build args: [self, ...args]
+        std::vector<XObject> callArgs;
+        callArgs.push_back(instance);
+        for (auto &a : args)
+            callArgs.push_back(std::move(a));
+
+        std::shared_ptr<XStructDef> parentDef = nullptr;
+        if (ownerClass && ownerClass->isClass && !ownerClass->parents.empty())
+            parentDef = ownerClass->parents[0];
+        auto *savedMethodClass = executingMethodClass_;
+        executingMethodClass_ = ownerClass;
+        result = callUserFn(mi->fnObject.asFunction(), callArgs, line, parentDef);
+        executingMethodClass_ = savedMethodClass;
+        return true;
+    }
+
+    // ========================================================================
     // String interpolation:  "hello {expr} world"
     // ========================================================================
 
@@ -3328,7 +3537,26 @@ namespace xell
                 {
                     if (auto *es = dynamic_cast<ExprStmt *>(prog.statements[0].get()))
                     {
-                        result += eval(es->expr.get()).toString();
+                        XObject val = eval(es->expr.get());
+                        // Check for __str__ or __print__ magic method on instances
+                        if (val.isInstance())
+                        {
+                            XObject magicResult;
+                            std::vector<XObject> noArgs;
+                            if (callMagicMethod(val, "__str__", noArgs, line, magicResult))
+                            {
+                                result += magicResult.toString();
+                                i = j;
+                                continue;
+                            }
+                            if (callMagicMethod(val, "__print__", noArgs, line, magicResult))
+                            {
+                                result += magicResult.toString();
+                                i = j;
+                                continue;
+                            }
+                        }
+                        result += val.toString();
                     }
                 }
                 i = j;
