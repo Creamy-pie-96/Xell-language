@@ -123,3 +123,7 @@ add_test(NAME property_test COMMAND property_test)
 add_executable(interface_test test/interface_test.cpp)
 target_link_libraries(interface_test xell_lib)
 add_test(NAME interface_test COMMAND interface_test)
+
+add_executable(abstract_test test/abstract_test.cpp)
+target_link_libraries(abstract_test xell_lib)
+add_test(NAME abstract_test COMMAND abstract_test)

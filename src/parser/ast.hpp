@@ -312,6 +312,7 @@ namespace xell
         std::vector<StmtPtr> body;
         bool isAsync = false; // true for async fn
         bool isStatic = false; // true for static class members
+        bool isAbstract = false; // true for abstract methods (no body)
         AccessLevel access = AccessLevel::PUBLIC; // access level when used as class method
 
         // Type annotations (optional)
@@ -453,6 +454,7 @@ namespace xell
 
     // ---- OOP: Class definition ----
     // class Animal [inherits Base1, Base2] [implements Iface1, Iface2] : fields + methods + __init__ ;
+    // Also used for abstract classes: abstract Animal : ... ;
     struct ClassDef : Stmt
     {
         std::string name;
@@ -461,15 +463,17 @@ namespace xell
         std::vector<StructFieldDef> fields;
         std::vector<std::unique_ptr<FnDef>> methods; // includes __init__ if present
         std::vector<PropertyDef> properties;          // get/set property definitions
+        bool isAbstract = false;                      // true if defined with 'abstract' keyword
         ClassDef(std::string name, std::vector<std::string> parents,
                  std::vector<std::string> interfaces,
                  std::vector<StructFieldDef> fields,
                  std::vector<std::unique_ptr<FnDef>> methods,
-                 std::vector<PropertyDef> properties, int ln = 0)
+                 std::vector<PropertyDef> properties, int ln = 0,
+                 bool isAbstract = false)
             : name(std::move(name)), parents(std::move(parents)),
               interfaces(std::move(interfaces)),
               fields(std::move(fields)), methods(std::move(methods)),
-              properties(std::move(properties)) { line = ln; }
+              properties(std::move(properties)), isAbstract(isAbstract) { line = ln; }
     };
 
     // Member assignment: obj->field = expr

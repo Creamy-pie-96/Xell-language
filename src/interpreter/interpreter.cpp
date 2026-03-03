@@ -1496,6 +1496,10 @@ namespace xell
                 if (def.isInterface)
                     throw TypeError("cannot instantiate interface '" + def.name + "'", node->line);
 
+                // Abstract classes cannot be instantiated directly
+                if (def.isAbstract)
+                    throw TypeError("cannot instantiate abstract class '" + def.name + "'", node->line);
+
                 auto defPtr = fnObj.asStructDefShared();
                 XInstance inst(def.name, defPtr);
 
@@ -2595,6 +2599,7 @@ namespace xell
     {
         auto def = std::make_shared<XStructDef>(node->name);
         def->isClass = true;
+        def->isAbstract = node->isAbstract;
 
         // Resolve parent classes from the current environment
         for (const auto &parentName : node->parents)
@@ -2640,6 +2645,18 @@ namespace xell
             XStructMethodInfo mi;
             mi.name = method->name;
             mi.access = astToRuntimeAccess(method->access);
+            mi.isAbstract = method->isAbstract;
+
+            if (method->isAbstract)
+            {
+                // Abstract methods: create a lightweight placeholder function
+                auto fnObj = XObject::makeFunction(method->name, method->params,
+                                                   nullptr, currentEnv_);
+                mi.fnObject = std::move(fnObj);
+                def->methods.push_back(std::move(mi));
+                continue;
+            }
+
             auto fnObj = XObject::makeFunction(method->name, method->params,
                                                &method->body, currentEnv_);
             // Copy default parameter info
@@ -2712,6 +2729,39 @@ namespace xell
                                         "' has " + std::to_string(implFn.params.size()) +
                                         " parameter(s), but interface '" + iface->name +
                                         "' requires " + std::to_string(reqFn.params.size()),
+                                    node->line);
+                }
+            }
+        }
+
+        // Validate abstract method implementation — if not abstract itself,
+        // all abstract methods from the entire inheritance chain must be implemented
+        if (!def->isAbstract)
+        {
+            // Collect all abstract methods from the entire ancestor chain
+            std::vector<std::pair<std::string, std::string>> abstractMethods; // (method name, originating class)
+            std::function<void(const XStructDef &)> collectAbstract = [&](const XStructDef &cls)
+            {
+                for (const auto &m : cls.methods)
+                {
+                    if (m.isAbstract)
+                        abstractMethods.push_back({m.name, cls.name});
+                }
+                for (const auto &p : cls.parents)
+                    collectAbstract(*p);
+            };
+            for (const auto &parent : def->parents)
+                collectAbstract(*parent);
+
+            // Check each abstract method is implemented by this class or its ancestors
+            for (const auto &[methodName, originClass] : abstractMethods)
+            {
+                const XStructMethodInfo *found = def->findMethod(methodName);
+                if (!found || found->isAbstract)
+                {
+                    throw TypeError("class '" + node->name +
+                                        "' does not implement abstract method '" +
+                                        methodName + "' from '" + originClass + "'",
                                     node->line);
                 }
             }

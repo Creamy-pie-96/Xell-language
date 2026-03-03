@@ -238,6 +238,13 @@ namespace xell
             return parseStructDef();
         if (type == TokenType::CLASS)
             return parseClassDef();
+        if (type == TokenType::ABSTRACT)
+        {
+            advance(); // consume 'abstract'
+            skipNewlines();
+            // 'abstract' followed by class name (no 'class' keyword needed)
+            return parseClassDef(true);
+        }
         if (type == TokenType::INTERFACE)
             return parseInterfaceDef();
         if (type == TokenType::IMMUTABLE)
@@ -1125,12 +1132,13 @@ namespace xell
     // Class definition: class Name [inherits Parent1, Parent2] : body ;
     // ============================================================
 
-    StmtPtr Parser::parseClassDef()
+    StmtPtr Parser::parseClassDef(bool isAbstract)
     {
         int ln = current().line;
-        advance(); // consume CLASS
+        if (!isAbstract)
+            advance(); // consume CLASS (abstract already consumed by caller)
 
-        std::string name = consume(TokenType::IDENTIFIER, "Expected class name after 'class'").value;
+        std::string name = consume(TokenType::IDENTIFIER, isAbstract ? "Expected class name after 'abstract'" : "Expected class name after 'class'").value;
 
         // Parse optional 'inherits' clause
         std::vector<std::string> parents;
@@ -1303,8 +1311,53 @@ namespace xell
             }
 
             // Method definition: fn name(...) : ... ;
+            // In abstract classes, fn name(...) ; (no colon/body) is an abstract method
             if (check(TokenType::FN))
             {
+                if (isAbstract)
+                {
+                    // Check if this is an abstract method (no body)
+                    // Save position, parse name + params, check if next is ; (abstract) or : (default)
+                    size_t savedPos = pos_;
+                    advance(); // consume FN
+                    if (check(TokenType::IDENTIFIER))
+                    {
+                        std::string methodName = current().value;
+                        int methodLn = current().line;
+                        advance(); // consume name
+                        if (check(TokenType::LPAREN))
+                        {
+                            advance(); // consume (
+                            std::vector<std::string> params;
+                            if (!check(TokenType::RPAREN))
+                            {
+                                params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter").value);
+                                while (check(TokenType::COMMA))
+                                {
+                                    advance();
+                                    params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter").value);
+                                }
+                            }
+                            consume(TokenType::RPAREN, "Expected ')' after parameters");
+                            skipNewlines();
+                            if (check(TokenType::SEMICOLON))
+                            {
+                                // Abstract method — no body
+                                advance(); // consume ;
+                                auto fn = std::make_unique<FnDef>(methodName, std::move(params),
+                                                                   std::vector<StmtPtr>{}, methodLn);
+                                fn->access = currentAccess;
+                                fn->isAbstract = true;
+                                methods.push_back(std::move(fn));
+                                skipNewlines();
+                                continue;
+                            }
+                        }
+                    }
+                    // Not abstract — backtrack and parse as normal method
+                    pos_ = savedPos;
+                }
+
                 auto fnStmt = parseFnDef();
                 auto *fn = dynamic_cast<FnDef *>(fnStmt.get());
                 if (fn)
@@ -1339,7 +1392,7 @@ namespace xell
 
         consume(TokenType::SEMICOLON, "Expected ';' to close class definition");
 
-        return std::make_unique<ClassDef>(name, std::move(parents), std::move(interfaces), std::move(fields), std::move(methods), std::move(properties), ln);
+        return std::make_unique<ClassDef>(name, std::move(parents), std::move(interfaces), std::move(fields), std::move(methods), std::move(properties), ln, isAbstract);
     }
 
     // ============================================================

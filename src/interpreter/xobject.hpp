@@ -537,6 +537,7 @@ namespace xell
         std::string name;
         XObject fnObject; // XObject wrapping an XFunction
         AccessLevel access = AccessLevel::PUBLIC;
+        bool isAbstract = false; // true for abstract methods (no body)
     };
 
     // Property definition (get/set) for runtime
@@ -558,6 +559,7 @@ namespace xell
         std::vector<XPropertyInfo> properties;                // get/set properties
         bool isClass = false;                             // true if defined with `class`, false for `struct`
         bool isInterface = false;                         // true if defined with `interface`
+        bool isAbstract = false;                          // true if defined with `abstract`
         std::vector<std::shared_ptr<XStructDef>> parents; // parent classes (inheritance chain)
         std::vector<std::shared_ptr<XStructDef>> interfaces; // implemented interfaces
 

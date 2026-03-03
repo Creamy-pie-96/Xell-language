@@ -257,6 +257,7 @@ fn process() :
 ### `__exit__` itself raises an error
 
 If `__exit__` raises an error:
+
 - If the block exited normally → `__exit__`'s error propagates.
 - If the block raised an error AND `__exit__` also raises → `__exit__`'s error propagates
   (original block error is lost — same behavior as Python).
@@ -466,20 +467,20 @@ let f1, f2 be x : ... ;       # Error: each binding must be EXPR be NAME
 
 ## 10. Key Decisions
 
-| Decision | Choice | Reason |
-| -------- | ------ | ------ |
-| Keyword | `let ... be` | Reads as a natural English sentence; fits Xell's style |
-| vs Python `with ... as` | Different | `with`/`as` feel Python-specific; `let`/`be` is fresher |
-| `__enter__` return value | Bound to name | Allows proxy pattern (cursor from connection, etc.) |
-| `__exit__` parameters | `self` only | Keep it simple — no error info passed |
-| Teardown order | Reverse | Correct RAII: last opened, first closed |
-| Multiple bindings | Comma in one `let` | Avoids nesting; flat and readable |
-| Partial init failure | Clean up already-entered | No resource leak on mid-binding failure |
-| `give` inside block | `__exit__` still called | Guaranteed cleanup on all exit paths |
-| `error` inside block | `__exit__` still called | Guaranteed cleanup on all exit paths |
-| `__exit__` raises | Its error propagates | Keep behavior predictable |
-| Protocol | Duck typing only | No base class or interface required |
-| `_` as discard name | Supported | For when resource is managed but not used by name |
+| Decision                 | Choice                   | Reason                                                  |
+| ------------------------ | ------------------------ | ------------------------------------------------------- |
+| Keyword                  | `let ... be`             | Reads as a natural English sentence; fits Xell's style  |
+| vs Python `with ... as`  | Different                | `with`/`as` feel Python-specific; `let`/`be` is fresher |
+| `__enter__` return value | Bound to name            | Allows proxy pattern (cursor from connection, etc.)     |
+| `__exit__` parameters    | `self` only              | Keep it simple — no error info passed                   |
+| Teardown order           | Reverse                  | Correct RAII: last opened, first closed                 |
+| Multiple bindings        | Comma in one `let`       | Avoids nesting; flat and readable                       |
+| Partial init failure     | Clean up already-entered | No resource leak on mid-binding failure                 |
+| `give` inside block      | `__exit__` still called  | Guaranteed cleanup on all exit paths                    |
+| `error` inside block     | `__exit__` still called  | Guaranteed cleanup on all exit paths                    |
+| `__exit__` raises        | Its error propagates     | Keep behavior predictable                               |
+| Protocol                 | Duck typing only         | No base class or interface required                     |
+| `_` as discard name      | Supported                | For when resource is managed but not used by name       |
 
 ---
 
@@ -571,19 +572,19 @@ Updated complete list now has **26 magic methods** (was 24).
 
 ## 13. Appendix B: Comparison with Python
 
-| Feature | Python `with ... as` | Xell `let ... be` |
-| ------- | -------------------- | ----------------- |
-| Keyword | `with ... as` | `let ... be` |
-| Multiple resources | `with A() as a, B() as b :` | `let A() be a, B() be b :` |
-| Enter method | `__enter__(self)` | `__enter__(self)` — same |
-| Exit method | `__exit__(self, exc_type, exc_val, tb)` | `__exit__(self)` — simpler, no error args |
-| Exit on error | ✅ Always | ✅ Always |
-| Exit on return | ✅ Always | ✅ Always |
-| Reverse teardown order | ✅ | ✅ |
-| Suppress errors from exit | ✅ (return True from `__exit__`) | ❌ Not supported — keep it simple |
-| Partial init cleanup | ✅ | ✅ |
-| Protocol | `contextlib.AbstractContextManager` or duck typing | Duck typing only |
-| Nested `with` | Supported | Supported (nested `let`) |
+| Feature                   | Python `with ... as`                               | Xell `let ... be`                         |
+| ------------------------- | -------------------------------------------------- | ----------------------------------------- |
+| Keyword                   | `with ... as`                                      | `let ... be`                              |
+| Multiple resources        | `with A() as a, B() as b :`                        | `let A() be a, B() be b :`                |
+| Enter method              | `__enter__(self)`                                  | `__enter__(self)` — same                  |
+| Exit method               | `__exit__(self, exc_type, exc_val, tb)`            | `__exit__(self)` — simpler, no error args |
+| Exit on error             | ✅ Always                                          | ✅ Always                                 |
+| Exit on return            | ✅ Always                                          | ✅ Always                                 |
+| Reverse teardown order    | ✅                                                 | ✅                                        |
+| Suppress errors from exit | ✅ (return True from `__exit__`)                   | ❌ Not supported — keep it simple         |
+| Partial init cleanup      | ✅                                                 | ✅                                        |
+| Protocol                  | `contextlib.AbstractContextManager` or duck typing | Duck typing only                          |
+| Nested `with`             | Supported                                          | Supported (nested `let`)                  |
 
 The main simplification: Xell's `__exit__` takes no error arguments and cannot suppress errors.
 This keeps the protocol clean — if you need error-aware cleanup, handle it inside the block.
@@ -592,15 +593,15 @@ This keeps the protocol clean — if you need error-aware cleanup, handle it ins
 
 ## 14. Appendix C: What We're NOT Doing
 
-| Feature | Status | Reason |
-| ------- | ------ | ------ |
-| Error args in `__exit__` | ❌ Not planned | Keeps protocol simple; handle errors in block |
-| Error suppression from `__exit__` | ❌ Not planned | Surprising behavior; not worth the complexity |
-| `let` without `be` (no binding) | ❌ Not planned | Every resource should be named or `_` |
-| Async context managers | ⏳ Maybe later | Depends on async/await being added to Xell |
-| Generator-based context managers | ❌ Not planned | No `@contextmanager` decorator style |
+| Feature                            | Status         | Reason                                          |
+| ---------------------------------- | -------------- | ----------------------------------------------- |
+| Error args in `__exit__`           | ❌ Not planned | Keeps protocol simple; handle errors in block   |
+| Error suppression from `__exit__`  | ❌ Not planned | Surprising behavior; not worth the complexity   |
+| `let` without `be` (no binding)    | ❌ Not planned | Every resource should be named or `_`           |
+| Async context managers             | ⏳ Maybe later | Depends on async/await being added to Xell      |
+| Generator-based context managers   | ❌ Not planned | No `@contextmanager` decorator style            |
 | `let` as general scoping construct | ❌ Not planned | `let ... be` is only for RAII — not for scoping |
-| Reusing the name after block exits | ❌ Not planned | Name goes out of scope when block ends |
+| Reusing the name after block exits | ❌ Not planned | Name goes out of scope when block ends          |
 
 ---
 

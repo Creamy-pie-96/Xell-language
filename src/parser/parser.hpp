@@ -60,7 +60,7 @@ namespace xell
         StmtPtr parseInCaseStmt();
         StmtPtr parseEnumDef();
         StmtPtr parseStructDef();
-        StmtPtr parseClassDef();
+        StmtPtr parseClassDef(bool isAbstract = false);
         StmtPtr parseInterfaceDef();
         StmtPtr parseDecoratedFnDef();
         std::vector<StmtPtr> parseBlock(bool stopAtElifElse = false);
