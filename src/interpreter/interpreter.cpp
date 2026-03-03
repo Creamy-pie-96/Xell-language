@@ -2143,6 +2143,28 @@ namespace xell
         if (obj.isInstance())
         {
             const XInstance &inst = obj.asInstance();
+
+            // Check for property getter first: get name(self) : ... ;
+            if (inst.structDef && inst.structDef->isClass)
+            {
+                const XPropertyInfo *prop = inst.structDef->findProperty(node->member);
+                if (prop)
+                {
+                    if (prop->getter.isNone())
+                        throw AttributeError("property '" + node->member + "' is write-only", node->line);
+                    // Call the getter with (self)
+                    const XFunction &getterFn = prop->getter.asFunction();
+                    std::vector<XObject> getterArgs;
+                    getterArgs.push_back(obj);
+                    // Set executingMethodClass_ for access control inside getter
+                    auto *savedMethodClass = executingMethodClass_;
+                    executingMethodClass_ = inst.structDef.get();
+                    auto result = callUserFn(getterFn, getterArgs, node->line);
+                    executingMethodClass_ = savedMethodClass;
+                    return result;
+                }
+            }
+
             auto it = inst.fields.find(node->member);
             if (it != inst.fields.end())
             {
@@ -2618,6 +2640,37 @@ namespace xell
                 def->methods.push_back(std::move(mi));
         }
 
+        // Compile properties: create XFunction objects for getters/setters
+        for (auto &prop : node->properties)
+        {
+            XPropertyInfo pi;
+            pi.name = prop.name;
+            pi.access = astToRuntimeAccess(prop.access);
+            if (prop.getter)
+            {
+                auto getterFn = XObject::makeFunction(
+                    "__get_" + prop.name, prop.getter->params,
+                    &prop.getter->body, currentEnv_);
+                pi.getter = std::move(getterFn);
+            }
+            else
+            {
+                pi.getter = XObject::makeNone();
+            }
+            if (prop.setter)
+            {
+                auto setterFn = XObject::makeFunction(
+                    "__set_" + prop.name, prop.setter->params,
+                    &prop.setter->body, currentEnv_);
+                pi.setter = std::move(setterFn);
+            }
+            else
+            {
+                pi.setter = XObject::makeNone();
+            }
+            def->properties.push_back(std::move(pi));
+        }
+
         currentEnv_->set(node->name, XObject::makeStructDef(def));
     }
 
@@ -2637,6 +2690,28 @@ namespace xell
                 throw ImmutabilityError("cannot modify field '" + node->member +
                                             "' on frozen instance of '" + inst.typeName + "'",
                                         node->line);
+
+            // Check for property setter first: set name(self, val) : ... ;
+            if (inst.structDef && inst.structDef->isClass)
+            {
+                const XPropertyInfo *prop = inst.structDef->findProperty(node->member);
+                if (prop)
+                {
+                    if (prop->setter.isNone())
+                        throw AttributeError("property '" + node->member + "' is read-only", node->line);
+                    // Call the setter with (self, value)
+                    const XFunction &setterFn = prop->setter.asFunction();
+                    std::vector<XObject> setterArgs;
+                    setterArgs.push_back(obj);
+                    setterArgs.push_back(std::move(value));
+                    auto *savedMethodClass = executingMethodClass_;
+                    executingMethodClass_ = inst.structDef.get();
+                    callUserFn(setterFn, setterArgs, node->line);
+                    executingMethodClass_ = savedMethodClass;
+                    return;
+                }
+            }
+
             // Only allow setting fields that exist in the struct/class definition
             // For classes, use findField() to search the full inheritance chain
             bool found = false;

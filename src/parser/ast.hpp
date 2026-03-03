@@ -424,6 +424,16 @@ namespace xell
               methods(std::move(methods)) { line = ln; }
     };
 
+    // ---- OOP: Property definition (get/set) ----
+    struct PropertyDef
+    {
+        std::string name;
+        std::unique_ptr<FnDef> getter; // get name(self) : ... ; (may be null)
+        std::unique_ptr<FnDef> setter; // set name(self, val) : ... ; (may be null)
+        int line = 0;
+        AccessLevel access = AccessLevel::PUBLIC;
+    };
+
     // ---- OOP: Class definition ----
     // class Animal [inherits Base1, Base2] : fields + methods + __init__ ;
     struct ClassDef : Stmt
@@ -432,11 +442,14 @@ namespace xell
         std::vector<std::string> parents; // inherits list (may be empty)
         std::vector<StructFieldDef> fields;
         std::vector<std::unique_ptr<FnDef>> methods; // includes __init__ if present
+        std::vector<PropertyDef> properties;          // get/set property definitions
         ClassDef(std::string name, std::vector<std::string> parents,
                  std::vector<StructFieldDef> fields,
-                 std::vector<std::unique_ptr<FnDef>> methods, int ln = 0)
+                 std::vector<std::unique_ptr<FnDef>> methods,
+                 std::vector<PropertyDef> properties, int ln = 0)
             : name(std::move(name)), parents(std::move(parents)),
-              fields(std::move(fields)), methods(std::move(methods)) { line = ln; }
+              fields(std::move(fields)), methods(std::move(methods)),
+              properties(std::move(properties)) { line = ln; }
     };
 
     // Member assignment: obj->field = expr

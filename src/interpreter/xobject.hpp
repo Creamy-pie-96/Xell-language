@@ -539,6 +539,15 @@ namespace xell
         AccessLevel access = AccessLevel::PUBLIC;
     };
 
+    // Property definition (get/set) for runtime
+    struct XPropertyInfo
+    {
+        std::string name;
+        XObject getter; // XFunction or None
+        XObject setter; // XFunction or None
+        AccessLevel access = AccessLevel::PUBLIC;
+    };
+
     struct XStructDef
     {
         std::string name;
@@ -546,6 +555,7 @@ namespace xell
         std::vector<XStructMethodInfo> methods;           // method definitions
         std::vector<XStructFieldInfo> staticFields;           // static field definitions
         std::vector<XStructMethodInfo> staticMethods;         // static method definitions
+        std::vector<XPropertyInfo> properties;                // get/set properties
         bool isClass = false;                             // true if defined with `class`, false for `struct`
         std::vector<std::shared_ptr<XStructDef>> parents; // parent classes (inheritance chain)
 
@@ -665,6 +675,21 @@ namespace xell
             for (auto &parent : parents)
             {
                 XStructFieldInfo *found = parent->findStaticFieldMut(fieldName);
+                if (found)
+                    return found;
+            }
+            return nullptr;
+        }
+
+        // Look up a property by name (own then parents)
+        const XPropertyInfo *findProperty(const std::string &propName) const
+        {
+            for (const auto &pi : properties)
+                if (pi.name == propName)
+                    return &pi;
+            for (const auto &parent : parents)
+            {
+                const XPropertyInfo *found = parent->findProperty(propName);
                 if (found)
                     return found;
             }

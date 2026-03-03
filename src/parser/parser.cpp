@@ -1148,6 +1148,7 @@ namespace xell
 
         std::vector<StructFieldDef> fields;
         std::vector<std::unique_ptr<FnDef>> methods;
+        std::vector<PropertyDef> properties;
 
         // Current access level — default is public (everything before any block)
         AccessLevel currentAccess = AccessLevel::PUBLIC;
@@ -1214,6 +1215,78 @@ namespace xell
                 throw ParseError("Expected field or method after 'static'", current().line);
             }
 
+            // Property getter: get name(self) : ... ;
+            // Property setter: set name(self, val) : ... ;
+            // "get" and "set" are contextual keywords (identifiers outside class bodies)
+            if (check(TokenType::IDENTIFIER) && 
+                (current().value == "get" || current().value == "set") &&
+                peekToken(1).type == TokenType::IDENTIFIER)
+            {
+                bool isGetter = (current().value == "get");
+                int propLine = current().line;
+                advance(); // consume get/set
+
+                std::string propName = consume(TokenType::IDENTIFIER, 
+                    isGetter ? "Expected property name after 'get'" : "Expected property name after 'set'").value;
+
+                // Parse as a function definition: (params) : body ;
+                consume(TokenType::LPAREN, "Expected '(' after property name");
+                std::vector<std::string> params;
+                if (!check(TokenType::RPAREN))
+                {
+                    params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter").value);
+                    while (check(TokenType::COMMA))
+                    {
+                        advance();
+                        params.push_back(consume(TokenType::IDENTIFIER, "Expected parameter").value);
+                    }
+                }
+                consume(TokenType::RPAREN, "Expected ')' after parameters");
+                consume(TokenType::COLON, "Expected ':' after property parameters");
+                skipNewlines();
+
+                // Parse body statements until ';'
+                std::vector<StmtPtr> body;
+                while (!check(TokenType::SEMICOLON) && !isAtEnd())
+                {
+                    body.push_back(parseStatement());
+                    skipNewlines();
+                }
+                consume(TokenType::SEMICOLON, "Expected ';' to end property body");
+
+                auto fnDef = std::make_unique<FnDef>(
+                    (isGetter ? "__get_" : "__set_") + propName,
+                    std::move(params), std::move(body), propLine);
+
+                // Find or create the property entry
+                PropertyDef *propDef = nullptr;
+                for (auto &p : properties)
+                {
+                    if (p.name == propName)
+                    {
+                        propDef = &p;
+                        break;
+                    }
+                }
+                if (!propDef)
+                {
+                    PropertyDef newProp;
+                    newProp.name = propName;
+                    newProp.line = propLine;
+                    newProp.access = currentAccess;
+                    properties.push_back(std::move(newProp));
+                    propDef = &properties.back();
+                }
+
+                if (isGetter)
+                    propDef->getter = std::move(fnDef);
+                else
+                    propDef->setter = std::move(fnDef);
+
+                skipNewlines();
+                continue;
+            }
+
             // Method definition: fn name(...) : ... ;
             if (check(TokenType::FN))
             {
@@ -1251,7 +1324,7 @@ namespace xell
 
         consume(TokenType::SEMICOLON, "Expected ';' to close class definition");
 
-        return std::make_unique<ClassDef>(name, std::move(parents), std::move(fields), std::move(methods), ln);
+        return std::make_unique<ClassDef>(name, std::move(parents), std::move(fields), std::move(methods), std::move(properties), ln);
     }
 
     // ============================================================

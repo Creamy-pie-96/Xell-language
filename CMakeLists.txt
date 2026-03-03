@@ -115,3 +115,7 @@ add_test(NAME access_test COMMAND access_test)
 add_executable(static_test test/static_test.cpp)
 target_link_libraries(static_test xell_lib)
 add_test(NAME static_test COMMAND static_test)
+
+add_executable(property_test test/property_test.cpp)
+target_link_libraries(property_test xell_lib)
+add_test(NAME property_test COMMAND property_test)
