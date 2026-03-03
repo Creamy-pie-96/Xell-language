@@ -110,6 +110,11 @@ namespace xell
         std::string sourceFile_;                        // current file path (for bring resolution)
         std::unordered_set<std::string> importedFiles_; // circular-import guard
 
+        // Access control: tracks the class that owns the currently executing method.
+        // Set by callUserFn when calling a method (has "self" param). nullptr when
+        // executing top-level code or non-method functions.
+        const XStructDef *executingMethodClass_ = nullptr;
+
         // Imported modules — kept alive so their AST + Env don't dangle
         struct ImportedModule
         {
@@ -169,6 +174,11 @@ namespace xell
                            std::shared_ptr<XStructDef> parentClassDef = nullptr);
         XObject createGenerator(const XFunction &fn, std::vector<XObject> &args, int line);
         std::string interpolate(const std::string &raw, int line);
+
+        // Access control: check if the current scope can access a member
+        // with the given access level on the given class. Throws AccessError if not.
+        void checkAccess(AccessLevel access, const std::string &memberName,
+                         const XStructDef &owningClass, int line);
 
         // Generator yield context — when non-null, yield is valid
         GeneratorState *activeGeneratorState_ = nullptr;

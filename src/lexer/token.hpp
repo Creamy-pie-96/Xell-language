@@ -47,7 +47,10 @@ namespace xell
         STRUCT,
         CLASS,
         INHERITS,
-        IMMUTABLE,  // immutable binding: immutable x = expr
+        IMMUTABLE, // immutable binding: immutable x = expr
+        PRIVATE,
+        PROTECTED,
+        PUBLIC,
 
         // Generator keyword
         YIELD,
@@ -127,7 +130,7 @@ namespace xell
         PIPE_PIPE, // ||
 
         // Prefix operator
-        TILDE,     // ~ (smart-cast prefix)
+        TILDE, // ~ (smart-cast prefix)
 
         // Special
         IDENTIFIER,
@@ -168,6 +171,9 @@ namespace xell
             {(int)TokenType::CLASS, "CLASS"},
             {(int)TokenType::INHERITS, "INHERITS"},
             {(int)TokenType::IMMUTABLE, "IMMUTABLE"},
+            {(int)TokenType::PRIVATE, "PRIVATE"},
+            {(int)TokenType::PROTECTED, "PROTECTED"},
+            {(int)TokenType::PUBLIC, "PUBLIC"},
             {(int)TokenType::YIELD, "YIELD"},
             {(int)TokenType::ASYNC, "ASYNC"},
             {(int)TokenType::AWAIT, "AWAIT"},

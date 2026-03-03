@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <utility>
+#include "../common/access_level.hpp"
 
 namespace xell
 {
@@ -310,6 +311,7 @@ namespace xell
         std::string variadicName;      // name of variadic param (without ...)
         std::vector<StmtPtr> body;
         bool isAsync = false; // true for async fn
+        AccessLevel access = AccessLevel::PUBLIC; // access level when used as class method
 
         // Type annotations (optional)
         std::vector<std::string> paramTypes; // type annotation per param (empty string = no annotation)
@@ -406,6 +408,7 @@ namespace xell
         std::string name;
         ExprPtr defaultValue;
         int line = 0;
+        AccessLevel access = AccessLevel::PUBLIC;
     };
 
     struct StructDef : Stmt
@@ -424,9 +427,9 @@ namespace xell
     struct ClassDef : Stmt
     {
         std::string name;
-        std::vector<std::string> parents;                 // inherits list (may be empty)
+        std::vector<std::string> parents; // inherits list (may be empty)
         std::vector<StructFieldDef> fields;
-        std::vector<std::unique_ptr<FnDef>> methods;      // includes __init__ if present
+        std::vector<std::unique_ptr<FnDef>> methods; // includes __init__ if present
         ClassDef(std::string name, std::vector<std::string> parents,
                  std::vector<StructFieldDef> fields,
                  std::vector<std::unique_ptr<FnDef>> methods, int ln = 0)
@@ -437,9 +440,9 @@ namespace xell
     // Member assignment: obj->field = expr
     struct MemberAssignment : Stmt
     {
-        ExprPtr object;       // the object expression (e.g., self, p1)
-        std::string member;   // field name
-        ExprPtr value;        // RHS expression
+        ExprPtr object;     // the object expression (e.g., self, p1)
+        std::string member; // field name
+        ExprPtr value;      // RHS expression
         MemberAssignment(ExprPtr obj, std::string mem, ExprPtr val, int ln = 0)
             : object(std::move(obj)), member(std::move(mem)), value(std::move(val)) { line = ln; }
     };

@@ -109,6 +109,12 @@ namespace xell
             return false;
         }
 
+        /// Check whether a variable exists in this scope only (no parent walk)
+        bool hasLocal(const std::string &name) const
+        {
+            return vars_.count(name) > 0;
+        }
+
         /// Parent accessor (for debugging / testing)
         Environment *parent() const { return parent_; }
 

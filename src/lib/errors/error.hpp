@@ -266,6 +266,16 @@ namespace xell
             : XellError("AttributeError", message, line) {}
     };
 
+    // ---- 3q. Access control errors -----------------------------------------
+
+    /// Attempt to access a private or protected member from outside the class.
+    class AccessError : public XellError
+    {
+    public:
+        AccessError(const std::string &message, int line)
+            : XellError("AccessError", message, line) {}
+    };
+
     // ---- 3o. Not-implemented placeholder ------------------------------------
 
     /// Feature or built-in that is stubbed but not yet implemented.

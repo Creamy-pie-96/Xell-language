@@ -961,7 +961,8 @@ namespace xell
                 auto it = inst.fields.find(fi.name);
                 if (it != inst.fields.end())
                 {
-                    if (!first) oss << ", ";
+                    if (!first)
+                        oss << ", ";
                     first = false;
                     oss << fi.name << "=";
                     if (it->second.isString())

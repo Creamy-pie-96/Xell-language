@@ -39,8 +39,9 @@ namespace xell
             {"struct", TokenType::STRUCT},
             {"class", TokenType::CLASS},
             {"inherits", TokenType::INHERITS},
-            {"immutable", TokenType::IMMUTABLE},
-
+            {"immutable", TokenType::IMMUTABLE},            {"private", TokenType::PRIVATE},
+            {"protected", TokenType::PROTECTED},
+            {"public", TokenType::PUBLIC},
             // Generator
             {"yield", TokenType::YIELD},
 

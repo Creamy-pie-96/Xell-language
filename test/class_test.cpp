@@ -668,8 +668,7 @@ static void testFrozenClass()
     std::cout << "\n===== Frozen Class Instances =====\n";
 
     runTest("Frozen class (no __init__) immutable", []()
-            {
-        XASSERT(expectError<ImmutabilityError>(R"XEL(
+            { XASSERT(expectError<ImmutabilityError>(R"XEL(
 class Point :
     x = 0
     y = 0
@@ -698,8 +697,7 @@ print(v->y)
         XASSERT_EQ(out[1], "4"); });
 
     runTest("Frozen class with __init__ is immutable", []()
-            {
-        XASSERT(expectError<ImmutabilityError>(R"XEL(
+            { XASSERT(expectError<ImmutabilityError>(R"XEL(
 class Vec :
     x = 0
     y = 0
@@ -756,8 +754,7 @@ print(c->y)
         XASSERT_EQ(out[1], "99"); });
 
     runTest("Error on nonexistent field assignment", []()
-            {
-        XASSERT(expectError<AttributeError>(R"XEL(
+            { XASSERT(expectError<AttributeError>(R"XEL(
 class Foo :
     x = 0
 ;
@@ -766,8 +763,7 @@ f->missing = 1
 )XEL")); });
 
     runTest("Error on nonexistent field access", []()
-            {
-        XASSERT(expectError<AttributeError>(R"XEL(
+            { XASSERT(expectError<AttributeError>(R"XEL(
 class Foo :
     x = 0
 ;
@@ -870,8 +866,7 @@ static void testEdgeCases()
     std::cout << "\n===== Edge Cases & Errors =====\n";
 
     runTest("Cannot inherit from struct", []()
-            {
-        XASSERT(expectError<TypeError>(R"XEL(
+            { XASSERT(expectError<TypeError>(R"XEL(
 struct S :
     x = 0
 ;
@@ -880,8 +875,7 @@ class C inherits S :
 )XEL")); });
 
     runTest("Cannot inherit from undefined", []()
-            {
-        XASSERT(expectError<UndefinedVariableError>(R"XEL(
+            { XASSERT(expectError<UndefinedVariableError>(R"XEL(
 class C inherits NoSuchClass :
 ;
 )XEL")); });
@@ -971,8 +965,7 @@ static void testClassImmutable()
     std::cout << "\n===== Class with immutable keyword =====\n";
 
     runTest("Immutable binding to class instance", []()
-            {
-        XASSERT(expectError<ImmutabilityError>(R"XEL(
+            { XASSERT(expectError<ImmutabilityError>(R"XEL(
 class Foo :
     x = 0
 ;

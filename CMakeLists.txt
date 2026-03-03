@@ -107,3 +107,7 @@ add_test(NAME struct_test COMMAND struct_test)
 add_executable(class_test test/class_test.cpp)
 target_link_libraries(class_test xell_lib)
 add_test(NAME class_test COMMAND class_test)
+
+add_executable(access_test test/access_test.cpp)
+target_link_libraries(access_test xell_lib)
+add_test(NAME access_test COMMAND access_test)

@@ -405,13 +405,26 @@ namespace xell
                 check(TokenType::PERCENT_EQUAL))
             {
                 std::string op;
-                switch (current().type) {
-                case TokenType::PLUS_EQUAL: op = "+"; break;
-                case TokenType::MINUS_EQUAL: op = "-"; break;
-                case TokenType::STAR_EQUAL: op = "*"; break;
-                case TokenType::SLASH_EQUAL: op = "/"; break;
-                case TokenType::PERCENT_EQUAL: op = "%"; break;
-                default: op = "+"; break;
+                switch (current().type)
+                {
+                case TokenType::PLUS_EQUAL:
+                    op = "+";
+                    break;
+                case TokenType::MINUS_EQUAL:
+                    op = "-";
+                    break;
+                case TokenType::STAR_EQUAL:
+                    op = "*";
+                    break;
+                case TokenType::SLASH_EQUAL:
+                    op = "/";
+                    break;
+                case TokenType::PERCENT_EQUAL:
+                    op = "%";
+                    break;
+                default:
+                    op = "+";
+                    break;
                 }
                 advance(); // consume +=
                 ExprPtr rhs = parseExpression();
@@ -446,7 +459,8 @@ namespace xell
                 // Actually, the simplest correct solution: reconstruct.
                 // If the object was an Identifier (e.g., "self"), we can recreate it.
                 auto *idObj = dynamic_cast<Identifier *>(objForRead.get());
-                if (idObj) {
+                if (idObj)
+                {
                     std::string objName = idObj->name;
                     int objLn = idObj->line;
                     ExprPtr readObj = std::make_unique<Identifier>(objName, objLn);
@@ -1135,12 +1149,30 @@ namespace xell
         std::vector<StructFieldDef> fields;
         std::vector<std::unique_ptr<FnDef>> methods;
 
+        // Current access level — default is public (everything before any block)
+        AccessLevel currentAccess = AccessLevel::PUBLIC;
+
         // Parse class body until closing ';'
         while (!check(TokenType::SEMICOLON) && !isAtEnd())
         {
             skipNewlines();
             if (check(TokenType::SEMICOLON))
                 break;
+
+            // Access control labels: private: / protected: / public:
+            if (check(TokenType::PRIVATE) || check(TokenType::PROTECTED) || check(TokenType::PUBLIC))
+            {
+                if (check(TokenType::PRIVATE))
+                    currentAccess = AccessLevel::PRIVATE;
+                else if (check(TokenType::PROTECTED))
+                    currentAccess = AccessLevel::PROTECTED;
+                else
+                    currentAccess = AccessLevel::PUBLIC;
+                advance(); // consume the access keyword
+                consume(TokenType::COLON, "Expected ':' after access modifier");
+                skipNewlines();
+                continue;
+            }
 
             // Method definition: fn name(...) : ... ;
             if (check(TokenType::FN))
@@ -1149,6 +1181,7 @@ namespace xell
                 auto *fn = dynamic_cast<FnDef *>(fnStmt.get());
                 if (fn)
                 {
+                    fn->access = currentAccess;
                     fnStmt.release();
                     methods.push_back(std::unique_ptr<FnDef>(fn));
                 }
@@ -1162,6 +1195,7 @@ namespace xell
                 StructFieldDef field;
                 field.line = current().line;
                 field.name = current().value;
+                field.access = currentAccess;
                 advance(); // consume field name
                 advance(); // consume =
                 field.defaultValue = parseExpression();
@@ -1387,7 +1421,7 @@ namespace xell
 
             std::string op;
             if (opType == TokenType::IS)
-                op = "is";   // instance-of check: obj is ClassName
+                op = "is"; // instance-of check: obj is ClassName
             else if (opType == TokenType::EQUAL_EQUAL || opType == TokenType::EQ)
                 op = "==";
             else
@@ -2065,7 +2099,8 @@ namespace xell
         std::vector<ExprPtr> args;
         skipNewlines();
 
-        auto parseOneArg = [&]() -> ExprPtr {
+        auto parseOneArg = [&]() -> ExprPtr
+        {
             if (check(TokenType::ELLIPSIS))
             {
                 int sln = current().line;

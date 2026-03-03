@@ -691,11 +691,19 @@ namespace xell
                     // Check if the new function has type annotations
                     bool newHasTypes = false;
                     for (const auto &t : fnRef.typeAnnotations)
-                        if (!t.empty()) { newHasTypes = true; break; }
+                        if (!t.empty())
+                        {
+                            newHasTypes = true;
+                            break;
+                        }
 
                     bool existingHasTypes = false;
                     for (const auto &t : existingFn.typeAnnotations)
-                        if (!t.empty()) { existingHasTypes = true; break; }
+                        if (!t.empty())
+                        {
+                            existingHasTypes = true;
+                            break;
+                        }
 
                     size_t newArity = fnRef.params.size();
                     size_t existingArity = existingFn.params.size();
@@ -712,17 +720,26 @@ namespace xell
                         {
                             bool dynHasT = false;
                             for (const auto &t : dynFn.typeAnnotations)
-                                if (!t.empty()) { dynHasT = true; break; }
+                                if (!t.empty())
+                                {
+                                    dynHasT = true;
+                                    break;
+                                }
                             bool typedHasT = false;
                             for (const auto &t : typedFn.typeAnnotations)
-                                if (!t.empty()) { typedHasT = true; break; }
+                                if (!t.empty())
+                                {
+                                    typedHasT = true;
+                                    break;
+                                }
 
                             if (dynFn.params.size() == typedFn.params.size() &&
                                 !dynHasT && typedHasT)
                             {
                                 throw ParseError("Cannot add type-specific overload for '" + node->name +
-                                    "' — a dynamic overload with " + std::to_string(dynFn.params.size()) +
-                                    " param(s) already exists", node->line);
+                                                     "' — a dynamic overload with " + std::to_string(dynFn.params.size()) +
+                                                     " param(s) already exists",
+                                                 node->line);
                             }
                         };
 
@@ -1310,28 +1327,44 @@ namespace xell
 
     static bool matchesType(const XObject &obj, const std::string &typeName)
     {
-        if (typeName.empty()) return true; // no annotation = accepts anything
-        if (typeName == "str" || typeName == "string" || typeName == "String") return obj.isString();
-        if (typeName == "int" || typeName == "Int") return obj.isInt();
-        if (typeName == "float" || typeName == "Float") return obj.isFloat();
-        if (typeName == "bool") return obj.isBool();
-        if (typeName == "list" || typeName == "List") return obj.isList();
-        if (typeName == "map" || typeName == "Map") return obj.isMap();
-        if (typeName == "fn" || typeName == "func") return obj.isFunction();
-        if (typeName == "set" || typeName == "Set") return obj.isSet();
-        if (typeName == "tuple" || typeName == "Tuple") return obj.isTuple();
-        if (typeName == "complex" || typeName == "Complex") return obj.isComplex();
-        if (typeName == "num" || typeName == "number") return obj.isNumber();
-        if (typeName == "none") return obj.isNone();
-        if (typeName == "bytes") return obj.isBytes();
-        if (typeName == "frozen_set" || typeName == "iset" || typeName == "iSet") return obj.isFrozenSet();
+        if (typeName.empty())
+            return true; // no annotation = accepts anything
+        if (typeName == "str" || typeName == "string" || typeName == "String")
+            return obj.isString();
+        if (typeName == "int" || typeName == "Int")
+            return obj.isInt();
+        if (typeName == "float" || typeName == "Float")
+            return obj.isFloat();
+        if (typeName == "bool")
+            return obj.isBool();
+        if (typeName == "list" || typeName == "List")
+            return obj.isList();
+        if (typeName == "map" || typeName == "Map")
+            return obj.isMap();
+        if (typeName == "fn" || typeName == "func")
+            return obj.isFunction();
+        if (typeName == "set" || typeName == "Set")
+            return obj.isSet();
+        if (typeName == "tuple" || typeName == "Tuple")
+            return obj.isTuple();
+        if (typeName == "complex" || typeName == "Complex")
+            return obj.isComplex();
+        if (typeName == "num" || typeName == "number")
+            return obj.isNumber();
+        if (typeName == "none")
+            return obj.isNone();
+        if (typeName == "bytes")
+            return obj.isBytes();
+        if (typeName == "frozen_set" || typeName == "iset" || typeName == "iSet")
+            return obj.isFrozenSet();
         return false; // unknown type name
     }
 
     static bool fnHasTypeAnnotations(const XFunction &fn)
     {
         for (const auto &t : fn.typeAnnotations)
-            if (!t.empty()) return true;
+            if (!t.empty())
+                return true;
         return false;
     }
 
@@ -1446,7 +1479,7 @@ namespace xell
 
                     // No match found
                     throw TypeError("no matching overload for '" + node->callee +
-                                    "' with " + std::to_string(args.size()) + " argument(s)",
+                                        "' with " + std::to_string(args.size()) + " argument(s)",
                                     node->line);
                 }
                 return callUserFn(fn, args, node->line);
@@ -1483,7 +1516,10 @@ namespace xell
                         std::shared_ptr<XStructDef> parentDef = nullptr;
                         if (initOwner && initOwner->isClass && !initOwner->parents.empty())
                             parentDef = initOwner->parents[0];
+                        auto *savedMethodClass = executingMethodClass_;
+                        executingMethodClass_ = initOwner;
                         callUserFn(initMethodInfo->fnObject.asFunction(), initArgs, node->line, parentDef);
+                        executingMethodClass_ = savedMethodClass;
                         // Return the instance — `result` shares the same XData,
                         // so mutations by __init__ are visible
                         return result;
@@ -1495,7 +1531,10 @@ namespace xell
                         bool hasNamed = false;
                         for (const auto &rawArg : node->args)
                             if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
-                            { hasNamed = true; break; }
+                            {
+                                hasNamed = true;
+                                break;
+                            }
 
                         if (hasNamed)
                         {
@@ -1503,11 +1542,17 @@ namespace xell
                             for (const auto &rawArg : node->args)
                             {
                                 auto *na = dynamic_cast<const NamedArgExpr *>(rawArg.get());
-                                if (!na) throw ParseError("cannot mix positional and named arguments in class construction", node->line);
+                                if (!na)
+                                    throw ParseError("cannot mix positional and named arguments in class construction", node->line);
                                 bool found = false;
                                 for (const auto &fi : allFields)
-                                    if (fi.name == na->name) { found = true; break; }
-                                if (!found) throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
+                                    if (fi.name == na->name)
+                                    {
+                                        found = true;
+                                        break;
+                                    }
+                                if (!found)
+                                    throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
                                 inst.fields[na->name] = std::move(args[ai++]);
                             }
                         }
@@ -1532,7 +1577,10 @@ namespace xell
                     for (const auto &rawArg : node->args)
                     {
                         if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
-                        { hasNamed = true; break; }
+                        {
+                            hasNamed = true;
+                            break;
+                        }
                     }
 
                     if (hasNamed)
@@ -1545,7 +1593,11 @@ namespace xell
                                 throw ParseError("cannot mix positional and named arguments in struct construction", node->line);
                             bool found = false;
                             for (const auto &fi : def.fields)
-                                if (fi.name == na->name) { found = true; break; }
+                                if (fi.name == na->name)
+                                {
+                                    found = true;
+                                    break;
+                                }
                             if (!found)
                                 throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
                             inst.fields[na->name] = std::move(args[ai++]);
@@ -1576,11 +1628,19 @@ namespace xell
             auto [mi, ownerClass] = inst.structDef->findMethodWithOwner(node->callee);
             if (mi && mi->fnObject.isFunction())
             {
+                // Check access level for method call
+                if (ownerClass)
+                    checkAccess(mi->access, node->callee, *ownerClass, node->line);
                 // Pass the first parent of the DEFINING class as parentClassDef
                 std::shared_ptr<XStructDef> parentDef = nullptr;
                 if (ownerClass && ownerClass->isClass && !ownerClass->parents.empty())
                     parentDef = ownerClass->parents[0];
-                return callUserFn(mi->fnObject.asFunction(), args, node->line, parentDef);
+                // Track which class defines this method for access control
+                auto *savedMethodClass = executingMethodClass_;
+                executingMethodClass_ = ownerClass;
+                auto result = callUserFn(mi->fnObject.asFunction(), args, node->line, parentDef);
+                executingMethodClass_ = savedMethodClass;
+                return result;
             }
         }
 
@@ -1607,7 +1667,11 @@ namespace xell
                         std::shared_ptr<XStructDef> nextParent = nullptr;
                         if (ownerClass && ownerClass->isClass && !ownerClass->parents.empty())
                             nextParent = ownerClass->parents[0];
-                        return callUserFn(mi->fnObject.asFunction(), args, node->line, nextParent);
+                        auto *savedMethodClass = executingMethodClass_;
+                        executingMethodClass_ = ownerClass;
+                        auto result = callUserFn(mi->fnObject.asFunction(), args, node->line, nextParent);
+                        executingMethodClass_ = savedMethodClass;
+                        return result;
                     }
                 }
             }
@@ -1655,7 +1719,10 @@ namespace xell
                             std::shared_ptr<XStructDef> parentDef = nullptr;
                             if (initOwner && initOwner->isClass && !initOwner->parents.empty())
                                 parentDef = initOwner->parents[0];
+                            auto *savedMethodClass = executingMethodClass_;
+                            executingMethodClass_ = initOwner;
                             callUserFn(initMethodInfo->fnObject.asFunction(), initArgs, node->line, parentDef);
+                            executingMethodClass_ = savedMethodClass;
                             // Freeze after __init__ — result shares same XData
                             result.asInstanceMut().frozen = true;
                             return result;
@@ -1666,7 +1733,10 @@ namespace xell
                             bool hasNamed = false;
                             for (const auto &rawArg : node->args)
                                 if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
-                                { hasNamed = true; break; }
+                                {
+                                    hasNamed = true;
+                                    break;
+                                }
                             if (hasNamed)
                             {
                                 size_t ai = 0;
@@ -1677,7 +1747,11 @@ namespace xell
                                         throw ParseError("cannot mix positional and named arguments in class construction", node->line);
                                     bool found = false;
                                     for (const auto &fi : allFields)
-                                        if (fi.name == na->name) { found = true; break; }
+                                        if (fi.name == na->name)
+                                        {
+                                            found = true;
+                                            break;
+                                        }
                                     if (!found)
                                         throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
                                     inst.fields[na->name] = std::move(args[ai++]);
@@ -1702,7 +1776,10 @@ namespace xell
                         bool hasNamed = false;
                         for (const auto &rawArg : node->args)
                             if (dynamic_cast<const NamedArgExpr *>(rawArg.get()))
-                            { hasNamed = true; break; }
+                            {
+                                hasNamed = true;
+                                break;
+                            }
 
                         if (hasNamed)
                         {
@@ -1714,7 +1791,11 @@ namespace xell
                                     throw ParseError("cannot mix positional and named arguments in struct construction", node->line);
                                 bool found = false;
                                 for (const auto &fi : def.fields)
-                                    if (fi.name == na->name) { found = true; break; }
+                                    if (fi.name == na->name)
+                                    {
+                                        found = true;
+                                        break;
+                                    }
                                 if (!found)
                                     throw AttributeError("'" + def.name + "' has no field '" + na->name + "'", node->line);
                                 inst.fields[na->name] = std::move(args[ai++]);
@@ -1754,10 +1835,16 @@ namespace xell
             auto [mi, ownerClass] = inst.structDef->findMethodWithOwner(node->callee);
             if (mi && mi->fnObject.isFunction())
             {
+                if (ownerClass)
+                    checkAccess(mi->access, node->callee, *ownerClass, node->line);
                 std::shared_ptr<XStructDef> parentDef = nullptr;
                 if (ownerClass && ownerClass->isClass && !ownerClass->parents.empty())
                     parentDef = ownerClass->parents[0];
-                return callUserFn(mi->fnObject.asFunction(), args, node->line, parentDef);
+                auto *savedMethodClass = executingMethodClass_;
+                executingMethodClass_ = ownerClass;
+                auto result = callUserFn(mi->fnObject.asFunction(), args, node->line, parentDef);
+                executingMethodClass_ = savedMethodClass;
+                return result;
             }
         }
 
@@ -1784,17 +1871,23 @@ namespace xell
                 if (fnHasTypeAnnotations(*cand))
                 {
                     if (typesMatchFn(*cand, args))
-                    { typeMatch = cand; break; }
+                    {
+                        typeMatch = cand;
+                        break;
+                    }
                 }
                 else
                 {
-                    if (!arityMatch) arityMatch = cand;
+                    if (!arityMatch)
+                        arityMatch = cand;
                 }
             }
-            if (typeMatch) return callUserFn(*typeMatch, args, node->line);
-            if (arityMatch) return callUserFn(*arityMatch, args, node->line);
+            if (typeMatch)
+                return callUserFn(*typeMatch, args, node->line);
+            if (arityMatch)
+                return callUserFn(*arityMatch, args, node->line);
             throw TypeError("no matching overload for '" + node->callee +
-                            "' with " + std::to_string(args.size()) + " argument(s)",
+                                "' with " + std::to_string(args.size()) + " argument(s)",
                             node->line);
         }
 
@@ -1802,7 +1895,7 @@ namespace xell
     }
 
     XObject Interpreter::callUserFn(const XFunction &fn, std::vector<XObject> &args, int line,
-                                     std::shared_ptr<XStructDef> parentClassDef)
+                                    std::shared_ptr<XStructDef> parentClassDef)
     {
         // If this is a generator function, create a generator instead of executing
         if (fn.isGenerator)
@@ -1884,7 +1977,11 @@ namespace xell
             // to avoid traversing potentially-dangling closure environments.
             bool hasSelfParam = false;
             for (const auto &p : fn.params)
-                if (p == "self") { hasSelfParam = true; break; }
+                if (p == "self")
+                {
+                    hasSelfParam = true;
+                    break;
+                }
             if (hasSelfParam && fnEnv.has("self"))
             {
                 XObject selfObj = fnEnv.get("self", line);
@@ -1895,7 +1992,7 @@ namespace xell
                         !selfInst.structDef->parents.empty())
                     {
                         fnEnv.define("parent",
-                            XObject::makeStructDef(selfInst.structDef->parents[0]));
+                                     XObject::makeStructDef(selfInst.structDef->parents[0]));
                     }
                 }
             }
@@ -2038,13 +2135,29 @@ namespace xell
             const XInstance &inst = obj.asInstance();
             auto it = inst.fields.find(node->member);
             if (it != inst.fields.end())
+            {
+                // Check field access level
+                if (inst.structDef && inst.structDef->isClass)
+                {
+                    auto [fi, ownerClass] = inst.structDef->findFieldWithOwner(node->member);
+                    if (fi && ownerClass)
+                        checkAccess(fi->access, node->member, *ownerClass, node->line);
+                }
                 return it->second;
+            }
 
             // Check if it's a method name (for passing methods as values)
             // Uses findMethod() to search the full inheritance chain
-            const XStructMethodInfo *mi = inst.structDef->findMethod(node->member);
-            if (mi)
-                return mi->fnObject;
+            if (inst.structDef)
+            {
+                auto [mi, ownerClass] = inst.structDef->findMethodWithOwner(node->member);
+                if (mi)
+                {
+                    if (ownerClass)
+                        checkAccess(mi->access, node->member, *ownerClass, node->line);
+                    return mi->fnObject;
+                }
+            }
 
             throw AttributeError("'" + inst.typeName + "' has no field '" + node->member + "'", node->line);
         }
@@ -2346,7 +2459,7 @@ namespace xell
             XStructFieldInfo fi;
             fi.name = field.name;
             fi.defaultValue = field.defaultValue ? eval(field.defaultValue.get())
-                                                  : XObject::makeNone();
+                                                 : XObject::makeNone();
             def->fields.push_back(std::move(fi));
         }
 
@@ -2376,6 +2489,58 @@ namespace xell
 
     // ---- Class definition: class Name [inherits P1, P2] : body ; ----------
 
+    // Helper: convert AST AccessLevel to runtime AccessLevel
+    static AccessLevel astToRuntimeAccess(xell::AccessLevel astLevel)
+    {
+        switch (astLevel)
+        {
+        case xell::AccessLevel::PRIVATE:
+            return AccessLevel::PRIVATE;
+        case xell::AccessLevel::PROTECTED:
+            return AccessLevel::PROTECTED;
+        default:
+            return AccessLevel::PUBLIC;
+        }
+    }
+
+    // Access control enforcement.
+    // Checks whether the current execution context (scope) has permission to
+    // access a member with the given access level on the given owning class.
+    //
+    // Rules:
+    //   PUBLIC    — accessible from anywhere
+    //   PROTECTED — accessible from this class or subclasses (self is in scope
+    //               and self's class isOrInherits owning class)
+    //   PRIVATE   — accessible only from this class (self is in scope and
+    //               self's class name matches owning class name)
+    void Interpreter::checkAccess(AccessLevel access, const std::string &memberName,
+                                   const XStructDef &owningClass, int line)
+    {
+        if (access == AccessLevel::PUBLIC)
+            return; // always OK
+
+        // Determine the class context of the currently executing code.
+        // We use executingMethodClass_ (set by method dispatch sites) which tracks
+        // which class DEFINED the currently running method. This is more accurate
+        // than looking at self's concrete type, because a parent class's public method
+        // should be able to access its own private fields even when called on a subclass
+        // instance.
+        const XStructDef *callerClass = executingMethodClass_;
+
+        if (access == AccessLevel::PRIVATE)
+        {
+            // Private: only accessible from methods defined in the SAME class
+            if (!callerClass || callerClass->name != owningClass.name)
+                throw AccessError("'" + memberName + "' is private in '" + owningClass.name + "'", line);
+        }
+        else if (access == AccessLevel::PROTECTED)
+        {
+            // Protected: accessible from this class or subclasses
+            if (!callerClass || !callerClass->isOrInherits(owningClass.name))
+                throw AccessError("'" + memberName + "' is protected in '" + owningClass.name + "'", line);
+        }
+    }
+
     void Interpreter::execClassDef(const ClassDef *node)
     {
         auto def = std::make_shared<XStructDef>(node->name);
@@ -2399,7 +2564,8 @@ namespace xell
             XStructFieldInfo fi;
             fi.name = field.name;
             fi.defaultValue = field.defaultValue ? eval(field.defaultValue.get())
-                                                  : XObject::makeNone();
+                                                 : XObject::makeNone();
+            fi.access = astToRuntimeAccess(field.access);
             def->fields.push_back(std::move(fi));
         }
 
@@ -2408,6 +2574,7 @@ namespace xell
         {
             XStructMethodInfo mi;
             mi.name = method->name;
+            mi.access = astToRuntimeAccess(method->access);
             auto fnObj = XObject::makeFunction(method->name, method->params,
                                                &method->body, currentEnv_);
             // Copy default parameter info
@@ -2441,19 +2608,32 @@ namespace xell
             // Check if instance is frozen (created with ~ prefix)
             if (inst.frozen)
                 throw ImmutabilityError("cannot modify field '" + node->member +
-                    "' on frozen instance of '" + inst.typeName + "'", node->line);
+                                            "' on frozen instance of '" + inst.typeName + "'",
+                                        node->line);
             // Only allow setting fields that exist in the struct/class definition
             // For classes, use findField() to search the full inheritance chain
             bool found = false;
             if (inst.structDef->isClass)
             {
-                found = (inst.structDef->findField(node->member) != nullptr);
+                const XStructFieldInfo *fi = inst.structDef->findField(node->member);
+                found = (fi != nullptr);
+                // Check access level on write
+                if (fi)
+                {
+                    auto [fiOwned, ownerClass] = inst.structDef->findFieldWithOwner(node->member);
+                    if (fiOwned && ownerClass)
+                        checkAccess(fiOwned->access, node->member, *ownerClass, node->line);
+                }
             }
             else
             {
                 for (const auto &fi : inst.structDef->fields)
                 {
-                    if (fi.name == node->member) { found = true; break; }
+                    if (fi.name == node->member)
+                    {
+                        found = true;
+                        break;
+                    }
                 }
             }
             if (!found)
@@ -2471,7 +2651,8 @@ namespace xell
         }
 
         throw TypeError("member assignment not supported on " +
-                         std::string(xtype_name(obj.type())), node->line);
+                            std::string(xtype_name(obj.type())),
+                        node->line);
     }
 
     // ---- Index assignment: list[i] = val  or  map[key] = val ---------------
@@ -2488,7 +2669,8 @@ namespace xell
                 throw TypeError("list index must be a number", node->line);
             int index = (int)idx.asNumber();
             auto &list = obj.asListMut();
-            if (index < 0) index += (int)list.size();
+            if (index < 0)
+                index += (int)list.size();
             if (index < 0 || index >= (int)list.size())
                 throw IndexError("list index " + std::to_string(index) + " out of range", node->line);
             list[index] = std::move(value);
@@ -2502,7 +2684,8 @@ namespace xell
         }
 
         throw TypeError("index assignment not supported on " +
-                         std::string(xtype_name(obj.type())), node->line);
+                            std::string(xtype_name(obj.type())),
+                        node->line);
     }
 
     // ---- Decorated function definition -------------------------------------

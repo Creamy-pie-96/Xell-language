@@ -49,6 +49,7 @@
 // Modular hash algorithms and ordered hash table
 #include "../hash/hash_algorithm.hpp"
 #include "../xobject/ordered_hash_table.hpp"
+#include "../common/access_level.hpp"
 
 namespace xell
 {
@@ -114,9 +115,9 @@ namespace xell
         FROZEN_SET, // immutable set: <1, 2, 3>
         MAP,
         FUNCTION,
-        ENUM,      // enum type (stored as map of names → values)
-        BYTES,     // raw binary data (vector<uint8_t>)
-        GENERATOR, // lazy generator (thread-based coroutine)
+        ENUM,       // enum type (stored as map of names → values)
+        BYTES,      // raw binary data (vector<uint8_t>)
+        GENERATOR,  // lazy generator (thread-based coroutine)
         STRUCT_DEF, // struct type definition (XStructDef)
         INSTANCE,   // struct/class instance (XInstance)
     };
@@ -528,20 +529,22 @@ namespace xell
     {
         std::string name;
         XObject defaultValue;
+        AccessLevel access = AccessLevel::PUBLIC;
     };
 
     struct XStructMethodInfo
     {
         std::string name;
         XObject fnObject; // XObject wrapping an XFunction
+        AccessLevel access = AccessLevel::PUBLIC;
     };
 
     struct XStructDef
     {
         std::string name;
-        std::vector<XStructFieldInfo> fields;     // ordered field definitions
-        std::vector<XStructMethodInfo> methods;    // method definitions
-        bool isClass = false;                     // true if defined with `class`, false for `struct`
+        std::vector<XStructFieldInfo> fields;             // ordered field definitions
+        std::vector<XStructMethodInfo> methods;           // method definitions
+        bool isClass = false;                             // true if defined with `class`, false for `struct`
         std::vector<std::shared_ptr<XStructDef>> parents; // parent classes (inheritance chain)
 
         XStructDef() = default;
@@ -551,11 +554,13 @@ namespace xell
         const XStructMethodInfo *findMethod(const std::string &methodName) const
         {
             for (const auto &mi : methods)
-                if (mi.name == methodName) return &mi;
+                if (mi.name == methodName)
+                    return &mi;
             for (const auto &parent : parents)
             {
                 const XStructMethodInfo *found = parent->findMethod(methodName);
-                if (found) return found;
+                if (found)
+                    return found;
             }
             return nullptr;
         }
@@ -566,11 +571,13 @@ namespace xell
         findMethodWithOwner(const std::string &methodName) const
         {
             for (const auto &mi : methods)
-                if (mi.name == methodName) return {&mi, this};
+                if (mi.name == methodName)
+                    return {&mi, this};
             for (const auto &parent : parents)
             {
                 auto result = parent->findMethodWithOwner(methodName);
-                if (result.first) return result;
+                if (result.first)
+                    return result;
             }
             return {nullptr, nullptr};
         }
@@ -579,21 +586,41 @@ namespace xell
         const XStructFieldInfo *findField(const std::string &fieldName) const
         {
             for (const auto &fi : fields)
-                if (fi.name == fieldName) return &fi;
+                if (fi.name == fieldName)
+                    return &fi;
             for (const auto &parent : parents)
             {
                 const XStructFieldInfo *found = parent->findField(fieldName);
-                if (found) return found;
+                if (found)
+                    return found;
             }
             return nullptr;
+        }
+
+        // Like findField, but also returns which class in the hierarchy owns the field
+        std::pair<const XStructFieldInfo *, const XStructDef *>
+        findFieldWithOwner(const std::string &fieldName) const
+        {
+            for (const auto &fi : fields)
+                if (fi.name == fieldName)
+                    return {&fi, this};
+            for (const auto &parent : parents)
+            {
+                auto result = parent->findFieldWithOwner(fieldName);
+                if (result.first)
+                    return result;
+            }
+            return {nullptr, nullptr};
         }
 
         // Check if this class/struct is or inherits from a given name
         bool isOrInherits(const std::string &typeName) const
         {
-            if (name == typeName) return true;
+            if (name == typeName)
+                return true;
             for (const auto &parent : parents)
-                if (parent->isOrInherits(typeName)) return true;
+                if (parent->isOrInherits(typeName))
+                    return true;
             return false;
         }
 
@@ -609,8 +636,13 @@ namespace xell
                     // Don't add if already present (child overrides parent)
                     bool exists = false;
                     for (const auto &r : result)
-                        if (r.name == f.name) { exists = true; break; }
-                    if (!exists) result.push_back(std::move(f));
+                        if (r.name == f.name)
+                        {
+                            exists = true;
+                            break;
+                        }
+                    if (!exists)
+                        result.push_back(std::move(f));
                 }
             }
             for (const auto &fi : fields)
@@ -618,7 +650,12 @@ namespace xell
                 // Child fields override parent fields with same name
                 bool found = false;
                 for (auto &r : result)
-                    if (r.name == fi.name) { r.defaultValue = fi.defaultValue.clone(); found = true; break; }
+                    if (r.name == fi.name)
+                    {
+                        r.defaultValue = fi.defaultValue.clone();
+                        found = true;
+                        break;
+                    }
                 if (!found)
                 {
                     XStructFieldInfo copy;
@@ -637,10 +674,10 @@ namespace xell
 
     struct XInstance
     {
-        std::string typeName;                              // "Point", "Animal", etc.
-        std::shared_ptr<XStructDef> structDef;             // reference to the type definition
-        std::unordered_map<std::string, XObject> fields;   // field name → current value
-        bool frozen = false;                               // true if created with ~ prefix
+        std::string typeName;                            // "Point", "Animal", etc.
+        std::shared_ptr<XStructDef> structDef;           // reference to the type definition
+        std::unordered_map<std::string, XObject> fields; // field name → current value
+        bool frozen = false;                             // true if created with ~ prefix
 
         XInstance() = default;
         XInstance(std::string typeName, std::shared_ptr<XStructDef> def)

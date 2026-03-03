@@ -221,14 +221,12 @@ print(c->val)
         XASSERT_EQ(out[0], "70"); });
 
     runTest("Access non-existent field throws AttributeError", []()
-            {
-        XASSERT(expectError<AttributeError>(
-            "struct Point : x = 0 y = 0 ; \n p = Point() \n print(p->z)")); });
+            { XASSERT(expectError<AttributeError>(
+                  "struct Point : x = 0 y = 0 ; \n p = Point() \n print(p->z)")); });
 
     runTest("Set non-existent field throws AttributeError", []()
-            {
-        XASSERT(expectError<AttributeError>(
-            "struct Point : x = 0 y = 0 ; \n p = Point() \n p->z = 42")); });
+            { XASSERT(expectError<AttributeError>(
+                  "struct Point : x = 0 y = 0 ; \n p = Point() \n p->z = 42")); });
 }
 
 // ============================================================================
@@ -449,9 +447,8 @@ static void testFrozenInstances()
         XASSERT_EQ(out[0], "3"); });
 
     runTest("Frozen instance field mutation throws", []()
-            {
-        XASSERT(expectError<ImmutabilityError>(
-            "struct Point : x = 0 y = 0 ; \n p = ~Point(3, 7) \n p->x = 42")); });
+            { XASSERT(expectError<ImmutabilityError>(
+                  "struct Point : x = 0 y = 0 ; \n p = ~Point(3, 7) \n p->x = 42")); });
 
     runTest("Frozen instance with named args", []()
             {
@@ -470,8 +467,7 @@ print(p->mag_sq())
         XASSERT_EQ(out[0], "25"); });
 
     runTest("Frozen instance method mutation throws", []()
-            {
-        XASSERT(expectError<ImmutabilityError>(R"(
+            { XASSERT(expectError<ImmutabilityError>(R"(
 struct Counter : val = 0
     fn inc(self) : self->val = self->val + 1 ;
 ;
@@ -507,9 +503,8 @@ static void testImmutableBindings()
     std::cout << "\n===== Immutable Bindings =====\n";
 
     runTest("Immutable binding prevents reassignment", []()
-            {
-        XASSERT(expectError<ImmutabilityError>(
-            "immutable x = 42 \n x = 100")); });
+            { XASSERT(expectError<ImmutabilityError>(
+                  "immutable x = 42 \n x = 100")); });
 
     runTest("Immutable binding value is accessible", []()
             {
@@ -527,16 +522,14 @@ print(p)
         XASSERT_EQ(out[0], "Point(x=42, y=7)"); });
 
     runTest("Immutable struct binding prevents reassignment", []()
-            {
-        XASSERT(expectError<ImmutabilityError>(R"(
+            { XASSERT(expectError<ImmutabilityError>(R"(
 struct Point : x = 0  y = 0 ;
 immutable p = Point(3, 7)
 p = Point(10, 20)
 )")); });
 
     runTest("Immutable + frozen: no field mutation, no reassignment", []()
-            {
-        XASSERT(expectError<ImmutabilityError>(R"(
+            { XASSERT(expectError<ImmutabilityError>(R"(
 struct Point : x = 0  y = 0 ;
 immutable p = ~Point(3, 7)
 p->x = 42
@@ -548,9 +541,8 @@ p->x = 42
         XASSERT_EQ(out[0], "hello"); });
 
     runTest("Immutable with list", []()
-            {
-        XASSERT(expectError<ImmutabilityError>(
-            "immutable nums = [1, 2, 3] \n nums = [4, 5, 6]")); });
+            { XASSERT(expectError<ImmutabilityError>(
+                  "immutable nums = [1, 2, 3] \n nums = [4, 5, 6]")); });
 
     runTest("Multiple immutable variables", []()
             {
@@ -599,14 +591,12 @@ print(m["x"])
         XASSERT_EQ(out[0], "42"); });
 
     runTest("Index out of range throws", []()
-            {
-        XASSERT(expectError<IndexError>(
-            "xs = [1, 2, 3] \n xs[10] = 99")); });
+            { XASSERT(expectError<IndexError>(
+                  "xs = [1, 2, 3] \n xs[10] = 99")); });
 
     runTest("Index assignment on string throws", []()
-            {
-        XASSERT(expectError<TypeError>(
-            "s = \"hello\" \n s[0] = \"H\"")); });
+            { XASSERT(expectError<TypeError>(
+                  "s = \"hello\" \n s[0] = \"H\"")); });
 }
 
 // ============================================================================
@@ -618,14 +608,12 @@ static void testEdgeCases()
     std::cout << "\n===== Edge Cases & Error Handling =====\n";
 
     runTest("Too many positional args throws ArityError", []()
-            {
-        XASSERT(expectError<ArityError>(
-            "struct Point : x = 0 y = 0 ; \n Point(1, 2, 3)")); });
+            { XASSERT(expectError<ArityError>(
+                  "struct Point : x = 0 y = 0 ; \n Point(1, 2, 3)")); });
 
     runTest("Named arg for non-existent field throws", []()
-            {
-        XASSERT(expectError<AttributeError>(
-            "struct Point : x = 0 y = 0 ; \n Point(z: 42)")); });
+            { XASSERT(expectError<AttributeError>(
+                  "struct Point : x = 0 y = 0 ; \n Point(z: 42)")); });
 
     runTest("Struct used in expressions", []()
             {
@@ -679,9 +667,8 @@ if p : print("truthy") ;
         XASSERT_EQ(out[0], "truthy"); });
 
     runTest("Member access on struct def throws", []()
-            {
-        XASSERT(expectError<AttributeError>(
-            "struct Point : x = 0 y = 0 ; \n print(Point->x)")); });
+            { XASSERT(expectError<AttributeError>(
+                  "struct Point : x = 0 y = 0 ; \n print(Point->x)")); });
 
     runTest("toString for struct definition", []()
             {
