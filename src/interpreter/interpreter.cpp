@@ -1500,6 +1500,10 @@ namespace xell
                 if (def.isAbstract)
                     throw TypeError("cannot instantiate abstract class '" + def.name + "'", node->line);
 
+                // Mixins cannot be instantiated
+                if (def.isMixin)
+                    throw TypeError("cannot instantiate mixin '" + def.name + "'", node->line);
+
                 auto defPtr = fnObj.asStructDefShared();
                 XInstance inst(def.name, defPtr);
 
@@ -2598,8 +2602,9 @@ namespace xell
     void Interpreter::execClassDef(const ClassDef *node)
     {
         auto def = std::make_shared<XStructDef>(node->name);
-        def->isClass = true;
+        def->isClass = !node->isMixin; // mixins are not classes
         def->isAbstract = node->isAbstract;
+        def->isMixin = node->isMixin;
 
         // Resolve parent classes from the current environment
         for (const auto &parentName : node->parents)
@@ -2625,6 +2630,18 @@ namespace xell
             def->interfaces.push_back(ifaceObj.asStructDefShared());
         }
 
+        // Resolve mixins
+        for (const auto &mixinName : node->mixins)
+        {
+            XObject mixinObj = currentEnv_->get(mixinName, node->line);
+            if (!mixinObj.isStructDef())
+                throw TypeError("'" + mixinName + "' is not a mixin", node->line);
+            const XStructDef &mixinDef = mixinObj.asStructDef();
+            if (!mixinDef.isMixin)
+                throw TypeError("'" + mixinName + "' is not a mixin (use 'inherits' for classes)", node->line);
+            def->mixins.push_back(mixinObj.asStructDefShared());
+        }
+
         // Evaluate field default values — separate static from instance
         for (const auto &field : node->fields)
         {
@@ -2642,6 +2659,10 @@ namespace xell
         // Compile methods: create XFunction objects — separate static from instance
         for (const auto &method : node->methods)
         {
+            // Mixins cannot have __init__
+            if (def->isMixin && method->name == "__init__")
+                throw TypeError("mixin '" + node->name + "' cannot have __init__ (constructors not allowed in mixins)", node->line);
+
             XStructMethodInfo mi;
             mi.name = method->name;
             mi.access = astToRuntimeAccess(method->access);

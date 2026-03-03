@@ -56,6 +56,7 @@ namespace xell
         IMPLEMENTS,
         ABSTRACT,
         MIXIN,
+        WITH,
 
         // Generator keyword
         YIELD,
@@ -184,6 +185,7 @@ namespace xell
             {(int)TokenType::IMPLEMENTS, "IMPLEMENTS"},
             {(int)TokenType::ABSTRACT, "ABSTRACT"},
             {(int)TokenType::MIXIN, "MIXIN"},
+            {(int)TokenType::WITH, "WITH"},
             {(int)TokenType::YIELD, "YIELD"},
             {(int)TokenType::ASYNC, "ASYNC"},
             {(int)TokenType::AWAIT, "AWAIT"},

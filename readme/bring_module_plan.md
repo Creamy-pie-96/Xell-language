@@ -31,8 +31,11 @@
 19. [Full End-to-End Example](#19-full-end-to-end-example)
 20. [Summary: All Files Introduced](#20-summary-all-files-introduced)
 21. [Implementation Roadmap](#21-implementation-roadmap)
-22. [Appendix A: Comparison with Python and C++](#22-appendix-a-comparison-with-python-and-c)
-23. [Appendix B: What We're NOT Doing](#23-appendix-b-what-were-not-doing)
+22. [`requires` Keyword](#22-requires-keyword)
+23. [`@eager` Decorator](#23-eager-decorator)
+24. [Module Dunder Variables (`__name__` etc.)](#24-module-dunder-variables)
+25. [Appendix A: Comparison with Python and C++](#25-appendix-a-comparison-with-python-and-c)
+26. [Appendix B: What We're NOT Doing](#26-appendix-b-what-were-not-doing)
 
 ---
 
@@ -53,17 +56,18 @@
 
 ## 2. New Keywords
 
-| Keyword  | Role                                                           |
-| -------- | -------------------------------------------------------------- |
-| `module` | Declares a named module block (top-level or nested)            |
-| `export` | Marks a declaration as publicly importable from outside        |
-| `bring`  | Imports a module or parts of a module (replaces old `bring`)   |
-| `from`   | Specifies a directory to search first before the default path  |
-| `of`     | Separates what you're bringing from which module it comes from |
-| `as`     | Gives an alias to brought module(s) or item(s)                 |
-| `and`    | Chains multiple bring targets in a single statement            |
+| Keyword    | Role                                                           |
+| ---------- | -------------------------------------------------------------- |
+| `module`   | Declares a named module block (top-level or nested)            |
+| `export`   | Marks a declaration as publicly importable from outside        |
+| `bring`    | Imports a module or parts of a module (replaces old `bring`)   |
+| `from`     | Specifies a directory to search first before the default path  |
+| `of`       | Separates what you're bringing from which module it comes from |
+| `as`       | Gives an alias to brought module(s) or item(s)                 |
+| `and`      | Chains multiple bring targets in a single statement            |
+| `requires` | Declares a module dependency — auto-brought before the module  |
 
-> `of`, `and` and `as` were already in Xell. `from`, `module`, `export` are new additions.
+> `of`, `and` and `as` were already in Xell. `from`, `module`, `export`, `requires` are new additions.
 
 ---
 
@@ -428,13 +432,17 @@ modules->math->add(1, 2)
 
 ### Module object fields
 
-| Field            | Type   | Meaning                                 |
-| ---------------- | ------ | --------------------------------------- |
-| `__name__`       | string | Module's declared name                  |
-| `__path__`       | string | Absolute path to source file            |
-| `__exports__`    | list   | Names of all exported items             |
-| `__submodules__` | list   | Names of exported submodules            |
-| `__version__`    | string | Optional — if module declares a version |
+| Field            | Type   | Meaning                                                  |
+| ---------------- | ------ | -------------------------------------------------------- |
+| `__name__`       | string | `"lib->math_lib"` normally; `"__main__"` if run directly |
+| `__path__`       | string | Absolute path to source file                             |
+| `__file__`       | string | Alias for `__path__` — same value                        |
+| `__exports__`    | list   | Names of all exported items                              |
+| `__submodules__` | list   | Names of exported submodules                             |
+| `__version__`    | string | Optional — set by module author; `none` if not declared  |
+| `__module__`     | string | Parent module name; `none` for top-level modules         |
+| `__cached__`     | string | Absolute path to `.xelc` bytecode cache file             |
+| `__args__`       | list   | CLI argv when run directly; `none` when brought          |
 
 ---
 
@@ -716,9 +724,11 @@ ALIAS_LIST   := IDENTIFIER { "," IDENTIFIER }
 
 MODULE_DEF   := "module" IDENTIFIER ":" { MODULE_BODY } ";"
 
-MODULE_BODY  := EXPORT_DECL | FN_DEF | CLASS_DEF | STRUCT_DEF | ASSIGN | MODULE_DEF
+MODULE_BODY  := EXPORT_DECL | FN_DEF | CLASS_DEF | STRUCT_DEF | ASSIGN | MODULE_DEF | REQUIRES_STMT
 
-EXPORT_DECL  := "export" ( FN_DEF | CLASS_DEF | STRUCT_DEF | ASSIGN | MODULE_DEF )
+EXPORT_DECL   := "export" ( FN_DEF | CLASS_DEF | STRUCT_DEF | ASSIGN | MODULE_DEF )
+
+REQUIRES_STMT := "requires" ( IDENTIFIER | BRING_ITEMS "of" MODULE_PATH )
 ```
 
 ### Alias count rule
@@ -929,11 +939,297 @@ __xelcache__/
 - [ ] Circular dependency between modules → detect and error with chain shown
 - [ ] Tests: all conflict and edge cases
 
-**Total estimated: ~12 days**
+### Phase 10: `requires` Keyword (~0.5 days)
+
+- [ ] Add `REQUIRES` token to lexer
+- [ ] Parse `requires IDENTIFIER` and `requires ITEMS of MODULE_PATH` inside module body
+- [ ] Add `requires` list to `ModuleDef` AST node
+- [ ] On `bring X`: read `requires` list, auto-bring each dependency first (in declaration order)
+- [ ] `RequireError` if a required dependency cannot be found
+- [ ] Error message: `"RequireError: module 'X' requires 'Y' but 'Y' could not be found"`
+- [ ] Tests: auto-dependency resolution, missing requirement error, chained requires
+
+### Phase 11: `@eager` Decorator on `bring` (~0.5 days)
+
+- [ ] Extend decorator parsing to `bring` statements
+- [ ] `@eager bring X` → load module immediately at point of statement
+- [ ] Default (no decorator) → lazy: load module on first member access
+- [ ] `requires` inside a module always resolve eagerly regardless of outer bring mode
+- [ ] Tests: eager vs lazy loading, startup-time error reporting
+
+### Phase 12: Module Dunder Variables (~1 day)
+
+- [ ] Inject `__name__` into module scope at load time:
+  - `"__main__"` when file is executed directly via `xell file.xell`
+  - `"module_name"` when brought; `"parent->child"` for nested modules
+- [ ] Inject `__file__` / `__path__` — absolute path to source file
+- [ ] Inject `__module__` — parent module name; `none` for top-level
+- [ ] Inject `__exports__` — list of exported names, auto-populated
+- [ ] Inject `__cached__` — path to `.xelc` bytecode file
+- [ ] Inject `__args__` — argv list when run directly; `none` when brought
+- [ ] Support user-defined `__version__` field inside module body
+- [ ] `if __name__ == "__main__" :` pattern: block skipped when module is brought
+- [ ] Tests: all dunders correct values, `__main__` guard, nested `"lib->math_lib"` name
+
+**Total estimated: ~14 days**
 
 ---
 
-## 22. Appendix A: Comparison with Python and C++
+## 22. `requires` Keyword
+
+A module can declare its own dependencies upfront using `requires`. This documents what the module needs and ensures those dependencies are resolved automatically when the module is brought.
+
+### Syntax
+
+```xell
+module my_plugin :
+    requires json
+    requires math of stdlib
+    requires Logger, Database of my_app->core
+
+    export fn run() :
+        data = json->parse("{}")
+        Logger->log("starting")
+    ;
+;
+```
+
+### What it does
+
+- **Documents dependencies** — anyone reading the module file sees exactly what it needs.
+- **Auto-brings dependencies** — when you `bring my_plugin`, Xell automatically brings all
+  required modules first, in declaration order, before loading `my_plugin`.
+- **Fails early** — if a requirement is missing, `RequireError` is raised at bring time, not
+  buried deep in a runtime crash when a specific line tries to use something undefined.
+
+### Auto-bring chain
+
+```
+bring my_plugin
+    → sees: requires json
+    → auto-brings json first
+    → sees: requires math of stdlib
+    → auto-brings math from stdlib
+    → sees: requires Logger, Database of my_app->core
+    → auto-brings those
+    → then loads my_plugin itself
+    → all dependencies guaranteed before any code runs
+```
+
+### `requires` syntax forms
+
+```xell
+# Bring a whole module
+requires json
+
+# Bring specific items from a module
+requires Logger, Database of my_app->core
+
+# Bring from stdlib explicitly
+requires math of stdlib
+
+# Bring a nested module
+requires mechanics of physics->classical
+```
+
+### Error when a requirement is missing
+
+```
+RequireError: module 'my_plugin' requires 'Logger' of 'my_app->core'
+              but 'my_app->core' could not be found.
+hint: did you run xell --make_module ./your_app/?
+```
+
+The error appears at bring time — not buried in runtime when a specific line executes.
+
+### `requires` vs `bring` inside function body
+
+| Approach                 | When it runs                 | Visibility                  | Error timing  |
+| ------------------------ | ---------------------------- | --------------------------- | ------------- |
+| `requires` at module top | Before module loads          | Upfront — self-documenting  | At bring time |
+| `bring` inside `fn`      | When that function is called | Hidden inside function body | At runtime    |
+
+`requires` is for real dependencies the module always needs. `bring` inside a function body is for optional or conditional imports.
+
+---
+
+## 23. `@eager` Decorator
+
+By default all `bring` statements are **lazy** — the module is loaded on first member access, not at the point of the `bring` statement itself. The `@eager` decorator forces immediate loading.
+
+### Syntax
+
+```xell
+bring json              # lazy — default: loads on first use
+bring math              # lazy — default
+@eager bring db         # loads immediately — connection established at startup
+@eager bring config     # loads immediately — config validated at startup
+print "ready"           # db and config are guaranteed fully loaded by here
+```
+
+### Lazy vs eager
+
+| Mode           | Load time              | Error timing                     | Use when                           |
+| -------------- | ---------------------- | -------------------------------- | ---------------------------------- |
+| Lazy (default) | On first member access | When you first use it            | Most imports — no startup cost     |
+| `@eager`       | At `bring` statement   | At startup, before anything runs | Connections, config, critical deps |
+
+### Typical pattern
+
+```xell
+# Critical resources — must be ready before handling any request
+@eager bring db_pool
+@eager bring config
+
+# Regular utilities — lazy is fine
+bring json
+bring regex
+bring math
+
+fn handle_request(req) :
+    # db_pool and config guaranteed loaded here
+    # json, regex, math load on first use
+    data = json->parse(req->body)
+    give db_pool->query("SELECT ...")
+;
+```
+
+### `@eager` + `requires` interaction
+
+If a module uses `requires`, its requirements are always resolved eagerly (before the module loads), regardless of whether the outer `bring` is lazy or `@eager`.
+
+```xell
+@eager bring my_plugin     # loads my_plugin immediately
+                           # my_plugin's requires are resolved first, also immediately
+```
+
+---
+
+## 24. Module Dunder Variables
+
+Every module scope has a set of automatically injected `__dunder__` variables that provide self-awareness at runtime.
+
+### Full set
+
+| Variable      | Meaning                                                                         |
+| ------------- | ------------------------------------------------------------------------------- |
+| `__name__`    | `"__main__"` if run directly; full module path (`"lib->math_lib"`) when brought |
+| `__module__`  | Parent module name — `"lib"` for a submodule; `none` for top-level              |
+| `__file__`    | Absolute path to source file (same as `__path__`)                               |
+| `__exports__` | List of exported names: `["add", "sub", "PI"]`                                  |
+| `__version__` | Optional — set by module author; `none` if not declared                         |
+| `__cached__`  | Absolute path to `.xelc` bytecode cache file                                    |
+| `__args__`    | CLI argv list when run directly; `none` when brought as module                  |
+
+### `__name__ == "__main__"` — entry point detection
+
+The primary use case: write testable, importable modules that also work as runnable scripts.
+
+```xell
+# mathlib.xell
+module math_lib :
+    __version__ = "1.0.0"
+
+    export fn add(a, b) : give a + b ;
+    export fn sub(a, b) : give a - b ;
+    export fn mul(a, b) : give a * b ;
+
+    # unit tests — only runs when this file is executed directly
+    if __name__ == "__main__" :
+        print "testing math_lib {__version__}"
+        assert add(1, 2) == 3
+        assert sub(5, 3) == 2
+        assert mul(4, 3) == 12
+        print "all tests passed"
+    ;
+;
+```
+
+```bash
+xell mathlib.xell
+# → testing math_lib 1.0.0
+# → all tests passed
+```
+
+```xell
+# from another file
+bring math_lib
+math_lib->add(1, 2)    # test block never runs — __name__ is "math_lib", not "__main__"
+```
+
+### `__name__` in nested modules
+
+Each module level has a `__name__` that includes its full path:
+
+```xell
+module lib :
+    module math_lib :
+        export fn debug() :
+            print __name__      # → "lib->math_lib"
+            print __module__    # → "lib"
+            print __file__      # → "/path/to/file.xell"
+        ;
+    ;
+;
+```
+
+### `__version__` — set by module author
+
+```xell
+module my_lib :
+    __version__ = "2.3.1"
+
+    export fn add(a, b) : give a + b ;
+;
+
+# user side
+bring my_lib
+print my_lib->__version__    # "2.3.1"
+```
+
+### `__args__` — CLI arguments when run directly
+
+```xell
+# deploy.xell — importable module and runnable script in one
+module deploy_tools :
+    export fn deploy(project) :
+        print "deploying {project}"
+    ;
+;
+
+if __name__ == "__main__" :
+    args = __args__
+    if len(args) < 1 :
+        error("usage: xell deploy.xell <project>")
+    ;
+    deploy_tools->deploy(args[0])
+;
+```
+
+```bash
+xell deploy.xell my_project    # → deploying my_project
+```
+
+```xell
+bring deploy_tools             # script block skipped, __args__ is none
+deploy_tools->deploy("app")
+```
+
+### Summary table
+
+| Variable      | When run directly (`xell file.xell`) | When brought (`bring mod`) |
+| ------------- | ------------------------------------ | -------------------------- |
+| `__name__`    | `"__main__"`                         | `"mod"` or `"parent->mod"` |
+| `__module__`  | `none`                               | parent module name         |
+| `__file__`    | absolute path                        | absolute path              |
+| `__exports__` | list of exports                      | list of exports            |
+| `__version__` | user defined or `none`               | user defined or `none`     |
+| `__cached__`  | `.xelc` path                         | `.xelc` path               |
+| `__args__`    | argv list                            | `none`                     |
+
+---
+
+## 25. Appendix A: Comparison with Python and C++
 
 | Feature                   | C++                  | Python                  | Xell                       |
 | ------------------------- | -------------------- | ----------------------- | -------------------------- |
@@ -955,20 +1251,20 @@ __xelcache__/
 
 ---
 
-## 23. Appendix B: What We're NOT Doing
+## 26. Appendix B: What We're NOT Doing
 
-| Feature                           | Status         | Reason                                            |
-| --------------------------------- | -------------- | ------------------------------------------------- |
-| Filename = module name            | ❌ Never       | Explicitly against this design                    |
-| C-style `#include` text dump      | ❌ Never       | Smart import only                                 |
-| Circular imports                  | ❌ Error       | Detected at runtime with full cycle shown         |
-| Private submodule visibility      | ❌ Never       | Private means invisible — not even in errors      |
-| Module versioning in bring syntax | ❌ Not planned | Use `from "dir"` to point to specific version dir |
-| Dynamic bring (runtime strings)   | ⏳ Maybe later | `bring(module_name_variable)` — defer to later    |
-| Package registry / installer      | ⏳ Maybe later | `xell install` command — out of scope for now     |
-| Interface-style module contracts  | ❌ Not planned | Modules don't declare required imports            |
-| Lazy loading                      | ⏳ Maybe later | `bring lazy lib` — defer until needed             |
-| Wildcard file glob in bring       | ❌ Not planned | Use `--make_module` to pre-register               |
+| Feature                           | Status         | Reason                                                    |
+| --------------------------------- | -------------- | --------------------------------------------------------- |
+| Filename = module name            | ❌ Never       | Explicitly against this design                            |
+| C-style `#include` text dump      | ❌ Never       | Smart import only                                         |
+| Circular imports                  | ❌ Error       | Detected at runtime with full cycle shown                 |
+| Private submodule visibility      | ❌ Never       | Private means invisible — not even in errors              |
+| Module versioning in bring syntax | ❌ Not planned | Use `from "dir"` to point to specific version dir         |
+| Dynamic bring (runtime strings)   | ⏳ Maybe later | `bring(module_name_variable)` — defer to later            |
+| Package registry / installer      | ⏳ Maybe later | `xell install` command — out of scope for now             |
+| Interface-style module contracts  | ❌ Not planned/we already have interface style for classes | `requires` is for dependencies, not caller contracts      |
+| Lazy loading                      | ✅ Built-in    | Default mode — use `@eager bring` to force immediate load |
+| Wildcard file glob in bring       | ❌ Not planned | Use `--make_module` to pre-register                       |
 
 ---
 

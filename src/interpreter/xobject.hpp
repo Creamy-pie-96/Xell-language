@@ -560,7 +560,9 @@ namespace xell
         bool isClass = false;                             // true if defined with `class`, false for `struct`
         bool isInterface = false;                         // true if defined with `interface`
         bool isAbstract = false;                          // true if defined with `abstract`
+        bool isMixin = false;                             // true if defined with `mixin`
         std::vector<std::shared_ptr<XStructDef>> parents; // parent classes (inheritance chain)
+        std::vector<std::shared_ptr<XStructDef>> mixins;      // mixed-in method bundles
         std::vector<std::shared_ptr<XStructDef>> interfaces; // implemented interfaces
 
         XStructDef() = default;
@@ -575,6 +577,13 @@ namespace xell
             for (const auto &parent : parents)
             {
                 const XStructMethodInfo *found = parent->findMethod(methodName);
+                if (found)
+                    return found;
+            }
+            // Search mixins (lower priority than class/parent)
+            for (const auto &mixin : mixins)
+            {
+                const XStructMethodInfo *found = mixin->findMethod(methodName);
                 if (found)
                     return found;
             }
@@ -595,6 +604,13 @@ namespace xell
                 if (result.first)
                     return result;
             }
+            // Search mixins
+            for (const auto &mixin : mixins)
+            {
+                auto result = mixin->findMethodWithOwner(methodName);
+                if (result.first)
+                    return result;
+            }
             return {nullptr, nullptr};
         }
 
@@ -607,6 +623,13 @@ namespace xell
             for (const auto &parent : parents)
             {
                 const XStructFieldInfo *found = parent->findField(fieldName);
+                if (found)
+                    return found;
+            }
+            // Search mixins (lower priority than own fields and parents)
+            for (const auto &mixin : mixins)
+            {
+                const XStructFieldInfo *found = mixin->findField(fieldName);
                 if (found)
                     return found;
             }
@@ -623,6 +646,13 @@ namespace xell
             for (const auto &parent : parents)
             {
                 auto result = parent->findFieldWithOwner(fieldName);
+                if (result.first)
+                    return result;
+            }
+            // Search mixins (lower priority than own fields and parents)
+            for (const auto &mixin : mixins)
+            {
+                auto result = mixin->findFieldWithOwner(fieldName);
                 if (result.first)
                     return result;
             }
@@ -710,6 +740,23 @@ namespace xell
                 for (auto &f : pfields)
                 {
                     // Don't add if already present (child overrides parent)
+                    bool exists = false;
+                    for (const auto &r : result)
+                        if (r.name == f.name)
+                        {
+                            exists = true;
+                            break;
+                        }
+                    if (!exists)
+                        result.push_back(std::move(f));
+                }
+            }
+            // Collect fields from mixins (lower priority than parents)
+            for (const auto &mixin : mixins)
+            {
+                auto mfields = mixin->allFields();
+                for (auto &f : mfields)
+                {
                     bool exists = false;
                     for (const auto &r : result)
                         if (r.name == f.name)

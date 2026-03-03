@@ -47,6 +47,7 @@ namespace xell
             {"implements", TokenType::IMPLEMENTS},
             {"abstract", TokenType::ABSTRACT},
             {"mixin", TokenType::MIXIN},
+            {"with", TokenType::WITH},
             // Generator
             {"yield", TokenType::YIELD},
 

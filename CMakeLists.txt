@@ -127,3 +127,7 @@ add_test(NAME interface_test COMMAND interface_test)
 add_executable(abstract_test test/abstract_test.cpp)
 target_link_libraries(abstract_test xell_lib)
 add_test(NAME abstract_test COMMAND abstract_test)
+
+add_executable(mixin_test test/mixin_test.cpp)
+target_link_libraries(mixin_test xell_lib)
+add_test(NAME mixin_test COMMAND mixin_test)

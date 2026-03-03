@@ -243,7 +243,13 @@ namespace xell
             advance(); // consume 'abstract'
             skipNewlines();
             // 'abstract' followed by class name (no 'class' keyword needed)
-            return parseClassDef(true);
+            return parseClassDef(true, false);
+        }
+        if (type == TokenType::MIXIN)
+        {
+            advance(); // consume 'mixin'
+            skipNewlines();
+            return parseClassDef(false, true);
         }
         if (type == TokenType::INTERFACE)
             return parseInterfaceDef();
@@ -1132,13 +1138,14 @@ namespace xell
     // Class definition: class Name [inherits Parent1, Parent2] : body ;
     // ============================================================
 
-    StmtPtr Parser::parseClassDef(bool isAbstract)
+    StmtPtr Parser::parseClassDef(bool isAbstract, bool isMixin)
     {
         int ln = current().line;
-        if (!isAbstract)
-            advance(); // consume CLASS (abstract already consumed by caller)
+        if (!isAbstract && !isMixin)
+            advance(); // consume CLASS (abstract/mixin already consumed by caller)
 
-        std::string name = consume(TokenType::IDENTIFIER, isAbstract ? "Expected class name after 'abstract'" : "Expected class name after 'class'").value;
+        std::string errorContext = isMixin ? "mixin" : (isAbstract ? "abstract" : "class");
+        std::string name = consume(TokenType::IDENTIFIER, "Expected name after '" + errorContext + "'").value;
 
         // Parse optional 'inherits' clause
         std::vector<std::string> parents;
@@ -1150,6 +1157,19 @@ namespace xell
             {
                 advance(); // consume comma
                 parents.push_back(consume(TokenType::IDENTIFIER, "Expected parent class name").value);
+            }
+        }
+
+        // Parse optional 'with' clause (mixins)
+        std::vector<std::string> mixins;
+        if (check(TokenType::WITH))
+        {
+            advance(); // consume WITH
+            mixins.push_back(consume(TokenType::IDENTIFIER, "Expected mixin name after 'with'").value);
+            while (check(TokenType::COMMA))
+            {
+                advance(); // consume comma
+                mixins.push_back(consume(TokenType::IDENTIFIER, "Expected mixin name").value);
             }
         }
 
@@ -1392,7 +1412,7 @@ namespace xell
 
         consume(TokenType::SEMICOLON, "Expected ';' to close class definition");
 
-        return std::make_unique<ClassDef>(name, std::move(parents), std::move(interfaces), std::move(fields), std::move(methods), std::move(properties), ln, isAbstract);
+        return std::make_unique<ClassDef>(name, std::move(parents), std::move(mixins), std::move(interfaces), std::move(fields), std::move(methods), std::move(properties), ln, isAbstract, isMixin);
     }
 
     // ============================================================
