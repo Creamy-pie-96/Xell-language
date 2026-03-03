@@ -187,6 +187,21 @@ namespace xell
             : value(std::move(val)), condition(std::move(cond)), alternative(std::move(alt)) { line = ln; }
     };
 
+    // If expression: if cond: value elif cond: value else: value
+    struct IfExprBranch
+    {
+        ExprPtr condition; // nullptr for else branch
+        ExprPtr value;
+        int line = 0;
+    };
+
+    struct IfExpr : Expr
+    {
+        std::vector<IfExprBranch> branches; // if + elifs + else
+        IfExpr(std::vector<IfExprBranch> branches, int ln = 0)
+            : branches(std::move(branches)) { line = ln; }
+    };
+
     // Lambda expression: x => expr  or  (a, b) => expr  or  x => : block ;
     struct LambdaExpr : Expr
     {
@@ -232,6 +247,43 @@ namespace xell
     {
         std::string bytes; // raw byte data
         explicit BytesLiteral(std::string b, int ln = 0) : bytes(std::move(b)) { line = ln; }
+    };
+
+    // For expression: x = for i in list: if cond: break val; give default;
+    struct ForExpr : Expr
+    {
+        std::vector<std::string> varNames;
+        std::vector<ExprPtr> iterables;
+        std::vector<StmtPtr> body;
+        ExprPtr defaultValue; // optional give VALUE at end (default if no break value)
+        bool hasRest = false;
+        std::string restName;
+        ForExpr(std::vector<std::string> vars, std::vector<ExprPtr> iters,
+                std::vector<StmtPtr> body, ExprPtr defVal, bool hasRest,
+                std::string restName, int ln = 0)
+            : varNames(std::move(vars)), iterables(std::move(iters)),
+              body(std::move(body)), defaultValue(std::move(defVal)),
+              hasRest(hasRest), restName(std::move(restName)) { line = ln; }
+    };
+
+    // While expression: x = while cond: ... break val; give default;
+    struct WhileExpr : Expr
+    {
+        ExprPtr condition;
+        std::vector<StmtPtr> body;
+        ExprPtr defaultValue; // optional give VALUE at end
+        WhileExpr(ExprPtr cond, std::vector<StmtPtr> body, ExprPtr defVal, int ln = 0)
+            : condition(std::move(cond)), body(std::move(body)),
+              defaultValue(std::move(defVal)) { line = ln; }
+    };
+
+    // Loop expression: x = loop: ... break val; give default;
+    struct LoopExpr : Expr
+    {
+        std::vector<StmtPtr> body;
+        ExprPtr defaultValue; // optional give VALUE at end
+        LoopExpr(std::vector<StmtPtr> body, ExprPtr defVal, int ln = 0)
+            : body(std::move(body)), defaultValue(std::move(defVal)) { line = ln; }
     };
 
     // ============================================================
@@ -302,6 +354,15 @@ namespace xell
             : condition(std::move(cond)), body(std::move(body)) { line = ln; }
     };
 
+    // loop : BLOCK ;  — infinite loop (breaks required)
+    struct LoopStmt : Stmt
+    {
+        std::vector<StmtPtr> body;
+        bool safeLoop = false; // @safe_loop decorator applied
+        LoopStmt(std::vector<StmtPtr> body, bool safe = false, int ln = 0)
+            : body(std::move(body)), safeLoop(safe) { line = ln; }
+    };
+
     struct FnDef : Stmt
     {
         std::string name;
@@ -331,7 +392,8 @@ namespace xell
 
     struct BreakStmt : Stmt
     {
-        explicit BreakStmt(int ln = 0) { line = ln; }
+        ExprPtr value; // nullptr → break with no value (statement loop), non-null → break VALUE (expression loop)
+        explicit BreakStmt(ExprPtr v = nullptr, int ln = 0) : value(std::move(v)) { line = ln; }
     };
 
     struct ContinueStmt : Stmt
@@ -522,8 +584,8 @@ namespace xell
     // let EXPR be NAME, EXPR be NAME : BLOCK ;   (RAII / context manager)
     struct LetBinding
     {
-        ExprPtr expr;      // resource expression (evaluated, then __enter__ called)
-        std::string name;  // binding name (receives __enter__ return value), "_" = discard
+        ExprPtr expr;     // resource expression (evaluated, then __enter__ called)
+        std::string name; // binding name (receives __enter__ return value), "_" = discard
         int line = 0;
     };
 

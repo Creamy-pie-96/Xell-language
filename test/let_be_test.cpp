@@ -10,26 +10,34 @@
 static int g_passed = 0;
 static int g_failed = 0;
 
-#define XASSERT_EQ(a, b)                                                          \
-    do                                                                             \
-    {                                                                              \
-        auto _a = (a);                                                             \
-        auto _b = (b);                                                             \
-        if (_a != _b)                                                              \
-        {                                                                          \
-            std::ostringstream os;                                                 \
-            os << "  ASSERTION FAILED: " << #a << " == " << #b << "\n"             \
-               << "        got: [" << _a << "] vs [" << _b << "]";                 \
-            throw std::runtime_error(os.str());                                    \
-        }                                                                          \
+#define XASSERT_EQ(a, b)                                               \
+    do                                                                 \
+    {                                                                  \
+        auto _a = (a);                                                 \
+        auto _b = (b);                                                 \
+        if (_a != _b)                                                  \
+        {                                                              \
+            std::ostringstream os;                                     \
+            os << "  ASSERTION FAILED: " << #a << " == " << #b << "\n" \
+               << "        got: [" << _a << "] vs [" << _b << "]";     \
+            throw std::runtime_error(os.str());                        \
+        }                                                              \
     } while (0)
 
-#define XASSERT_THROWS(expr)                                                       \
-    do                                                                             \
-    {                                                                              \
-        bool caught = false;                                                       \
-        try { expr; } catch (...) { caught = true; }                               \
-        if (!caught) throw std::runtime_error("  Expected exception but none thrown"); \
+#define XASSERT_THROWS(expr)                                                  \
+    do                                                                        \
+    {                                                                         \
+        bool caught = false;                                                  \
+        try                                                                   \
+        {                                                                     \
+            expr;                                                             \
+        }                                                                     \
+        catch (...)                                                           \
+        {                                                                     \
+            caught = true;                                                    \
+        }                                                                     \
+        if (!caught)                                                          \
+            throw std::runtime_error("  Expected exception but none thrown"); \
     } while (0)
 
 #include "../src/lexer/lexer.cpp"
@@ -100,8 +108,7 @@ let Res("file") be f:
         XASSERT_EQ(out.size(), (size_t)3);
         XASSERT_EQ(out[0], "enter:file");
         XASSERT_EQ(out[1], "use:file");
-        XASSERT_EQ(out[2], "exit:file");
-    });
+        XASSERT_EQ(out[2], "exit:file"); });
 
     runTest("multiple bindings — reverse teardown", []()
             {
@@ -115,8 +122,7 @@ let Res("a") be r1, Res("b") be r2:
         XASSERT_EQ(out[1], "enter:b");
         XASSERT_EQ(out[2], "body");
         XASSERT_EQ(out[3], "exit:b");
-        XASSERT_EQ(out[4], "exit:a");
-    });
+        XASSERT_EQ(out[4], "exit:a"); });
 
     runTest("three bindings — LIFO teardown", []()
             {
@@ -132,8 +138,7 @@ let Res("x") be a, Res("y") be b, Res("z") be c:
         XASSERT_EQ(out[3], "all");
         XASSERT_EQ(out[4], "exit:z");
         XASSERT_EQ(out[5], "exit:y");
-        XASSERT_EQ(out[6], "exit:x");
-    });
+        XASSERT_EQ(out[6], "exit:x"); });
 
     runTest("_ discard binding", []()
             {
@@ -145,8 +150,7 @@ let Res("lock") be _:
         XASSERT_EQ(out.size(), (size_t)3);
         XASSERT_EQ(out[0], "enter:lock");
         XASSERT_EQ(out[1], "critical");
-        XASSERT_EQ(out[2], "exit:lock");
-    });
+        XASSERT_EQ(out[2], "exit:lock"); });
 
     // ========== Proxy Pattern ==========
     std::cout << "\n===== Proxy Pattern =====\n";
@@ -168,8 +172,7 @@ let Conn() be c:
 )XEL");
         XASSERT_EQ(out.size(), (size_t)2);
         XASSERT_EQ(out[0], "cursor_proxy");
-        XASSERT_EQ(out[1], "conn_closed");
-    });
+        XASSERT_EQ(out[1], "conn_closed"); });
 
     // ========== Error Handling ==========
     std::cout << "\n===== Error Handling =====\n";
@@ -190,8 +193,7 @@ try:
         XASSERT_EQ(out[0], "enter:h");
         XASSERT_EQ(out[1], "before_error");
         XASSERT_EQ(out[2], "exit:h");
-        XASSERT_EQ(out[3], "caught:division by zero");
-    });
+        XASSERT_EQ(out[3], "caught:division by zero"); });
 
     runTest("error with multiple bindings — reverse cleanup", []()
             {
@@ -211,8 +213,7 @@ try:
         XASSERT_EQ(out[3], "exit:3");
         XASSERT_EQ(out[4], "exit:2");
         XASSERT_EQ(out[5], "exit:1");
-        XASSERT_EQ(out[6], "caught");
-    });
+        XASSERT_EQ(out[6], "caught"); });
 
     runTest("__exit__ itself throws — error propagates", []()
             {
@@ -239,8 +240,7 @@ try:
         XASSERT_EQ(out[0], "enter");
         XASSERT_EQ(out[1], "body");
         XASSERT_EQ(out[2], "exit_throws");
-        XASSERT_EQ(out[3], "caught:division by zero");
-    });
+        XASSERT_EQ(out[3], "caught:division by zero"); });
 
     // ========== Partial Init Failure ==========
     std::cout << "\n===== Partial Init Failure =====\n";
@@ -269,8 +269,7 @@ try:
         XASSERT_EQ(out[0], "enter:ok");
         XASSERT_EQ(out[1], "bad_enter");
         XASSERT_EQ(out[2], "exit:ok");
-        XASSERT_EQ(out[3], "caught:division by zero");
-    });
+        XASSERT_EQ(out[3], "caught:division by zero"); });
 
     // ========== give / break / continue ==========
     std::cout << "\n===== give / break / continue =====\n";
@@ -289,8 +288,7 @@ print(r)
         XASSERT_EQ(out.size(), (size_t)3);
         XASSERT_EQ(out[0], "enter:h");
         XASSERT_EQ(out[1], "exit:h");
-        XASSERT_EQ(out[2], "result");
-    });
+        XASSERT_EQ(out[2], "result"); });
 
     runTest("break inside let inside for — __exit__ called each iteration", []()
             {
@@ -312,8 +310,7 @@ print(str(results))
         XASSERT_EQ(out[1], "exit:1");
         XASSERT_EQ(out[2], "enter:2");
         XASSERT_EQ(out[3], "exit:2");
-        XASSERT_EQ(out[4], "[1]");
-    });
+        XASSERT_EQ(out[4], "[1]"); });
 
     runTest("continue inside let inside for — __exit__ called", []()
             {
@@ -337,8 +334,7 @@ print(str(results))
         XASSERT_EQ(out[3], "exit:2");
         XASSERT_EQ(out[4], "enter:3");
         XASSERT_EQ(out[5], "exit:3");
-        XASSERT_EQ(out[6], "[1, 3]");
-    });
+        XASSERT_EQ(out[6], "[1, 3]"); });
 
     runTest("give nested in incase inside let", []()
             {
@@ -363,8 +359,7 @@ print(choose("x"))
         XASSERT_EQ(out.size(), (size_t)9);
         XASSERT_EQ(out[0], "enter:ctx"); XASSERT_EQ(out[1], "exit:ctx"); XASSERT_EQ(out[2], "alpha");
         XASSERT_EQ(out[3], "enter:ctx"); XASSERT_EQ(out[4], "exit:ctx"); XASSERT_EQ(out[5], "beta");
-        XASSERT_EQ(out[6], "enter:ctx"); XASSERT_EQ(out[7], "exit:ctx"); XASSERT_EQ(out[8], "default");
-    });
+        XASSERT_EQ(out[6], "enter:ctx"); XASSERT_EQ(out[7], "exit:ctx"); XASSERT_EQ(out[8], "default"); });
 
     runTest("give nested in if inside let", []()
             {
@@ -382,8 +377,7 @@ print(check(5))
 )XEL");
         XASSERT_EQ(out.size(), (size_t)6);
         XASSERT_EQ(out[0], "enter:chk"); XASSERT_EQ(out[1], "exit:chk"); XASSERT_EQ(out[2], "big");
-        XASSERT_EQ(out[3], "enter:chk"); XASSERT_EQ(out[4], "exit:chk"); XASSERT_EQ(out[5], "small");
-    });
+        XASSERT_EQ(out[3], "enter:chk"); XASSERT_EQ(out[4], "exit:chk"); XASSERT_EQ(out[5], "small"); });
 
     // ========== Nested let blocks ==========
     std::cout << "\n===== Nested Let Blocks =====\n";
@@ -404,8 +398,7 @@ let Res("outer") be o:
         XASSERT_EQ(out[2], "both:outer+inner");
         XASSERT_EQ(out[3], "exit:inner");
         XASSERT_EQ(out[4], "after_inner:outer");
-        XASSERT_EQ(out[5], "exit:outer");
-    });
+        XASSERT_EQ(out[5], "exit:outer"); });
 
     // ========== let inside try/catch ==========
     std::cout << "\n===== Let inside Try/Catch =====\n";
@@ -430,8 +423,7 @@ try:
 ;
 )XEL");
         XASSERT_EQ(out.size(), (size_t)1);
-        XASSERT_EQ(out[0], "caught:division by zero");
-    });
+        XASSERT_EQ(out[0], "caught:division by zero"); });
 
     runTest("block throws — __exit__ then catch", []()
             {
@@ -447,8 +439,7 @@ try:
         XASSERT_EQ(out.size(), (size_t)3);
         XASSERT_EQ(out[0], "enter:r");
         XASSERT_EQ(out[1], "exit:r");
-        XASSERT_EQ(out[2], "caught");
-    });
+        XASSERT_EQ(out[2], "caught"); });
 
     runTest("__exit__ throws — replaces body error", []()
             {
@@ -476,15 +467,13 @@ try:
         XASSERT_EQ(out[0], "enter");
         XASSERT_EQ(out[1], "body_fail");
         XASSERT_EQ(out[2], "exit_fail");
-        XASSERT_EQ(out[3], "caught:division by zero");
-    });
+        XASSERT_EQ(out[3], "caught:division by zero"); });
 
     // ========== Error Cases ==========
     std::cout << "\n===== Error Cases =====\n";
 
     runTest("missing __enter__ — TypeError", []()
-            {
-        XASSERT_THROWS(runXell(R"XEL(
+            { XASSERT_THROWS(runXell(R"XEL(
 class NoEnter :
     fn __exit__(self):
         print("x")
@@ -493,12 +482,10 @@ class NoEnter :
 let NoEnter() be x:
     print("never")
 ;
-)XEL"));
-    });
+)XEL")); });
 
     runTest("missing __exit__ — TypeError", []()
-            {
-        XASSERT_THROWS(runXell(R"XEL(
+            { XASSERT_THROWS(runXell(R"XEL(
 class NoExit :
     fn __enter__(self):
         give self
@@ -507,17 +494,14 @@ class NoExit :
 let NoExit() be x:
     print("never")
 ;
-)XEL"));
-    });
+)XEL")); });
 
     runTest("non-instance — TypeError", []()
-            {
-        XASSERT_THROWS(runXell(R"XEL(
+            { XASSERT_THROWS(runXell(R"XEL(
 let 42 be x:
     print("never")
 ;
-)XEL"));
-    });
+)XEL")); });
 
     // ========== Dependent Resources ==========
     std::cout << "\n===== Dependent Resources =====\n";
@@ -555,8 +539,7 @@ let Pool() be pool, pool->connect() be conn:
         XASSERT_EQ(out[1], "conn_enter");
         XASSERT_EQ(out[2], "working");
         XASSERT_EQ(out[3], "conn_exit");
-        XASSERT_EQ(out[4], "pool_exit");
-    });
+        XASSERT_EQ(out[4], "pool_exit"); });
 
     // ========== Summary ==========
     std::cout << "\n========================================\n";

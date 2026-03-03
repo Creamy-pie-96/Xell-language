@@ -10,26 +10,34 @@
 static int g_passed = 0;
 static int g_failed = 0;
 
-#define XASSERT_EQ(a, b)                                                          \
-    do                                                                             \
-    {                                                                              \
-        auto _a = (a);                                                             \
-        auto _b = (b);                                                             \
-        if (_a != _b)                                                              \
-        {                                                                          \
-            std::ostringstream os;                                                 \
-            os << "  ASSERTION FAILED: " << #a << " == " << #b << "\n"             \
-               << "        got: [" << _a << "] vs [" << _b << "]";                 \
-            throw std::runtime_error(os.str());                                    \
-        }                                                                          \
+#define XASSERT_EQ(a, b)                                               \
+    do                                                                 \
+    {                                                                  \
+        auto _a = (a);                                                 \
+        auto _b = (b);                                                 \
+        if (_a != _b)                                                  \
+        {                                                              \
+            std::ostringstream os;                                     \
+            os << "  ASSERTION FAILED: " << #a << " == " << #b << "\n" \
+               << "        got: [" << _a << "] vs [" << _b << "]";     \
+            throw std::runtime_error(os.str());                        \
+        }                                                              \
     } while (0)
 
-#define XASSERT_THROWS(expr)                                                       \
-    do                                                                             \
-    {                                                                              \
-        bool caught = false;                                                       \
-        try { expr; } catch (...) { caught = true; }                               \
-        if (!caught) throw std::runtime_error("  Expected exception but none thrown"); \
+#define XASSERT_THROWS(expr)                                                  \
+    do                                                                        \
+    {                                                                         \
+        bool caught = false;                                                  \
+        try                                                                   \
+        {                                                                     \
+            expr;                                                             \
+        }                                                                     \
+        catch (...)                                                           \
+        {                                                                     \
+            caught = true;                                                    \
+        }                                                                     \
+        if (!caught)                                                          \
+            throw std::runtime_error("  Expected exception but none thrown"); \
     } while (0)
 
 #include "../src/lexer/lexer.cpp"

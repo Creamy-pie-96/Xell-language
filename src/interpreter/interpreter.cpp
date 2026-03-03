@@ -437,7 +437,14 @@ namespace xell
         if (auto *p = dynamic_cast<const GiveStmt *>(stmt))
             return execGive(p);
         if (auto *p = dynamic_cast<const BreakStmt *>(stmt))
+        {
+            if (p->value)
+            {
+                XObject val = eval(p->value.get());
+                throw BreakSignal{std::move(val), true};
+            }
             throw BreakSignal{};
+        }
         if (auto *p = dynamic_cast<const ContinueStmt *>(stmt))
             throw ContinueSignal{};
         if (auto *p = dynamic_cast<const ExprStmt *>(stmt))
@@ -450,6 +457,8 @@ namespace xell
             return execInCase(p);
         if (auto *p = dynamic_cast<const LetStmt *>(stmt))
             return execLet(p);
+        if (auto *p = dynamic_cast<const LoopStmt *>(stmt))
+            return execLoop(p);
         if (auto *p = dynamic_cast<const DestructuringAssignment *>(stmt))
             return execDestructuring(p);
         if (auto *p = dynamic_cast<const EnumDef *>(stmt))
@@ -731,8 +740,12 @@ namespace xell
                         exec(stmt.get());
                     }
                 }
-                catch (const BreakSignal &)
+                catch (const BreakSignal &bs)
                 {
+                    if (bs.hasValue)
+                        throw RuntimeError("Cannot use 'break VALUE' in a statement-mode for loop; "
+                                           "use expression-mode (x = for ...) to capture values",
+                                           node->line);
                     break;
                 }
                 catch (const ContinueSignal &)
@@ -767,8 +780,12 @@ namespace xell
                         exec(stmt.get());
                     }
                 }
-                catch (const BreakSignal &)
+                catch (const BreakSignal &bs)
                 {
+                    if (bs.hasValue)
+                        throw RuntimeError("Cannot use 'break VALUE' in a statement-mode while loop; "
+                                           "use expression-mode (x = while ...) to capture values",
+                                           node->line);
                     break;
                 }
                 catch (const ContinueSignal &)
@@ -784,6 +801,406 @@ namespace xell
         }
 
         currentEnv_ = savedEnv;
+    }
+
+    // ============================================================
+    // Infinite loop statement:  loop : BLOCK ;
+    // ============================================================
+
+    // Helper: recursively check if a block of statements contains a BreakStmt.
+    // Does NOT descend into nested function definitions (breaks there don't affect this loop).
+    static bool bodyContainsBreak(const std::vector<StmtPtr> &stmts)
+    {
+        for (const auto &s : stmts)
+        {
+            if (dynamic_cast<const BreakStmt *>(s.get()))
+                return true;
+            if (auto *p = dynamic_cast<const IfStmt *>(s.get()))
+            {
+                if (bodyContainsBreak(p->body))
+                    return true;
+                for (const auto &elif : p->elifs)
+                    if (bodyContainsBreak(elif.body))
+                        return true;
+                if (bodyContainsBreak(p->elseBody))
+                    return true;
+            }
+            if (auto *p = dynamic_cast<const ForStmt *>(s.get()))
+                if (bodyContainsBreak(p->body))
+                    return true;
+            if (auto *p = dynamic_cast<const WhileStmt *>(s.get()))
+                if (bodyContainsBreak(p->body))
+                    return true;
+            if (auto *p = dynamic_cast<const LoopStmt *>(s.get()))
+                if (bodyContainsBreak(p->body))
+                    return true;
+            if (auto *p = dynamic_cast<const TryCatchStmt *>(s.get()))
+            {
+                if (bodyContainsBreak(p->tryBody))
+                    return true;
+                if (bodyContainsBreak(p->catchBody))
+                    return true;
+                if (bodyContainsBreak(p->finallyBody))
+                    return true;
+            }
+            if (auto *p = dynamic_cast<const InCaseStmt *>(s.get()))
+            {
+                for (const auto &clause : p->clauses)
+                    if (bodyContainsBreak(clause.body))
+                        return true;
+                if (bodyContainsBreak(p->elseBody))
+                    return true;
+            }
+            if (auto *p = dynamic_cast<const LetStmt *>(s.get()))
+                if (bodyContainsBreak(p->body))
+                    return true;
+            // Don't descend into FnDef, ClassDef — breaks in those are local
+        }
+        return false;
+    }
+
+    void Interpreter::execLoop(const LoopStmt *node)
+    {
+        // @safe_loop: check at runtime that the body contains a break
+        if (node->safeLoop && !bodyContainsBreak(node->body))
+        {
+            throw RuntimeError("@safe_loop: loop body does not contain a 'break' statement; "
+                               "this would cause an infinite loop",
+                               node->line);
+        }
+
+        Environment loopEnv(currentEnv_);
+        auto *savedEnv = currentEnv_;
+        currentEnv_ = &loopEnv;
+
+        try
+        {
+            while (true)
+            {
+                try
+                {
+                    for (const auto &stmt : node->body)
+                    {
+                        exec(stmt.get());
+                    }
+                }
+                catch (const BreakSignal &bs)
+                {
+                    if (bs.hasValue)
+                        throw RuntimeError("Cannot use 'break VALUE' in a statement-mode loop; "
+                                           "use expression-mode (x = loop: ...) to capture values",
+                                           node->line);
+                    break;
+                }
+                catch (const ContinueSignal &)
+                {
+                    continue;
+                }
+            }
+        }
+        catch (...)
+        {
+            currentEnv_ = savedEnv;
+            throw;
+        }
+
+        currentEnv_ = savedEnv;
+    }
+
+    // ============================================================
+    // Expression-mode if: if cond: val elif cond: val else: val
+    // ============================================================
+
+    XObject Interpreter::evalIfExpr(const IfExpr *node)
+    {
+        for (const auto &branch : node->branches)
+        {
+            if (!branch.condition)
+            {
+                // else branch — always taken
+                return eval(branch.value.get());
+            }
+            if (eval(branch.condition.get()).truthy())
+            {
+                return eval(branch.value.get());
+            }
+        }
+        // Should not reach here if parser enforced else branch
+        return XObject::makeNone();
+    }
+
+    // ============================================================
+    // Expression-mode for: x = for i in list: BLOCK give DEFAULT ;
+    // ============================================================
+
+    XObject Interpreter::evalForExpr(const ForExpr *node)
+    {
+        // Reuse the iterable conversion logic from execFor
+        std::vector<XObject> sources;
+        for (const auto &iterExpr : node->iterables)
+            sources.push_back(eval(iterExpr.get()));
+
+        auto toIterable = [&](XObject &src, int line) -> std::vector<XObject>
+        {
+            if (src.isList())
+                return src.asList();
+            if (src.isTuple())
+            {
+                auto &tup = src.asTuple();
+                return std::vector<XObject>(tup.begin(), tup.end());
+            }
+            if (src.isMap())
+            {
+                std::vector<XObject> items;
+                for (auto it = src.asMap().begin(); it.valid(); it.next())
+                {
+                    std::vector<XObject> pair;
+                    pair.push_back(it.key().clone());
+                    pair.push_back(it.value().clone());
+                    items.push_back(XObject::makeList(std::move(pair)));
+                }
+                return items;
+            }
+            if (src.isSet())
+                return src.asSet().elements();
+            if (src.isString())
+            {
+                std::vector<XObject> chars;
+                for (char c : src.asString())
+                    chars.push_back(XObject::makeString(std::string(1, c)));
+                return chars;
+            }
+            if (src.isInstance())
+            {
+                XObject iterResult;
+                std::vector<XObject> iterArgs;
+                if (callMagicMethod(src, "__iter__", iterArgs, line, iterResult))
+                {
+                    if (iterResult.isList())
+                        return iterResult.asList();
+                    if (iterResult.isTuple())
+                    {
+                        auto &tup = iterResult.asTuple();
+                        return std::vector<XObject>(tup.begin(), tup.end());
+                    }
+                    throw TypeError("__iter__ must return a list or tuple", line);
+                }
+                throw IterationError("Object is not iterable (no __iter__ method)", line);
+            }
+            throw TypeError("for expression requires an iterable, got " +
+                                std::string(xtype_name(src.type())),
+                            line);
+        };
+
+        std::vector<std::vector<XObject>> allItems;
+        for (size_t i = 0; i < sources.size(); i++)
+            allItems.push_back(toIterable(sources[i], node->line));
+
+        size_t iterCount = 0;
+        if (!allItems.empty())
+        {
+            iterCount = allItems[0].size();
+            for (size_t i = 1; i < allItems.size(); i++)
+                iterCount = std::min(iterCount, allItems[i].size());
+        }
+
+        const size_t numTargets = node->varNames.size();
+        const size_t numSources = allItems.size();
+
+        Environment loopEnv(currentEnv_);
+        auto *savedEnv = currentEnv_;
+        currentEnv_ = &loopEnv;
+
+        XObject result = XObject::makeNone();
+        bool gotValue = false;
+
+        try
+        {
+            for (size_t i = 0; i < iterCount; i++)
+            {
+                // Bind loop variables (same logic as execFor)
+                if (numSources == 1 && numTargets == 1 && !node->hasRest)
+                {
+                    loopEnv.define(node->varNames[0], allItems[0][i]);
+                }
+                else if (numSources > 1)
+                {
+                    for (size_t t = 0; t < numTargets && t < numSources; t++)
+                        loopEnv.define(node->varNames[t], allItems[t][i]);
+                    if (node->hasRest && numSources > numTargets)
+                    {
+                        std::vector<XObject> rest;
+                        for (size_t t = numTargets; t < numSources; t++)
+                            rest.push_back(allItems[t][i]);
+                        loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+                    }
+                    else if (node->hasRest)
+                        loopEnv.define(node->restName, XObject::makeList({}));
+                }
+                else
+                {
+                    const XObject &elem = allItems[0][i];
+                    std::vector<XObject> inner;
+                    if (elem.isList())
+                        inner = elem.asList();
+                    else if (elem.isTuple())
+                    {
+                        auto &tup = elem.asTuple();
+                        inner = std::vector<XObject>(tup.begin(), tup.end());
+                    }
+                    else
+                        throw TypeError("Cannot destructure in for expression", node->line);
+
+                    for (size_t t = 0; t < numTargets && t < inner.size(); t++)
+                        loopEnv.define(node->varNames[t], inner[t]);
+                    for (size_t t = inner.size(); t < numTargets; t++)
+                        loopEnv.define(node->varNames[t], XObject::makeNone());
+                    if (node->hasRest)
+                    {
+                        std::vector<XObject> rest;
+                        for (size_t t = numTargets; t < inner.size(); t++)
+                            rest.push_back(inner[t]);
+                        loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+                    }
+                }
+
+                try
+                {
+                    for (const auto &stmt : node->body)
+                        exec(stmt.get());
+                }
+                catch (const BreakSignal &bs)
+                {
+                    if (bs.hasValue)
+                    {
+                        result = std::move(const_cast<BreakSignal &>(bs).value);
+                        gotValue = true;
+                    }
+                    break;
+                }
+                catch (const ContinueSignal &)
+                {
+                    continue;
+                }
+            }
+        }
+        catch (...)
+        {
+            currentEnv_ = savedEnv;
+            throw;
+        }
+
+        currentEnv_ = savedEnv;
+
+        if (gotValue)
+            return result;
+        if (node->defaultValue)
+            return eval(node->defaultValue.get());
+        return XObject::makeNone();
+    }
+
+    // ============================================================
+    // Expression-mode while: x = while cond: BLOCK give DEFAULT ;
+    // ============================================================
+
+    XObject Interpreter::evalWhileExpr(const WhileExpr *node)
+    {
+        Environment loopEnv(currentEnv_);
+        auto *savedEnv = currentEnv_;
+        currentEnv_ = &loopEnv;
+
+        XObject result = XObject::makeNone();
+        bool gotValue = false;
+
+        try
+        {
+            while (eval(node->condition.get()).truthy())
+            {
+                try
+                {
+                    for (const auto &stmt : node->body)
+                        exec(stmt.get());
+                }
+                catch (const BreakSignal &bs)
+                {
+                    if (bs.hasValue)
+                    {
+                        result = std::move(const_cast<BreakSignal &>(bs).value);
+                        gotValue = true;
+                    }
+                    break;
+                }
+                catch (const ContinueSignal &)
+                {
+                    continue;
+                }
+            }
+        }
+        catch (...)
+        {
+            currentEnv_ = savedEnv;
+            throw;
+        }
+
+        currentEnv_ = savedEnv;
+
+        if (gotValue)
+            return result;
+        if (node->defaultValue)
+            return eval(node->defaultValue.get());
+        return XObject::makeNone();
+    }
+
+    // ============================================================
+    // Expression-mode loop: x = loop: BLOCK give DEFAULT ;
+    // ============================================================
+
+    XObject Interpreter::evalLoopExpr(const LoopExpr *node)
+    {
+        Environment loopEnv(currentEnv_);
+        auto *savedEnv = currentEnv_;
+        currentEnv_ = &loopEnv;
+
+        XObject result = XObject::makeNone();
+        bool gotValue = false;
+
+        try
+        {
+            while (true)
+            {
+                try
+                {
+                    for (const auto &stmt : node->body)
+                        exec(stmt.get());
+                }
+                catch (const BreakSignal &bs)
+                {
+                    if (bs.hasValue)
+                    {
+                        result = std::move(const_cast<BreakSignal &>(bs).value);
+                        gotValue = true;
+                    }
+                    break;
+                }
+                catch (const ContinueSignal &)
+                {
+                    continue;
+                }
+            }
+        }
+        catch (...)
+        {
+            currentEnv_ = savedEnv;
+            throw;
+        }
+
+        currentEnv_ = savedEnv;
+
+        if (gotValue)
+            return result;
+        if (node->defaultValue)
+            return eval(node->defaultValue.get());
+        return XObject::makeNone();
     }
 
     void Interpreter::execFnDef(const FnDef *node)
@@ -1127,6 +1544,16 @@ namespace xell
             return evalAwait(p);
         if (auto *p = dynamic_cast<const BytesLiteral *>(expr))
             return evalBytes(p);
+
+        // Expression-mode constructs
+        if (auto *p = dynamic_cast<const IfExpr *>(expr))
+            return evalIfExpr(p);
+        if (auto *p = dynamic_cast<const ForExpr *>(expr))
+            return evalForExpr(p);
+        if (auto *p = dynamic_cast<const WhileExpr *>(expr))
+            return evalWhileExpr(p);
+        if (auto *p = dynamic_cast<const LoopExpr *>(expr))
+            return evalLoopExpr(p);
 
         throw NotImplementedError("unknown expression node", expr->line);
     }
@@ -3597,10 +4024,11 @@ namespace xell
                 XObject enterResult;
                 if (!callMagicMethod(resource, "__enter__", noArgs, binding.line, enterResult))
                     throw TypeError("let ... be requires __enter__ on '" +
-                                    (resource.asInstance().structDef
-                                         ? resource.asInstance().structDef->name
-                                         : std::string("unknown")) +
-                                    "'", binding.line);
+                                        (resource.asInstance().structDef
+                                             ? resource.asInstance().structDef->name
+                                             : std::string("unknown")) +
+                                        "'",
+                                    binding.line);
 
                 // Check __exit__ exists too (fail early)
                 const XInstance &inst = resource.asInstance();
@@ -3609,7 +4037,8 @@ namespace xell
                     auto [mi, _] = inst.structDef->findMethodWithOwner("__exit__");
                     if (!mi)
                         throw TypeError("let ... be requires __exit__ on '" +
-                                        inst.structDef->name + "'", binding.line);
+                                            inst.structDef->name + "'",
+                                        binding.line);
                 }
 
                 // Track the resource for cleanup

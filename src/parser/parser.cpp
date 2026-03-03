@@ -74,7 +74,7 @@ namespace xell
 
     bool Parser::canStartPrimary(TokenType type) const
     {
-        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::BYTE_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::LESS || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS || type == TokenType::YIELD || type == TokenType::AWAIT || type == TokenType::TILDE;
+        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::BYTE_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::LESS || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS || type == TokenType::YIELD || type == TokenType::AWAIT || type == TokenType::TILDE || type == TokenType::IF || type == TokenType::FOR || type == TokenType::WHILE || type == TokenType::LOOP;
     }
 
     // ============================================================
@@ -155,6 +155,7 @@ namespace xell
             case TokenType::TRY:
             case TokenType::INCASE:
             case TokenType::LET:
+            case TokenType::LOOP:
             case TokenType::ENUM:
             case TokenType::ASYNC:
             case TokenType::AT:
@@ -176,7 +177,7 @@ namespace xell
     // Block: parse statements until ';'
     // ============================================================
 
-    std::vector<StmtPtr> Parser::parseBlock(bool stopAtElifElse)
+    std::vector<StmtPtr> Parser::parseBlock(bool stopAtElifElse, bool stopAtGive)
     {
         std::vector<StmtPtr> stmts;
         skipNewlines();
@@ -185,6 +186,9 @@ namespace xell
             // If we're inside an if/elif block, also stop when we see elif/else
             if (stopAtElifElse &&
                 (check(TokenType::ELIF) || check(TokenType::ELSE)))
+                break;
+            // If we're inside an expression-mode loop, stop when we see give (default value)
+            if (stopAtGive && check(TokenType::GIVE))
                 break;
             stmts.push_back(parseStatement());
             skipNewlines();
@@ -209,6 +213,8 @@ namespace xell
             return parseForStmt();
         if (type == TokenType::WHILE)
             return parseWhileStmt();
+        if (type == TokenType::LOOP)
+            return parseLoopStmt();
         if (type == TokenType::FN)
             return parseFnDef();
         if (type == TokenType::GIVE)
@@ -217,8 +223,16 @@ namespace xell
         {
             int ln = current().line;
             advance(); // consume break
+            // Check if there's a value expression following (break VALUE)
+            ExprPtr breakVal = nullptr;
+            skipNewlines();
+            if (!check(TokenType::NEWLINE) && !check(TokenType::SEMICOLON) &&
+                !check(TokenType::EOF_TOKEN) && canStartPrimary(current().type))
+            {
+                breakVal = parseExpression();
+            }
             consumeStatementEnd();
-            return std::make_unique<BreakStmt>(ln);
+            return std::make_unique<BreakStmt>(std::move(breakVal), ln);
         }
         if (type == TokenType::CONTINUE)
         {
@@ -693,6 +707,22 @@ namespace xell
         consume(TokenType::SEMICOLON, "Expected ';' to close while block");
 
         return std::make_unique<WhileStmt>(std::move(condition), std::move(body), ln);
+    }
+
+    // ============================================================
+    // Infinite loop statement:  loop : BLOCK ;
+    // ============================================================
+
+    StmtPtr Parser::parseLoopStmt()
+    {
+        int ln = current().line;
+        advance(); // consume LOOP
+
+        consume(TokenType::COLON, "Expected ':' after 'loop'");
+        auto body = parseBlock();
+        consume(TokenType::SEMICOLON, "Expected ';' to close loop block");
+
+        return std::make_unique<LoopStmt>(std::move(body), /*safeLoop=*/false, ln);
     }
 
     // ============================================================
@@ -1535,6 +1565,23 @@ namespace xell
             return std::make_unique<DecoratedClassDef>(std::move(decorators), std::move(classDef), ln);
         }
 
+        // @safe_loop on loop statement
+        if (check(TokenType::LOOP))
+        {
+            bool hasSafeLoop = false;
+            for (const auto &dec : decorators)
+            {
+                if (dec == "safe_loop")
+                    hasSafeLoop = true;
+                else
+                    throw ParseError("Unknown decorator '@" + dec + "' for loop statement; only @safe_loop is supported", ln);
+            }
+            auto loopStmt = parseLoopStmt();
+            auto loopDef = std::unique_ptr<LoopStmt>(static_cast<LoopStmt *>(loopStmt.release()));
+            loopDef->safeLoop = hasSafeLoop;
+            return loopDef;
+        }
+
         // Expect fn or async fn
         bool isAsync = false;
         if (check(TokenType::ASYNC))
@@ -1545,7 +1592,7 @@ namespace xell
         }
 
         if (!check(TokenType::FN))
-            throw ParseError("Expected 'fn', 'class', 'abstract', or 'mixin' after decorator(s)", current().line);
+            throw ParseError("Expected 'fn', 'class', 'abstract', 'mixin', or 'loop' after decorator(s)", current().line);
 
         auto fnStmt = parseFnDef(isAsync);
         auto fnDef = std::unique_ptr<FnDef>(static_cast<FnDef *>(fnStmt.release()));
@@ -2153,6 +2200,164 @@ namespace xell
             }
 
             return parsePostfix(std::make_unique<Identifier>(std::move(name), ln));
+        }
+
+        // ---- Expression-mode if/elif/else ----
+        // x = if cond: value elif cond: value else: value ;
+        if (check(TokenType::IF))
+        {
+            advance(); // consume IF
+            std::vector<IfExprBranch> branches;
+
+            // First if branch
+            auto cond = parseExpression();
+            consume(TokenType::COLON, "Expected ':' after if condition in expression");
+            auto val = parseExpression();
+            branches.push_back({std::move(cond), std::move(val), ln});
+
+            // elif branches
+            while (check(TokenType::ELIF))
+            {
+                int elifLn = current().line;
+                advance(); // consume ELIF
+                auto elifCond = parseExpression();
+                consume(TokenType::COLON, "Expected ':' after elif condition in expression");
+                auto elifVal = parseExpression();
+                branches.push_back({std::move(elifCond), std::move(elifVal), elifLn});
+            }
+
+            // else branch (required for expression-mode)
+            if (!check(TokenType::ELSE))
+                throw ParseError("Expression-mode if requires an 'else' branch", ln);
+            int elseLn = current().line;
+            advance(); // consume ELSE
+            consume(TokenType::COLON, "Expected ':' after 'else' in expression");
+            auto elseVal = parseExpression();
+            branches.push_back({nullptr, std::move(elseVal), elseLn}); // nullptr condition = else
+
+            return parsePostfix(std::make_unique<IfExpr>(std::move(branches), ln));
+        }
+
+        // ---- Expression-mode for loop ----
+        // x = for i in list: BLOCK give DEFAULT ;
+        if (check(TokenType::FOR))
+        {
+            advance(); // consume FOR
+
+            // Parse targets
+            std::vector<std::string> varNames;
+            bool hasRest = false;
+            std::string restName;
+
+            if (check(TokenType::ELLIPSIS))
+            {
+                advance();
+                restName = consume(TokenType::IDENTIFIER, "Expected variable name after '...'").value;
+                hasRest = true;
+            }
+            else
+            {
+                varNames.push_back(consume(TokenType::IDENTIFIER, "Expected loop variable name after 'for'").value);
+            }
+
+            while (!hasRest && check(TokenType::COMMA))
+            {
+                auto nextTok = peekToken(1);
+                if (nextTok.type == TokenType::ELLIPSIS)
+                {
+                    advance();
+                    advance();
+                    restName = consume(TokenType::IDENTIFIER, "Expected variable name after '...'").value;
+                    hasRest = true;
+                    break;
+                }
+                else if (nextTok.type == TokenType::IDENTIFIER)
+                {
+                    auto afterIdent = peekToken(2);
+                    if (afterIdent.type == TokenType::COMMA || afterIdent.type == TokenType::IN)
+                    {
+                        advance();
+                        varNames.push_back(consume(TokenType::IDENTIFIER, "Expected variable name").value);
+                    }
+                    else
+                        break;
+                }
+                else
+                    break;
+            }
+
+            consume(TokenType::IN, "Expected 'in' after for expression variable(s)");
+
+            std::vector<ExprPtr> iterables;
+            iterables.push_back(parseExpression());
+            while (check(TokenType::COMMA))
+            {
+                advance();
+                iterables.push_back(parseExpression());
+            }
+
+            consume(TokenType::COLON, "Expected ':' after for expression iterable");
+            auto body = parseBlock(false, true);
+
+            // Parse optional give DEFAULT before ;
+            ExprPtr defaultValue = nullptr;
+            if (check(TokenType::GIVE))
+            {
+                advance(); // consume give
+                defaultValue = parseExpression();
+                consumeStatementEnd(); // consume trailing .
+            }
+
+            consume(TokenType::SEMICOLON, "Expected ';' to close for expression");
+
+            return parsePostfix(std::make_unique<ForExpr>(
+                std::move(varNames), std::move(iterables), std::move(body),
+                std::move(defaultValue), hasRest, std::move(restName), ln));
+        }
+
+        // ---- Expression-mode while loop ----
+        // x = while cond: BLOCK give DEFAULT ;
+        if (check(TokenType::WHILE))
+        {
+            advance(); // consume WHILE
+            auto condition = parseExpression();
+            consume(TokenType::COLON, "Expected ':' after while condition in expression");
+            auto body = parseBlock(false, true);
+
+            ExprPtr defaultValue = nullptr;
+            if (check(TokenType::GIVE))
+            {
+                advance();
+                defaultValue = parseExpression();
+                consumeStatementEnd();
+            }
+
+            consume(TokenType::SEMICOLON, "Expected ';' to close while expression");
+
+            return parsePostfix(std::make_unique<WhileExpr>(
+                std::move(condition), std::move(body), std::move(defaultValue), ln));
+        }
+
+        // ---- Expression-mode loop ----
+        // x = loop: BLOCK give DEFAULT ;
+        if (check(TokenType::LOOP))
+        {
+            advance(); // consume LOOP
+            consume(TokenType::COLON, "Expected ':' after 'loop' in expression");
+            auto body = parseBlock(false, true);
+
+            ExprPtr defaultValue = nullptr;
+            if (check(TokenType::GIVE))
+            {
+                advance();
+                defaultValue = parseExpression();
+                consumeStatementEnd();
+            }
+
+            consume(TokenType::SEMICOLON, "Expected ';' to close loop expression");
+
+            return parsePostfix(std::make_unique<LoopExpr>(
+                std::move(body), std::move(defaultValue), ln));
         }
 
         throw ParseError("Unexpected token: " + tokenTypeToString(current().type) +

@@ -64,7 +64,8 @@ namespace xell
         StmtPtr parseInterfaceDef();
         StmtPtr parseDecoratedFnDef();
         StmtPtr parseLetStmt();
-        std::vector<StmtPtr> parseBlock(bool stopAtElifElse = false);
+        StmtPtr parseLoopStmt();
+        std::vector<StmtPtr> parseBlock(bool stopAtElifElse = false, bool stopAtGive = false);
 
         // Expressions (precedence climbing)
         ExprPtr parseExpression();

@@ -28,6 +28,7 @@ namespace xell
             {"incase", TokenType::INCASE},
             {"let", TokenType::LET},
             {"be", TokenType::BE},
+            {"loop", TokenType::LOOP},
 
             // Import
             {"bring", TokenType::BRING},

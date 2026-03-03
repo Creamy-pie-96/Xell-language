@@ -34,8 +34,9 @@ namespace xell
         CATCH,
         FINALLY,
         INCASE,
-        LET, // let ... be (RAII / context manager)
-        BE,  // let ... be (RAII / context manager)
+        LET,  // let ... be (RAII / context manager)
+        BE,   // let ... be (RAII / context manager)
+        LOOP, // loop : ... ; (infinite loop)
 
         // Import keywords
         BRING,
@@ -173,6 +174,7 @@ namespace xell
             {(int)TokenType::INCASE, "INCASE"},
             {(int)TokenType::LET, "LET"},
             {(int)TokenType::BE, "BE"},
+            {(int)TokenType::LOOP, "LOOP"},
             {(int)TokenType::BRING, "BRING"},
             {(int)TokenType::FROM, "FROM"},
             {(int)TokenType::AS, "AS"},

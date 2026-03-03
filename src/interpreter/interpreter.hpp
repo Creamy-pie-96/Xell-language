@@ -42,6 +42,8 @@ namespace xell
 
     struct BreakSignal
     {
+        XObject value;         // value carried out of expression-mode loops
+        bool hasValue = false; // true when break VALUE was used
     };
     struct ContinueSignal
     {
@@ -133,6 +135,7 @@ namespace xell
         void execIf(const IfStmt *node);
         void execFor(const ForStmt *node);
         void execWhile(const WhileStmt *node);
+        void execLoop(const LoopStmt *node);
         void execFnDef(const FnDef *node);
         void execGive(const GiveStmt *node);
         void execExprStmt(const ExprStmt *node);
@@ -165,6 +168,10 @@ namespace xell
         XObject evalFrozenSet(const FrozenSetLiteral *node);
         XObject evalMap(const MapLiteral *node);
         XObject evalTernary(const TernaryExpr *node);
+        XObject evalIfExpr(const IfExpr *node);
+        XObject evalForExpr(const ForExpr *node);
+        XObject evalWhileExpr(const WhileExpr *node);
+        XObject evalLoopExpr(const LoopExpr *node);
         XObject evalLambda(const LambdaExpr *node);
         XObject evalSpread(const SpreadExpr *node);
         XObject evalYield(const YieldExpr *node);
