@@ -67,8 +67,7 @@ namespace xterm
             : theme_(theme)
         {
             loadThemeColors();
-            // Start with one empty tab
-            newFile();
+            // Start with no tabs — user opens files from file tree
         }
 
         // ── File operations ─────────────────────────────────────────
@@ -453,6 +452,59 @@ namespace xterm
 
         void setShowTabBar(bool show) { showTabBar_ = show; }
         void setStatusMessage(const std::string &msg) { statusMessage_ = msg; }
+
+        // Go to a specific line (0-based)
+        void goToLine(int line)
+        {
+            auto view = activeView();
+            if (!view || activeTab_ < 0)
+                return;
+            auto &buf = *tabs_[activeTab_].buffer;
+            line = std::max(0, std::min(line, buf.lineCount() - 1));
+            view->setCursor({line, 0});
+            statusMessage_ = "Line " + std::to_string(line + 1);
+        }
+
+        // Check if editor has a selection
+        bool hasSelection() const
+        {
+            auto view = activeView();
+            return view && view->selection().active;
+        }
+
+        // Get selected text (empty if no selection)
+        std::string getSelectedText() const
+        {
+            auto view = activeView();
+            if (!view || activeTab_ < 0)
+                return "";
+            return view->getSelectedText();
+        }
+
+        // Get the text buffer for regex searching
+        const TextBuffer *activeBuffer() const
+        {
+            if (activeTab_ >= 0 && activeTab_ < (int)tabs_.size())
+                return tabs_[activeTab_].buffer.get();
+            return nullptr;
+        }
+
+        // Get mutable buffer (for replace operations)
+        TextBuffer *activeBufferMut()
+        {
+            if (activeTab_ >= 0 && activeTab_ < (int)tabs_.size())
+                return tabs_[activeTab_].buffer.get();
+            return nullptr;
+        }
+
+        // Set cursor to specific row/col and ensure visible
+        void setCursorPosition(int row, int col)
+        {
+            auto view = activeView();
+            if (!view)
+                return;
+            view->setCursor({row, col});
+        }
 
         std::string getCurrentFilePath() const
         {

@@ -27,6 +27,9 @@
 #include <sstream>
 #include <algorithm>
 #include <fstream>
+#include <atomic>
+#include <thread>
+#include <mutex>
 #include "../terminal/types.hpp"
 #include "../theme/theme_loader.hpp"
 #include "panel.hpp"
@@ -39,6 +42,7 @@
 #else
 #include <sys/wait.h>
 #include <unistd.h>
+#include <signal.h>
 #endif
 
 namespace xterm
@@ -77,32 +81,85 @@ namespace xterm
         OUTPUT,
         DIAGNOSTICS,
         VARIABLES,
+        HELP,
     };
 
     // ─── Shell output capture utility ────────────────────────────────────
 
+    // Atomic PID of the currently running child process (0 if none).
+    // Used by killRunningProcess() to send SIGKILL for emergency stop.
+    static inline std::atomic<pid_t> runningChildPid_{0};
+
     static inline std::string captureCommand(const std::string &cmd, int &exitCode)
     {
         std::string result;
-        std::string fullCmd = cmd + " 2>&1";
-        FILE *fp = popen(fullCmd.c_str(), "r");
-        if (!fp)
+        // Use fork/exec so we can track PID for emergency kill
+        int pipeOut[2];
+        if (pipe(pipeOut) != 0)
         {
             exitCode = -1;
-            return "[failed to execute: " + cmd + "]";
+            return "[failed to create pipe]";
         }
+        pid_t pid = fork();
+        if (pid < 0)
+        {
+            exitCode = -1;
+            return "[failed to fork]";
+        }
+        if (pid == 0)
+        {
+            // Child — create new process group so we can kill all descendants
+            setsid();
+            close(pipeOut[0]);
+            dup2(pipeOut[1], STDOUT_FILENO);
+            dup2(pipeOut[1], STDERR_FILENO);
+            close(pipeOut[1]);
+            execl("/bin/sh", "sh", "-c", cmd.c_str(), nullptr);
+            _exit(127);
+        }
+        // Parent
+        close(pipeOut[1]);
+        runningChildPid_.store(pid);
+
         char buf[4096];
-        while (fgets(buf, sizeof(buf), fp))
-            result += buf;
-        exitCode = pclose(fp);
-#ifndef _WIN32
-        if (WIFEXITED(exitCode))
-            exitCode = WEXITSTATUS(exitCode);
-#endif
+        ssize_t n;
+        while ((n = read(pipeOut[0], buf, sizeof(buf))) > 0)
+            result.append(buf, n);
+        close(pipeOut[0]);
+
+        int status = 0;
+        waitpid(pid, &status, 0);
+        runningChildPid_.store(0);
+        exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
         // Strip trailing newline
         while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
             result.pop_back();
         return result;
+    }
+
+    /// Kill the running child process (emergency stop)
+    /// Returns true if a process was actually killed.
+    static inline bool killRunningProcess()
+    {
+        pid_t pid = runningChildPid_.load();
+        if (pid > 0)
+        {
+            // Kill the entire session group (setsid was called in child)
+            // -pid kills the process group led by pid
+            kill(-pid, SIGTERM); // Try graceful first
+            kill(pid, SIGTERM);
+            // Give a tiny moment, then SIGKILL
+            usleep(50000); // 50ms
+            kill(-pid, SIGKILL);
+            int ret = kill(pid, SIGKILL);
+            // Reap to prevent zombie
+            int status = 0;
+            waitpid(pid, &status, WNOHANG);
+            runningChildPid_.store(0);
+            return true; // we attempted kill on a real PID
+        }
+        return false; // nothing was running
     }
 
     // Pipe a string to a command's stdin and capture its stdout+stderr.
@@ -277,8 +334,13 @@ namespace xterm
                 result.output.clear();
             }
 
-            // Add to history
-            history_.push_back(code);
+            // Add to history (split multiline code into individual lines)
+            {
+                std::istringstream lineStream(code);
+                std::string singleLine;
+                while (std::getline(lineStream, singleLine))
+                    history_.push_back(singleLine);
+            }
 
             // Parse variables (ask xell to dump vars)
             result.variables = inspectVariables();
@@ -498,6 +560,12 @@ namespace xterm
             loadColors();
         }
 
+        ~REPLPanel()
+        {
+            if (execThread_.joinable())
+                execThread_.join();
+        }
+
         PanelType type() const override { return PanelType::REPL; }
         std::string title() const override { return "REPL"; }
 
@@ -509,14 +577,24 @@ namespace xterm
         void cycleTab()
         {
             int t = static_cast<int>(activeTab_);
-            t = (t + 1) % 4;
+            t = (t + 1) % 5;
             activeTab_ = static_cast<BottomTab>(t);
         }
 
-        // ── Run selection in REPL (Ctrl+Enter) ──────────────────────
+        // Clear output log
+        void clearOutput()
+        {
+            fileOutputLog_.clear();
+            fileScrollOffset_ = 0;
+        }
+
+        // ── Run selection in REPL (Ctrl+Enter) — async ────────────────
 
         void runCode(const std::string &code)
         {
+            if (isExecuting_.load())
+                return; // Already running
+
             // Clear previous output for a fresh run
             fileOutputLog_.clear();
 
@@ -530,22 +608,104 @@ namespace xterm
                 for (char c : code)
                     if (c == '\n')
                         lineCount++;
-                header.text = "[Running " + std::to_string(lineCount) + " lines to cursor]";
+                header.text = "⏳ [Running " + std::to_string(lineCount) + " lines to cursor]";
             }
             else
             {
-                header.text = "[Running: " + firstLine + "]";
+                header.text = "⏳ [Running: " + firstLine + "]";
             }
             header.kind = REPLLine::INFO;
             fileOutputLog_.push_back(header);
 
-            // Execute — clear session history since we run the full code from top
-            session_.clearHistory();
-            auto result = session_.executeCode(code);
+            // Switch to output tab so user sees the running indicator
+            activeTab_ = BottomTab::OUTPUT;
+            fileScrollOffset_ = 0;
+
+            isExecuting_.store(true);
+
+            // Join any previous thread
+            if (execThread_.joinable())
+                execThread_.join();
+
+            execThread_ = std::thread([this, code]()
+                                      {
+                session_.clearHistory();
+                auto result = session_.executeCode(code);
+                {
+                    std::lock_guard<std::mutex> lock(execMutex_);
+                    pendingResult_ = result;
+                    resultReady_.store(true);
+                }
+                isExecuting_.store(false); });
+        }
+
+        // ── Run file (Ctrl+Shift+B) — async ─────────────────────────
+
+        void runFile(const std::string &filePath)
+        {
+            if (isExecuting_.load())
+                return;
+
+            fileOutputLog_.clear();
+
+            REPLLine header;
+            header.text = "⏳ [Running: " + std::filesystem::path(filePath).filename().string() + "]";
+            header.kind = REPLLine::INFO;
+            fileOutputLog_.push_back(header);
+
+            // Switch to output tab so user sees the running indicator
+            activeTab_ = BottomTab::OUTPUT;
+            fileScrollOffset_ = 0;
+
+            isExecuting_.store(true);
+
+            if (execThread_.joinable())
+                execThread_.join();
+
+            execThread_ = std::thread([this, filePath]()
+                                      {
+                auto result = session_.runFile(filePath);
+                {
+                    std::lock_guard<std::mutex> lock(execMutex_);
+                    pendingResult_ = result;
+                    resultReady_.store(true);
+                }
+                isExecuting_.store(false); });
+        }
+
+        // Check if code is currently executing
+        bool isExecuting() const { return isExecuting_.load(); }
+
+        // Poll for async execution results (called from tick or render)
+        void pollAsyncResult()
+        {
+            if (!resultReady_.load())
+                return;
+
+            REPLSession::ExecResult result;
+            {
+                std::lock_guard<std::mutex> lock(execMutex_);
+                result = std::move(pendingResult_);
+                resultReady_.store(false);
+            }
+
+            // Update header to remove spinner
+            if (!fileOutputLog_.empty() && fileOutputLog_[0].kind == REPLLine::INFO)
+            {
+                auto &hdr = fileOutputLog_[0].text;
+                // ⏳ is 3 bytes in UTF-8: e2 8f b3
+                if (hdr.size() > 3 && hdr.substr(0, 3) == "\xe2\x8f\xb3")
+                {
+                    std::string rest = hdr.substr(3); // " [Running ...]"
+                    if (result.exitCode == 0)
+                        hdr = "\xe2\x9c\x93" + rest; // ✓
+                    else
+                        hdr = "\xe2\x9c\x97" + rest; // ✗
+                }
+            }
 
             if (!result.output.empty())
             {
-                // Split multi-line output
                 std::string line;
                 for (char c : result.output)
                 {
@@ -579,87 +739,15 @@ namespace xterm
                 fileOutputLog_.push_back(err);
             }
 
-            variables_ = result.variables;
-        }
-
-        // ── Run file (Ctrl+Shift+B) ─────────────────────────────────
-
-        void runFile(const std::string &filePath)
-        {
-            fileOutputLog_.clear();
-
-            REPLLine header;
-            header.text = "[Running: " + std::filesystem::path(filePath).filename().string() + "]";
-            header.kind = REPLLine::INFO;
-            fileOutputLog_.push_back(header);
-
-            auto result = session_.runFile(filePath);
-
-            if (!result.output.empty())
-            {
-                // Split multi-line output
-                std::string line;
-                for (char c : result.output)
-                {
-                    if (c == '\n')
-                    {
-                        REPLLine out;
-                        out.text = line;
-                        out.kind = REPLLine::OUTPUT;
-                        fileOutputLog_.push_back(out);
-                        line.clear();
-                    }
-                    else
-                    {
-                        line += c;
-                    }
-                }
-                if (!line.empty())
-                {
-                    REPLLine out;
-                    out.text = line;
-                    out.kind = REPLLine::OUTPUT;
-                    fileOutputLog_.push_back(out);
-                }
-            }
-
-            if (!result.errors.empty())
-            {
-                std::string line;
-                for (char c : result.errors)
-                {
-                    if (c == '\n')
-                    {
-                        REPLLine err;
-                        err.text = line;
-                        err.kind = REPLLine::ERROR;
-                        fileOutputLog_.push_back(err);
-                        line.clear();
-                    }
-                    else
-                    {
-                        line += c;
-                    }
-                }
-                if (!line.empty())
-                {
-                    REPLLine err;
-                    err.text = line;
-                    err.kind = REPLLine::ERROR;
-                    fileOutputLog_.push_back(err);
-                }
-            }
-
+            // Exit code footer
             REPLLine footer;
             footer.text = "[Exit code: " + std::to_string(result.exitCode) + "]";
             footer.kind = (result.exitCode == 0) ? REPLLine::INFO : REPLLine::ERROR;
             fileOutputLog_.push_back(footer);
 
-            // Populate variables from file run
             variables_ = result.variables;
 
-            // Switch to output tab
-            activeTab_ = BottomTab::OUTPUT;
+            // Auto-scroll to bottom
             fileScrollOffset_ = std::max(0, (int)fileOutputLog_.size() - contentHeight());
         }
 
@@ -697,6 +785,16 @@ namespace xterm
         void setDiagnosticLines(const std::vector<std::string> &lines)
         {
             diagnosticLines_ = lines;
+        }
+
+        // Append a single line to the output log (for emergency stop messages, etc.)
+        void appendOutputLine(const std::string &text, REPLLine::Kind kind)
+        {
+            REPLLine line;
+            line.text = text;
+            line.kind = kind;
+            fileOutputLog_.push_back(line);
+            fileScrollOffset_ = std::max(0, (int)fileOutputLog_.size() - contentHeight());
         }
 
         // ── Command input (terminal tab) ─────────────────────────────
@@ -747,12 +845,53 @@ namespace xterm
 
         // ── Mouse handling ───────────────────────────────────────────
 
-        bool handleMouseClick(int row, int /*col*/, bool /*shift*/) override
+        bool handleMouseClick(int row, int col, bool /*shift*/) override
         {
             // Row 0 = tab bar — handled by LayoutManager's handleBottomTabClick
-            // Other rows = content area (click to focus, future: select text)
             if (row == 0)
                 return false; // let parent handle tab bar
+
+            // Terminal tab scrollbar click (last column)
+            if (activeTab_ == BottomTab::TERMINAL && col == rect_.w - 1 && row > 0 && embeddedTerm_)
+            {
+                int totalScrollback = embeddedTerm_->scrollbackSize();
+                if (totalScrollback > 0)
+                {
+                    int termH = rect_.h - 1;
+                    int clickPos = row - 1; // relative to track
+                    // Map click position to scroll offset
+                    // clickPos=0 → max scroll (top of scrollback), clickPos=termH-1 → scroll 0 (bottom)
+                    int scrollOff = totalScrollback * (termH - 1 - clickPos) / std::max(1, termH - 1);
+                    scrollOff = std::max(0, std::min(scrollOff, totalScrollback));
+                    // Need to set it directly — expose via a method
+                    // For now, use scrollUp/scrollDown to approximate
+                    int currentOff = embeddedTerm_->scrollOffset();
+                    int diff = scrollOff - currentOff;
+                    if (diff > 0)
+                        embeddedTerm_->scrollUp(diff);
+                    else if (diff < 0)
+                        embeddedTerm_->scrollDown(-diff);
+                }
+                return true;
+            }
+
+            // Non-terminal scrollbar click (last column)
+            if (activeTab_ != BottomTab::TERMINAL && col == rect_.w - 1 && row > 0)
+            {
+                int totalLines = activeContentLines();
+                int visibleH = contentHeight();
+                if (totalLines > visibleH)
+                {
+                    int trackH = rect_.h - 1;
+                    int clickPos = row - 1; // relative to track
+                    int maxScroll = std::max(1, totalLines - visibleH);
+                    int &offset = activeScrollOffset();
+                    offset = clickPos * maxScroll / std::max(1, trackH);
+                    offset = std::max(0, std::min(offset, maxScroll));
+                }
+                return true;
+            }
+
             // Click in content area — just consume the event
             return true;
         }
@@ -761,19 +900,65 @@ namespace xterm
         {
             if (activeTab_ == BottomTab::TERMINAL)
             {
-                scrollOffset_ -= delta * 3;
-                scrollOffset_ = std::max(0, scrollOffset_);
-                int maxScroll = std::max(0, (int)outputLog_.size() - (rect_.h - 2));
-                scrollOffset_ = std::min(scrollOffset_, maxScroll);
+                // Forward scroll to embedded terminal scrollback
+                if (embeddedTerm_ && embeddedTerm_->isRunning())
+                {
+                    if (delta > 0)
+                        embeddedTerm_->scrollUp(delta * 3);
+                    else
+                        embeddedTerm_->scrollDown(-delta * 3);
+                }
+                return true;
             }
-            else if (activeTab_ == BottomTab::OUTPUT)
-            {
-                fileScrollOffset_ -= delta * 3;
-                fileScrollOffset_ = std::max(0, fileScrollOffset_);
-                int maxScroll = std::max(0, (int)fileOutputLog_.size() - (rect_.h - 2));
-                fileScrollOffset_ = std::min(fileScrollOffset_, maxScroll);
-            }
+            // All other tabs use the generic scroll system
+            int &offset = activeScrollOffset();
+            offset -= delta * 3;
+            offset = std::max(0, offset);
+            int maxScroll = std::max(0, activeContentLines() - contentHeight());
+            offset = std::min(offset, maxScroll);
             return true;
+        }
+
+        // Handle scrollbar drag (called from layout manager on mouse motion with button held)
+        void handleScrollbarDrag(int localRow)
+        {
+            if (localRow <= 0)
+                return;
+
+            if (activeTab_ == BottomTab::TERMINAL)
+            {
+                if (embeddedTerm_)
+                {
+                    int totalScrollback = embeddedTerm_->scrollbackSize();
+                    if (totalScrollback > 0)
+                    {
+                        int termH = rect_.h - 1;
+                        int clickPos = localRow - 1;
+                        int scrollOff = totalScrollback * (termH - 1 - clickPos) / std::max(1, termH - 1);
+                        scrollOff = std::max(0, std::min(scrollOff, totalScrollback));
+                        int currentOff = embeddedTerm_->scrollOffset();
+                        int diff = scrollOff - currentOff;
+                        if (diff > 0)
+                            embeddedTerm_->scrollUp(diff);
+                        else if (diff < 0)
+                            embeddedTerm_->scrollDown(-diff);
+                    }
+                }
+            }
+            else
+            {
+                int totalLines = activeContentLines();
+                int visibleH = contentHeight();
+                if (totalLines > visibleH)
+                {
+                    int trackH = rect_.h - 1;
+                    int clickPos = localRow - 1;
+                    int maxScroll = std::max(1, totalLines - visibleH);
+                    int &offset = activeScrollOffset();
+                    offset = clickPos * maxScroll / std::max(1, trackH);
+                    offset = std::max(0, std::min(offset, maxScroll));
+                }
+            }
         }
 
         // ── Keyboard handling ────────────────────────────────────────
@@ -791,6 +976,13 @@ namespace xterm
             if (key.sym == SDLK_TAB && ctrl)
             {
                 cycleTab();
+                return true;
+            }
+
+            // Ctrl+L — clear output when on OUTPUT tab
+            if (ctrl && key.sym == SDLK_l && activeTab_ == BottomTab::OUTPUT)
+            {
+                clearOutput();
                 return true;
             }
 
@@ -872,7 +1064,18 @@ namespace xterm
             case BottomTab::VARIABLES:
                 renderVariables(cells, w, h);
                 break;
+            case BottomTab::HELP:
+                renderHelp(cells, w, h);
+                break;
             }
+
+            // Scrollbar for non-terminal tabs
+            if (activeTab_ != BottomTab::TERMINAL)
+                renderScrollbar(cells, w, h);
+
+            // Scrollbar for terminal (based on scrollback)
+            if (activeTab_ == BottomTab::TERMINAL && embeddedTerm_)
+                renderTerminalScrollbar(cells, w, h);
 
             return cells;
         }
@@ -919,9 +1122,21 @@ namespace xterm
 
         // Variable inspector
         mutable std::vector<VarEntry> variables_;
+        mutable int varScrollOffset_ = 0;
+
+        // Async execution state
+        mutable std::thread execThread_;
+        mutable std::mutex execMutex_;
+        mutable std::atomic<bool> isExecuting_{false};
+        mutable std::atomic<bool> resultReady_{false};
+        mutable REPLSession::ExecResult pendingResult_;
 
         // Diagnostics
         mutable std::vector<std::string> diagnosticLines_;
+        mutable int diagScrollOffset_ = 0;
+
+        // Help tab scroll
+        mutable int helpScrollOffset_ = 0;
 
         // Ghost text
         mutable GhostText ghostText_;
@@ -951,30 +1166,58 @@ namespace xterm
             borderColor_ = getUIColor(theme_, "panel_border", borderColor_);
         }
 
-        int contentHeight() const { return std::max(1, rect_.h - 2); } // -1 tab, -1 input
+        int contentHeight() const { return std::max(1, rect_.h - 1); } // -1 for tab bar
+
+        // Get the current scroll offset and max scroll for the active tab
+        int &activeScrollOffset() const
+        {
+            switch (activeTab_)
+            {
+            case BottomTab::TERMINAL:
+                return scrollOffset_;
+            case BottomTab::OUTPUT:
+                return fileScrollOffset_;
+            case BottomTab::DIAGNOSTICS:
+                return diagScrollOffset_;
+            case BottomTab::VARIABLES:
+                return varScrollOffset_;
+            case BottomTab::HELP:
+                return helpScrollOffset_;
+            default:
+                return scrollOffset_;
+            }
+        }
+
+        int activeContentLines() const
+        {
+            switch (activeTab_)
+            {
+            case BottomTab::OUTPUT:
+                return (int)fileOutputLog_.size();
+            case BottomTab::DIAGNOSTICS:
+                return (int)diagnosticLines_.size();
+            case BottomTab::VARIABLES:
+                return variables_.empty() ? 2 : (int)variables_.size() + 1; // +1 for header
+            case BottomTab::HELP:
+                return 30; // approximate help lines
+            default:
+                return 0; // TERMINAL uses embedded terminal scrollback
+            }
+        }
 
         void scrollUp()
         {
-            if (activeTab_ == BottomTab::TERMINAL && scrollOffset_ > 0)
-                scrollOffset_--;
-            else if (activeTab_ == BottomTab::OUTPUT && fileScrollOffset_ > 0)
-                fileScrollOffset_--;
+            int &offset = activeScrollOffset();
+            if (offset > 0)
+                offset--;
         }
 
         void scrollDown()
         {
-            if (activeTab_ == BottomTab::TERMINAL)
-            {
-                int maxScroll = std::max(0, (int)outputLog_.size() - contentHeight());
-                if (scrollOffset_ < maxScroll)
-                    scrollOffset_++;
-            }
-            else if (activeTab_ == BottomTab::OUTPUT)
-            {
-                int maxScroll = std::max(0, (int)fileOutputLog_.size() - contentHeight());
-                if (fileScrollOffset_ < maxScroll)
-                    fileScrollOffset_++;
-            }
+            int &offset = activeScrollOffset();
+            int maxScroll = std::max(0, activeContentLines() - contentHeight());
+            if (offset < maxScroll)
+                offset++;
         }
 
         void scrollToBottom()
@@ -1002,6 +1245,7 @@ namespace xterm
                 {"OUTPUT", BottomTab::OUTPUT},
                 {"DIAGNOSTICS", BottomTab::DIAGNOSTICS},
                 {"VARIABLES", BottomTab::VARIABLES},
+                {"HELP", BottomTab::HELP},
             };
 
             int col = 0;
@@ -1123,9 +1367,9 @@ namespace xterm
                 return;
             }
 
-            for (int r = 0; r < contentH && r < (int)diagnosticLines_.size(); r++)
+            for (int r = 0; r < contentH && diagScrollOffset_ + r < (int)diagnosticLines_.size(); r++)
             {
-                const auto &line = diagnosticLines_[r];
+                const auto &line = diagnosticLines_[diagScrollOffset_ + r];
                 Color fg = contentFg_;
                 // Color success green, errors red, warnings yellow
                 if (line.find("No errors found") != std::string::npos || line.find("\xE2\x9C\x93") != std::string::npos)
@@ -1203,9 +1447,10 @@ namespace xterm
             }
 
             // Variables
-            for (int r = 0; r < (int)variables_.size() && r + 2 < contentH; r++)
+            int varStart = varScrollOffset_;
+            for (int r = 0; r < (int)variables_.size() - varStart && r + 2 < contentH; r++)
             {
-                const auto &v = variables_[r];
+                const auto &v = variables_[varStart + r];
                 int col = 1;
 
                 // Name (18 chars)
@@ -1257,6 +1502,189 @@ namespace xterm
                         col++;
                     }
                 }
+            }
+        }
+
+        // ── Help content ─────────────────────────────────────────────
+
+        void renderHelp(std::vector<std::vector<Cell>> &cells, int w, int h) const
+        {
+            static const std::vector<std::pair<std::string, std::string>> helpItems = {
+                {"Ctrl+Enter", "Run selection, or top-to-cursor if none"},
+                {"Ctrl+R", "Run the current file"},
+                {"Ctrl+Shift+K/Q", "Emergency stop running program"},
+                {"Ctrl+S", "Save current file"},
+                {"Ctrl+N", "New file"},
+                {"Ctrl+W", "Close current tab"},
+                {"Ctrl+B", "Toggle sidebar"},
+                {"Ctrl+T", "Switch to terminal mode"},
+                {"Ctrl+F", "Find (regex)"},
+                {"Ctrl+H", "Find & Replace (regex)"},
+                {"Ctrl+G", "Go to line number"},
+                {"Ctrl+Tab", "Next editor tab"},
+                {"Ctrl+Shift+Tab", "Previous editor tab"},
+                {"Ctrl+L", "Clear output (in OUTPUT tab)"},
+                {"Tab", "Cycle bottom panel tabs"},
+                {"F3 / Shift+F3", "Next / Previous match (in Find)"},
+                {"Escape", "Close dialog / cancel"},
+                {"↑/↓", "Scroll content"},
+                {"Mouse wheel", "Scroll content"},
+                {"Click scrollbar", "Jump to position"},
+                {"Double-click border", "Toggle panel size"},
+                {"Right-click", "Context menu"},
+                {"", ""},
+                {":ide", "Switch to IDE mode"},
+                {":terminal", "Switch to terminal mode"},
+                {":help", "Show help in terminal mode"},
+                {":quit", "Exit Xell"},
+            };
+
+            int contentH = h - 1;
+            Color headerFg = {86, 156, 214}; // blue
+            Color keyFg = {206, 145, 120};   // orange
+            Color descFg = {204, 204, 204};  // gray
+
+            // Title
+            {
+                std::string title = " Xell IDE - Keyboard Shortcuts";
+                size_t si = 0;
+                int c = 0;
+                while (si < title.size() && c < w)
+                {
+                    cells[1][c].ch = utf8Decode(title, si);
+                    cells[1][c].fg = headerFg;
+                    cells[1][c].bold = true;
+                    cells[1][c].dirty = true;
+                    c++;
+                }
+            }
+
+            // Separator
+            if (contentH > 1)
+            {
+                for (int c = 1; c < w - 1 && c < 50; c++)
+                {
+                    cells[2][c].ch = U'─';
+                    cells[2][c].fg = {51, 51, 51};
+                    cells[2][c].dirty = true;
+                }
+            }
+
+            // Help entries
+            int startIdx = helpScrollOffset_;
+            for (int i = 0; i < contentH - 2 && startIdx + i < (int)helpItems.size(); i++)
+            {
+                const auto &[key, desc] = helpItems[startIdx + i];
+                int row = i + 3; // skip title + separator + tab bar
+                if (row >= h)
+                    break;
+
+                int col = 1;
+                // Key (padded to 20 chars)
+                {
+                    size_t si = 0;
+                    int count = 0;
+                    while (si < key.size() && col < w && count < 20)
+                    {
+                        cells[row][col].ch = utf8Decode(key, si);
+                        cells[row][col].fg = keyFg;
+                        cells[row][col].dirty = true;
+                        col++;
+                        count++;
+                    }
+                }
+                while (col < 22 && col < w)
+                {
+                    cells[row][col].dirty = true;
+                    col++;
+                }
+
+                // Description
+                {
+                    size_t si = 0;
+                    while (si < desc.size() && col < w)
+                    {
+                        cells[row][col].ch = utf8Decode(desc, si);
+                        cells[row][col].fg = descFg;
+                        cells[row][col].dirty = true;
+                        col++;
+                    }
+                }
+            }
+        }
+
+        // ── Scrollbar for bottom panel ───────────────────────────────
+
+        void renderTerminalScrollbar(std::vector<std::vector<Cell>> &cells, int w, int h) const
+        {
+            if (!embeddedTerm_)
+                return;
+
+            int scrollOff = embeddedTerm_->scrollOffset();
+            int totalScrollback = embeddedTerm_->scrollbackSize();
+            int termH = h - 1; // exclude tab bar row
+
+            if (termH < 2 || w < 2)
+                return;
+
+            // Only show scrollbar if there's scrollback content
+            if (totalScrollback <= 0)
+                return;
+
+            int scrollCol = w - 1;
+            int totalLines = totalScrollback + termH; // total virtual height
+            int maxScroll = std::max(1, totalScrollback);
+
+            // Proportional thumb
+            int thumbH = std::max(1, termH * termH / totalLines);
+            // Position: when scrollOff=0 (bottom), thumb is at bottom; when scrollOff=max, at top
+            int thumbTop = 0;
+            if (maxScroll > 0)
+                thumbTop = (maxScroll - scrollOff) * (termH - thumbH) / maxScroll;
+            thumbTop = std::clamp(thumbTop, 0, termH - thumbH);
+
+            for (int r = 0; r < termH; r++)
+            {
+                int row = r + 1;
+                if (row >= h || scrollCol >= (int)cells[row].size())
+                    break;
+                bool isThumb = (r >= thumbTop && r < thumbTop + thumbH);
+                cells[row][scrollCol].ch = isThumb ? U'█' : U'░';
+                cells[row][scrollCol].fg = isThumb ? Color{120, 120, 120} : Color{50, 50, 50};
+                cells[row][scrollCol].bg = contentBg_;
+                cells[row][scrollCol].dirty = true;
+            }
+        }
+
+        void renderScrollbar(std::vector<std::vector<Cell>> &cells, int w, int h) const
+        {
+            int totalLines = activeContentLines();
+            int visibleH = contentHeight();
+            if (totalLines <= visibleH || visibleH < 1 || w < 2)
+                return; // no scrollbar needed
+
+            int scrollCol = w - 1;
+            int trackH = h - 1; // exclude tab bar
+            if (trackH < 2)
+                return;
+
+            int offset = activeScrollOffset();
+            int maxScroll = std::max(1, totalLines - visibleH);
+
+            // Thumb size and position
+            int thumbH = std::max(1, trackH * visibleH / totalLines);
+            int thumbStart = (trackH - thumbH) * offset / maxScroll;
+
+            for (int r = 0; r < trackH; r++)
+            {
+                int row = r + 1; // skip tab bar
+                if (row >= h)
+                    break;
+                bool isThumb = (r >= thumbStart && r < thumbStart + thumbH);
+                cells[row][scrollCol].ch = isThumb ? U'█' : U'░';
+                cells[row][scrollCol].fg = isThumb ? Color{120, 120, 120} : Color{50, 50, 50};
+                cells[row][scrollCol].bg = contentBg_;
+                cells[row][scrollCol].dirty = true;
             }
         }
     };

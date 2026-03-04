@@ -344,19 +344,81 @@ namespace xterm
 
             // Tree entries
             int startRow = 1;
-            for (int i = 0; i < rect_.h - startRow && scrollTop_ + i < (int)flatList_.size(); i++)
-            {
-                int idx = scrollTop_ + i;
-                auto &node = flatList_[idx];
-                int row = startRow + i;
 
-                bool isSelected = (idx == selectedIdx_);
-                bool isHovered = (idx == hoverIdx_ && !isSelected);
+            // Determine if and where to show the new file/folder prompt inline
+            bool showingNewPrompt = (editMode_ == EditMode::NEW_FILE || editMode_ == EditMode::NEW_FOLDER);
+            // The prompt should appear as the FIRST child of the target directory
+            int promptAfterIdx = -1; // flat list index AFTER which the prompt appears
+            int promptDepth = 0;
+            if (showingNewPrompt && selectedIdx_ >= 0 && selectedIdx_ < (int)flatList_.size())
+            {
+                auto &sel = flatList_[selectedIdx_];
+                if (sel.isDir)
+                {
+                    // Insert as first child of this directory (right after the dir entry)
+                    promptAfterIdx = selectedIdx_;
+                    promptDepth = sel.depth + 1;
+                }
+                else
+                {
+                    // Selected a file — find its parent directory by walking backwards
+                    // to find the nearest item with depth == sel.depth - 1 that isDir
+                    int parentIdx = -1;
+                    for (int i = selectedIdx_ - 1; i >= 0; i--)
+                    {
+                        if (flatList_[i].isDir && flatList_[i].depth == sel.depth - 1)
+                        {
+                            parentIdx = i;
+                            break;
+                        }
+                    }
+                    if (parentIdx >= 0)
+                    {
+                        // Insert right after the parent directory (first child position)
+                        promptAfterIdx = parentIdx;
+                        promptDepth = sel.depth;
+                    }
+                    else
+                    {
+                        // Root level file — insert at the very top
+                        promptAfterIdx = -1;
+                        promptDepth = 0;
+                    }
+                }
+            }
+            else if (showingNewPrompt)
+            {
+                // No selection — show at the very top of tree
+                promptAfterIdx = -1; // before first item
+                promptDepth = 0;
+            }
+
+            // Render tree entries with potential inline prompt
+            int visibleRow = startRow;
+            int flatIdx = scrollTop_;
+            bool promptRendered = false;
+
+            // Special case: prompt before first item
+            if (showingNewPrompt && promptAfterIdx < scrollTop_)
+            {
+                if (visibleRow < rect_.h)
+                {
+                    renderNewPromptRow(grid, visibleRow, promptDepth);
+                    visibleRow++;
+                    promptRendered = true;
+                }
+            }
+
+            while (visibleRow < rect_.h && flatIdx < (int)flatList_.size())
+            {
+                auto &node = flatList_[flatIdx];
+                bool isSelected = (flatIdx == selectedIdx_);
+                bool isHovered = (flatIdx == hoverIdx_ && !isSelected);
                 Color bg = isSelected ? selectedBg_ : (isHovered ? hoverBg_ : bgColor_);
                 Color fg = node.isDir ? dirFg_ : fileFg_;
 
                 // Fill background
-                for (auto &c : grid[row])
+                for (auto &c : grid[visibleRow])
                 {
                     c.bg = bg;
                     c.dirty = true;
@@ -370,7 +432,7 @@ namespace xterm
                 {
                     // Show icon + edit field
                     std::string icon = node.isDir ? (node.expanded ? "▾ " : "▸ ") : "  ";
-                    writeString(grid[row], indent, icon, fg, bg, false);
+                    writeString(grid[visibleRow], indent, icon, fg, bg, false);
                     int editCol = indent + 2; // after icon
 
                     // Edit field background
@@ -378,81 +440,52 @@ namespace xterm
                     Color editFg = {255, 255, 255};
                     for (int c = editCol; c < rect_.w; c++)
                     {
-                        grid[row][c].bg = editBg;
-                        grid[row][c].dirty = true;
+                        grid[visibleRow][c].bg = editBg;
+                        grid[visibleRow][c].dirty = true;
                     }
-                    writeString(grid[row], editCol, editText_, editFg, editBg, false);
+                    writeString(grid[visibleRow], editCol, editText_, editFg, editBg, false);
 
                     // Cursor
                     int cursorCol = editCol + editCursor_;
                     if (cursorCol < rect_.w)
                     {
-                        grid[row][cursorCol].underline = true;
-                        grid[row][cursorCol].fg = {255, 255, 255};
-                        grid[row][cursorCol].dirty = true;
+                        grid[visibleRow][cursorCol].underline = true;
+                        grid[visibleRow][cursorCol].fg = {255, 255, 255};
+                        grid[visibleRow][cursorCol].dirty = true;
                     }
-                }
-                else if (isSelected && (editMode_ == EditMode::NEW_FILE || editMode_ == EditMode::NEW_FOLDER))
-                {
-                    // Render the normal entry first
-                    std::string icon;
-                    if (node.isDir)
-                        icon = node.expanded ? "▾ " : "▸ ";
-                    else
-                        icon = fileIconForName(node.name, false) + " ";
-                    writeString(grid[row], indent, icon + node.name, fg, bg, isSelected);
-
-                    // Then render the edit field on the NEXT row
-                    int editRow = row + 1;
-                    if (editRow < rect_.h)
-                    {
-                        int editIndent = (node.isDir ? node.depth + 1 : node.depth) * 2 + 1;
-                        Color editBg = {45, 45, 45};
-                        Color editFg = {255, 255, 255};
-                        for (int c = 0; c < rect_.w; c++)
-                        {
-                            grid[editRow][c].bg = editBg;
-                            grid[editRow][c].dirty = true;
-                        }
-                        std::string prompt = (editMode_ == EditMode::NEW_FILE) ? "📄 " : "📁 ";
-                        writeString(grid[editRow], editIndent, prompt + editText_, editFg, editBg, false);
-
-                        int cursorCol = editIndent + utf8Len(prompt) + editCursor_;
-                        if (cursorCol < rect_.w)
-                        {
-                            grid[editRow][cursorCol].underline = true;
-                            grid[editRow][cursorCol].fg = {255, 255, 255};
-                            grid[editRow][cursorCol].dirty = true;
-                        }
-                    }
-                    // Skip next entry (we used its row for the input)
-                    i++;
                 }
                 else
                 {
-                    // Icon based on file extension with Nerd Font
+                    // Normal item rendering: icon based on file extension with Nerd Font
                     if (node.isDir)
                     {
                         std::string arrow = node.expanded ? "▾ " : "▸ ";
                         std::string folderIcon = fileIconForName(node.name, true);
                         Color iconColor = fileIconColor(node.name, true);
-                        // Write arrow
-                        int pos = writeString(grid[row], indent, arrow, fg, bg, false);
-                        // Write folder icon with color
-                        pos = writeString(grid[row], pos, folderIcon + " ", iconColor, bg, false);
-                        // Write name
-                        writeString(grid[row], pos, node.name, fg, bg, isSelected);
+                        int pos = writeString(grid[visibleRow], indent, arrow, fg, bg, false);
+                        pos = writeString(grid[visibleRow], pos, folderIcon + " ", iconColor, bg, false);
+                        writeString(grid[visibleRow], pos, node.name, fg, bg, isSelected);
                     }
                     else
                     {
                         std::string fileIcon = fileIconForName(node.name, false);
                         Color iconColor = fileIconColor(node.name, false);
-                        // Write icon with extension color
-                        int pos = writeString(grid[row], indent, fileIcon + " ", iconColor, bg, false);
-                        // Write name
-                        writeString(grid[row], pos, node.name, fg, bg, isSelected);
+                        int pos = writeString(grid[visibleRow], indent, fileIcon + " ", iconColor, bg, false);
+                        writeString(grid[visibleRow], pos, node.name, fg, bg, isSelected);
                     }
                 }
+
+                visibleRow++;
+
+                // Insert the new file/folder prompt right after the selected item
+                if (showingNewPrompt && !promptRendered && flatIdx == promptAfterIdx && visibleRow < rect_.h)
+                {
+                    renderNewPromptRow(grid, visibleRow, promptDepth);
+                    visibleRow++;
+                    promptRendered = true;
+                }
+
+                flatIdx++;
             }
 
             return grid;
@@ -501,6 +534,13 @@ namespace xterm
         bool handleMouseClick(int row, int /*col*/, bool /*shift*/) override
         {
             int idx = scrollTop_ + row - 1; // -1 for title bar
+
+            // If editing (new file/folder prompt) and clicking elsewhere, cancel it
+            if (isEditing())
+            {
+                cancelEdit();
+            }
+
             if (idx >= 0 && idx < (int)flatList_.size())
             {
                 selectedIdx_ = idx;
@@ -729,6 +769,32 @@ namespace xterm
 
     private:
         const ThemeData &theme_;
+
+        // Render the new file/folder name prompt at the given row
+        void renderNewPromptRow(std::vector<std::vector<Cell>> &grid, int row, int depth) const
+        {
+            if (row < 0 || row >= (int)grid.size())
+                return;
+            Color editBg = {45, 45, 45};
+            Color editFg = {255, 255, 255};
+            for (int c = 0; c < rect_.w && c < (int)grid[row].size(); c++)
+            {
+                grid[row][c].bg = editBg;
+                grid[row][c].ch = U' ';
+                grid[row][c].dirty = true;
+            }
+            int indent = depth * 2 + 1;
+            std::string prompt = (editMode_ == EditMode::NEW_FILE) ? "📄 " : "📁 ";
+            writeString(grid[row], indent, prompt + editText_, editFg, editBg, false);
+
+            int cursorCol = indent + utf8Len(prompt) + editCursor_;
+            if (cursorCol < rect_.w && cursorCol < (int)grid[row].size())
+            {
+                grid[row][cursorCol].underline = true;
+                grid[row][cursorCol].fg = {255, 255, 255};
+                grid[row][cursorCol].dirty = true;
+            }
+        }
         OpenFileCallback onOpenFile_;
 
         FileNode root_;

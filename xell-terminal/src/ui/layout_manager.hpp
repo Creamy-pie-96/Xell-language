@@ -28,6 +28,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <chrono>
+#include <regex>
 #include <SDL2/SDL.h>
 #include "../terminal/types.hpp"
 #include "../editor/editor_view.hpp"
@@ -138,6 +139,9 @@ namespace xterm
                     }
                 }
             }
+
+            // Poll for async code execution results
+            replPanel_.pollAsyncResult();
         }
 
         // Call this when the editor buffer changes (key input, paste, etc.)
@@ -222,6 +226,135 @@ namespace xterm
 
         LayoutAction handleEvent(const SDL_Event &event)
         {
+            // ── Goto-line dialog intercept ───────────────────────────
+            // ── Goto-line dialog intercept ───────────────────────────
+            if (showGotoLine_)
+            {
+                if (event.type == SDL_KEYDOWN)
+                {
+                    auto key = event.key.keysym;
+                    if (key.sym == SDLK_ESCAPE)
+                    {
+                        showGotoLine_ = false;
+                    }
+                    else if (key.sym == SDLK_RETURN || key.sym == SDLK_KP_ENTER)
+                    {
+                        if (!gotoLineInput_.empty())
+                        {
+                            try
+                            {
+                                int line = std::stoi(gotoLineInput_) - 1; // 0-based
+                                editor_.goToLine(line);
+                            }
+                            catch (...)
+                            {
+                            }
+                        }
+                        showGotoLine_ = false;
+                    }
+                    else if (key.sym == SDLK_BACKSPACE)
+                    {
+                        if (!gotoLineInput_.empty() && gotoLineCursor_ > 0)
+                        {
+                            gotoLineInput_.erase(gotoLineCursor_ - 1, 1);
+                            gotoLineCursor_--;
+                        }
+                    }
+                    return LayoutAction::HANDLED; // keyboard consumed by dialog
+                }
+                else if (event.type == SDL_TEXTINPUT)
+                {
+                    std::string text = event.text.text;
+                    // Only allow digits
+                    for (char c : text)
+                    {
+                        if (c >= '0' && c <= '9')
+                        {
+                            gotoLineInput_.insert(gotoLineCursor_, 1, c);
+                            gotoLineCursor_++;
+                        }
+                    }
+                    return LayoutAction::HANDLED; // text input consumed by dialog
+                }
+                // NOTE: Mouse events fall through so clicks can dismiss the dialog
+            }
+
+            // ── Find/Replace dialog intercept ────────────────────────
+            if (findReplaceActive_)
+            {
+                if (event.type == SDL_KEYDOWN)
+                {
+                    auto key = event.key.keysym;
+                    if (key.sym == SDLK_ESCAPE)
+                    {
+                        findReplaceActive_ = false;
+                    }
+                    else if (key.sym == SDLK_RETURN || key.sym == SDLK_KP_ENTER)
+                    {
+                        if (findReplaceMode_) // replace mode
+                            doReplace();
+                        else
+                            findNext();
+                    }
+                    else if (key.sym == SDLK_BACKSPACE)
+                    {
+                        if (findReplaceEditingReplace_)
+                        {
+                            if (!replaceInput_.empty() && replaceCursor_ > 0)
+                            {
+                                replaceInput_.erase(replaceCursor_ - 1, 1);
+                                replaceCursor_--;
+                            }
+                        }
+                        else
+                        {
+                            if (!findInput_.empty() && findCursor_ > 0)
+                            {
+                                findInput_.erase(findCursor_ - 1, 1);
+                                findCursor_--;
+                                updateFindMatches();
+                            }
+                        }
+                    }
+                    else if (key.sym == SDLK_TAB)
+                    {
+                        if (findReplaceMode_)
+                            findReplaceEditingReplace_ = !findReplaceEditingReplace_;
+                    }
+                    else if (key.sym == SDLK_F3 || (key.sym == SDLK_g && (key.mod & KMOD_CTRL)))
+                    {
+                        if ((key.mod & KMOD_SHIFT))
+                            findPrev();
+                        else
+                            findNext();
+                    }
+                    bool ctrl = (key.mod & KMOD_CTRL) != 0;
+                    if (ctrl && key.sym == SDLK_h && !findReplaceMode_)
+                    {
+                        findReplaceMode_ = true; // switch to replace mode
+                    }
+                    return LayoutAction::HANDLED; // keyboard consumed by dialog
+                }
+                else if (event.type == SDL_TEXTINPUT)
+                {
+                    std::string text = event.text.text;
+                    if (findReplaceEditingReplace_)
+                    {
+                        replaceInput_.insert(replaceCursor_, text);
+                        replaceCursor_ += (int)text.size();
+                    }
+                    else
+                    {
+                        findInput_.insert(findCursor_, text);
+                        findCursor_ += (int)text.size();
+                        updateFindMatches();
+                    }
+                    return LayoutAction::HANDLED; // text input consumed by dialog
+                }
+                // NOTE: Mouse events fall through to the mouse handler below
+                // so dialog buttons and input fields can be clicked
+            }
+
             if (event.type == SDL_KEYDOWN)
             {
                 auto key = event.key.keysym;
@@ -249,8 +382,11 @@ namespace xterm
                         toggleBottomPanel();
                         return LayoutAction::TOGGLE_BOTTOM;
                     case SDLK_TAB:
-                        cycleFocus();
-                        return LayoutAction::CYCLE_FOCUS;
+                        if (shift)
+                            editor_.prevTab();
+                        else
+                            editor_.nextTab();
+                        return LayoutAction::HANDLED;
                     case SDLK_RETURN:
                         // Ctrl+Enter — Run selection in REPL
                         handleRunSelection();
@@ -293,6 +429,38 @@ namespace xterm
                             return LayoutAction::SWITCH_TO_TERMINAL;
                         }
                         break;
+                    case SDLK_k:
+                        if (shift)
+                        {
+                            // Ctrl+Shift+K — Emergency stop running program
+                            if (killRunningProcess())
+                            {
+                                editor_.setStatusMessage("⚠ Terminated with emergency key");
+                                replPanel_.appendOutputLine("⚠ Terminated with emergency key (Ctrl+Shift+K)", REPLLine::ERROR);
+                            }
+                            else
+                            {
+                                editor_.setStatusMessage("No running process to stop");
+                            }
+                            return LayoutAction::HANDLED;
+                        }
+                        break;
+                    case SDLK_q:
+                        if (shift)
+                        {
+                            // Ctrl+Shift+Q — Alternative emergency stop
+                            if (killRunningProcess())
+                            {
+                                editor_.setStatusMessage("⚠ Terminated with emergency key");
+                                replPanel_.appendOutputLine("⚠ Terminated with emergency key (Ctrl+Shift+Q)", REPLLine::ERROR);
+                            }
+                            else
+                            {
+                                editor_.setStatusMessage("No running process to stop");
+                            }
+                            return LayoutAction::HANDLED;
+                        }
+                        break;
                     default:
                         break;
                     }
@@ -307,6 +475,72 @@ namespace xterm
 
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
+                    // ── Goto-line dialog click ───────────────────────
+                    if (showGotoLine_)
+                    {
+                        // Click outside the dialog → dismiss
+                        int barRow = editorRect_.y;
+                        int barStart = editorRect_.x;
+                        int barWidth = std::min(40, editorRect_.w);
+                        if (clickRow != barRow || clickCol < barStart || clickCol >= barStart + barWidth)
+                        {
+                            showGotoLine_ = false;
+                        }
+                        return LayoutAction::HANDLED;
+                    }
+
+                    // ── Find/Replace dialog click ────────────────────
+                    if (findReplaceActive_)
+                    {
+                        // Check if click is on the dialog rows
+                        if (clickRow == findDialogRow_)
+                        {
+                            // Clicked on find row — check buttons
+                            if (findCloseBtnCol_ >= 0 && std::abs(clickCol - findCloseBtnCol_) <= 1)
+                            {
+                                findReplaceActive_ = false;
+                            }
+                            else if (findPrevBtnCol_ >= 0 && std::abs(clickCol - findPrevBtnCol_) <= 1)
+                            {
+                                findPrev();
+                            }
+                            else if (findNextBtnCol_ >= 0 && std::abs(clickCol - findNextBtnCol_) <= 1)
+                            {
+                                findNext();
+                            }
+                            else if (clickCol >= findDialogStartCol_ && clickCol < findDialogStartCol_ + findDialogWidth_)
+                            {
+                                // Clicked in the find input area — focus the find field
+                                findReplaceEditingReplace_ = false;
+                            }
+                            return LayoutAction::HANDLED;
+                        }
+                        else if (findReplaceMode_ && clickRow == replaceDialogRow_)
+                        {
+                            // Clicked on replace row — check Repl/All buttons
+                            if (replaceBtnCol_ >= 0 && clickCol >= replaceBtnCol_ && clickCol < replaceBtnCol_ + 4)
+                            {
+                                doReplace(); // Single replace
+                            }
+                            else if (replaceAllBtnCol_ >= 0 && clickCol >= replaceAllBtnCol_ && clickCol < replaceAllBtnCol_ + 4)
+                            {
+                                doReplaceAll(); // Replace all
+                            }
+                            else if (clickCol >= findDialogStartCol_ && clickCol < findDialogStartCol_ + findDialogWidth_)
+                            {
+                                // Clicked in the replace input area — focus the replace field
+                                findReplaceEditingReplace_ = true;
+                            }
+                            return LayoutAction::HANDLED;
+                        }
+                        else
+                        {
+                            // Clicked outside dialog → dismiss
+                            findReplaceActive_ = false;
+                            return LayoutAction::HANDLED;
+                        }
+                    }
+
                     // Context menu takes priority if shown
                     if (showFileContextMenu_)
                     {
@@ -319,6 +553,12 @@ namespace xterm
                         }
                         // Clicked outside menu — just dismiss it
                         return LayoutAction::HANDLED;
+                    }
+
+                    // Cancel file tree inline edit if clicking outside the sidebar
+                    if (fileTree_.isEditing() && !(showSidebar_ && clickCol < sidebarWidth_))
+                    {
+                        fileTree_.cancelEdit();
                     }
 
                     // If sidebar is hidden, double-click at col 0 to reopen
@@ -434,6 +674,48 @@ namespace xterm
                 hoverRow_ = motionRow;
                 hoverCol_ = motionCol;
 
+                // Context menu hover tracking
+                if (showFileContextMenu_)
+                {
+                    auto items = contextMenuItems();
+                    int menuH = (int)items.size();
+                    int menuStartRow = contextMenuRow_;
+                    int menuStartCol = contextMenuCol_;
+                    if (menuStartRow + menuH >= totalRows_)
+                        menuStartRow = totalRows_ - menuH - 1;
+                    if (menuStartCol + CONTEXT_MENU_WIDTH >= totalCols_)
+                        menuStartCol = totalCols_ - CONTEXT_MENU_WIDTH - 1;
+                    menuStartRow = std::max(0, menuStartRow);
+                    menuStartCol = std::max(0, menuStartCol);
+
+                    int idx = motionRow - menuStartRow;
+                    if (motionCol >= menuStartCol && motionCol < menuStartCol + CONTEXT_MENU_WIDTH &&
+                        idx >= 0 && idx < menuH && items[idx].find("───") == std::string::npos)
+                    {
+                        contextMenuHoverIdx_ = idx;
+                    }
+                    else
+                    {
+                        contextMenuHoverIdx_ = -1;
+                    }
+                    return LayoutAction::HANDLED;
+                }
+
+                // Find/Replace dialog hover tracking
+                if (findReplaceActive_)
+                {
+                    if (motionRow == findDialogRow_ || (findReplaceMode_ && motionRow == replaceDialogRow_))
+                    {
+                        findHoverRow_ = motionRow;
+                        findHoverCol_ = motionCol;
+                    }
+                    else
+                    {
+                        findHoverRow_ = -1;
+                        findHoverCol_ = -1;
+                    }
+                }
+
                 // Update file tree hover
                 if (showSidebar_ && motionCol < sidebarWidth_)
                 {
@@ -488,6 +770,20 @@ namespace xterm
                     editor_.handleLocalDrag(editorRow, editorCol);
                     return LayoutAction::HANDLED;
                 }
+
+                // Drag scrollbar in bottom panel
+                if ((event.motion.state & SDL_BUTTON_LMASK) && focus_ == FocusRegion::BottomPanel &&
+                    showBottomPanel_ && motionRow >= bottomRect_.y)
+                {
+                    int localRow = motionRow - bottomRect_.y;
+                    int localCol = motionCol - bottomRect_.x;
+                    // Only drag on rightmost column (scrollbar)
+                    if (localCol == bottomRect_.w - 1 && localRow > 0)
+                    {
+                        replPanel_.handleScrollbarDrag(localRow);
+                        return LayoutAction::HANDLED;
+                    }
+                }
             }
 
             // --- Mouse button up: end resize drags ---
@@ -497,19 +793,28 @@ namespace xterm
                 resizingBottom_ = false;
             }
 
-            // --- Mouse wheel: forward to focused widget ---
+            // --- Mouse wheel: route based on mouse position, not focus ---
             if (event.type == SDL_MOUSEWHEEL)
             {
-                switch (focus_)
+                int mx, my;
+                SDL_GetMouseState(&mx, &my);
+                int mouseCol = mx / cellW_;
+                int mouseRow = my / cellH_;
+
+                // Check which region the mouse is over
+                if (showBottomPanel_ && mouseRow >= bottomRect_.y)
                 {
-                case FocusRegion::Sidebar:
+                    replPanel_.handleMouseWheel(event.wheel.y);
+                    return LayoutAction::HANDLED;
+                }
+                else if (showSidebar_ && mouseCol < sidebarWidth_)
+                {
                     fileTree_.handleMouseWheel(event.wheel.y);
                     return LayoutAction::HANDLED;
-                case FocusRegion::Editor:
+                }
+                else
+                {
                     editor_.handleLocalWheel(event.wheel.y);
-                    return LayoutAction::HANDLED;
-                case FocusRegion::BottomPanel:
-                    replPanel_.handleMouseWheel(event.wheel.y);
                     return LayoutAction::HANDLED;
                 }
             }
@@ -681,6 +986,18 @@ namespace xterm
                 renderContextMenu(out.cells);
             }
 
+            // ── Goto-line dialog overlay ─────────────────────────────
+            if (showGotoLine_)
+            {
+                renderGotoLineDialog(out.cells);
+            }
+
+            // ── Find/Replace dialog overlay ──────────────────────────
+            if (findReplaceActive_)
+            {
+                renderFindReplaceDialog(out.cells);
+            }
+
             return out;
         }
 
@@ -717,6 +1034,7 @@ namespace xterm
                 {" OUTPUT ", BottomTab::OUTPUT},
                 {" DIAGNOSTICS ", BottomTab::DIAGNOSTICS},
                 {" VARIABLES ", BottomTab::VARIABLES},
+                {" HELP ", BottomTab::HELP},
             };
 
             int col = 0;
@@ -1031,6 +1349,39 @@ namespace xterm
         bool resizingSidebar_ = false;
         bool resizingBottom_ = false;
 
+        // Goto-line dialog state
+        bool showGotoLine_ = false;
+        std::string gotoLineInput_;
+        int gotoLineCursor_ = 0;
+
+        // Find/Replace dialog state
+        bool findReplaceActive_ = false;
+        bool findReplaceMode_ = false;           // false = find only, true = find + replace
+        bool findReplaceEditingReplace_ = false; // which field is active
+        std::string findInput_;
+        std::string replaceInput_;
+        int findCursor_ = 0;
+        int replaceCursor_ = 0;
+        std::vector<std::pair<int, int>> findMatches_; // (row, col) pairs
+        int currentMatch_ = -1;
+
+        // Dialog button positions for mouse interaction (set during render)
+        mutable int findPrevBtnCol_ = -1;
+        mutable int findNextBtnCol_ = -1;
+        mutable int findCloseBtnCol_ = -1;
+        mutable int findDialogRow_ = -1;
+        mutable int findDialogStartCol_ = -1;
+        mutable int findDialogWidth_ = 0;
+        mutable int findInputStartCol_ = -1;
+        mutable int replaceDialogRow_ = -1;
+        mutable int replaceBtnCol_ = -1;
+        mutable int replaceAllBtnCol_ = -1;
+        mutable int replaceInputStartCol_ = -1;
+
+        // Hover tracking for find/replace dialog buttons
+        mutable int findHoverRow_ = -1;
+        mutable int findHoverCol_ = -1;
+
         // Live linting state
         using Clock = std::chrono::steady_clock;
         Clock::time_point lastEditTime_ = Clock::now();
@@ -1046,6 +1397,7 @@ namespace xterm
         bool showFileContextMenu_ = false;
         int contextMenuRow_ = 0;
         int contextMenuCol_ = 0;
+        mutable int contextMenuHoverIdx_ = -1; // Which menu item is hovered
 
         // Mouse hover state (cell coordinates)
         int hoverRow_ = -1;
@@ -1122,6 +1474,7 @@ namespace xterm
             Color menuFg = {220, 220, 220};
             Color menuBorder = {80, 80, 80};
             Color sepFg = {80, 80, 80};
+            Color hoverBg = {70, 70, 100};
 
             for (int i = 0; i < menuH; i++)
             {
@@ -1129,18 +1482,20 @@ namespace xterm
                 if (r >= totalRows_)
                     break;
                 bool isSep = (items[i].find("───") != std::string::npos);
+                bool isHovered = (i == contextMenuHoverIdx_ && !isSep);
                 Color fg = isSep ? sepFg : menuFg;
+                Color bg = isHovered ? hoverBg : menuBg;
 
                 // Fill background first
                 for (int c = 0; c < CONTEXT_MENU_WIDTH && startCol + c < totalCols_; c++)
                 {
-                    cells[r][startCol + c].bg = menuBg;
+                    cells[r][startCol + c].bg = bg;
                     cells[r][startCol + c].fg = fg;
                     cells[r][startCol + c].ch = U' ';
                     cells[r][startCol + c].dirty = true;
                 }
                 // Write text with UTF-8 decode
-                utf8Write(cells[r], startCol, items[i], fg, menuBg);
+                utf8Write(cells[r], startCol, items[i], fg, bg);
                 // Right border
                 if (startCol + CONTEXT_MENU_WIDTH < totalCols_)
                 {
@@ -1297,9 +1652,16 @@ namespace xterm
             case EditorAction::NEW_FILE:
                 return LayoutAction::NEW_FILE;
             case EditorAction::FIND:
-                return LayoutAction::FIND;
+                showFindReplace(false);
+                return LayoutAction::HANDLED;
+            case EditorAction::FIND_REPLACE:
+                showFindReplace(true);
+                return LayoutAction::HANDLED;
             case EditorAction::GOTO_LINE:
-                return LayoutAction::GOTO_LINE;
+                showGotoLine_ = true;
+                gotoLineInput_.clear();
+                gotoLineCursor_ = 0;
+                return LayoutAction::HANDLED;
             case EditorAction::COPY:
                 return LayoutAction::COPY;
             case EditorAction::CUT:
@@ -1347,8 +1709,17 @@ namespace xterm
             if (editor_.activeTabIndex() < 0)
                 return;
 
-            // Run all code from the beginning of the file to the cursor line (inclusive)
-            std::string code = editor_.getTextToCursorLine();
+            // If there's a selection, run selected text; otherwise run from top to cursor line
+            std::string code;
+            if (editor_.hasSelection())
+            {
+                code = editor_.getSelectedText();
+            }
+            else
+            {
+                code = editor_.getTextToCursorLine();
+            }
+
             if (code.empty())
                 return;
 
@@ -1406,6 +1777,479 @@ namespace xterm
                 auto cursor = editor_.getStatusInfo();
                 replPanel_.setGhostText(cursor.cursorRow - 1, "  # → " + result);
                 editor_.setStatusMessage("= " + result);
+            }
+        }
+
+        // ── Find / Replace methods ───────────────────────────────────
+
+        void showFindReplace(bool replaceMode)
+        {
+            findReplaceActive_ = true;
+            findReplaceMode_ = replaceMode;
+            findReplaceEditingReplace_ = false;
+            findInput_.clear();
+            replaceInput_.clear();
+            findCursor_ = 0;
+            replaceCursor_ = 0;
+            findMatches_.clear();
+            currentMatch_ = -1;
+
+            // Pre-fill with selected text if any
+            if (editor_.hasSelection())
+            {
+                findInput_ = editor_.getSelectedText();
+                findCursor_ = (int)findInput_.size();
+                updateFindMatches();
+            }
+        }
+
+        void updateFindMatches()
+        {
+            findMatches_.clear();
+            currentMatch_ = -1;
+            if (findInput_.empty())
+                return;
+
+            const auto *buf = editor_.activeBuffer();
+            if (!buf)
+                return;
+
+            try
+            {
+                std::regex pattern(findInput_, std::regex::ECMAScript);
+                for (int row = 0; row < buf->lineCount(); row++)
+                {
+                    const std::string &line = buf->getLine(row);
+                    auto begin = std::sregex_iterator(line.begin(), line.end(), pattern);
+                    auto end = std::sregex_iterator();
+                    for (auto it = begin; it != end; ++it)
+                    {
+                        findMatches_.push_back({row, (int)it->position()});
+                    }
+                }
+            }
+            catch (const std::regex_error &)
+            {
+                // Invalid regex — treat as literal search
+                const auto *buf2 = editor_.activeBuffer();
+                if (!buf2)
+                    return;
+                for (int row = 0; row < buf2->lineCount(); row++)
+                {
+                    const std::string &line = buf2->getLine(row);
+                    size_t pos = 0;
+                    while ((pos = line.find(findInput_, pos)) != std::string::npos)
+                    {
+                        findMatches_.push_back({row, (int)pos});
+                        pos += findInput_.size();
+                    }
+                }
+            }
+
+            if (!findMatches_.empty())
+            {
+                currentMatch_ = 0;
+                navigateToCurrentMatch();
+            }
+
+            editor_.setStatusMessage(std::to_string(findMatches_.size()) + " match(es)");
+        }
+
+        void navigateToCurrentMatch()
+        {
+            if (currentMatch_ < 0 || currentMatch_ >= (int)findMatches_.size())
+                return;
+            auto [row, col] = findMatches_[currentMatch_];
+            editor_.setCursorPosition(row, col);
+        }
+
+        void findNext()
+        {
+            if (findMatches_.empty())
+                return;
+            currentMatch_ = (currentMatch_ + 1) % (int)findMatches_.size();
+            navigateToCurrentMatch();
+            editor_.setStatusMessage("Match " + std::to_string(currentMatch_ + 1) +
+                                     "/" + std::to_string(findMatches_.size()));
+        }
+
+        void findPrev()
+        {
+            if (findMatches_.empty())
+                return;
+            currentMatch_ = (currentMatch_ - 1 + (int)findMatches_.size()) % (int)findMatches_.size();
+            navigateToCurrentMatch();
+            editor_.setStatusMessage("Match " + std::to_string(currentMatch_ + 1) +
+                                     "/" + std::to_string(findMatches_.size()));
+        }
+
+        void doReplace()
+        {
+            if (findMatches_.empty() || currentMatch_ < 0 || currentMatch_ >= (int)findMatches_.size())
+                return;
+
+            auto *buf = editor_.activeBufferMut();
+            if (!buf)
+                return;
+
+            auto [row, col] = findMatches_[currentMatch_];
+            const std::string &line = buf->getLine(row);
+
+            // Determine the match length using the same regex
+            int matchLen = (int)findInput_.size(); // default for literal
+            try
+            {
+                std::regex pattern(findInput_, std::regex::ECMAScript);
+                auto begin = std::sregex_iterator(line.begin(), line.end(), pattern);
+                for (auto it = begin; it != std::sregex_iterator(); ++it)
+                {
+                    if ((int)it->position() == col)
+                    {
+                        matchLen = (int)it->length();
+                        break;
+                    }
+                }
+            }
+            catch (const std::regex_error &)
+            {
+            }
+
+            // Replace
+            BufferPos from = {row, col};
+            BufferPos to = {row, col + matchLen};
+            buf->replaceRange(from, to, replaceInput_);
+
+            // Refresh matches
+            updateFindMatches();
+        }
+
+        void doReplaceAll()
+        {
+            if (findMatches_.empty())
+                return;
+
+            auto *buf = editor_.activeBufferMut();
+            if (!buf)
+                return;
+
+            int replaced = 0;
+            // Replace from bottom to top so positions don't shift
+            for (int i = (int)findMatches_.size() - 1; i >= 0; i--)
+            {
+                auto [row, col] = findMatches_[i];
+                const std::string &line = buf->getLine(row);
+
+                int matchLen = (int)findInput_.size();
+                try
+                {
+                    std::regex pattern(findInput_, std::regex::ECMAScript);
+                    auto begin = std::sregex_iterator(line.begin(), line.end(), pattern);
+                    for (auto it = begin; it != std::sregex_iterator(); ++it)
+                    {
+                        if ((int)it->position() == col)
+                        {
+                            matchLen = (int)it->length();
+                            break;
+                        }
+                    }
+                }
+                catch (const std::regex_error &)
+                {
+                }
+
+                BufferPos from = {row, col};
+                BufferPos to = {row, col + matchLen};
+                buf->replaceRange(from, to, replaceInput_);
+                replaced++;
+            }
+
+            editor_.setStatusMessage("Replaced " + std::to_string(replaced) + " occurrences");
+            updateFindMatches();
+        }
+
+        // ── Overlay dialog rendering ─────────────────────────────────
+
+        void renderGotoLineDialog(std::vector<std::vector<Cell>> &cells) const
+        {
+            // Render at top of editor area as a small bar
+            int barRow = editorRect_.y;
+            int barStartCol = editorRect_.x;
+            int barWidth = std::min(40, editorRect_.w);
+
+            if (barRow < 0 || barRow >= totalRows_)
+                return;
+
+            Color barBg = {60, 60, 60};
+            Color barFg = {220, 220, 220};
+            Color labelFg = {180, 180, 220};
+
+            // Fill background
+            for (int c = barStartCol; c < barStartCol + barWidth && c < totalCols_; c++)
+            {
+                cells[barRow][c].bg = barBg;
+                cells[barRow][c].ch = U' ';
+                cells[barRow][c].dirty = true;
+            }
+
+            // Label: "Go to Line: "
+            std::string label = " Go to Line: ";
+            int col = barStartCol;
+            for (char ch : label)
+            {
+                if (col < totalCols_)
+                {
+                    cells[barRow][col].ch = (char32_t)ch;
+                    cells[barRow][col].fg = labelFg;
+                    cells[barRow][col].bg = barBg;
+                    cells[barRow][col].dirty = true;
+                    col++;
+                }
+            }
+
+            // Input text
+            for (char ch : gotoLineInput_)
+            {
+                if (col < barStartCol + barWidth && col < totalCols_)
+                {
+                    cells[barRow][col].ch = (char32_t)ch;
+                    cells[barRow][col].fg = barFg;
+                    cells[barRow][col].bg = barBg;
+                    cells[barRow][col].dirty = true;
+                    col++;
+                }
+            }
+
+            // Cursor indicator (block)
+            if (col < barStartCol + barWidth && col < totalCols_)
+            {
+                cells[barRow][col].ch = U'█';
+                cells[barRow][col].fg = barFg;
+                cells[barRow][col].bg = barBg;
+                cells[barRow][col].dirty = true;
+            }
+        }
+
+        void renderFindReplaceDialog(std::vector<std::vector<Cell>> &cells) const
+        {
+            int barWidth = std::min(60, editorRect_.w);
+            // Position at TOP-RIGHT of editor area
+            int barStartCol = editorRect_.x + editorRect_.w - barWidth;
+            int startRow = editorRect_.y;
+            int numRows = findReplaceMode_ ? 2 : 1;
+
+            Color barBg = {45, 45, 45};
+            Color activeBg = {55, 55, 70};
+            Color labelFg = {180, 180, 220};
+            Color textFg = {220, 220, 220};
+            Color matchFg = {255, 200, 80};
+            Color btnFg = {100, 200, 100};
+            Color btnHoverFg = {160, 255, 160};
+            Color btnHoverBg = {70, 70, 90};
+
+            // ── Find row ──
+            int row1 = startRow;
+            if (row1 < 0 || row1 >= totalRows_)
+                return;
+
+            Color row1Bg = (!findReplaceEditingReplace_) ? activeBg : barBg;
+            for (int c = barStartCol; c < barStartCol + barWidth && c < totalCols_; c++)
+            {
+                cells[row1][c].bg = row1Bg;
+                cells[row1][c].ch = U' ';
+                cells[row1][c].dirty = true;
+            }
+
+            int col = barStartCol;
+            // Find label
+            std::string findLabel = " Find: ";
+            for (char ch : findLabel)
+            {
+                if (col < totalCols_)
+                {
+                    cells[row1][col].ch = (char32_t)ch;
+                    cells[row1][col].fg = labelFg;
+                    cells[row1][col].bg = row1Bg;
+                    cells[row1][col].dirty = true;
+                    col++;
+                }
+            }
+
+            // Store find input field start column for click detection
+            findInputStartCol_ = col;
+
+            // Find input text
+            for (char ch : findInput_)
+            {
+                if (col < barStartCol + barWidth - 12 && col < totalCols_)
+                {
+                    cells[row1][col].ch = (char32_t)ch;
+                    cells[row1][col].fg = textFg;
+                    cells[row1][col].bg = row1Bg;
+                    cells[row1][col].dirty = true;
+                    col++;
+                }
+            }
+
+            // Cursor block (when editing find)
+            if (!findReplaceEditingReplace_ && col < barStartCol + barWidth - 12 && col < totalCols_)
+            {
+                cells[row1][col].ch = U'█';
+                cells[row1][col].fg = textFg;
+                cells[row1][col].bg = row1Bg;
+                cells[row1][col].dirty = true;
+                col++;
+            }
+
+            // Match count + navigation buttons on the right
+            struct BtnCell
+            {
+                char32_t ch;
+                Color fg;
+            };
+            std::string matchStr;
+            if (findMatches_.empty())
+                matchStr = "0/0";
+            else
+                matchStr = std::to_string(currentMatch_ + 1) + "/" + std::to_string(findMatches_.size());
+
+            // Compute button positions FIRST, then render with hover state
+            int rightCellCount = 1 + (int)matchStr.size() + 1 + 1 + 1 + 1 + 1 + 1; // " N ▲ ▼ ✕"
+            int rightStart = barStartCol + barWidth - rightCellCount - 1;
+
+            // Store positions for click detection
+            findPrevBtnCol_ = rightStart + 1 + (int)matchStr.size() + 1;
+            findNextBtnCol_ = findPrevBtnCol_ + 2;
+            findCloseBtnCol_ = findNextBtnCol_ + 2;
+            findDialogRow_ = row1;
+            findDialogStartCol_ = barStartCol;
+            findDialogWidth_ = barWidth;
+
+            // Build right-side cells with hover highlighting
+            if (rightStart > col)
+            {
+                int rc = rightStart;
+                // Only highlight a button cell if the mouse is ON that specific button
+                auto putCell = [&](char32_t ch, Color fg, int btnCol)
+                {
+                    if (rc < totalCols_)
+                    {
+                        bool hovered = (btnCol >= 0 && findHoverRow_ == row1 &&
+                                        findHoverCol_ >= 0 && std::abs(findHoverCol_ - btnCol) <= 0);
+                        cells[row1][rc].ch = ch;
+                        cells[row1][rc].fg = hovered ? btnHoverFg : fg;
+                        cells[row1][rc].bg = hovered ? btnHoverBg : row1Bg;
+                        cells[row1][rc].dirty = true;
+                        rc++;
+                    }
+                };
+                // " " count " "
+                putCell(U' ', matchFg, -1);
+                for (char ch : matchStr)
+                    putCell((char32_t)ch, matchFg, -1);
+                putCell(U' ', matchFg, -1);
+                // ▲ prev
+                putCell(U'▲', btnFg, findPrevBtnCol_);
+                putCell(U' ', row1Bg, -1);
+                // ▼ next
+                putCell(U'▼', btnFg, findNextBtnCol_);
+                putCell(U' ', row1Bg, -1);
+                // ✕ close
+                putCell(U'✕', {200, 80, 80}, findCloseBtnCol_);
+            }
+
+            // ── Replace row (if in replace mode) ──
+            if (findReplaceMode_ && numRows > 1)
+            {
+                int row2 = startRow + 1;
+                if (row2 >= totalRows_)
+                    return;
+
+                Color row2Bg = findReplaceEditingReplace_ ? activeBg : barBg;
+                for (int c = barStartCol; c < barStartCol + barWidth && c < totalCols_; c++)
+                {
+                    cells[row2][c].bg = row2Bg;
+                    cells[row2][c].ch = U' ';
+                    cells[row2][c].dirty = true;
+                }
+
+                col = barStartCol;
+                std::string replLabel = " Repl: ";
+                for (char ch : replLabel)
+                {
+                    if (col < totalCols_)
+                    {
+                        cells[row2][col].ch = (char32_t)ch;
+                        cells[row2][col].fg = labelFg;
+                        cells[row2][col].bg = row2Bg;
+                        cells[row2][col].dirty = true;
+                        col++;
+                    }
+                }
+
+                // Store replace input field start column for click detection
+                replaceInputStartCol_ = col;
+
+                for (char ch : replaceInput_)
+                {
+                    if (col < barStartCol + barWidth - 8 && col < totalCols_)
+                    {
+                        cells[row2][col].ch = (char32_t)ch;
+                        cells[row2][col].fg = textFg;
+                        cells[row2][col].bg = row2Bg;
+                        cells[row2][col].dirty = true;
+                        col++;
+                    }
+                }
+
+                // Cursor block (when editing replace)
+                if (findReplaceEditingReplace_ && col < barStartCol + barWidth - 8 && col < totalCols_)
+                {
+                    cells[row2][col].ch = U'█';
+                    cells[row2][col].fg = textFg;
+                    cells[row2][col].bg = row2Bg;
+                    cells[row2][col].dirty = true;
+                    col++;
+                }
+
+                // Replace button on the right: [⇄] [All]
+                struct BtnCell2
+                {
+                    char32_t ch;
+                    Color fg;
+                };
+                std::vector<BtnCell2> replBtns = {
+                    {U' ', btnFg}, {U'R', btnFg}, {U'e', btnFg}, {U'p', btnFg}, {U'l', btnFg}, {U' ', barBg}, {U'A', btnFg}, {U'l', btnFg}, {U'l', btnFg}, {U' ', btnFg}};
+                int rbStart = barStartCol + barWidth - (int)replBtns.size() - 1;
+
+                if (rbStart > col)
+                {
+                    int rc = rbStart;
+                    // "Repl" button spans rbStart+1 to rbStart+4
+                    replaceBtnCol_ = rbStart + 1;
+                    // "All" button spans rbStart+6 to rbStart+8
+                    replaceAllBtnCol_ = rbStart + 6;
+
+                    for (size_t i = 0; i < replBtns.size(); i++)
+                    {
+                        if (rc < totalCols_)
+                        {
+                            // Check if mouse hovers over THIS specific button group
+                            bool onReplBtn = (findHoverRow_ == row2 && findHoverCol_ >= replaceBtnCol_ && findHoverCol_ < replaceBtnCol_ + 4);
+                            bool onAllBtn = (findHoverRow_ == row2 && findHoverCol_ >= replaceAllBtnCol_ && findHoverCol_ < replaceAllBtnCol_ + 3);
+                            bool isInReplRange = (rc >= replaceBtnCol_ && rc < replaceBtnCol_ + 4);
+                            bool isInAllRange = (rc >= replaceAllBtnCol_ && rc < replaceAllBtnCol_ + 3);
+                            bool hovered = (onReplBtn && isInReplRange) || (onAllBtn && isInAllRange);
+
+                            cells[row2][rc].ch = replBtns[i].ch;
+                            cells[row2][rc].fg = hovered ? btnHoverFg : replBtns[i].fg;
+                            cells[row2][rc].bg = hovered ? btnHoverBg : row2Bg;
+                            cells[row2][rc].dirty = true;
+                            rc++;
+                        }
+                    }
+                }
+
+                replaceDialogRow_ = row2;
             }
         }
     };

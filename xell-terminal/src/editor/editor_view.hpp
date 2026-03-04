@@ -543,6 +543,47 @@ namespace xterm
             int codeW = rect_.w - gutterW;
             int visibleLines = codeAreaHeight();
 
+            // ── Pre-compute block comment state for lines before viewport ──
+            highlighter_.resetMultilineState();
+            for (int i = 0; i < scrollTopLine_ && i < buffer_.lineCount(); ++i)
+            {
+                const auto &preLine = buffer_.getLine(i);
+                // Quick scan for --> and <-- to track block comment state
+                // without full tokenization overhead
+                bool inBC = highlighter_.inBlockComment();
+                size_t pos = 0;
+                while (pos < preLine.size())
+                {
+                    if (inBC)
+                    {
+                        auto endPos = preLine.find("<--", pos);
+                        if (endPos != std::string::npos)
+                        {
+                            inBC = false;
+                            pos = endPos + 3;
+                        }
+                        else
+                        {
+                            break; // rest of line is comment
+                        }
+                    }
+                    else
+                    {
+                        auto startPos = preLine.find("-->", pos);
+                        if (startPos != std::string::npos)
+                        {
+                            inBC = true;
+                            pos = startPos + 3;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                }
+                highlighter_.setBlockComment(inBC);
+            }
+
             for (int screenRow = 0; screenRow < visibleLines; screenRow++)
             {
                 int bufferRow = scrollTopLine_ + screenRow;
@@ -726,7 +767,7 @@ namespace xterm
     private:
         TextBuffer &buffer_;
         const ThemeData &theme_;
-        Highlighter highlighter_;
+        mutable Highlighter highlighter_;
 
         Rect rect_ = {0, 0, 80, 24};
         BufferPos cursor_ = {0, 0};

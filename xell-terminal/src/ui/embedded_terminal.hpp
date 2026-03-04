@@ -59,7 +59,8 @@ namespace xterm
             if (xellBin.empty())
                 return false;
 
-            std::vector<std::string> args = {"--terminal"};
+            // Spawn plain xell REPL (no --terminal; that would launch the full GUI)
+            std::vector<std::string> args;
             if (!pty_.spawn(xellBin, rows_, cols_, args))
                 return false;
 
@@ -103,6 +104,8 @@ namespace xterm
         {
             if (!running_.load())
                 return;
+            // Reset scroll offset on any key press (snap to bottom)
+            scrollOffset_ = 0;
             auto result = InputHandler::translate(event, false);
             if (!result.data.empty())
                 pty_.write(result.data);
@@ -112,7 +115,33 @@ namespace xterm
         void handleTextInput(const std::string &text)
         {
             if (running_.load())
+            {
+                scrollOffset_ = 0; // Snap to bottom on input
                 pty_.write(text);
+            }
+        }
+
+        /// Scroll up into scrollback history
+        void scrollUp(int lines = 3)
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            int maxOffset = screenBuffer_.scrollback_size();
+            scrollOffset_ = std::min(scrollOffset_ + lines, maxOffset);
+        }
+
+        /// Scroll down (towards live content)
+        void scrollDown(int lines = 3)
+        {
+            scrollOffset_ = std::max(0, scrollOffset_ - lines);
+        }
+
+        int scrollOffset() const { return scrollOffset_; }
+
+        /// Total number of scrollback lines available
+        int scrollbackSize() const
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            return screenBuffer_.scrollback_size();
         }
 
         /// Check if there's new data to render
@@ -140,16 +169,67 @@ namespace xterm
         }
 
         /// Copy the screen buffer cells directly into an output grid
-        /// starting at the given row offset
+        /// starting at the given row offset. Supports scrollback via scrollOffset_.
         void renderInto(std::vector<std::vector<Cell>> &grid, int startRow) const
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            for (int r = 0; r < rows_ && startRow + r < (int)grid.size(); r++)
+
+            int sbSize = screenBuffer_.scrollback_size();
+
+            if (scrollOffset_ > 0)
             {
-                for (int c = 0; c < cols_ && c < (int)grid[startRow + r].size(); c++)
+                // We're scrolled back — show scrollback lines
+                for (int r = 0; r < rows_ && startRow + r < (int)grid.size(); r++)
                 {
-                    grid[startRow + r][c] = screenBuffer_.get_cell(r, c);
-                    grid[startRow + r][c].dirty = true;
+                    // Which absolute line is this?
+                    // scrollOffset_ lines back from the bottom of scrollback
+                    int sbLine = sbSize - scrollOffset_ + r;
+                    if (sbLine >= 0 && sbLine < sbSize)
+                    {
+                        // It's in the scrollback
+                        const auto &sbRow = screenBuffer_.scrollback_line(sbLine);
+                        for (int c = 0; c < cols_ && c < (int)grid[startRow + r].size() && c < (int)sbRow.size(); c++)
+                        {
+                            grid[startRow + r][c] = sbRow[c];
+                            grid[startRow + r][c].dirty = true;
+                        }
+                    }
+                    else if (sbLine >= sbSize)
+                    {
+                        // It's in the live grid
+                        int gridRow = sbLine - sbSize;
+                        if (gridRow >= 0 && gridRow < rows_)
+                        {
+                            for (int c = 0; c < cols_ && c < (int)grid[startRow + r].size(); c++)
+                            {
+                                grid[startRow + r][c] = screenBuffer_.get_cell(gridRow, c);
+                                grid[startRow + r][c].dirty = true;
+                            }
+                        }
+                    }
+                }
+                // No cursor when scrolled back
+            }
+            else
+            {
+                // Normal rendering (no scroll offset)
+                for (int r = 0; r < rows_ && startRow + r < (int)grid.size(); r++)
+                {
+                    for (int c = 0; c < cols_ && c < (int)grid[startRow + r].size(); c++)
+                    {
+                        grid[startRow + r][c] = screenBuffer_.get_cell(r, c);
+                        grid[startRow + r][c].dirty = true;
+                    }
+                }
+                // Render cursor as a reverse-video block
+                int cr = screenBuffer_.cursor_row;
+                int cc = screenBuffer_.cursor_col;
+                if (cr >= 0 && cr < rows_ && cc >= 0 && cc < cols_ &&
+                    startRow + cr < (int)grid.size() && cc < (int)grid[startRow + cr].size())
+                {
+                    auto &cell = grid[startRow + cr][cc];
+                    std::swap(cell.fg, cell.bg);
+                    cell.dirty = true;
                 }
             }
         }
@@ -158,9 +238,7 @@ namespace xterm
         std::pair<int, int> cursorPos() const
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            // ScreenBuffer stores cursor internally; we can get it from the cells
-            // For now, return -1,-1 — cursor rendering is handled by the screen buffer
-            return {-1, -1};
+            return {screenBuffer_.cursor_row, screenBuffer_.cursor_col};
         }
 
         int rows() const { return rows_; }
@@ -172,6 +250,8 @@ namespace xterm
         mutable ScreenBuffer screenBuffer_;
         VTParser vtParser_;
         PTY pty_;
+
+        int scrollOffset_ = 0; // How many lines scrolled back into scrollback
 
         std::thread readerThread_;
         mutable std::mutex mutex_;

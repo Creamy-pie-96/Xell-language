@@ -1186,12 +1186,36 @@ def build_terminal_colors(kw_classes, builtin_cats):
     }
     token_type_map.update(SPECIAL_MAP)
 
+    # ── Build builtin_names: scope → [name, ...] ──────────────────────────
+    # Used by xell-terminal's highlighter to color builtin function names
+    # without hardcoding them. This is the single source of truth.
+    BUILTIN_SCOPE_MAP = {
+        "io": "support.function.builtin.xell",
+        "util": "support.function.builtin.xell",
+        "type": "support.type.conversion.xell",
+        "collection": "support.function.builtin.xell",
+        "math": "support.function.math.xell",
+        "os": "support.function.builtin.os.xell",
+    }
+    builtin_names = {}
+    for cat in sorted(builtin_cats.keys()):
+        scope = BUILTIN_SCOPE_MAP.get(cat, f"support.function.{cat}.xell")
+        names = sorted(builtin_cats[cat])
+        if scope in builtin_names:
+            builtin_names[scope].extend(names)
+        else:
+            builtin_names[scope] = list(names)
+    # Sort each list for deterministic output
+    for scope in builtin_names:
+        builtin_names[scope] = sorted(set(builtin_names[scope]))
+
     return OrderedDict([
         ("version", 1),
         ("theme", "xell-default"),
         ("editor_ui", EDITOR_UI_COLORS),
         ("token_colors", token_colors),
         ("token_type_map", token_type_map),
+        ("builtin_names", builtin_names),
     ])
 
 
