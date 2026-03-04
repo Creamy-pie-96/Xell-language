@@ -19,6 +19,7 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <unordered_map>
 #include "text_buffer.hpp"
 #include "../terminal/types.hpp"
 #include "../highlight/highlighter.hpp"
@@ -556,6 +557,14 @@ namespace xterm
                     const auto &line = buffer_.getLine(bufferRow);
                     auto spans = highlighter_.highlightLine(line);
 
+                    // Check if this line has a diagnostic
+                    auto diagIt = diagnosticLines_.find(bufferRow);
+                    bool hasDiag = (diagIt != diagnosticLines_.end());
+                    int diagSeverity = hasDiag ? diagIt->second : -1;
+                    Color diagColor = (diagSeverity == 0)   ? Color{255, 80, 80}   // error: red
+                                      : (diagSeverity == 1) ? Color{229, 192, 123} // warning: yellow
+                                                            : Color{255, 80, 80};
+
                     // Write code cells with syntax highlighting
                     for (int screenCol = 0; screenCol < codeW; screenCol++)
                     {
@@ -564,7 +573,9 @@ namespace xterm
 
                         if (bufCol < (int)line.size())
                         {
-                            cell.ch = (char32_t)line[bufCol];
+                            // For source code, treat as byte-indexed (ASCII dominant).
+                            // Safely cast through unsigned to avoid sign-extension.
+                            cell.ch = static_cast<char32_t>(static_cast<unsigned char>(line[bufCol]));
 
                             // Find which span this column belongs to
                             for (auto &span : spans)
@@ -598,6 +609,13 @@ namespace xterm
                             cell.bg = bgColor_;
                         }
 
+                        // Inline diagnostic underline (only on actual text, not trailing space)
+                        if (hasDiag && bufCol < (int)line.size())
+                        {
+                            cell.underline = true;
+                            cell.fg = diagColor;
+                        }
+
                         cell.dirty = true;
                     }
                 }
@@ -623,6 +641,35 @@ namespace xterm
             {
                 out.cursorScreenRow = cursorScreenRow;
                 out.cursorScreenCol = cursorScreenCol;
+            }
+
+            // ── Scrollbar (rightmost column) ──────────────────────────────
+            if (showScrollbar_ && visibleLines > 0 && rect_.w > 0)
+            {
+                int scrollCol = rect_.w - 1;
+                int totalLines = buffer_.lineCount();
+                if (totalLines > visibleLines)
+                {
+                    // Calculate thumb position and size
+                    int trackHeight = visibleLines;
+                    int thumbHeight = std::max(1, trackHeight * visibleLines / totalLines);
+                    int thumbStart = (totalLines - visibleLines > 0)
+                                         ? scrollTopLine_ * (trackHeight - thumbHeight) / (totalLines - visibleLines)
+                                         : 0;
+
+                    Color trackColor = {35, 35, 35};
+                    Color thumbColor = {80, 80, 80};
+
+                    for (int r = 0; r < visibleLines; r++)
+                    {
+                        auto &cell = out.cells[r][scrollCol];
+                        bool isThumb = (r >= thumbStart && r < thumbStart + thumbHeight);
+                        cell.ch = isThumb ? U'█' : U'░';
+                        cell.fg = isThumb ? thumbColor : trackColor;
+                        cell.bg = bgColor_;
+                        cell.dirty = true;
+                    }
+                }
             }
 
             return out;
@@ -652,6 +699,16 @@ namespace xterm
         void setShowLineNumbers(bool show) { showLineNumbers_ = show; }
         bool showLineNumbers() const { return showLineNumbers_; }
 
+        // ── Inline diagnostics ──────────────────────────────────────────
+
+        // Set diagnostic markers: map of line (0-based) → severity (0=error, 1=warning)
+        void setDiagnostics(const std::unordered_map<int, int> &diags)
+        {
+            diagnosticLines_ = diags;
+        }
+
+        void clearDiagnostics() { diagnosticLines_.clear(); }
+
         // ── Mouse → buffer position mapping ─────────────────────────────
 
         BufferPos screenToBuffer(int screenRow, int screenCol) const
@@ -678,6 +735,10 @@ namespace xterm
         int scrollTopLine_ = 0;
         int scrollLeftCol_ = 0;
         bool showLineNumbers_ = true;
+        bool showScrollbar_ = true;
+
+        // Inline diagnostics: line → severity (0=error, 1=warning)
+        std::unordered_map<int, int> diagnosticLines_;
 
         // Theme colors
         Color bgColor_ = Color::default_bg();
@@ -754,6 +815,13 @@ namespace xterm
                 numStr = std::to_string(bufferRow + 1); // 1-based
             }
 
+            // Check for diagnostic on this line
+            auto diagIt = diagnosticLines_.find(bufferRow);
+            bool hasDiag = (diagIt != diagnosticLines_.end());
+            Color diagMarkerColor = (hasDiag && diagIt->second == 0)   ? Color{255, 80, 80}   // error red
+                                    : (hasDiag && diagIt->second == 1) ? Color{229, 192, 123} // warning yellow
+                                                                       : Color{255, 80, 80};
+
             int numStart = gutterW - 2 - (int)numStr.size(); // right-aligned before separator
 
             for (int col = 0; col < gutterW; col++)
@@ -762,7 +830,13 @@ namespace xterm
                 cell.bg = gutterBg_;
                 cell.dirty = true;
 
-                if (col == gutterW - 1)
+                if (col == 0 && hasDiag)
+                {
+                    // Diagnostic marker in first gutter column
+                    cell.ch = U'●';
+                    cell.fg = diagMarkerColor;
+                }
+                else if (col == gutterW - 1)
                 {
                     // Separator: thin vertical bar
                     cell.ch = U'│';
@@ -770,7 +844,8 @@ namespace xterm
                 }
                 else if (col >= numStart && col < numStart + (int)numStr.size())
                 {
-                    cell.ch = (char32_t)numStr[col - numStart];
+                    // numStr is ASCII digits, safe single-byte decode
+                    cell.ch = static_cast<char32_t>(static_cast<unsigned char>(numStr[col - numStart]));
                     cell.fg = isCurrentLine ? gutterActiveFg_ : gutterFg_;
                     cell.bold = isCurrentLine;
                 }

@@ -47,17 +47,17 @@ namespace xterm
 
     enum class EditAction
     {
-        Insert,     // inserted text at position
-        Delete,     // deleted text at position
-        Replace,    // replaced text range
+        Insert,  // inserted text at position
+        Delete,  // deleted text at position
+        Replace, // replaced text range
     };
 
     struct EditCommand
     {
         EditAction action;
-        BufferPos pos;           // position where edit happened
-        BufferPos endPos;        // end position (for delete/replace)
-        std::string text;        // inserted/deleted text
+        BufferPos pos;            // position where edit happened
+        BufferPos endPos;         // end position (for delete/replace)
+        std::string text;         // inserted/deleted text
         std::string replacedText; // old text (for replace/undo)
     };
 

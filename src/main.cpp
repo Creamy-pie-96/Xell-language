@@ -7,6 +7,10 @@
 //   xell <file.xel>       Execute a Xell script
 //   xell --check [file]   Lint: shallow parse-only check (file or stdin)
 //   xell --lint [file]    Alias for --check
+//   xell --check-string <code>  Lint raw source string (no file I/O)
+//   xell --convert <file> [map.xesy]   Convert dialect → canonical in-place
+//   xell --revert  <file> [map.xesy]   Restore dialect from canonical
+//   xell --gen_xesy [output.xesy]      Generate template mapping file
 //   xell --terminal       Launch the Xell Terminal (SDL2 GUI)
 //   xell --customize      Launch the color customizer web app
 //   xell --kernel          Run as a JSON kernel for notebook integration
@@ -23,6 +27,8 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <regex>
+#include <algorithm>
 #include <filesystem>
 
 #include "lexer/lexer.hpp"
@@ -32,6 +38,7 @@
 #include "lib/errors/error.hpp"
 #include "repl/repl.hpp"
 #include "hash/hash_algorithm.hpp"
+#include "common/dialect_convert.hpp"
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -61,6 +68,13 @@ static void printHelp()
     std::cout << "  xell <file.xel>       Execute a Xell script\n";
     std::cout << "  xell --check [file]   Lint: parse-only check (file or stdin)\n";
     std::cout << "  xell --lint [file]    Alias for --check\n";
+    std::cout << "  xell --check-string <code>  Lint raw source string (no file I/O)\n";
+    std::cout << "  xell --convert <file> [map.xesy]\n";
+    std::cout << "                        Convert dialect file to canonical Xell in-place\n";
+    std::cout << "  xell --revert <file> [map.xesy]\n";
+    std::cout << "                        Restore dialect from canonical, re-add @convert\n";
+    std::cout << "  xell --gen_xesy [output.xesy]\n";
+    std::cout << "                        Generate a template .xesy mapping file\n";
     std::cout << "  xell --make_module <path> ...\n";
     std::cout << "                        Register modules & build .xell_meta + cache\n";
     std::cout << "  xell --make_module --update <path> ...\n";
@@ -72,11 +86,642 @@ static void printHelp()
     std::cout << "  xell --help           Show this help\n";
 }
 
+// ---- @convert dialect system ------------------------------------------------
+// Core utilities live in common/dialect_convert.hpp (shared with interpreter).
+// The functions below are main.cpp-specific wrappers that call std::exit(1)
+// on errors (appropriate for CLI commands but not for the interpreter).
+
+/// CLI version of parseXesyFile that exits on error.
+static std::map<std::string, std::string> parseXesyFile(const std::string &path)
+{
+    std::map<std::string, std::string> mapping;
+    std::ifstream f(path);
+    if (!f.is_open())
+    {
+        std::cerr << "Error: Cannot open mapping file '" << path << "'\n";
+        std::exit(1);
+    }
+
+    std::string content((std::istreambuf_iterator<char>(f)),
+                        std::istreambuf_iterator<char>());
+
+    // Simple state-machine JSON parser for flat objects
+    // Handles nested _meta object by brace-counting to skip it
+    size_t pos = content.find('{');
+    if (pos == std::string::npos)
+    {
+        std::cerr << "Error: Invalid .xesy file (no opening '{') in '" << path << "'\n";
+        std::exit(1);
+    }
+    pos++; // skip opening brace
+
+    auto skipWhitespace = [&]()
+    {
+        while (pos < content.size() && std::isspace(content[pos]))
+            pos++;
+    };
+
+    auto readString = [&]() -> std::string
+    {
+        if (pos >= content.size() || content[pos] != '"')
+            return "";
+        pos++; // skip opening quote
+        std::string result;
+        while (pos < content.size() && content[pos] != '"')
+        {
+            if (content[pos] == '\\' && pos + 1 < content.size())
+            {
+                pos++;
+                switch (content[pos])
+                {
+                case 'n':
+                    result += '\n';
+                    break;
+                case 't':
+                    result += '\t';
+                    break;
+                case '\\':
+                    result += '\\';
+                    break;
+                case '"':
+                    result += '"';
+                    break;
+                default:
+                    result += content[pos];
+                    break;
+                }
+            }
+            else
+            {
+                result += content[pos];
+            }
+            pos++;
+        }
+        if (pos < content.size())
+            pos++; // skip closing quote
+        return result;
+    };
+
+    while (pos < content.size())
+    {
+        skipWhitespace();
+        if (pos >= content.size() || content[pos] == '}')
+            break;
+        if (content[pos] == ',')
+        {
+            pos++;
+            continue;
+        }
+
+        // Read key
+        std::string key = readString();
+        skipWhitespace();
+        if (pos < content.size() && content[pos] == ':')
+            pos++; // skip colon
+        skipWhitespace();
+
+        // If value is an object (like _meta), skip it by brace-matching
+        if (pos < content.size() && content[pos] == '{')
+        {
+            int depth = 1;
+            pos++; // skip opening brace
+            while (pos < content.size() && depth > 0)
+            {
+                if (content[pos] == '{')
+                    depth++;
+                else if (content[pos] == '}')
+                    depth--;
+                pos++;
+            }
+            continue;
+        }
+
+        // Read value
+        std::string value = readString();
+
+        // Only add non-empty mappings, skip _meta
+        if (!key.empty() && !value.empty() && key != "_meta")
+        {
+            mapping[key] = value;
+        }
+    }
+
+    return mapping;
+}
+
+/// Invert a mapping: canonical→custom becomes custom→canonical
+static std::map<std::string, std::string> invertMapping(const std::map<std::string, std::string> &mapping)
+{
+    std::map<std::string, std::string> inverted;
+    for (auto &[canonical, custom] : mapping)
+    {
+        if (!custom.empty())
+            inverted[custom] = canonical;
+    }
+    return inverted;
+}
+
+/// Replace all mapped words in source (whole-word boundary matching).
+/// `wordMap` maps from_word → to_word.
+static std::string replaceWords(const std::string &source,
+                                const std::map<std::string, std::string> &wordMap)
+{
+    if (wordMap.empty())
+        return source;
+
+    // Build a regex alternation of all source words, longest first for greedy match
+    std::vector<std::string> words;
+    words.reserve(wordMap.size());
+    for (auto &[from, to] : wordMap)
+        words.push_back(from);
+    // Sort by length descending so longer words match first
+    std::sort(words.begin(), words.end(),
+              [](const std::string &a, const std::string &b)
+              { return a.size() > b.size(); });
+
+    std::string pattern = "\\b(";
+    for (size_t i = 0; i < words.size(); i++)
+    {
+        if (i > 0)
+            pattern += "|";
+        pattern += words[i];
+    }
+    pattern += ")\\b";
+
+    std::regex re(pattern);
+    std::string result;
+    result.reserve(source.size());
+
+    auto begin = std::sregex_iterator(source.begin(), source.end(), re);
+    auto end = std::sregex_iterator();
+
+    size_t lastPos = 0;
+    bool inString = false;
+
+    // We need string-awareness: don't replace inside string literals.
+    // Use a simple character-by-character approach instead.
+    result.clear();
+
+    // Character-by-character approach with word boundary detection
+    size_t i = 0;
+    while (i < source.size())
+    {
+        // Track strings
+        if (source[i] == '"' && (i == 0 || source[i - 1] != '\\'))
+        {
+            inString = !inString;
+            result += source[i];
+            i++;
+            continue;
+        }
+        if (inString)
+        {
+            result += source[i];
+            i++;
+            continue;
+        }
+
+        // Skip comments (# to end of line)
+        if (source[i] == '#')
+        {
+            while (i < source.size() && source[i] != '\n')
+            {
+                result += source[i];
+                i++;
+            }
+            continue;
+        }
+
+        // Skip arrow comments (-> ... <-)
+        if (source[i] == '-' && i + 1 < source.size() && source[i + 1] == '>')
+        {
+            result += source[i];
+            result += source[i + 1];
+            i += 2;
+            while (i < source.size())
+            {
+                if (source[i] == '<' && i + 1 < source.size() && source[i + 1] == '-')
+                {
+                    result += source[i];
+                    result += source[i + 1];
+                    i += 2;
+                    break;
+                }
+                result += source[i];
+                i++;
+            }
+            continue;
+        }
+
+        // Check for word boundary — start of an identifier
+        if (std::isalpha(source[i]) || source[i] == '_')
+        {
+            size_t wordStart = i;
+            std::string word;
+            while (i < source.size() && (std::isalnum(source[i]) || source[i] == '_'))
+            {
+                word += source[i];
+                i++;
+            }
+
+            auto it = wordMap.find(word);
+            if (it != wordMap.end())
+            {
+                result += it->second;
+            }
+            else
+            {
+                result += word;
+            }
+            continue;
+        }
+
+        result += source[i];
+        i++;
+    }
+
+    return result;
+}
+
+/// Parse @convert directive from first 5 non-blank lines of source.
+/// Returns: path string if found (may be empty if no path given), or empty optional if not found.
+struct ConvertDirective
+{
+    bool found = false;
+    std::string mappingPath; // empty if @convert with no path
+    int lineIndex = -1;      // 0-based line index of the @convert line
+};
+
+static ConvertDirective parseConvertDirective(const std::string &source)
+{
+    ConvertDirective result;
+    std::istringstream stream(source);
+    std::string line;
+    int lineNum = 0;
+    int nonBlankCount = 0;
+
+    while (std::getline(stream, line) && nonBlankCount < 5)
+    {
+        // Trim leading whitespace
+        size_t start = line.find_first_not_of(" \t\r");
+        if (start == std::string::npos)
+        {
+            lineNum++;
+            continue; // blank line
+        }
+        nonBlankCount++;
+
+        std::string trimmed = line.substr(start);
+
+        // Match: @convert "path" or @convert (no arg)
+        if (trimmed.rfind("@convert", 0) == 0)
+        {
+            result.found = true;
+            result.lineIndex = lineNum;
+
+            // Extract path from @convert "..."
+            auto quoteStart = trimmed.find('"', 8);
+            if (quoteStart != std::string::npos)
+            {
+                auto quoteEnd = trimmed.find('"', quoteStart + 1);
+                if (quoteEnd != std::string::npos)
+                {
+                    result.mappingPath = trimmed.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+                }
+            }
+            return result;
+        }
+
+        lineNum++;
+    }
+    return result;
+}
+
+/// Remove the @convert line from source text (by line index)
+static std::string stripConvertLine(const std::string &source, int lineIndex)
+{
+    std::istringstream stream(source);
+    std::string line;
+    std::ostringstream result;
+    int lineNum = 0;
+    bool first = true;
+
+    while (std::getline(stream, line))
+    {
+        if (lineNum != lineIndex)
+        {
+            if (!first)
+                result << "\n";
+            result << line;
+            first = false;
+        }
+        lineNum++;
+    }
+    return result.str();
+}
+
+/// Find a .xesy file in the same directory as the given file
+static std::string findXesyInDirectory(const std::string &filePath)
+{
+    namespace fs = std::filesystem;
+    fs::path dir = fs::path(filePath).parent_path();
+    if (dir.empty())
+        dir = ".";
+
+    for (auto &entry : fs::directory_iterator(dir))
+    {
+        if (entry.is_regular_file() && entry.path().extension() == ".xesy")
+        {
+            return entry.path().string();
+        }
+    }
+    return "";
+}
+
+/// Resolve mapping path relative to the code file's directory
+static std::string resolveXesyPath(const std::string &codeFilePath, const std::string &mappingPath)
+{
+    if (mappingPath.empty())
+    {
+        // Auto-detect: find *.xesy in same directory
+        return findXesyInDirectory(codeFilePath);
+    }
+
+    namespace fs = std::filesystem;
+    fs::path mp(mappingPath);
+    if (mp.is_absolute())
+        return mp.string();
+
+    // Resolve relative to code file's directory
+    fs::path codeDir = fs::path(codeFilePath).parent_path();
+    if (codeDir.empty())
+        codeDir = ".";
+    return (codeDir / mp).string();
+}
+
+/// Apply @convert: CLI version that exits on missing .xesy.
+/// For interpreter-side use, see dialect::applyConvertIfNeeded().
+static std::string applyConvertIfNeeded(const std::string &source, const std::string &filePath)
+{
+    auto directive = parseConvertDirective(source);
+    if (!directive.found)
+        return source;
+
+    std::string xesyPath = resolveXesyPath(filePath, directive.mappingPath);
+    if (xesyPath.empty() || !std::filesystem::exists(xesyPath))
+    {
+        if (directive.mappingPath.empty())
+        {
+            std::cerr << "[XELL ERROR] Line " << (directive.lineIndex + 1)
+                      << " — @convert: No .xesy mapping file found in '"
+                      << std::filesystem::path(filePath).parent_path().string()
+                      << "'. Create one with: xell --gen_xesy\n";
+        }
+        else
+        {
+            std::cerr << "[XELL ERROR] Line " << (directive.lineIndex + 1)
+                      << " — @convert: Cannot find mapping file '"
+                      << directive.mappingPath << "'\n";
+        }
+        std::exit(1);
+    }
+
+    // Load mapping and invert (canonical→custom → custom→canonical)
+    auto canonicalToCustom = parseXesyFile(xesyPath);
+    auto customToCanonical = invertMapping(canonicalToCustom);
+
+    // Strip @convert line, then replace words
+    std::string stripped = stripConvertLine(source, directive.lineIndex);
+    return replaceWords(stripped, customToCanonical);
+}
+
+// ---- xell --convert: convert dialect file to canonical in-place -------------
+
+static int convertFile(const std::string &filePath, const std::string &explicitXesy = "")
+{
+    namespace fs = std::filesystem;
+
+    std::string source = readFile(filePath);
+    auto directive = parseConvertDirective(source);
+
+    if (!directive.found)
+    {
+        std::cerr << "Error: No @convert directive found in '" << filePath << "'\n";
+        return 1;
+    }
+
+    // Determine the mapping path
+    std::string xesyPathArg = explicitXesy.empty() ? directive.mappingPath : explicitXesy;
+    std::string xesyPath = resolveXesyPath(filePath, xesyPathArg);
+    if (xesyPath.empty() || !fs::exists(xesyPath))
+    {
+        std::cerr << "Error: Cannot find mapping file. ";
+        if (xesyPathArg.empty())
+            std::cerr << "No .xesy file in directory.\n";
+        else
+            std::cerr << "'" << xesyPathArg << "' not found.\n";
+        return 1;
+    }
+
+    // Load and invert
+    auto canonicalToCustom = parseXesyFile(xesyPath);
+    auto customToCanonical = invertMapping(canonicalToCustom);
+
+    // Strip @convert line, then replace
+    std::string stripped = stripConvertLine(source, directive.lineIndex);
+    std::string converted = replaceWords(stripped, customToCanonical);
+
+    // Write converted file
+    std::ofstream out(filePath, std::ios::trunc);
+    if (!out.is_open())
+    {
+        std::cerr << "Error: Cannot write to '" << filePath << "'\n";
+        return 1;
+    }
+    out << converted;
+    out.close();
+
+    // Save revert info (so --revert knows which .xesy to use)
+    std::string revertPath = filePath + ".xesy.revert";
+    std::ofstream revertFile(revertPath);
+    revertFile << fs::absolute(xesyPath).string() << "\n";
+    revertFile.close();
+
+    std::cout << "✓ Converted '" << filePath << "' to canonical Xell\n";
+    std::cout << "  Mapping: " << xesyPath << "\n";
+    std::cout << "  Revert info saved to: " << revertPath << "\n";
+    return 0;
+}
+
+// ---- xell --revert: restore dialect from canonical file ---------------------
+
+static int revertFile(const std::string &filePath, const std::string &explicitXesy = "")
+{
+    namespace fs = std::filesystem;
+
+    std::string source = readFile(filePath);
+
+    // Determine mapping path: explicit arg > .xesy.revert sidecar > auto-detect
+    std::string xesyPath;
+    if (!explicitXesy.empty())
+    {
+        xesyPath = resolveXesyPath(filePath, explicitXesy);
+    }
+    else
+    {
+        // Try .xesy.revert sidecar
+        std::string revertInfoPath = filePath + ".xesy.revert";
+        if (fs::exists(revertInfoPath))
+        {
+            std::ifstream rf(revertInfoPath);
+            std::getline(rf, xesyPath);
+        }
+        else
+        {
+            xesyPath = findXesyInDirectory(filePath);
+        }
+    }
+
+    if (xesyPath.empty() || !fs::exists(xesyPath))
+    {
+        std::cerr << "Error: Cannot find mapping file for revert.\n";
+        std::cerr << "Specify explicitly: xell --revert " << filePath << " <map.xesy>\n";
+        return 1;
+    }
+
+    // Load forward map (canonical→custom)
+    auto canonicalToCustom = parseXesyFile(xesyPath);
+
+    // Replace canonical → custom
+    std::string reverted = replaceWords(source, canonicalToCustom);
+
+    // Compute relative path from code file dir to xesy file
+    fs::path codeDir = fs::path(filePath).parent_path();
+    if (codeDir.empty())
+        codeDir = ".";
+    fs::path relXesy = fs::relative(fs::absolute(xesyPath), fs::absolute(codeDir));
+    std::string xesyRef = relXesy.string();
+
+    // Prepend @convert directive
+    std::string output = "@convert \"" + xesyRef + "\"\n" + reverted;
+
+    // Write back
+    std::ofstream out(filePath, std::ios::trunc);
+    if (!out.is_open())
+    {
+        std::cerr << "Error: Cannot write to '" << filePath << "'\n";
+        return 1;
+    }
+    out << output;
+    out.close();
+
+    // Remove revert sidecar if it exists
+    std::string revertInfoPath = filePath + ".xesy.revert";
+    if (fs::exists(revertInfoPath))
+        fs::remove(revertInfoPath);
+
+    std::cout << "✓ Reverted '" << filePath << "' to dialect syntax\n";
+    std::cout << "  Mapping: " << xesyPath << "\n";
+    std::cout << "  @convert directive re-added\n";
+    return 0;
+}
+
+// ---- xell --gen_xesy: generate template mapping file ------------------------
+
+static int genXesy(const std::string &outputPath = "")
+{
+    namespace fs = std::filesystem;
+
+    std::string outFile = outputPath.empty() ? "dialect.xesy" : outputPath;
+
+    // Add .xesy extension if not present
+    if (fs::path(outFile).extension() != ".xesy")
+        outFile += ".xesy";
+
+    // Collect all canonical keyword names from the lexer's keywordMap
+    // We replicate the list here since we can't call the static function directly.
+    // This stays in sync because gen_xell_grammar.py can also generate .xesy templates.
+    std::vector<std::string> keywords = {
+        "fn", "give", "if", "elif", "else", "for", "while", "in",
+        "break", "continue", "try", "catch", "finally", "incase", "let", "be", "loop",
+        "bring", "from", "as", "module", "export", "requires",
+        "enum", "struct", "class", "inherits", "immutable",
+        "private", "protected", "public", "static",
+        "interface", "implements", "abstract", "mixin", "with",
+        "yield", "async", "await",
+        "true", "false", "none",
+        "and", "or", "not",
+        "is", "eq", "ne", "gt", "lt", "ge", "le",
+        "of"};
+
+    // Common builtins
+    std::vector<std::string> builtins = {
+        "print", "input", "exit", "len", "type", "str", "num",
+        "typeof", "to_int", "to_float", "to_str",
+        "push", "pop", "keys", "values", "range", "set", "has",
+        "assert", "sort", "reverse", "slice", "join", "split",
+        "map", "filter", "reduce", "contains", "index_of",
+        "mkdir", "rm", "cp", "mv", "exists", "is_file", "is_dir",
+        "ls", "read", "write", "append", "file_size",
+        "cwd", "cd", "abspath", "basename", "dirname", "ext",
+        "env_get", "env_set", "env_unset", "env_has",
+        "run", "run_capture", "pid", "sleep",
+        "floor", "ceil", "round", "abs", "mod", "sqrt", "pow",
+        "sin", "cos", "tan", "log", "log10", "max", "min",
+        "random", "random_int",
+        "upper", "lower", "trim", "starts_with", "ends_with",
+        "replace", "substr", "char_at"};
+
+    std::ofstream out(outFile);
+    if (!out.is_open())
+    {
+        std::cerr << "Error: Cannot create '" << outFile << "'\n";
+        return 1;
+    }
+
+    out << "{\n";
+    out << "  \"_meta\": {\n";
+    out << "    \"dialect_name\": \"My Dialect\",\n";
+    out << "    \"author\": \"\",\n";
+    out << "    \"xell_version\": \"0.1.0\",\n";
+    out << "    \"description\": \"Custom keyword mapping for Xell. Fill in values to map canonical keywords to your dialect.\"\n";
+    out << "  },\n\n";
+
+    out << "  \"_comment_keywords\": \"=== Language Keywords ===\",\n";
+    for (size_t i = 0; i < keywords.size(); i++)
+    {
+        out << "  \"" << keywords[i] << "\": \"\"";
+        if (i + 1 < keywords.size() || !builtins.empty())
+            out << ",";
+        out << "\n";
+    }
+
+    out << "\n  \"_comment_builtins\": \"=== Built-in Functions ===\",\n";
+    for (size_t i = 0; i < builtins.size(); i++)
+    {
+        out << "  \"" << builtins[i] << "\": \"\"";
+        if (i + 1 < builtins.size())
+            out << ",";
+        out << "\n";
+    }
+
+    out << "}\n";
+    out.close();
+
+    std::cout << "✓ Generated template mapping file: " << outFile << "\n";
+    std::cout << "  Fill in the values with your dialect words, then use:\n";
+    std::cout << "    @convert \"" << outFile << "\"    (at the top of your .xel file)\n";
+    return 0;
+}
+
 // ---- Execute a file ---------------------------------------------------------
 
 static int executeFile(const std::string &path, const std::vector<std::string> &cliArgs = {})
 {
     std::string source = readFile(path);
+
+    // Auto-detect @convert and convert dialect → canonical in-memory
+    source = applyConvertIfNeeded(source, path);
 
     xell::Interpreter interpreter;
 
@@ -181,7 +826,10 @@ static int lintSource(const std::string &source)
 
 static int checkFile(const std::string &path)
 {
-    return lintSource(readFile(path));
+    std::string source = readFile(path);
+    // Auto-detect @convert and convert dialect → canonical in-memory
+    source = applyConvertIfNeeded(source, path);
+    return lintSource(source);
 }
 
 static int checkStdin()
@@ -550,12 +1198,15 @@ static void collectModuleDefs(const xell::Stmt *stmt,
 // Helper to write ModuleInfo as JSON with proper submodule hierarchy
 static void writeModuleJson(std::ostream &out, const ModuleInfo &mod,
                             const std::string &fileName, const std::string &hash,
+                            const std::string &convertXesy,
                             int indent)
 {
     std::string pad(indent, ' ');
     out << pad << "\"" << mod.name << "\": {\n";
     out << pad << "  \"file\": \"" << fileName << "\",\n";
     out << pad << "  \"hash\": \"" << hash << "\",\n";
+    if (!convertXesy.empty())
+        out << pad << "  \"convert\": \"" << convertXesy << "\",\n";
     out << pad << "  \"exports\": [";
     for (size_t i = 0; i < mod.exports.size(); i++)
     {
@@ -577,7 +1228,7 @@ static void writeModuleJson(std::ostream &out, const ModuleInfo &mod,
             if (i)
                 out << ",\n";
             // Submodules share the same file and hash
-            writeModuleJson(out, mod.submodules[i], fileName, hash, indent + 4);
+            writeModuleJson(out, mod.submodules[i], fileName, hash, convertXesy, indent + 4);
         }
         out << "\n"
             << pad << "  }";
@@ -739,6 +1390,21 @@ static int makeModule(int argc, char *argv[])
             std::string hash = xell::hash::sha256_string(source);
             std::string relFile = fs::path(filePath).filename().string();
 
+            // Detect & record @convert dialect info before preprocessing
+            auto convertDir = dialect::parseConvertDirective(source);
+            std::string convertXesy;
+            if (convertDir.found)
+            {
+                std::string resolvedXesy = dialect::resolveXesyPath(filePath, convertDir.mappingPath);
+                if (!resolvedXesy.empty() && fs::exists(resolvedXesy))
+                {
+                    // Store relative path for .xell_meta
+                    convertXesy = fs::path(resolvedXesy).filename().string();
+                }
+                // Preprocess: convert dialect → canonical for parsing
+                source = dialect::applyConvertIfNeeded(source, filePath);
+            }
+
             // Check update mode — skip if hash matches
             if (updateMode)
             {
@@ -776,7 +1442,7 @@ static int makeModule(int argc, char *argv[])
                 for (const auto &mod : modules)
                 {
                     std::ostringstream fragment;
-                    writeModuleJson(fragment, mod, relFile, hash, 4);
+                    writeModuleJson(fragment, mod, relFile, hash, convertXesy, 4);
                     newModules.push_back({fragment.str(), mod.name});
 
                     totalModules++;
@@ -892,6 +1558,16 @@ int main(int argc, char *argv[])
         return checkStdin();
     }
 
+    // --check-string "raw code" — lint code passed directly as a string
+    // (no file I/O, used by the IDE for live linting on buffer changes)
+    if (arg1 == "--check-string")
+    {
+        if (argc >= 3)
+            return lintSource(std::string(argv[2]));
+        std::cerr << "[XELL ERROR] --check-string requires a code string argument\n";
+        return 1;
+    }
+
     if (arg1 == "--customize")
     {
         return launchCustomizer();
@@ -910,6 +1586,34 @@ int main(int argc, char *argv[])
     if (arg1 == "--make_module")
     {
         return makeModule(argc, argv);
+    }
+
+    if (arg1 == "--convert")
+    {
+        if (argc < 3)
+        {
+            std::cerr << "Usage: xell --convert <file.xel> [map.xesy]\n";
+            return 1;
+        }
+        std::string xesy = (argc >= 4) ? argv[3] : "";
+        return convertFile(argv[2], xesy);
+    }
+
+    if (arg1 == "--revert")
+    {
+        if (argc < 3)
+        {
+            std::cerr << "Usage: xell --revert <file.xel> [map.xesy]\n";
+            return 1;
+        }
+        std::string xesy = (argc >= 4) ? argv[3] : "";
+        return revertFile(argv[2], xesy);
+    }
+
+    if (arg1 == "--gen_xesy")
+    {
+        std::string output = (argc >= 3) ? argv[2] : "";
+        return genXesy(output);
     }
 
     // Default: treat as file to execute

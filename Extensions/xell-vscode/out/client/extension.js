@@ -193,11 +193,26 @@ function activate(context) {
             ],
             synchronize: {
                 configurationSection: 'xell',
-                fileEvents: vscode.workspace.createFileSystemWatcher('**/*.xel')
+                fileEvents: [
+                    vscode.workspace.createFileSystemWatcher('**/*.xel'),
+                    vscode.workspace.createFileSystemWatcher('**/*.xesy')
+                ]
             }
         };
         client = new node_1.LanguageClient('xellLanguageServer', 'Xell Language Server', serverOptions, clientOptions);
         client.start();
+        // ── .xesy File Change Watcher ────────────────────
+        // Notify the language server when .xesy files change
+        const xesyWatcher = vscode.workspace.createFileSystemWatcher('**/*.xesy');
+        const notifyXesyChange = (uri) => {
+            if (client && client.isRunning()) {
+                client.sendNotification('xell/xesyFileChanged', { path: uri.fsPath });
+            }
+        };
+        xesyWatcher.onDidChange(notifyXesyChange);
+        xesyWatcher.onDidCreate(notifyXesyChange);
+        xesyWatcher.onDidDelete(notifyXesyChange);
+        context.subscriptions.push(xesyWatcher);
     }
     catch (err) {
         console.error('Xell: Language server failed to start:', err);

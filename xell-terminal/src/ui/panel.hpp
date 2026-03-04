@@ -27,6 +27,8 @@ namespace xterm
         REPL,
         Output,
         Diagnostics,
+        Git,
+        Variables,
     };
 
     // ─── Panel (abstract base) ───────────────────────────────────────────
@@ -91,21 +93,80 @@ namespace xterm
             return grid;
         }
 
-        // Helper: write a string into a row
-        void writeString(std::vector<Cell> &row, int col, const std::string &text,
-                         Color fg, Color bg, bool bold = false) const
+        // Helper: decode one UTF-8 codepoint from a string, advancing index
+        static char32_t decodeUTF8(const std::string &s, size_t &i)
         {
-            for (int i = 0; i < (int)text.size() && col + i < (int)row.size(); i++)
+            unsigned char c = static_cast<unsigned char>(s[i]);
+            char32_t cp;
+            int extra;
+            if (c < 0x80)
             {
-                if (col + i >= 0)
-                {
-                    row[col + i].ch = (char32_t)text[i];
-                    row[col + i].fg = fg;
-                    row[col + i].bg = bg;
-                    row[col + i].bold = bold;
-                    row[col + i].dirty = true;
-                }
+                cp = c;
+                extra = 0;
             }
+            else if (c < 0xC0)
+            {
+                i++;
+                return 0xFFFD;
+            }
+            else if (c < 0xE0)
+            {
+                cp = c & 0x1F;
+                extra = 1;
+            }
+            else if (c < 0xF0)
+            {
+                cp = c & 0x0F;
+                extra = 2;
+            }
+            else
+            {
+                cp = c & 0x07;
+                extra = 3;
+            }
+            for (int j = 0; j < extra && i + 1 < s.size(); j++)
+            {
+                i++;
+                cp = (cp << 6) | (static_cast<unsigned char>(s[i]) & 0x3F);
+            }
+            i++;
+            return cp;
+        }
+
+        // Helper: write a UTF-8 string into a row (properly decoding codepoints)
+        // Returns the next column position after writing
+        int writeString(std::vector<Cell> &row, int col, const std::string &text,
+                        Color fg, Color bg, bool bold = false) const
+        {
+            size_t i = 0;
+            int c = col;
+            while (i < text.size() && c < (int)row.size())
+            {
+                char32_t cp = decodeUTF8(text, i);
+                if (c >= 0)
+                {
+                    row[c].ch = cp;
+                    row[c].fg = fg;
+                    row[c].bg = bg;
+                    row[c].bold = bold;
+                    row[c].dirty = true;
+                }
+                c++;
+            }
+            return c;
+        }
+
+        // Helper: count the number of Unicode codepoints in a UTF-8 string
+        static int utf8Len(const std::string &s)
+        {
+            int len = 0;
+            size_t i = 0;
+            while (i < s.size())
+            {
+                decodeUTF8(s, i);
+                len++;
+            }
+            return len;
         }
     };
 

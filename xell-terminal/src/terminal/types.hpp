@@ -7,6 +7,9 @@
 // =============================================================================
 
 #include <cstdint>
+#include <cstddef> // size_t
+#include <string>  // std::string
+#include <vector>  // std::vector
 
 namespace xterm
 {
@@ -112,5 +115,85 @@ namespace xterm
             dirty = true;
         }
     };
+
+    // ─── UTF-8 utilities ─────────────────────────────────────────────────
+
+    // Decode one UTF-8 codepoint from a string, advancing index past it.
+    // Returns U+FFFD on malformed input.
+    inline char32_t utf8Decode(const std::string &s, size_t &i)
+    {
+        if (i >= s.size())
+            return 0;
+        unsigned char c = static_cast<unsigned char>(s[i]);
+        char32_t cp;
+        int extra;
+        if (c < 0x80)
+        {
+            cp = c;
+            extra = 0;
+        }
+        else if (c < 0xC0)
+        {
+            i++;
+            return 0xFFFD;
+        }
+        else if (c < 0xE0)
+        {
+            cp = c & 0x1F;
+            extra = 1;
+        }
+        else if (c < 0xF0)
+        {
+            cp = c & 0x0F;
+            extra = 2;
+        }
+        else
+        {
+            cp = c & 0x07;
+            extra = 3;
+        }
+        for (int j = 0; j < extra && i + 1 < s.size(); j++)
+        {
+            i++;
+            cp = (cp << 6) | (static_cast<unsigned char>(s[i]) & 0x3F);
+        }
+        i++;
+        return cp;
+    }
+
+    // Count the number of Unicode codepoints in a UTF-8 string
+    inline int utf8Len(const std::string &s)
+    {
+        int len = 0;
+        size_t i = 0;
+        while (i < s.size())
+        {
+            utf8Decode(s, i);
+            len++;
+        }
+        return len;
+    }
+
+    // Write a UTF-8 string into a cell row, properly decoding codepoints
+    inline int utf8Write(std::vector<Cell> &row, int startCol, const std::string &text,
+                         Color fg, Color bg, bool bold = false)
+    {
+        size_t si = 0;
+        int col = startCol;
+        while (si < text.size() && col < (int)row.size())
+        {
+            char32_t cp = utf8Decode(text, si);
+            if (col >= 0)
+            {
+                row[col].ch = cp;
+                row[col].fg = fg;
+                row[col].bg = bg;
+                row[col].bold = bold;
+                row[col].dirty = true;
+            }
+            col++;
+        }
+        return col; // return next column after writing
+    }
 
 } // namespace xterm

@@ -1,0 +1,6 @@
+
+print("hello")
+
+for me in range (10,33,2):
+    print(me);
+   

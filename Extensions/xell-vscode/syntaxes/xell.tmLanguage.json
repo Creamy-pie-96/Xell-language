@@ -18,6 +18,9 @@
       "include": "#strings"
     },
     {
+      "include": "#convert-decorator"
+    },
+    {
       "include": "#function-definition"
     },
     {
@@ -244,6 +247,22 @@
               "match": "\\\\."
             }
           ]
+        }
+      ]
+    },
+    "convert-decorator": {
+      "comment": "@convert \"dialect.xesy\" \u2014 dialect mapping directive",
+      "patterns": [
+        {
+          "match": "^\\s*(@convert)\\s+(\"[^\"]*\")",
+          "captures": {
+            "1": {
+              "name": "keyword.other.decorator.xell"
+            },
+            "2": {
+              "name": "string.quoted.double.xell"
+            }
+          }
         }
       ]
     },

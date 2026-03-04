@@ -41,12 +41,12 @@ namespace xterm
 
     struct CompletionItem
     {
-        std::string label;       // main text
-        std::string detail;      // short description
-        std::string signature;   // function signature
-        std::string category;    // builtin category
+        std::string label;     // main text
+        std::string detail;    // short description
+        std::string signature; // function signature
+        std::string category;  // builtin category
         CompletionKind kind = CompletionKind::Keyword;
-        int score = 0;           // fuzzy match score
+        int score = 0; // fuzzy match score
     };
 
     // ─── Completion database ─────────────────────────────────────────────
@@ -64,7 +64,7 @@ namespace xterm
             }
 
             std::string content((std::istreambuf_iterator<char>(file)),
-                                 std::istreambuf_iterator<char>());
+                                std::istreambuf_iterator<char>());
 
             parseLanguageData(content);
         }
@@ -536,16 +536,21 @@ namespace xterm
 
                 // Kind icon
                 char icon = kindIcon(item.kind);
-                out.cells[i][0].ch = (char32_t)icon;
+                out.cells[i][0].ch = static_cast<char32_t>(static_cast<unsigned char>(icon));
                 out.cells[i][0].fg = kindColor(item.kind);
                 out.cells[i][0].bold = true;
 
                 // Label
-                for (int j = 0; j < (int)item.label.size() && j + iconW < totalWidth; j++)
                 {
-                    out.cells[i][iconW + j].ch = (char32_t)item.label[j];
-                    out.cells[i][iconW + j].fg = fg;
-                    out.cells[i][iconW + j].bold = selected;
+                    size_t si = 0;
+                    int j = 0;
+                    while (si < item.label.size() && j + iconW < totalWidth)
+                    {
+                        out.cells[i][iconW + j].ch = utf8Decode(item.label, si);
+                        out.cells[i][iconW + j].fg = fg;
+                        out.cells[i][iconW + j].bold = selected;
+                        j++;
+                    }
                 }
 
                 // Detail (right-aligned, dimmer)
@@ -553,10 +558,13 @@ namespace xterm
                 if (detailStart > iconW + labelWidth + 1)
                 {
                     Color dimFg = {128, 128, 128};
-                    for (int j = 0; j < (int)item.detail.size() && detailStart + j < totalWidth; j++)
+                    size_t si = 0;
+                    int j = 0;
+                    while (si < item.detail.size() && detailStart + j < totalWidth)
                     {
-                        out.cells[i][detailStart + j].ch = (char32_t)item.detail[j];
+                        out.cells[i][detailStart + j].ch = utf8Decode(item.detail, si);
                         out.cells[i][detailStart + j].fg = dimFg;
+                        j++;
                     }
                 }
             }
@@ -618,9 +626,9 @@ namespace xterm
             case CompletionKind::Keyword:
                 return {198, 120, 221}; // purple
             case CompletionKind::Builtin:
-                return {86, 182, 194};  // cyan
+                return {86, 182, 194}; // cyan
             case CompletionKind::Function:
-                return {97, 175, 239};  // blue
+                return {97, 175, 239}; // blue
             case CompletionKind::Variable:
                 return {224, 108, 117}; // red
             case CompletionKind::Class:

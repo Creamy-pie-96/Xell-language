@@ -57,6 +57,15 @@
           "light": "./images/nxel-icon.svg",
           "dark": "./images/nxel-icon.svg"
         }
+      },
+      {
+        "id": "xell-dialect",
+        "aliases": [
+          "Xell Dialect Map"
+        ],
+        "extensions": [
+          ".xesy"
+        ]
       }
     ],
     "notebooks": [
@@ -88,6 +97,32 @@
         "id": "xell-icons",
         "label": "Xell File Icons",
         "path": "./themes/xell-icon-theme.json"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "xell",
+        "scopes": {
+          "keyword": ["keyword.control.flow.xell"],
+          "function": ["support.function.builtin.xell"],
+          "namespace": ["keyword.control.import.xell"],
+          "enumMember": ["constant.language.boolean.true.xell"],
+          "operator": ["keyword.operator.logical.xell"],
+          "xellFnDecl": ["keyword.declaration.function.xell"],
+          "xellReturn": ["keyword.control.return.xell"],
+          "xellConditional": ["keyword.control.conditional.xell"],
+          "xellLoop": ["keyword.control.loop.xell"],
+          "xellTryCatch": ["keyword.control.trycatch.xell"],
+          "xellBinding": ["keyword.other.binding.xell"],
+          "xellModule": ["keyword.control.module.xell"],
+          "xellOopDecl": ["keyword.declaration.type.xell"],
+          "xellOopModifier": ["keyword.other.modifier.xell"],
+          "xellAccess": ["storage.modifier.xell"],
+          "xellGenerator": ["keyword.control.yield.xell"],
+          "xellAsync": ["keyword.control.async.xell"],
+          "xellComparison": ["keyword.operator.comparison.word.xell"],
+          "xellSpecial": ["keyword.other.special.xell"]
+        }
       }
     ],
     "configuration": {

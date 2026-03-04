@@ -1,4 +1,9 @@
 {
+  "Convert Dialect Decorator": {
+    "prefix": "@convert",
+    "body": "@convert \"${1:dialect.xesy}\"",
+    "description": "Declare a dialect mapping file. Place at the top of a .xel file."
+  },
   "Function Definition": {
     "prefix": "fn",
     "body": [

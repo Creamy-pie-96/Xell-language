@@ -33,18 +33,21 @@ fail() { echo -e "  ${RED}✗${NC} $1"; exit 1; }
 
 INSTALL_MODE="local"
 CLEAN=false
+RUN_TESTS=false
 
 for arg in "$@"; do
     case "$arg" in
         --system) INSTALL_MODE="system" ;;
         --local)  INSTALL_MODE="local" ;;
         --clean)  CLEAN=true ;;
+        --test)   RUN_TESTS=true ;;
         --help|-h)
-            echo "Usage: ./install.sh [--local|--system] [--clean]"
+            echo "Usage: ./install.sh [--local|--system] [--clean] [--test]"
             echo ""
             echo "  --local   Install to ~/.local/bin (default, no sudo)"
             echo "  --system  Install to /usr/local/bin (needs sudo)"
             echo "  --clean   Clean build directory first"
+            echo "  --test    Build test targets and run tests"
             exit 0
             ;;
     esac
@@ -128,24 +131,34 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$BIN_DIR/.." >/dev/null 2>&1
-make -j"$(nproc)" 2>&1 | tail -5
+
+if [ "$RUN_TESTS" = true ]; then
+    make -j"$(nproc)" 2>&1
+else
+    make -j"$(nproc)" xell 2>&1
+fi
 
 if [ ! -f "$BUILD_DIR/xell" ]; then
     fail "Build failed — xell binary not found!"
 fi
 ok "Build successful"
 
-# ---- Step 3: Run tests ----
+# ---- Step 3: Run tests (only with --test flag) ----
 
-step "3/6" "Running tests..."
+if [ "$RUN_TESTS" = true ]; then
+    step "3/6" "Running tests..."
 
-TEST_OUTPUT=$(ctest --output-on-failure 2>&1)
-if echo "$TEST_OUTPUT" | grep -q "100% tests passed"; then
-    TEST_COUNT=$(echo "$TEST_OUTPUT" | grep -o '[0-9]* tests passed' | head -1)
-    ok "All $TEST_COUNT"
+    TEST_OUTPUT=$(ctest --output-on-failure 2>&1)
+    if echo "$TEST_OUTPUT" | grep -q "100% tests passed"; then
+        TEST_COUNT=$(echo "$TEST_OUTPUT" | grep -o '[0-9]* tests passed' | head -1)
+        ok "All $TEST_COUNT"
+    else
+        warn "Some tests failed:"
+        echo "$TEST_OUTPUT" | tail -20
+    fi
 else
-    warn "Some tests failed:"
-    echo "$TEST_OUTPUT" | tail -20
+    step "3/6" "Skipping tests (use --test to run)"
+    ok "Skipped"
 fi
 
 # ---- Step 4: Install binary + data ----
@@ -243,20 +256,57 @@ if [ -d "$TERMINAL_SRC" ]; then
         if [ -f "$TERMINAL_BUILD/xell-terminal" ]; then
             ok "xell-terminal built"
 
+            # Determine font destination
+            TERM_SHARE_DIR="${SHARE_DIR%/xell}/xell-terminal"   # e.g. /usr/local/share/xell-terminal
+
             if [ "$INSTALL_MODE" = "system" ]; then
+                # Stage to /tmp first (encrypted mount can't copy directly to root)
                 TMP_TERM=$(mktemp -d /tmp/xell_term.XXXXXX)
+
+                # Copy binary
                 cp "$TERMINAL_BUILD/xell-terminal" "$TMP_TERM/xell-terminal"
+
+                # Copy font assets
+                mkdir -p "$TMP_TERM/fonts"
+                cp "$TERMINAL_SRC"/assets/fonts/*.ttf "$TMP_TERM/fonts/" 2>/dev/null || true
+
+                # Copy terminal_colors.json (theme data)
+                COLORS_SRC="$SCRIPT_DIR/Extensions/xell-vscode/color_customizer/terminal_colors.json"
+                [ -f "$COLORS_SRC" ] && cp "$COLORS_SRC" "$TMP_TERM/terminal_colors.json"
+
+                # Install binary
+                $SUDO mkdir -p "$BIN_DIR"
                 $SUDO mv "$TMP_TERM/xell-terminal" "$BIN_DIR/xell-terminal"
                 $SUDO chmod 755 "$BIN_DIR/xell-terminal"
+
+                # Install fonts
+                $SUDO mkdir -p "$TERM_SHARE_DIR/fonts"
+                $SUDO cp "$TMP_TERM"/fonts/*.ttf "$TERM_SHARE_DIR/fonts/" 2>/dev/null || true
+
+                # Install theme data
+                [ -f "$TMP_TERM/terminal_colors.json" ] && \
+                    $SUDO cp "$TMP_TERM/terminal_colors.json" "$TERM_SHARE_DIR/"
+
                 rm -rf "$TMP_TERM"
+
                 # Symlink to ~/.local/bin too
                 rm -f "$HOME/.local/bin/xell-terminal"
                 ln -sf "$BIN_DIR/xell-terminal" "$HOME/.local/bin/xell-terminal"
             else
+                # Local install — no sudo needed
+                mkdir -p "$BIN_DIR"
                 cp "$TERMINAL_BUILD/xell-terminal" "$BIN_DIR/xell-terminal"
                 chmod 755 "$BIN_DIR/xell-terminal"
+
+                mkdir -p "$TERM_SHARE_DIR/fonts"
+                cp "$TERMINAL_SRC"/assets/fonts/*.ttf "$TERM_SHARE_DIR/fonts/" 2>/dev/null || true
+
+                # Install theme data
+                COLORS_SRC="$SCRIPT_DIR/Extensions/xell-vscode/color_customizer/terminal_colors.json"
+                [ -f "$COLORS_SRC" ] && cp "$COLORS_SRC" "$TERM_SHARE_DIR/"
             fi
             ok "Terminal installed: $BIN_DIR/xell-terminal"
+            ok "Fonts installed: $TERM_SHARE_DIR/fonts/"
         else
             warn "xell-terminal build failed"
         fi
@@ -355,5 +405,8 @@ echo -e "  Try it:  ${BOLD}xell${NC}                    # Start REPL"
 echo -e "           ${BOLD}xell hello.xel${NC}           # Run a script"
 echo -e "           ${BOLD}xell --terminal${NC}          # Launch Xell Terminal"
 echo -e "           ${BOLD}xell --customize${NC}         # Color customizer"
+echo -e "           ${BOLD}xell --gen_xesy${NC}          # Generate dialect template"
+echo -e "           ${BOLD}xell --convert file.xel${NC}  # Convert dialect → canonical"
+echo -e "           ${BOLD}xell --revert file.xel${NC}   # Revert canonical → dialect"
 echo -e "           ${BOLD}xell --version${NC}           # Check version"
 echo ""

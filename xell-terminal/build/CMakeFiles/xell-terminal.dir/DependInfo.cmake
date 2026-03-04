@@ -8,6 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp" "CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o" "gcc" "CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o.d"
   "/home/DATA/CODE/code/Xell/xell-terminal/src/main.cpp" "CMakeFiles/xell-terminal.dir/src/main.cpp.o" "gcc" "CMakeFiles/xell-terminal.dir/src/main.cpp.o.d"
   "/home/DATA/CODE/code/Xell/xell-terminal/src/pty/pty_unix.cpp" "CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o" "gcc" "CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o.d"
   "/home/DATA/CODE/code/Xell/xell-terminal/src/renderer/renderer.cpp" "CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o" "gcc" "CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o.d"

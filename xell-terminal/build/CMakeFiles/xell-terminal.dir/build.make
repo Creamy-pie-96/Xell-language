@@ -139,10 +139,24 @@ CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/DATA/CODE/code/Xell/xell-terminal/src/renderer/renderer.cpp -o CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.s
 
+CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o: CMakeFiles/xell-terminal.dir/flags.make
+CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o: /home/DATA/CODE/code/Xell/src/lexer/lexer.cpp
+CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o: CMakeFiles/xell-terminal.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/DATA/CODE/code/Xell/xell-terminal/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o -MF CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o.d -o CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o -c /home/DATA/CODE/code/Xell/src/lexer/lexer.cpp
+
+CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/DATA/CODE/code/Xell/src/lexer/lexer.cpp > CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.i
+
+CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/DATA/CODE/code/Xell/src/lexer/lexer.cpp -o CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.s
+
 CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o: CMakeFiles/xell-terminal.dir/flags.make
 CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o: /home/DATA/CODE/code/Xell/xell-terminal/src/pty/pty_unix.cpp
 CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o: CMakeFiles/xell-terminal.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/DATA/CODE/code/Xell/xell-terminal/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/DATA/CODE/code/Xell/xell-terminal/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o -MF CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o.d -o CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o -c /home/DATA/CODE/code/Xell/xell-terminal/src/pty/pty_unix.cpp
 
 CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.i: cmake_force
@@ -160,6 +174,7 @@ xell__terminal_OBJECTS = \
 "CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o" \
 "CMakeFiles/xell-terminal.dir/src/terminal/input_handler.cpp.o" \
 "CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o" \
+"CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o" \
 "CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o"
 
 # External object files for target xell-terminal
@@ -170,16 +185,19 @@ xell-terminal: CMakeFiles/xell-terminal.dir/src/terminal/screen_buffer.cpp.o
 xell-terminal: CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o
 xell-terminal: CMakeFiles/xell-terminal.dir/src/terminal/input_handler.cpp.o
 xell-terminal: CMakeFiles/xell-terminal.dir/src/renderer/renderer.cpp.o
+xell-terminal: CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o
 xell-terminal: CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o
 xell-terminal: CMakeFiles/xell-terminal.dir/build.make
 xell-terminal: /usr/lib/x86_64-linux-gnu/libSDL2_ttf.so
 xell-terminal: /usr/lib/x86_64-linux-gnu/libSDL2.so
 xell-terminal: CMakeFiles/xell-terminal.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/DATA/CODE/code/Xell/xell-terminal/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Linking CXX executable xell-terminal"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/DATA/CODE/code/Xell/xell-terminal/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Linking CXX executable xell-terminal"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/xell-terminal.dir/link.txt --verbose=$(VERBOSE)
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold "Copying font to build directory"
 	/usr/bin/cmake -E make_directory /home/DATA/CODE/code/Xell/xell-terminal/build/assets/fonts
-	/usr/bin/cmake -E copy_if_different /home/DATA/CODE/code/Xell/xell-terminal/assets/fonts/JetBrainsMono-Regular.ttf /home/DATA/CODE/code/Xell/xell-terminal/build/assets/fonts/JetBrainsMono-Regular.ttf
+	/usr/bin/cmake -E copy_if_different /home/DATA/CODE/code/Xell/xell-terminal/assets/fonts/JetBrainsMonoNerdFont-Regular.ttf /home/DATA/CODE/code/Xell/xell-terminal/build/assets/fonts/JetBrainsMonoNerdFont-Regular.ttf
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold "Copying terminal_colors.json to build directory"
+	/usr/bin/cmake -E copy_if_different /home/DATA/CODE/code/Xell/xell-terminal/../Extensions/xell-vscode/color_customizer/terminal_colors.json /home/DATA/CODE/code/Xell/xell-terminal/build/assets/terminal_colors.json
 
 # Rule to build all files generated by this target.
 CMakeFiles/xell-terminal.dir/build: xell-terminal

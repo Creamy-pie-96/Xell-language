@@ -35,11 +35,11 @@ namespace xterm
 
     struct Diagnostic
     {
-        int line = 0;           // 0-based line number
-        int col = 0;            // 0-based column
-        int endCol = -1;        // end column (-1 = whole line)
+        int line = 0;    // 0-based line number
+        int col = 0;     // 0-based column
+        int endCol = -1; // end column (-1 = whole line)
         std::string message;
-        std::string source;     // "analyzer", "parser", "runtime"
+        std::string source; // "analyzer", "parser", "runtime"
         DiagnosticSeverity severity = DiagnosticSeverity::Error;
     };
 
@@ -182,10 +182,15 @@ namespace xterm
             if (diagnostics_.empty())
             {
                 std::string msg = "No problems detected ✓";
-                for (int i = 0; i < (int)msg.size() && i + 2 < width; i++)
                 {
-                    out.cells[0][i + 2].ch = (char32_t)msg[i];
-                    out.cells[0][i + 2].fg = {98, 195, 121}; // green
+                    size_t si = 0;
+                    int i = 0;
+                    while (si < msg.size() && i + 2 < width)
+                    {
+                        out.cells[0][i + 2].ch = utf8Decode(msg, si);
+                        out.cells[0][i + 2].fg = {98, 195, 121}; // green
+                        i++;
+                    }
                 }
                 return out;
             }
@@ -193,11 +198,16 @@ namespace xterm
             // Summary line
             std::string summary = "⊘ " + std::to_string(errorCount()) + " errors, " +
                                   std::to_string(warningCount()) + " warnings";
-            for (int i = 0; i < (int)summary.size() && i + 1 < width; i++)
             {
-                out.cells[0][i + 1].ch = (char32_t)summary[i];
-                out.cells[0][i + 1].fg = errorCount() > 0 ? errorColor_ : warningColor_;
-                out.cells[0][i + 1].bold = true;
+                size_t si = 0;
+                int i = 0;
+                while (si < summary.size() && i + 1 < width)
+                {
+                    out.cells[0][i + 1].ch = utf8Decode(summary, si);
+                    out.cells[0][i + 1].fg = errorCount() > 0 ? errorColor_ : warningColor_;
+                    out.cells[0][i + 1].bold = true;
+                    i++;
+                }
             }
 
             // Diagnostic entries
@@ -212,27 +222,42 @@ namespace xterm
                 std::string icon = diag.severity == DiagnosticSeverity::Error ? "✗" : "▲";
 
                 // Icon
-                for (int i = 0; i < (int)icon.size() && 2 + i < width; i++)
                 {
-                    out.cells[row][2 + i].ch = (char32_t)icon[i];
-                    out.cells[row][2 + i].fg = iconColor;
+                    size_t si = 0;
+                    int i = 0;
+                    while (si < icon.size() && 2 + i < width)
+                    {
+                        out.cells[row][2 + i].ch = utf8Decode(icon, si);
+                        out.cells[row][2 + i].fg = iconColor;
+                        i++;
+                    }
                 }
 
                 // Line number
                 std::string lineStr = " L" + std::to_string(diag.line + 1) + ": ";
                 int col = 4;
-                for (int i = 0; i < (int)lineStr.size() && col + i < width; i++)
                 {
-                    out.cells[row][col + i].ch = (char32_t)lineStr[i];
-                    out.cells[row][col + i].fg = {128, 128, 128};
+                    size_t si = 0;
+                    int i = 0;
+                    while (si < lineStr.size() && col + i < width)
+                    {
+                        out.cells[row][col + i].ch = utf8Decode(lineStr, si);
+                        out.cells[row][col + i].fg = {128, 128, 128};
+                        i++;
+                    }
                 }
 
                 // Message
                 col += (int)lineStr.size();
-                for (int i = 0; i < (int)diag.message.size() && col + i < width; i++)
                 {
-                    out.cells[row][col + i].ch = (char32_t)diag.message[i];
-                    out.cells[row][col + i].fg = listFg_;
+                    size_t si = 0;
+                    int i = 0;
+                    while (si < diag.message.size() && col + i < width)
+                    {
+                        out.cells[row][col + i].ch = utf8Decode(diag.message, si);
+                        out.cells[row][col + i].fg = listFg_;
+                        i++;
+                    }
                 }
             }
 

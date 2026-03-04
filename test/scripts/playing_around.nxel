@@ -1,0 +1,38 @@
+{
+  "nxel_format": "1.0",
+  "metadata": {
+    "title": "Untitled",
+    "created": "2026-03-04T02:20:16.835Z",
+    "modified": "2026-03-04T02:27:57.262Z",
+    "kernel": "xell",
+    "kernel_version": "1.0"
+  },
+  "cells": [
+    {
+      "id": "cell-1",
+      "type": "code",
+      "source": "",
+      "outputs": [
+        {
+          "type": "stderr",
+          "text": "Execution timed out after 30 seconds"
+        }
+      ],
+      "execution_count": null,
+      "metadata": {}
+    },
+    {
+      "id": "cell-2",
+      "type": "code",
+      "source": "",
+      "outputs": [
+        {
+          "type": "stderr",
+          "text": "Execution timed out after 30 seconds"
+        }
+      ],
+      "execution_count": null,
+      "metadata": {}
+    }
+  ]
+}

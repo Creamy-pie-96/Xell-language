@@ -1,0 +1,32 @@
+
+-->
+for i in range(10):
+    print(i)
+    give 5
+;
+This gives:
+terminate called after throwing an instance of 'xell::GiveSignal'
+Aborted (core dumped)
+
+loop:
+  print(x)
+ 
+;
+Without any break it just stuck and neither prints anything nor throw error.
+
+I think there are many many more such errors
+<--
+x = 3
+loop:
+  print(x)
+  break
+;
+
+print(x)
+
+x = for i in range(20,3,2):
+  if i == 4 or i/10 is 1:
+      break i;
+    ;
+
+print(x)

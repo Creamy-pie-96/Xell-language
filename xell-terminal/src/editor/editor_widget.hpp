@@ -30,6 +30,7 @@
 #include "editor_input.hpp"
 #include "../terminal/types.hpp"
 #include "../theme/theme_loader.hpp"
+#include "../ui/file_tree.hpp" // for fileIconForName
 
 namespace xterm
 {
@@ -74,6 +75,17 @@ namespace xterm
 
         void openFile(const std::string &path)
         {
+            // Check if file is already open — switch to existing tab
+            for (int i = 0; i < (int)tabs_.size(); i++)
+            {
+                if (tabs_[i].filePath == path)
+                {
+                    switchTab(i);
+                    statusMessage_ = "Switched to: " + std::filesystem::path(path).filename().string();
+                    return;
+                }
+            }
+
             auto buf = std::make_unique<TextBuffer>();
             if (buf->loadFromFile(path))
             {
@@ -115,6 +127,7 @@ namespace xterm
             }
             if (tab.buffer->saveToFile(tab.filePath))
             {
+                tab.buffer->markSaved();
                 statusMessage_ = "Saved: " + std::filesystem::path(tab.filePath).filename().string();
                 return true;
             }
@@ -130,6 +143,7 @@ namespace xterm
             if (tab.buffer->saveToFile(path))
             {
                 tab.filePath = path;
+                tab.buffer->markSaved();
                 statusMessage_ = "Saved: " + std::filesystem::path(path).filename().string();
                 return true;
             }
@@ -142,6 +156,37 @@ namespace xterm
             if (activeTab_ < 0 || tabs_.empty())
                 return;
             tabs_.erase(tabs_.begin() + activeTab_);
+            if (activeTab_ >= (int)tabs_.size())
+                activeTab_ = (int)tabs_.size() - 1;
+            if (activeTab_ >= 0)
+                input_ = std::make_unique<EditorInput>(*activeView());
+            else
+                input_.reset();
+        }
+
+        void closeTabByPath(const std::string &path)
+        {
+            for (int i = 0; i < (int)tabs_.size(); i++)
+            {
+                if (tabs_[i].filePath == path)
+                {
+                    tabs_.erase(tabs_.begin() + i);
+                    if (activeTab_ >= (int)tabs_.size())
+                        activeTab_ = (int)tabs_.size() - 1;
+                    if (activeTab_ >= 0)
+                        input_ = std::make_unique<EditorInput>(*activeView());
+                    else
+                        input_.reset();
+                    return;
+                }
+            }
+        }
+
+        void closeTabByIndex(int index)
+        {
+            if (index < 0 || index >= (int)tabs_.size())
+                return;
+            tabs_.erase(tabs_.begin() + index);
             if (activeTab_ >= (int)tabs_.size())
                 activeTab_ = (int)tabs_.size() - 1;
             if (activeTab_ >= 0)
@@ -219,6 +264,80 @@ namespace xterm
             }
 
             return EditorAction::NONE;
+        }
+
+        // ── Cell-coordinate mouse handlers (called by LayoutManager) ─
+
+        EditorAction handleLocalClick(int cellRow, int cellCol, bool shift)
+        {
+            if (!input_)
+                return EditorAction::NONE;
+            // cellRow/cellCol are already in editor-local cell coordinates
+            // Row 0 = tab bar, row 1..h-2 = code, row h-1 = status bar
+            if (cellRow == 0)
+            {
+                handleTabBarClick(cellCol);
+                return EditorAction::HANDLED;
+            }
+
+            // Check if click is on the scrollbar column (rightmost)
+            auto view = activeView();
+            if (view && view->getRect().w > 0)
+            {
+                int editorW = view->getRect().w;
+                if (cellCol >= editorW - 1)
+                {
+                    // Scrollbar click — jump to proportional position
+                    int codeRow = cellRow - 1; // subtract tab bar row
+                    int visibleH = view->codeAreaHeight();
+                    int totalLines = tabs_[activeTab_].buffer->lineCount();
+                    if (totalLines > visibleH && visibleH > 0)
+                    {
+                        float ratio = (float)codeRow / (float)visibleH;
+                        int targetLine = (int)(ratio * totalLines);
+                        view->scrollTo(targetLine);
+                    }
+                    return EditorAction::HANDLED;
+                }
+            }
+
+            // Subtract 1 for tab bar
+            return input_->handleMouseClick(cellRow - 1, cellCol, shift);
+        }
+
+        EditorAction handleLocalDrag(int cellRow, int cellCol)
+        {
+            if (!input_)
+                return EditorAction::NONE;
+
+            // Check for scrollbar drag
+            auto view = activeView();
+            if (view && view->getRect().w > 0)
+            {
+                int editorW = view->getRect().w;
+                if (cellCol >= editorW - 1)
+                {
+                    int codeRow = cellRow - 1;
+                    int visibleH = view->codeAreaHeight();
+                    int totalLines = tabs_[activeTab_].buffer->lineCount();
+                    if (totalLines > visibleH && visibleH > 0)
+                    {
+                        float ratio = (float)codeRow / (float)visibleH;
+                        int targetLine = (int)(ratio * totalLines);
+                        view->scrollTo(targetLine);
+                    }
+                    return EditorAction::HANDLED;
+                }
+            }
+
+            return input_->handleMouseDrag(cellRow - 1, cellCol);
+        }
+
+        EditorAction handleLocalWheel(int delta)
+        {
+            if (!input_)
+                return EditorAction::NONE;
+            return input_->handleMouseWheel(delta);
         }
 
         // ── Clipboard operations ────────────────────────────────────
@@ -335,6 +454,103 @@ namespace xterm
         void setShowTabBar(bool show) { showTabBar_ = show; }
         void setStatusMessage(const std::string &msg) { statusMessage_ = msg; }
 
+        std::string getCurrentFilePath() const
+        {
+            if (activeTab_ >= 0 && activeTab_ < (int)tabs_.size())
+                return tabs_[activeTab_].filePath;
+            return "";
+        }
+
+        // Get text from line 0 to the cursor row (inclusive)
+        std::string getTextToCursorLine() const
+        {
+            auto view = activeView();
+            if (!view || activeTab_ < 0)
+                return "";
+            auto &buf = *tabs_[activeTab_].buffer;
+            int endRow = view->cursor().row;
+            std::string result;
+            for (int r = 0; r <= endRow && r < buf.lineCount(); r++)
+            {
+                if (r > 0)
+                    result += '\n';
+                result += buf.getLine(r);
+            }
+            return result;
+        }
+
+        // Get the full buffer content (all lines)
+        std::string getFullBufferText() const
+        {
+            if (activeTab_ < 0 || activeTab_ >= (int)tabs_.size())
+                return "";
+            auto &buf = *tabs_[activeTab_].buffer;
+            std::string result;
+            for (int r = 0; r < buf.lineCount(); r++)
+            {
+                if (r > 0)
+                    result += '\n';
+                result += buf.getLine(r);
+            }
+            return result;
+        }
+
+        // Hover support for tab bar
+        void setHoverCol(int col) { hoverCol_ = col; }
+
+        // ── Inline diagnostics ──────────────────────────────────────
+
+        void setEditorDiagnostics(const std::unordered_map<int, int> &diags)
+        {
+            if (activeView())
+                activeView()->setDiagnostics(diags);
+        }
+
+        void clearEditorDiagnostics()
+        {
+            if (activeView())
+                activeView()->clearDiagnostics();
+        }
+
+        // ── Tab bar click ────────────────────────────────────────
+
+        void handleTabBarClick(int col)
+        {
+            // Walk through tabs to find which one was clicked
+            int c = 0;
+            for (int i = 0; i < (int)tabs_.size(); i++)
+            {
+                auto &tab = tabs_[i];
+                std::string label = " ";
+                std::string filename;
+                if (tab.filePath.empty())
+                    filename = "Untitled";
+                else
+                    filename = std::filesystem::path(tab.filePath).filename().string();
+                label += fileIconForName(filename, false) + " " + filename;
+                if (tab.buffer->isModified())
+                    label += " \xE2\x97\x8F"; // ●
+                label += " \xC3\x97 ";        // ×
+
+                int labelLen = utf8Len(label);
+                int tabEnd = c + labelLen;
+                if (col >= c && col < tabEnd)
+                {
+                    // Check if click is on the × (last 2 display columns: "× ")
+                    if (col >= tabEnd - 2)
+                    {
+                        closeTabByIndex(i);
+                    }
+                    else
+                    {
+                        switchTab(i);
+                    }
+                    return;
+                }
+                c = tabEnd + 1; // +1 for separator │
+            }
+        }
+
     private:
         const ThemeData &theme_;
 
@@ -346,6 +562,7 @@ namespace xterm
         int totalRows_ = 24;
         bool showTabBar_ = true;
         std::string statusMessage_;
+        int hoverCol_ = -1;
 
         // Theme colors
         Color tabBarBg_ = {30, 30, 30};
@@ -354,6 +571,7 @@ namespace xterm
         Color tabActiveFg_ = {230, 230, 230};
         Color tabInactiveFg_ = {128, 128, 128};
         Color tabBorder_ = {51, 51, 51};
+        Color tabHoverBg_ = {45, 45, 45};
         Color statusBarBg_ = {0, 122, 204};
         Color statusBarFg_ = {255, 255, 255};
 
@@ -403,25 +621,51 @@ namespace xterm
                 bool active = (i == activeTab_);
                 auto &tab = tabs_[i];
 
-                // Tab label: " filename.xel × "
+                // Tab label: " icon filename.xel ● × "
                 std::string label = " ";
+                std::string filename;
                 if (tab.filePath.empty())
-                    label += "Untitled";
+                    filename = "Untitled";
                 else
-                    label += std::filesystem::path(tab.filePath).filename().string();
+                    filename = std::filesystem::path(tab.filePath).filename().string();
+                label += fileIconForName(filename, false) + " " + filename;
                 if (tab.buffer->isModified())
-                    label += " ●";
-                label += " ";
+                    label += " \xE2\x97\x8F"; // ●
+                label += " \xC3\x97 ";        // ×
 
                 Color fg = active ? tabActiveFg_ : tabInactiveFg_;
                 Color bg = active ? tabActiveBg_ : tabInactiveBg_;
 
-                for (int j = 0; j < (int)label.size() && col < totalCols_; j++, col++)
+                // Check if this tab is hovered (not active, not already highlighted)
+                int labelLen = utf8Len(label);
+
+                // Check if hover is on the × close button (last 3 display cols: "× ")
+                bool hoverOnClose = (hoverCol_ >= col + labelLen - 3 && hoverCol_ < col + labelLen);
+
+                if (!active && hoverCol_ >= col && hoverCol_ < col + labelLen && !hoverOnClose)
+                    bg = tabHoverBg_;
+
+                // Write label with per-character color override for × hover
                 {
-                    row[col].ch = (char32_t)label[j];
-                    row[col].fg = fg;
-                    row[col].bg = bg;
-                    row[col].dirty = true;
+                    size_t si = 0;
+                    int c = col;
+                    int charIdx = 0;
+                    while (si < label.size() && c < (int)row.size())
+                    {
+                        row[c].ch = utf8Decode(label, si);
+                        row[c].fg = fg;
+                        row[c].bg = bg;
+                        // If hovering on × region, make those chars red bg
+                        if (hoverOnClose && charIdx >= labelLen - 3)
+                        {
+                            row[c].bg = {180, 40, 40};
+                            row[c].fg = {255, 255, 255};
+                        }
+                        row[c].dirty = true;
+                        c++;
+                        charIdx++;
+                    }
+                    col = c;
                 }
 
                 // Tab separator
@@ -470,31 +714,23 @@ namespace xterm
                         " │ " + info.encoding + " ";
             }
 
-            // Write left
-            for (int i = 0; i < (int)left.size() && i < totalCols_; i++)
-            {
-                row[i].ch = (char32_t)left[i];
-            }
+            // Write left (UTF-8 aware)
+            utf8Write(row, 0, left, statusBarFg_, statusBarBg_);
 
-            // Write right (right-aligned)
-            int rightStart = totalCols_ - (int)right.size();
-            for (int i = 0; i < (int)right.size() && rightStart + i < totalCols_; i++)
-            {
-                if (rightStart + i >= 0)
-                    row[rightStart + i].ch = (char32_t)right[i];
-            }
+            // Write right (right-aligned, UTF-8 aware)
+            int rightLen = utf8Len(right);
+            int rightStart = totalCols_ - rightLen;
+            utf8Write(row, rightStart, right, statusBarFg_, statusBarBg_);
 
             // Center: transient message
             if (!statusMessage_.empty())
             {
-                int msgStart = (totalCols_ - (int)statusMessage_.size()) / 2;
-                if (msgStart < (int)left.size() + 2)
-                    msgStart = (int)left.size() + 2;
-                for (int i = 0; i < (int)statusMessage_.size() && msgStart + i < rightStart - 1; i++)
-                {
-                    if (msgStart + i < totalCols_)
-                        row[msgStart + i].ch = (char32_t)statusMessage_[i];
-                }
+                int leftLen = utf8Len(left);
+                int msgLen = utf8Len(statusMessage_);
+                int msgStart = (totalCols_ - msgLen) / 2;
+                if (msgStart < leftLen + 2)
+                    msgStart = leftLen + 2;
+                utf8Write(row, msgStart, statusMessage_, statusBarFg_, statusBarBg_);
             }
         }
     };

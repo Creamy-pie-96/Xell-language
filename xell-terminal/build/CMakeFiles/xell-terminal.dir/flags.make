@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/home/DATA/CODE/code/Xell/xell-terminal/src -isystem /usr/include/SDL2 -isystem /usr/include/harfbuzz -isystem /usr/include/freetype2 -isystem /usr/include/libpng16 -isystem /usr/include/glib-2.0 -isystem /usr/lib/x86_64-linux-gnu/glib-2.0/include
+CXX_INCLUDES = -I/home/DATA/CODE/code/Xell/xell-terminal/src -I/home/DATA/CODE/code/Xell/xell-terminal/../src -isystem /usr/include/SDL2 -isystem /usr/include/harfbuzz -isystem /usr/include/freetype2 -isystem /usr/include/libpng16 -isystem /usr/include/glib-2.0 -isystem /usr/lib/x86_64-linux-gnu/glib-2.0/include
 
 CXX_FLAGS = -O3 -DNDEBUG -std=gnu++17 -D_REENTRANT
 

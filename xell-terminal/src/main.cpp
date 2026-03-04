@@ -12,6 +12,8 @@
 #include "terminal/vt_parser.hpp"
 #include "terminal/input_handler.hpp"
 #include "renderer/renderer.hpp"
+#include "theme/theme_loader.hpp"
+#include "ui/layout_manager.hpp"
 
 #include <SDL2/SDL.h>
 
@@ -46,8 +48,9 @@ static constexpr int DEFAULT_WINDOW_WIDTH = 1100;
 static constexpr int DEFAULT_WINDOW_HEIGHT = 650;
 static constexpr int DEFAULT_FONT_SIZE = 15;
 
-// Path to the bundled font, relative to the executable
-static const char *FONT_PATH = "assets/fonts/JetBrainsMono-Regular.ttf";
+// Path to the bundled font, relative to the executable (for build-dir runs)
+static const char *FONT_PATH = "assets/fonts/JetBrainsMonoNerdFont-Regular.ttf";
+static const char *FONT_FILENAME = "JetBrainsMonoNerdFont-Regular.ttf";
 
 // Cursor blink interval
 static constexpr int CURSOR_BLINK_MS = 530;
@@ -258,21 +261,70 @@ static ShellResult find_xell_path()
 }
 
 // =============================================================================
-// Resolve font path relative to the executable
+// Resolve font path — searches multiple locations
 // =============================================================================
+
+static bool file_exists(const std::string &path)
+{
+    return std::filesystem::exists(path) && std::filesystem::is_regular_file(path);
+}
 
 static std::string resolve_font_path()
 {
-    // SDL_GetBasePath() returns the directory containing the executable
+    std::vector<std::string> candidates;
+
     char *base = SDL_GetBasePath();
+    std::string baseDir = base ? std::string(base) : "";
     if (base)
-    {
-        std::string path = std::string(base) + FONT_PATH;
         SDL_free(base);
-        return path;
+
+    // 1. Relative to executable: <exe_dir>/assets/fonts/<font>  (build-dir layout)
+    if (!baseDir.empty())
+        candidates.push_back(baseDir + FONT_PATH);
+
+    // 2. Installed data dir: <exe_dir>/../share/xell-terminal/fonts/<font>
+    if (!baseDir.empty())
+        candidates.push_back(baseDir + "../share/xell-terminal/fonts/" + FONT_FILENAME);
+
+    // 3. Common install prefixes
+    candidates.push_back("/usr/local/share/xell-terminal/fonts/" + std::string(FONT_FILENAME));
+    candidates.push_back("/usr/share/xell-terminal/fonts/" + std::string(FONT_FILENAME));
+
+    // 4. Home directory
+    const char *home = getenv("HOME");
+#ifdef _WIN32
+    if (!home)
+        home = getenv("USERPROFILE");
+    // Windows: also check AppData local
+    const char *localAppData = getenv("LOCALAPPDATA");
+    if (localAppData)
+        candidates.push_back(std::string(localAppData) + "\\xell-terminal\\fonts\\" + FONT_FILENAME);
+#endif
+    if (home)
+        candidates.push_back(std::string(home) + "/.local/share/xell-terminal/fonts/" + FONT_FILENAME);
+
+    // 5. Relative to CWD (for development)
+    candidates.push_back(FONT_PATH);
+
+    for (const auto &path : candidates)
+    {
+        if (file_exists(path))
+            return path;
     }
+
+    // Nothing found — return the original relative path and let the caller report the error
     return FONT_PATH;
 }
+
+// =============================================================================
+// Application modes — switchable with :ide / :terminal commands
+// =============================================================================
+
+enum class AppMode
+{
+    TERMINAL, // Classic terminal emulator (PTY + VT parser)
+    IDE       // IDE layout (editor + sidebar + REPL + git panels)
+};
 
 // =============================================================================
 // Main
@@ -401,6 +453,79 @@ int main(int argc, char *argv[])
             }
         } });
 
+    // --- Application mode (switchable with :ide / :terminal) ---
+    AppMode appMode = AppMode::TERMINAL;
+
+    // Load theme for IDE mode (lazy — used when switching to IDE)
+    xterm::ThemeData ideTheme = xterm::loadDefaultTheme();
+    std::unique_ptr<xterm::LayoutManager> layout;
+
+    // Cell dimensions (needed before lambda definitions)
+    int cell_w, cell_h;
+    renderer.get_cell_size(cell_w, cell_h);
+
+    // Input line buffer for detecting :ide / :terminal commands
+    std::string commandBuffer;
+
+    // Helper: switch to IDE mode
+    auto switchToIDE = [&]()
+    {
+        if (appMode == AppMode::IDE)
+        {
+            // Already in IDE mode — tell user via PTY echo
+            pty.write("\r\n[Already in IDE mode. Type :terminal to switch.]\r\n");
+            return;
+        }
+        appMode = AppMode::IDE;
+        if (!layout)
+        {
+            layout = std::make_unique<xterm::LayoutManager>(ideTheme);
+            layout->setCellSize(cell_w, cell_h);
+            layout->resize(term_cols, term_rows);
+            // Try to set project root from CWD or known paths
+            char *cwd = getcwd(nullptr, 0);
+            if (cwd)
+            {
+                layout->setProjectRoot(cwd);
+                free(cwd);
+            }
+        }
+        else
+        {
+            layout->setCellSize(cell_w, cell_h);
+            layout->resize(term_cols, term_rows);
+        }
+        {
+            std::lock_guard<std::mutex> lock(title_mutex);
+            window_title = "Xell IDE";
+        }
+    };
+
+    // Helper: switch to terminal mode
+    auto switchToTerminal = [&]()
+    {
+        if (appMode == AppMode::TERMINAL)
+        {
+            pty.write("\r\n[Already in terminal mode. Type :ide to switch.]\r\n");
+            return;
+        }
+        appMode = AppMode::TERMINAL;
+        {
+            std::lock_guard<std::mutex> lock(title_mutex);
+            window_title = "Xell Terminal";
+        }
+        // Clear the screen buffer to remove IDE artifacts, then ask the
+        // shell to redraw by sending a clear-screen escape to the PTY.
+        {
+            std::lock_guard<std::mutex> lock(buffer_mutex);
+            buffer.clear();
+        }
+        // Tell the child process to redraw (clear screen + carriage return)
+        pty.write("\x0c"); // Ctrl+L — clears the terminal and redraws prompt
+        // Force full redraw of terminal content
+        has_new_data.store(true);
+    };
+
     // --- Scrollback state ---
     int scroll_offset = 0; // 0 = live view, >0 = scrolled back
 
@@ -411,8 +536,6 @@ int main(int argc, char *argv[])
 
     // --- Text selection state ---
     xterm::TextSelection selection;
-    int cell_w, cell_h;
-    renderer.get_cell_size(cell_w, cell_h);
 
     // --- Right-click context menu state ---
     struct ContextMenu
@@ -473,11 +596,122 @@ int main(int argc, char *argv[])
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
-            switch (event.type)
+            // --- Global events (both modes) ---
+            if (event.type == SDL_QUIT)
             {
-            case SDL_QUIT:
                 running.store(false);
                 break;
+            }
+
+            if (event.type == SDL_WINDOWEVENT)
+            {
+                if (event.window.event == SDL_WINDOWEVENT_RESIZED ||
+                    event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+                {
+                    int new_w = event.window.data1;
+                    int new_h = event.window.data2;
+
+                    int new_rows, new_cols;
+                    renderer.get_terminal_size(new_w, new_h, new_rows, new_cols);
+
+                    if (new_rows != term_rows || new_cols != term_cols)
+                    {
+                        std::lock_guard<std::mutex> lock(buffer_mutex);
+                        term_rows = new_rows;
+                        term_cols = new_cols;
+                        buffer.resize(term_rows, term_cols);
+                        pty.resize(term_rows, term_cols);
+                        renderer.get_cell_size(cell_w, cell_h);
+                        selection.clear();
+                        if (layout)
+                        {
+                            layout->setCellSize(cell_w, cell_h);
+                            layout->resize(term_cols, term_rows);
+                        }
+                    }
+                }
+                if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+                    context_menu.hide();
+                continue;
+            }
+
+            // =================================================================
+            // IDE MODE — Route events through LayoutManager
+            // =================================================================
+            if (appMode == AppMode::IDE && layout)
+            {
+                // Check for :terminal command via Escape key (quick switch back)
+                if (event.type == SDL_KEYDOWN)
+                {
+                    auto key = event.key.keysym;
+                    bool ctrl = (key.mod & KMOD_CTRL) != 0;
+                    bool shift = (key.mod & KMOD_SHIFT) != 0;
+
+                    // Ctrl+Shift+` switches back to terminal mode
+                    // (Ctrl+` alone toggles bottom panel via layout manager)
+                    if (ctrl && shift && key.sym == SDLK_BACKQUOTE)
+                    {
+                        switchToTerminal();
+                        continue;
+                    }
+                }
+
+                // Route ALL events to layout (keyboard, mouse, etc.)
+                {
+                    auto action = layout->handleEvent(event);
+
+                    switch (action)
+                    {
+                    case xterm::LayoutManager::LayoutAction::QUIT:
+                        running.store(false);
+                        break;
+                    case xterm::LayoutManager::LayoutAction::SWITCH_TO_TERMINAL:
+                        switchToTerminal();
+                        break;
+                    case xterm::LayoutManager::LayoutAction::SAVE:
+                        // Handled internally by layout manager (save + lint)
+                        break;
+                    case xterm::LayoutManager::LayoutAction::COPY:
+                    {
+                        std::string text = layout->getClipboardText();
+                        if (!text.empty())
+                            SDL_SetClipboardText(text.c_str());
+                        break;
+                    }
+                    case xterm::LayoutManager::LayoutAction::PASTE:
+                    {
+                        if (SDL_HasClipboardText())
+                        {
+                            char *clip = SDL_GetClipboardText();
+                            if (clip)
+                            {
+                                layout->pasteText(clip);
+                                SDL_free(clip);
+                            }
+                        }
+                        break;
+                    }
+                    case xterm::LayoutManager::LayoutAction::CUT:
+                    {
+                        std::string text = layout->getClipboardText();
+                        if (!text.empty())
+                            SDL_SetClipboardText(text.c_str());
+                        layout->cut();
+                        break;
+                    }
+                    default:
+                        break;
+                    }
+                }
+
+                continue; // IDE mode handles everything above
+            }
+
+            // =================================================================
+            // TERMINAL MODE — Original terminal emulator behavior
+            // =================================================================
+            switch (event.type)
+            {
 
             case SDL_KEYDOWN:
             {
@@ -580,7 +814,84 @@ int main(int argc, char *argv[])
                 {
                     selection.clear(); // clear selection on typed input
                     if (!result.data.empty())
-                        pty.write(result.data);
+                    {
+                        // Check for Enter key — detect :ide / :terminal commands
+                        if (result.data == "\r" || result.data == "\n")
+                        {
+                            // Trim the command buffer
+                            std::string cmd = commandBuffer;
+                            while (!cmd.empty() && (cmd.back() == ' ' || cmd.back() == '\t'))
+                                cmd.pop_back();
+
+                            if (cmd == ":ide")
+                            {
+                                commandBuffer.clear();
+                                // Send Enter to clear the line in the shell
+                                pty.write("\r");
+                                switchToIDE();
+                                break;
+                            }
+                            else if (cmd == ":terminal")
+                            {
+                                commandBuffer.clear();
+                                pty.write("\r");
+                                switchToTerminal();
+                                break;
+                            }
+                            else if (cmd == ":help" || cmd == ":h")
+                            {
+                                commandBuffer.clear();
+                                pty.write("\r");
+                                // Display help text via PTY
+                                std::string help =
+                                    "\r\n"
+                                    "\x1b[1;36m╭─────────────────────────────────────────╮\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[1;33mXell Terminal — Quick Reference\x1b[0m        \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m├─────────────────────────────────────────┤\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m                                         \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[1;32m:ide\x1b[0m         Switch to IDE mode       \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[1;32m:terminal\x1b[0m    Switch to terminal mode   \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[1;32m:help\x1b[0m        Show this help           \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m                                         \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[1;35mIDE Shortcuts:\x1b[0m                        \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[33mCtrl+T\x1b[0m       Back to terminal          \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[33mCtrl+S\x1b[0m       Save file                 \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[33mCtrl+B\x1b[0m       Toggle sidebar            \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[33mCtrl+`\x1b[0m       Toggle bottom panel       \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[33mCtrl+N\x1b[0m       New file                  \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m  \x1b[33mCtrl+Enter\x1b[0m   Run selection in REPL     \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m│\x1b[0m                                         \x1b[1;36m│\x1b[0m\r\n"
+                                    "\x1b[1;36m╰─────────────────────────────────────────╯\x1b[0m\r\n";
+                                // Write directly to the VT parser so it renders on screen
+                                {
+                                    std::lock_guard<std::mutex> lock(buffer_mutex);
+                                    vt_parser.feed(help);
+                                    has_new_data.store(true);
+                                }
+                                break;
+                            }
+                            commandBuffer.clear();
+                            pty.write(result.data);
+                        }
+                        else if (result.data == "\x7f" || result.data == "\b")
+                        {
+                            // Backspace — remove last char from buffer
+                            if (!commandBuffer.empty())
+                                commandBuffer.pop_back();
+                            pty.write(result.data);
+                        }
+                        else if (result.data[0] == '\x03' || result.data[0] == '\x15')
+                        {
+                            // Ctrl+C or Ctrl+U — clear buffer
+                            commandBuffer.clear();
+                            pty.write(result.data);
+                        }
+                        else
+                        {
+                            commandBuffer += result.data;
+                            pty.write(result.data);
+                        }
+                    }
                     break;
                 }
                 default:
@@ -608,6 +919,7 @@ int main(int argc, char *argv[])
                 if (!bytes.empty())
                 {
                     selection.clear();
+                    commandBuffer += bytes; // Track for :ide/:terminal detection
                     pty.write(bytes);
                 }
                 break;
@@ -814,34 +1126,6 @@ int main(int argc, char *argv[])
                 break;
             }
 
-            case SDL_WINDOWEVENT:
-            {
-                if (event.window.event == SDL_WINDOWEVENT_RESIZED ||
-                    event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-                {
-                    int new_w = event.window.data1;
-                    int new_h = event.window.data2;
-
-                    int new_rows, new_cols;
-                    renderer.get_terminal_size(new_w, new_h, new_rows, new_cols);
-
-                    if (new_rows != term_rows || new_cols != term_cols)
-                    {
-                        std::lock_guard<std::mutex> lock(buffer_mutex);
-                        term_rows = new_rows;
-                        term_cols = new_cols;
-                        buffer.resize(term_rows, term_cols);
-                        pty.resize(term_rows, term_cols);
-                        renderer.get_cell_size(cell_w, cell_h);
-                        selection.clear();
-                    }
-                }
-                // Dismiss menu on focus loss
-                if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
-                    context_menu.hide();
-                break;
-            }
-
             default:
                 break;
             }
@@ -865,13 +1149,41 @@ int main(int argc, char *argv[])
         }
 
         // --- Render ---
+        if (appMode == AppMode::IDE && layout)
         {
+            // Tick timers (live lint, autosave)
+            layout->tick();
+
+            // IDE mode: render LayoutManager output into ScreenBuffer
+            auto ideOutput = layout->render();
+
+            std::lock_guard<std::mutex> lock(buffer_mutex);
+            for (int r = 0; r < (int)ideOutput.cells.size() && r < term_rows; r++)
+            {
+                for (int c = 0; c < (int)ideOutput.cells[r].size() && c < term_cols; c++)
+                {
+                    buffer.set_cell(r, c, ideOutput.cells[r][c]);
+                }
+            }
+
+            // Position cursor from IDE
+            bool showCursor = cursor_visible && ideOutput.cursorRow >= 0;
+            if (showCursor)
+            {
+                buffer.cursor_row = ideOutput.cursorRow;
+                buffer.cursor_col = ideOutput.cursorCol;
+            }
+            renderer.render(buffer, showCursor, 0, nullptr);
+        }
+        else
+        {
+            // Terminal mode: render PTY output
             std::lock_guard<std::mutex> lock(buffer_mutex);
             renderer.render(buffer, cursor_visible, scroll_offset, &selection);
         }
 
-        // --- Draw context menu (on top of everything) ---
-        if (context_menu.visible)
+        // --- Draw context menu (on top of everything, terminal mode only) ---
+        if (appMode == AppMode::TERMINAL && context_menu.visible)
         {
             renderer.draw_context_menu(
                 context_menu.x, context_menu.y,
@@ -882,7 +1194,8 @@ int main(int argc, char *argv[])
                 context_menu.hover_index);
         }
 
-        // --- Draw scrollbar ---
+        // --- Draw scrollbar (terminal mode only) ---
+        if (appMode == AppMode::TERMINAL)
         {
             std::lock_guard<std::mutex> lock(buffer_mutex);
             int sb_total = buffer.scrollback_size();

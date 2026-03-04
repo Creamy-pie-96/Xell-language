@@ -292,6 +292,16 @@ namespace xterm
         searchPaths.push_back("terminal_colors.json");
         searchPaths.push_back("assets/terminal_colors.json");
 
+        // Search relative to executable
+        char *base = SDL_GetBasePath();
+        if (base)
+        {
+            searchPaths.push_back(std::string(base) + "assets/terminal_colors.json");
+            searchPaths.push_back(std::string(base) + "../share/xell-terminal/terminal_colors.json");
+            searchPaths.push_back(std::string(base) + "../share/xell/terminal_colors.json");
+            SDL_free(base);
+        }
+
         const char *home = std::getenv("HOME");
         if (home)
         {
@@ -299,6 +309,8 @@ namespace xterm
             searchPaths.push_back(std::string(home) + "/.local/share/xell/terminal_colors.json");
         }
         searchPaths.push_back("/usr/local/share/xell/terminal_colors.json");
+        searchPaths.push_back("/usr/local/share/xell-terminal/terminal_colors.json");
+        searchPaths.push_back("/usr/share/xell-terminal/terminal_colors.json");
 
         for (auto &path : searchPaths)
         {

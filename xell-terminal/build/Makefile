@@ -174,6 +174,30 @@ xell-terminal/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell-terminal.dir/build.make CMakeFiles/xell-terminal.dir/build
 .PHONY : xell-terminal/fast
 
+home/DATA/CODE/code/Xell/src/lexer/lexer.o: home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o
+.PHONY : home/DATA/CODE/code/Xell/src/lexer/lexer.o
+
+# target to build an object file
+home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell-terminal.dir/build.make CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o
+.PHONY : home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o
+
+home/DATA/CODE/code/Xell/src/lexer/lexer.i: home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.i
+.PHONY : home/DATA/CODE/code/Xell/src/lexer/lexer.i
+
+# target to preprocess a source file
+home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell-terminal.dir/build.make CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.i
+.PHONY : home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.i
+
+home/DATA/CODE/code/Xell/src/lexer/lexer.s: home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.s
+.PHONY : home/DATA/CODE/code/Xell/src/lexer/lexer.s
+
+# target to generate assembly for a file
+home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/xell-terminal.dir/build.make CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.s
+.PHONY : home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.s
+
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
@@ -331,6 +355,9 @@ help:
 	@echo "... list_install_components"
 	@echo "... rebuild_cache"
 	@echo "... xell-terminal"
+	@echo "... home/DATA/CODE/code/Xell/src/lexer/lexer.o"
+	@echo "... home/DATA/CODE/code/Xell/src/lexer/lexer.i"
+	@echo "... home/DATA/CODE/code/Xell/src/lexer/lexer.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"

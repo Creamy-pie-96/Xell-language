@@ -20,22 +20,22 @@ namespace xterm
 
     enum class EditorAction
     {
-        NONE,          // not handled — pass to default handler
-        HANDLED,       // handled, no further action
-        SAVE,          // Ctrl+S
-        SAVE_AS,       // Ctrl+Shift+S
-        OPEN_FILE,     // Ctrl+O
-        CLOSE_TAB,     // Ctrl+W
-        FIND,          // Ctrl+F
-        FIND_REPLACE,  // Ctrl+H
-        GOTO_LINE,     // Ctrl+G
+        NONE,            // not handled — pass to default handler
+        HANDLED,         // handled, no further action
+        SAVE,            // Ctrl+S
+        SAVE_AS,         // Ctrl+Shift+S
+        OPEN_FILE,       // Ctrl+O
+        CLOSE_TAB,       // Ctrl+W
+        FIND,            // Ctrl+F
+        FIND_REPLACE,    // Ctrl+H
+        GOTO_LINE,       // Ctrl+G
         COMMAND_PALETTE, // Ctrl+Shift+P
         TOGGLE_TERMINAL, // Ctrl+`
-        NEW_FILE,      // Ctrl+N
-        QUIT_EDITOR,   // Ctrl+Q — switch back to terminal mode
-        COPY,          // Ctrl+C (no selection → line copy)
-        CUT,           // Ctrl+X
-        PASTE,         // Ctrl+V
+        NEW_FILE,        // Ctrl+N
+        QUIT_EDITOR,     // Ctrl+Q — switch back to terminal mode
+        COPY,            // Ctrl+C (no selection → line copy)
+        CUT,             // Ctrl+X
+        PASTE,           // Ctrl+V
     };
 
     // ─── Editor Input Handler ────────────────────────────────────────────
@@ -76,7 +76,8 @@ namespace xterm
                 case SDLK_g:
                     return EditorAction::GOTO_LINE;
                 case SDLK_p:
-                    if (shift) return EditorAction::COMMAND_PALETTE;
+                    if (shift)
+                        return EditorAction::COMMAND_PALETTE;
                     break;
                 case SDLK_BACKQUOTE:
                     return EditorAction::TOGGLE_TERMINAL;

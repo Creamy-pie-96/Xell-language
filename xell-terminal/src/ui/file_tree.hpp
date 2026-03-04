@@ -12,12 +12,259 @@
 #include <filesystem>
 #include <algorithm>
 #include <functional>
+#include <fstream>
 #include "panel.hpp"
 #include "../theme/theme_loader.hpp"
 
 namespace xterm
 {
     namespace fs = std::filesystem;
+
+    // ─── File icon helper ────────────────────────────────────────────────
+    // Maps file extensions to Nerd Font icons for display in file tree
+    // and tab bar. Uses devicons/material design icons from Nerd Fonts.
+    //
+    // Nerd Font icon codepoints reference:
+    //   https://www.nerdfonts.com/cheat-sheet
+
+    // Helper: convert a char32_t Nerd Font codepoint to a UTF-8 string
+    inline std::string nfIcon(char32_t cp)
+    {
+        std::string s;
+        if (cp < 0x80)
+        {
+            s += (char)cp;
+        }
+        else if (cp < 0x800)
+        {
+            s += (char)(0xC0 | (cp >> 6));
+            s += (char)(0x80 | (cp & 0x3F));
+        }
+        else if (cp < 0x10000)
+        {
+            s += (char)(0xE0 | (cp >> 12));
+            s += (char)(0x80 | ((cp >> 6) & 0x3F));
+            s += (char)(0x80 | (cp & 0x3F));
+        }
+        else
+        {
+            s += (char)(0xF0 | (cp >> 18));
+            s += (char)(0x80 | ((cp >> 12) & 0x3F));
+            s += (char)(0x80 | ((cp >> 6) & 0x3F));
+            s += (char)(0x80 | (cp & 0x3F));
+        }
+        return s;
+    }
+
+    inline std::string fileIconForName(const std::string &name, bool isDir)
+    {
+        // Nerd Font devicon codepoints
+        // Folders
+        if (isDir)
+        {
+            // Special folder names
+            if (name == ".git")
+                return nfIcon(0xe5fb); //
+            if (name == "node_modules")
+                return nfIcon(0xe718); //
+            if (name == "src")
+                return nfIcon(0xf07c); //
+            if (name == "test" || name == "tests")
+                return nfIcon(0xf07c);
+            if (name == "build" || name == "dist")
+                return nfIcon(0xf07c);
+            return nfIcon(0xf07b); //  (generic folder)
+        }
+
+        // Special filenames
+        std::string lower = name;
+        for (auto &c : lower)
+            c = (char)std::tolower((unsigned char)c);
+
+        if (lower == "makefile" || lower == "cmakeLists.txt")
+            return nfIcon(0xe779); //
+        if (lower == "dockerfile")
+            return nfIcon(0xf308); //
+        if (lower == ".gitignore" || lower == ".gitmodules")
+            return nfIcon(0xe5fb);
+        if (lower == "license" || lower == "licence")
+            return nfIcon(0xf0219);
+        if (lower == "readme.md")
+            return nfIcon(0xf48a); //
+
+        // Extract extension
+        auto dotPos = name.rfind('.');
+        if (dotPos == std::string::npos)
+            return nfIcon(0xf15b); //  (generic file)
+
+        std::string ext = name.substr(dotPos);
+        for (auto &c : ext)
+            c = (char)std::tolower((unsigned char)c);
+
+        // Programming languages
+        if (ext == ".xel" || ext == ".xell")
+            return nfIcon(0xe7a8); //  (lambda/custom)
+        if (ext == ".cpp" || ext == ".cc" || ext == ".cxx")
+            return nfIcon(0xe61d); //
+        if (ext == ".hpp" || ext == ".h" || ext == ".hxx")
+            return nfIcon(0xe61d); //
+        if (ext == ".c")
+            return nfIcon(0xe61e); //
+        if (ext == ".py")
+            return nfIcon(0xe73c); //
+        if (ext == ".js")
+            return nfIcon(0xe74e); //
+        if (ext == ".ts")
+            return nfIcon(0xe628); //
+        if (ext == ".rs")
+            return nfIcon(0xe7a8); //
+        if (ext == ".go")
+            return nfIcon(0xe626); //
+        if (ext == ".java")
+            return nfIcon(0xe738); //
+        if (ext == ".rb")
+            return nfIcon(0xe739); //
+        if (ext == ".lua")
+            return nfIcon(0xe620); //
+        if (ext == ".sh" || ext == ".bash" || ext == ".zsh")
+            return nfIcon(0xf489); //
+        if (ext == ".ps1")
+            return nfIcon(0xf489);
+        if (ext == ".swift")
+            return nfIcon(0xe755); //
+        if (ext == ".kt")
+            return nfIcon(0xe634); //
+        if (ext == ".dart")
+            return nfIcon(0xe798); //
+        if (ext == ".r")
+            return nfIcon(0xf25d);
+
+        // Web
+        if (ext == ".html" || ext == ".htm")
+            return nfIcon(0xe736); //
+        if (ext == ".css")
+            return nfIcon(0xe749); //
+        if (ext == ".scss" || ext == ".sass")
+            return nfIcon(0xe74b); //
+        if (ext == ".less")
+            return nfIcon(0xe758); //
+        if (ext == ".vue")
+            return nfIcon(0xe6a0); //
+        if (ext == ".svelte")
+            return nfIcon(0xe697);
+        if (ext == ".jsx")
+            return nfIcon(0xe7ba); //
+        if (ext == ".tsx")
+            return nfIcon(0xe7ba);
+
+        // Data / config
+        if (ext == ".json")
+            return nfIcon(0xe60b); //
+        if (ext == ".yaml" || ext == ".yml")
+            return nfIcon(0xf481);
+        if (ext == ".toml")
+            return nfIcon(0xe60b);
+        if (ext == ".xml")
+            return nfIcon(0xf481);
+        if (ext == ".csv")
+            return nfIcon(0xf1c3);
+        if (ext == ".sql")
+            return nfIcon(0xe706); //
+        if (ext == ".env")
+            return nfIcon(0xf462);
+        if (ext == ".ini" || ext == ".cfg" || ext == ".conf")
+            return nfIcon(0xe615);
+
+        // Documents
+        if (ext == ".md" || ext == ".markdown")
+            return nfIcon(0xe73e); //
+        if (ext == ".txt")
+            return nfIcon(0xf15c);
+        if (ext == ".pdf")
+            return nfIcon(0xf1c1);
+        if (ext == ".doc" || ext == ".docx")
+            return nfIcon(0xf1c2);
+
+        // Images
+        if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
+            ext == ".gif" || ext == ".bmp" || ext == ".svg" ||
+            ext == ".ico" || ext == ".webp")
+            return nfIcon(0xf1c5);
+
+        // Build / project
+        if (ext == ".cmake")
+            return nfIcon(0xe779);
+        if (ext == ".lock")
+            return nfIcon(0xf023); //
+
+        // Archives
+        if (ext == ".zip" || ext == ".tar" || ext == ".gz" ||
+            ext == ".bz2" || ext == ".xz" || ext == ".7z" ||
+            ext == ".rar")
+            return nfIcon(0xf410); //
+
+        // Executable
+        if (ext == ".exe" || ext == ".out" || ext == ".bin")
+            return nfIcon(0xf489);
+
+        return nfIcon(0xf15b); //  default file
+    }
+
+    // Returns a color tint for file icons based on extension
+    inline Color fileIconColor(const std::string &name, bool isDir)
+    {
+        if (isDir)
+            return {86, 156, 214}; // blue for folders
+
+        auto dotPos = name.rfind('.');
+        if (dotPos == std::string::npos)
+            return {180, 180, 180};
+
+        std::string ext = name.substr(dotPos);
+        for (auto &c : ext)
+            c = (char)std::tolower((unsigned char)c);
+
+        if (ext == ".xel" || ext == ".xell")
+            return {255, 198, 109}; // warm gold
+        if (ext == ".cpp" || ext == ".cc" || ext == ".cxx" ||
+            ext == ".hpp" || ext == ".h" || ext == ".hxx" ||
+            ext == ".c")
+            return {0, 136, 204}; // blue
+        if (ext == ".py")
+            return {55, 170, 220}; // python blue
+        if (ext == ".js")
+            return {241, 224, 90}; // yellow
+        if (ext == ".ts")
+            return {49, 120, 198}; // typescript blue
+        if (ext == ".rs")
+            return {222, 165, 132}; // rust orange
+        if (ext == ".go")
+            return {0, 173, 216}; // go cyan
+        if (ext == ".html" || ext == ".htm")
+            return {227, 76, 38}; // orange
+        if (ext == ".css")
+            return {86, 61, 124}; // purple
+        if (ext == ".json")
+            return {241, 224, 90}; // yellow
+        if (ext == ".md" || ext == ".markdown")
+            return {65, 131, 196}; // blue
+        if (ext == ".sh" || ext == ".bash" || ext == ".zsh")
+            return {78, 201, 176}; // teal
+        if (ext == ".java")
+            return {176, 114, 25}; // java brown
+        if (ext == ".rb")
+            return {204, 52, 45}; // ruby red
+        if (ext == ".lua")
+            return {0, 0, 128}; // lua navy
+        if (ext == ".svg" || ext == ".png" || ext == ".jpg")
+            return {160, 110, 200}; // purple
+        if (ext == ".yaml" || ext == ".yml" || ext == ".toml")
+            return {160, 160, 160};
+        if (ext == ".vue")
+            return {65, 184, 131}; // vue green
+
+        return {180, 180, 180}; // default gray
+    }
 
     // ─── Tree node ───────────────────────────────────────────────────────
 
@@ -104,7 +351,8 @@ namespace xterm
                 int row = startRow + i;
 
                 bool isSelected = (idx == selectedIdx_);
-                Color bg = isSelected ? selectedBg_ : bgColor_;
+                bool isHovered = (idx == hoverIdx_ && !isSelected);
+                Color bg = isSelected ? selectedBg_ : (isHovered ? hoverBg_ : bgColor_);
                 Color fg = node.isDir ? dirFg_ : fileFg_;
 
                 // Fill background
@@ -117,14 +365,94 @@ namespace xterm
                 // Indent
                 int indent = node.depth * 2 + 1;
 
-                // Icon
-                std::string icon;
-                if (node.isDir)
-                    icon = node.expanded ? "▾ " : "▸ ";
-                else
-                    icon = "  ";
+                // Check if this row has inline editing
+                if (isSelected && editMode_ == EditMode::RENAME)
+                {
+                    // Show icon + edit field
+                    std::string icon = node.isDir ? (node.expanded ? "▾ " : "▸ ") : "  ";
+                    writeString(grid[row], indent, icon, fg, bg, false);
+                    int editCol = indent + 2; // after icon
 
-                writeString(grid[row], indent, icon + node.name, fg, bg, isSelected);
+                    // Edit field background
+                    Color editBg = {45, 45, 45};
+                    Color editFg = {255, 255, 255};
+                    for (int c = editCol; c < rect_.w; c++)
+                    {
+                        grid[row][c].bg = editBg;
+                        grid[row][c].dirty = true;
+                    }
+                    writeString(grid[row], editCol, editText_, editFg, editBg, false);
+
+                    // Cursor
+                    int cursorCol = editCol + editCursor_;
+                    if (cursorCol < rect_.w)
+                    {
+                        grid[row][cursorCol].underline = true;
+                        grid[row][cursorCol].fg = {255, 255, 255};
+                        grid[row][cursorCol].dirty = true;
+                    }
+                }
+                else if (isSelected && (editMode_ == EditMode::NEW_FILE || editMode_ == EditMode::NEW_FOLDER))
+                {
+                    // Render the normal entry first
+                    std::string icon;
+                    if (node.isDir)
+                        icon = node.expanded ? "▾ " : "▸ ";
+                    else
+                        icon = fileIconForName(node.name, false) + " ";
+                    writeString(grid[row], indent, icon + node.name, fg, bg, isSelected);
+
+                    // Then render the edit field on the NEXT row
+                    int editRow = row + 1;
+                    if (editRow < rect_.h)
+                    {
+                        int editIndent = (node.isDir ? node.depth + 1 : node.depth) * 2 + 1;
+                        Color editBg = {45, 45, 45};
+                        Color editFg = {255, 255, 255};
+                        for (int c = 0; c < rect_.w; c++)
+                        {
+                            grid[editRow][c].bg = editBg;
+                            grid[editRow][c].dirty = true;
+                        }
+                        std::string prompt = (editMode_ == EditMode::NEW_FILE) ? "📄 " : "📁 ";
+                        writeString(grid[editRow], editIndent, prompt + editText_, editFg, editBg, false);
+
+                        int cursorCol = editIndent + utf8Len(prompt) + editCursor_;
+                        if (cursorCol < rect_.w)
+                        {
+                            grid[editRow][cursorCol].underline = true;
+                            grid[editRow][cursorCol].fg = {255, 255, 255};
+                            grid[editRow][cursorCol].dirty = true;
+                        }
+                    }
+                    // Skip next entry (we used its row for the input)
+                    i++;
+                }
+                else
+                {
+                    // Icon based on file extension with Nerd Font
+                    if (node.isDir)
+                    {
+                        std::string arrow = node.expanded ? "▾ " : "▸ ";
+                        std::string folderIcon = fileIconForName(node.name, true);
+                        Color iconColor = fileIconColor(node.name, true);
+                        // Write arrow
+                        int pos = writeString(grid[row], indent, arrow, fg, bg, false);
+                        // Write folder icon with color
+                        pos = writeString(grid[row], pos, folderIcon + " ", iconColor, bg, false);
+                        // Write name
+                        writeString(grid[row], pos, node.name, fg, bg, isSelected);
+                    }
+                    else
+                    {
+                        std::string fileIcon = fileIconForName(node.name, false);
+                        Color iconColor = fileIconColor(node.name, false);
+                        // Write icon with extension color
+                        int pos = writeString(grid[row], indent, fileIcon + " ", iconColor, bg, false);
+                        // Write name
+                        writeString(grid[row], pos, node.name, fg, bg, isSelected);
+                    }
+                }
             }
 
             return grid;
@@ -182,6 +510,18 @@ namespace xterm
             return false;
         }
 
+        // Select without activating (for right-click context menus)
+        bool selectAt(int row)
+        {
+            int idx = scrollTop_ + row - 1;
+            if (idx >= 0 && idx < (int)flatList_.size())
+            {
+                selectedIdx_ = idx;
+                return true;
+            }
+            return false;
+        }
+
         bool handleMouseWheel(int delta) override
         {
             scrollTop_ -= delta * 3;
@@ -194,6 +534,199 @@ namespace xterm
         const std::string &rootPath() const { return rootPath_; }
         void setOnOpenFile(OpenFileCallback cb) { onOpenFile_ = cb; }
 
+        // Selected file/folder path for context menu actions
+        std::string selectedFilePath() const
+        {
+            if (selectedIdx_ >= 0 && selectedIdx_ < (int)flatList_.size())
+                return flatList_[selectedIdx_].fullPath;
+            return "";
+        }
+        bool selectedIsDir() const
+        {
+            if (selectedIdx_ >= 0 && selectedIdx_ < (int)flatList_.size())
+                return flatList_[selectedIdx_].isDir;
+            return false;
+        }
+
+        // ── Hover support ────────────────────────────────────────────
+
+        void setHoverRow(int localRow) { hoverIdx_ = scrollTop_ + localRow - 1; }
+
+        // ── Inline rename / new file ────────────────────────────────
+
+        bool isEditing() const { return editMode_ != EditMode::NONE; }
+
+        void startRename()
+        {
+            if (selectedIdx_ < 0 || selectedIdx_ >= (int)flatList_.size())
+                return;
+            editMode_ = EditMode::RENAME;
+            editText_ = flatList_[selectedIdx_].name;
+            editCursor_ = (int)editText_.size();
+        }
+
+        void startNewFile()
+        {
+            editMode_ = EditMode::NEW_FILE;
+            editText_ = "";
+            editCursor_ = 0;
+        }
+
+        void startNewFolder()
+        {
+            editMode_ = EditMode::NEW_FOLDER;
+            editText_ = "";
+            editCursor_ = 0;
+        }
+
+        void cancelEdit()
+        {
+            editMode_ = EditMode::NONE;
+            editText_.clear();
+        }
+
+        // Returns the path of the created/renamed file (empty on cancel)
+        std::string commitEdit()
+        {
+            if (editMode_ == EditMode::NONE || editText_.empty())
+            {
+                cancelEdit();
+                return "";
+            }
+
+            std::string result;
+            namespace fss = std::filesystem;
+            try
+            {
+                if (editMode_ == EditMode::RENAME)
+                {
+                    std::string oldPath = selectedFilePath();
+                    if (!oldPath.empty())
+                    {
+                        std::string parent = fss::path(oldPath).parent_path().string();
+                        std::string newPath = parent + "/" + editText_;
+                        if (!fss::exists(newPath))
+                        {
+                            fss::rename(oldPath, newPath);
+                            result = newPath;
+                        }
+                    }
+                }
+                else if (editMode_ == EditMode::NEW_FILE)
+                {
+                    std::string dir = selectedIsDir() ? selectedFilePath()
+                                                      : fss::path(selectedFilePath()).parent_path().string();
+                    if (dir.empty())
+                        dir = rootPath_;
+                    std::string newPath = dir + "/" + editText_;
+                    if (!fss::exists(newPath))
+                    {
+                        std::ofstream(newPath).close();
+                        result = newPath;
+                    }
+                }
+                else if (editMode_ == EditMode::NEW_FOLDER)
+                {
+                    std::string dir = selectedIsDir() ? selectedFilePath()
+                                                      : fss::path(selectedFilePath()).parent_path().string();
+                    if (dir.empty())
+                        dir = rootPath_;
+                    std::string newPath = dir + "/" + editText_;
+                    if (!fss::exists(newPath))
+                    {
+                        fss::create_directories(newPath);
+                        result = newPath;
+                    }
+                }
+            }
+            catch (...)
+            {
+            }
+
+            editMode_ = EditMode::NONE;
+            editText_.clear();
+            refresh();
+            return result;
+        }
+
+        // Handle text input for inline editing
+        bool handleEditKey(const SDL_Event &event)
+        {
+            if (editMode_ == EditMode::NONE)
+                return false;
+
+            auto key = event.key.keysym.sym;
+
+            if (key == SDLK_RETURN)
+            {
+                // commit is handled externally by LayoutManager
+                return true;
+            }
+            else if (key == SDLK_ESCAPE)
+            {
+                cancelEdit();
+                return true;
+            }
+            else if (key == SDLK_BACKSPACE)
+            {
+                if (editCursor_ > 0 && !editText_.empty())
+                {
+                    editText_.erase(editCursor_ - 1, 1);
+                    editCursor_--;
+                }
+                return true;
+            }
+            else if (key == SDLK_DELETE)
+            {
+                if (editCursor_ < (int)editText_.size())
+                    editText_.erase(editCursor_, 1);
+                return true;
+            }
+            else if (key == SDLK_LEFT)
+            {
+                if (editCursor_ > 0)
+                    editCursor_--;
+                return true;
+            }
+            else if (key == SDLK_RIGHT)
+            {
+                if (editCursor_ < (int)editText_.size())
+                    editCursor_++;
+                return true;
+            }
+            else if (key == SDLK_HOME)
+            {
+                editCursor_ = 0;
+                return true;
+            }
+            else if (key == SDLK_END)
+            {
+                editCursor_ = (int)editText_.size();
+                return true;
+            }
+            return false;
+        }
+
+        bool handleEditTextInput(const std::string &text)
+        {
+            if (editMode_ == EditMode::NONE)
+                return false;
+            editText_.insert(editCursor_, text);
+            editCursor_ += (int)text.size();
+            return true;
+        }
+
+        enum class EditMode
+        {
+            NONE,
+            RENAME,
+            NEW_FILE,
+            NEW_FOLDER
+        };
+        EditMode editMode() const { return editMode_; }
+        const std::string &editText() const { return editText_; }
+        int editCursor() const { return editCursor_; }
+
     private:
         const ThemeData &theme_;
         OpenFileCallback onOpenFile_;
@@ -203,12 +736,19 @@ namespace xterm
         std::vector<FileNode> flatList_; // flattened visible entries
         int selectedIdx_ = 0;
         int scrollTop_ = 0;
+        int hoverIdx_ = -1;
+
+        // Inline editing state
+        EditMode editMode_ = EditMode::NONE;
+        std::string editText_;
+        int editCursor_ = 0;
 
         // Theme colors
         Color bgColor_ = {24, 24, 24};
         Color titleBg_ = {30, 30, 30};
         Color titleFg_ = {187, 187, 187};
         Color selectedBg_ = {38, 79, 120};
+        Color hoverBg_ = {30, 40, 55};
         Color dirFg_ = {220, 195, 120};
         Color fileFg_ = {204, 204, 204};
 

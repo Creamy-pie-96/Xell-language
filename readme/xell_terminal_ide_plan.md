@@ -6,23 +6,23 @@
 
 ## 📊 Current Foundation (What We Already Have)
 
-| Component | Status | Location |
-|---|---|---|
-| **Cell-grid renderer** | ✅ SDL2 + TTF, True Color, per-cell fg/bg/bold/italic/underline, dirty flag, glyph cache (8192) | `xell-terminal/src/renderer/` |
-| **Screen buffer** | ✅ 2D grid + 5000-line scrollback deque, cursor, text selection, scroll | `xell-terminal/src/terminal/screen_buffer.*` |
-| **VT100/ANSI parser** | ✅ Full state machine (CSI, OSC, DCS, SGR), 24-bit color, 256-color | `xell-terminal/src/terminal/vt_parser.*` |
-| **PTY layer** | ✅ Cross-platform (forkpty/ConPTY), resize, thread-safe reader | `xell-terminal/src/pty/` |
-| **Input handler** | ✅ Full keyboard translation, Ctrl combos, F1-F12, mouse, kitty protocol | `xell-terminal/src/terminal/input_handler.*` |
-| **REPL** | ✅ Multiline editing, tab completion (keywords+builtins+vars), history (1000 entries), shell passthrough, auto-indent | `src/repl/` |
-| **Xell Lexer/Parser** | ✅ Full tokenizer + AST builder | `src/lexer/`, `src/parser/` |
-| **Static analyzer** | ✅ `--check` mode, 372 builtins, all AST nodes | `src/analyzer/static_analyzer.hpp` |
-| **Token color data** | ✅ 50+ tokens with scope→color→bold/italic mapping | `Extensions/xell-vscode/color_customizer/token_data.json` |
-| **Language data** | ✅ 54 keywords + 372 builtins with categories, signatures, hover docs | `Extensions/xell-vscode/src/server/language_data.json` |
-| **TextMate grammar** | ✅ Full Xell syntax rules | `Extensions/xell-vscode/syntaxes/xell.tmLanguage.json` |
-| **Color customizer** | ✅ Web app to customize all token colors, generates VS Code JSON + preview | `Extensions/xell-vscode/color_customizer/` |
-| **Text selection** | ✅ Mouse drag, double-click word select, Ctrl+C/V clipboard | `xell-terminal/src/main.cpp` |
-| **Context menu** | ✅ Right-click overlay (Copy/Paste/Select All) | `xell-terminal/src/main.cpp` |
-| **Scrollbar** | ✅ Draggable thumb, track rendering | `xell-terminal/src/renderer/` |
+| Component              | Status                                                                                                                | Location                                                  |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| **Cell-grid renderer** | ✅ SDL2 + TTF, True Color, per-cell fg/bg/bold/italic/underline, dirty flag, glyph cache (8192)                       | `xell-terminal/src/renderer/`                             |
+| **Screen buffer**      | ✅ 2D grid + 5000-line scrollback deque, cursor, text selection, scroll                                               | `xell-terminal/src/terminal/screen_buffer.*`              |
+| **VT100/ANSI parser**  | ✅ Full state machine (CSI, OSC, DCS, SGR), 24-bit color, 256-color                                                   | `xell-terminal/src/terminal/vt_parser.*`                  |
+| **PTY layer**          | ✅ Cross-platform (forkpty/ConPTY), resize, thread-safe reader                                                        | `xell-terminal/src/pty/`                                  |
+| **Input handler**      | ✅ Full keyboard translation, Ctrl combos, F1-F12, mouse, kitty protocol                                              | `xell-terminal/src/terminal/input_handler.*`              |
+| **REPL**               | ✅ Multiline editing, tab completion (keywords+builtins+vars), history (1000 entries), shell passthrough, auto-indent | `src/repl/`                                               |
+| **Xell Lexer/Parser**  | ✅ Full tokenizer + AST builder                                                                                       | `src/lexer/`, `src/parser/`                               |
+| **Static analyzer**    | ✅ `--check` mode, 372 builtins, all AST nodes                                                                        | `src/analyzer/static_analyzer.hpp`                        |
+| **Token color data**   | ✅ 50+ tokens with scope→color→bold/italic mapping                                                                    | `Extensions/xell-vscode/color_customizer/token_data.json` |
+| **Language data**      | ✅ 54 keywords + 372 builtins with categories, signatures, hover docs                                                 | `Extensions/xell-vscode/src/server/language_data.json`    |
+| **TextMate grammar**   | ✅ Full Xell syntax rules                                                                                             | `Extensions/xell-vscode/syntaxes/xell.tmLanguage.json`    |
+| **Color customizer**   | ✅ Web app to customize all token colors, generates VS Code JSON + preview                                            | `Extensions/xell-vscode/color_customizer/`                |
+| **Text selection**     | ✅ Mouse drag, double-click word select, Ctrl+C/V clipboard                                                           | `xell-terminal/src/main.cpp`                              |
+| **Context menu**       | ✅ Right-click overlay (Copy/Paste/Select All)                                                                        | `xell-terminal/src/main.cpp`                              |
+| **Scrollbar**          | ✅ Draggable thumb, track rendering                                                                                   | `xell-terminal/src/renderer/`                             |
 
 ---
 
@@ -64,9 +64,11 @@
 ## 🎯 Phased Implementation Plan
 
 ### Phase 0 — Color Bridge (Prerequisite)
+
 > **Connect the color customizer to the terminal**
 
 #### 0.1 — Generate `terminal_colors.json`
+
 - Extend `gen_xell_grammar.py` (or add a new function) to produce a JSON file consumable by xell-terminal
 - Schema:
   ```json
@@ -112,12 +114,14 @@
 - Install path: `~/.config/xell/terminal_colors.json` or `/usr/local/share/xell/terminal_colors.json`
 
 #### 0.2 — Terminal color loader
+
 - New C++ module: `xell-terminal/src/theme/theme_loader.hpp`
 - Parses `terminal_colors.json` at startup
 - Provides `Color getTokenColor(const std::string& scope)` API
 - Falls back to built-in defaults if no JSON found
 
 #### 0.3 — Terminal tokenizer bridge
+
 - New C++ module: `xell-terminal/src/highlight/highlighter.hpp`
 - Uses the existing Xell `Lexer` (from `src/lexer/lexer.cpp`)
 - Maps each `Token::Type` → TextMate scope string → color from theme
@@ -127,9 +131,11 @@
 ---
 
 ### Phase 1 — Core Editor Component
+
 > **Turn the terminal from "shell emulator" into "code editor"**
 
 #### 1.1 — Editor buffer (text model)
+
 - New: `xell-terminal/src/editor/text_buffer.hpp`
 - Rope or gap-buffer backed text storage
 - Line-indexed access: `getLine(n)`, `insertAt(row, col, text)`, `deleteRange(start, end)`
@@ -138,6 +144,7 @@
 - UTF-8 aware cursor positioning
 
 #### 1.2 — Editor viewport
+
 - New: `xell-terminal/src/editor/editor_view.hpp`
 - Maps text_buffer lines → screen rows (with scroll offset)
 - Horizontal scroll support
@@ -146,12 +153,14 @@
 - Render to a region of the ScreenBuffer (not the whole screen)
 
 #### 1.3 — Line numbers & gutter
+
 - Left margin: configurable width (auto-size based on line count)
 - Line numbers rendered with `gutter_fg` / `gutter_bg` from theme
 - Current line highlight
 - Gutter markers area (for breakpoints, errors, git diff later)
 
 #### 1.4 — Keyboard editing
+
 - Character insertion, backspace, delete
 - Arrow keys (with Shift for selection)
 - Ctrl+Left/Right (word jump), Ctrl+Shift+Left/Right (word select)
@@ -163,11 +172,13 @@
 - Ctrl+Shift+K (delete line)
 
 #### 1.5 — Syntax highlighting (live)
+
 - On every edit, re-highlight the visible lines using `highlighter.hpp`
 - Incremental: only re-tokenize changed lines + continuation
 - Write colored cells directly into the editor viewport region of ScreenBuffer
 
 #### 1.6 — Multi-tab
+
 - Tab bar at top of editor area
 - Each tab = { filename, text_buffer, editor_view, modified_flag }
 - Ctrl+Tab / Ctrl+Shift+Tab to switch
@@ -177,9 +188,11 @@
 ---
 
 ### Phase 2 — Panels & Layout System
+
 > **Split the screen into resizable regions**
 
 #### 2.1 — Panel manager
+
 - New: `xell-terminal/src/ui/panel_manager.hpp`
 - Manages a tree of panels (horizontal/vertical splits)
 - Each panel has: `Rect { x, y, w, h }`, content type, focus state
@@ -187,6 +200,7 @@
 - Drag-to-resize borders (mouse on border → resize adjacent panels)
 
 #### 2.2 — File explorer panel
+
 - Tree view of project directory
 - Icons: 📁 folder, 📄 file (with extension-based coloring)
 - Keyboard navigation: Up/Down, Enter (open/expand), Left (collapse)
@@ -194,6 +208,7 @@
 - File operations: rename (F2), delete (Delete), new file (Ctrl+N)
 
 #### 2.3 — Bottom panel (REPL / Terminal / Output)
+
 - Tabbed bottom panel with multiple sub-panels:
   - **REPL**: Existing Xell REPL, integrated directly
   - **Terminal**: Raw shell (existing PTY)
@@ -203,6 +218,7 @@
 - Resize by dragging the top border
 
 #### 2.4 — Status bar
+
 - Bottom-most row of the window
 - Left: file name, line:col, encoding, line ending
 - Center: mode indicator (NORMAL / INSERT / SEARCH)
@@ -211,9 +227,11 @@
 ---
 
 ### Phase 3 — Intelligence (Autocomplete, Diagnostics, Navigation)
+
 > **Make it smart — leverage existing analyzers**
 
 #### 3.1 — Autocompletion popup
+
 - New: `xell-terminal/src/ui/autocomplete.hpp`
 - Floating overlay rendered on top of editor
 - Triggered by: typing (after `.`, after keyword, etc.), or Ctrl+Space
@@ -227,6 +245,7 @@
 - Show signature + category in a detail column
 
 #### 3.2 — Inline diagnostics
+
 - Run static analyzer (`static_analyzer.hpp`) on save or after idle timeout
 - Render inline: red squiggly underline (series of ~ chars in diagnostic color)
 - Gutter markers: 🔴 error, 🟡 warning
@@ -234,6 +253,7 @@
 - Diagnostics panel (Phase 2.3) lists all errors with jump-to-line
 
 #### 3.3 — Hover information
+
 - Mouse hover or keyboard shortcut (Ctrl+K Ctrl+I) over a symbol
 - Show popup with:
   - Signature (from `language_data.json` hover docs)
@@ -242,6 +262,7 @@
 - For user-defined functions: show the `fn` signature from AST
 
 #### 3.4 — Go to definition
+
 - Ctrl+Click or F12 on a symbol
 - For `bring` imports: jump to the source file
 - For function calls: jump to the `fn` definition
@@ -249,6 +270,7 @@
 - Uses the AST from the parser — build a simple symbol table
 
 #### 3.5 — Search & replace
+
 - Ctrl+F → search bar at top of editor
 - Ctrl+H → search + replace bar
 - Highlight all matches in editor (colored overlay)
@@ -259,48 +281,58 @@
 ---
 
 ### Phase 4 — REPL Integration (Deep)
+
 > **Seamless code ↔ REPL workflow**
 
 #### 4.1 — Run selection in REPL
+
 - Select code in editor → Ctrl+Enter → send to REPL panel
 - REPL executes and shows result in bottom panel
 
 #### 4.2 — Run file
+
 - Ctrl+Shift+B → run current file with `xell <file>`
 - Output appears in Output panel
 - Errors are parsed and shown as diagnostics
 
 #### 4.3 — REPL variable inspector
+
 - Side panel showing all variables in the current REPL session
 - Updates live after each execution
 - Shows type, value preview, expandable for collections
 
 #### 4.4 — Inline evaluation
+
 - Ctrl+Shift+E on a line → evaluate in REPL → show result as ghost text at end of line
 - E.g., `let x = 42 * 2  # → 84` (in dim gray)
 
 ---
 
 ### Phase 5 — Git Integration
+
 > **Visual diff and version control**
 
 #### 5.1 — Gutter diff markers
+
 - Green bar: added lines
-- Red bar: deleted lines  
+- Red bar: deleted lines
 - Blue bar: modified lines
 - Uses `libgit2` or shells out to `git diff`
 
 #### 5.2 — Inline diff view
+
 - Ctrl+D → show diff of current file vs HEAD
 - Side-by-side or inline mode
 - Color-coded additions/deletions
 
 #### 5.3 — Git status in file explorer
+
 - Modified files: yellow dot
 - New files: green dot
 - Deleted: red strikethrough
 
 #### 5.4 — Commit panel
+
 - Git panel in bottom area
 - Stage/unstage files
 - Write commit message
@@ -309,38 +341,46 @@
 ---
 
 ### Phase 6 — Visual Effects & Polish
+
 > **Make it legendary**
 
 #### 6.1 — Cursor styles
-- Block (default), bar (|), underline (_)
+
+- Block (default), bar (|), underline (\_)
 - Blink rate configurable
 - Different cursor in different modes (block for normal, bar for insert)
 
 #### 6.2 — Smooth scrolling
+
 - Animate scroll offset over 2-3 frames
 - Mouse wheel = smooth, keyboard = instant (configurable)
 
 #### 6.3 — Code minimap
+
 - Right side of editor (narrow column)
 - Each line = 1-2 pixel row, colored by syntax
 - Viewport indicator (rectangle showing visible area)
 - Click to jump
 
 #### 6.4 — Bracket matching
+
 - Highlight matching `:` / `;` pairs
 - Rainbow brackets (depth-based coloring)
 
 #### 6.5 — Indent guides
+
 - Thin vertical lines at each indent level
 - Active indent guide highlighted
 
 #### 6.6 — Code folding
+
 - Click gutter arrow or Ctrl+Shift+[ to collapse block
 - `:` opens fold, `;` closes fold
 - Show `...` indicator for collapsed blocks
 - Ctrl+Shift+] to expand
 
 #### 6.7 — Animations
+
 - Popup fade-in/out (3-4 frame alpha transition)
 - Status messages slide in from right
 - Cursor smooth caret (optional, cell-based approximation)
@@ -348,9 +388,11 @@
 ---
 
 ### Phase 7 — Configuration & Extensibility
+
 > **User-customizable everything**
 
 #### 7.1 — Config file: `~/.config/xell/xell_ide.json`
+
 ```json
 {
   "editor": {
@@ -389,10 +431,12 @@
 ```
 
 #### 7.2 — Hot-reload
+
 - Watch config file for changes → apply without restart
 - Watch `terminal_colors.json` → re-apply theme instantly
 
 #### 7.3 — Plugin system (future)
+
 - Xell scripts as plugins: `~/.config/xell/plugins/*.xel`
 - Plugin API: register commands, key bindings, panel providers
 - Sandboxed execution through the interpreter
@@ -509,7 +553,7 @@ xell-terminal/
 The immediate next step is Phase 0: **Color Bridge** — the foundation that everything else builds on:
 
 1. **`terminal_colors.json` generation** — extend the customizer to export terminal-consumable colors
-2. **`theme_loader.hpp`** — C++ JSON parser to load the theme  
+2. **`theme_loader.hpp`** — C++ JSON parser to load the theme
 3. **`highlighter.hpp`** — Lexer → colored spans using theme colors
 
 Once Phase 0 is done, we have the bridge between the Xell ecosystem (grammar, colors, keywords) and the terminal renderer — and everything else flows from there.

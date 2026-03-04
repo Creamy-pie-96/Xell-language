@@ -23,6 +23,7 @@
 #include "../module/module_resolver.hpp"
 #include "../parser/ast.hpp"
 #include "../lib/errors/error.hpp"
+#include "../common/dialect_convert.hpp"
 #include <string>
 #include <vector>
 #include <functional>

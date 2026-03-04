@@ -1,4 +1,6 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o"
+  "CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o.d"
   "CMakeFiles/xell-terminal.dir/src/main.cpp.o"
   "CMakeFiles/xell-terminal.dir/src/main.cpp.o.d"
   "CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o"

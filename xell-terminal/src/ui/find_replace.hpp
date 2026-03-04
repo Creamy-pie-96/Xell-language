@@ -383,10 +383,15 @@ namespace xterm
                 std::string status = std::to_string(currentMatch_ + 1) + " of " +
                                      std::to_string(matches_.size());
                 int statusCol = width - (int)status.size() - 2;
-                for (int i = 0; i < (int)status.size() && statusCol + i < width; i++)
                 {
-                    out.cells[0][statusCol + i].ch = (char32_t)status[i];
-                    out.cells[0][statusCol + i].fg = {128, 128, 128};
+                    size_t si = 0;
+                    int i = 0;
+                    while (si < status.size() && statusCol + i < width)
+                    {
+                        out.cells[0][statusCol + i].ch = utf8Decode(status, si);
+                        out.cells[0][statusCol + i].fg = {128, 128, 128};
+                        i++;
+                    }
                 }
             }
 
@@ -451,15 +456,19 @@ namespace xterm
         }
 
         void renderField(std::vector<Cell> &row, const std::string &label,
-                          const std::string &text, int cursor, bool active, int width) const
+                         const std::string &text, int cursor, bool active, int width) const
         {
             int col = 1;
 
             // Label
-            for (int i = 0; i < (int)label.size() && col < width; i++, col++)
             {
-                row[col].ch = (char32_t)label[i];
-                row[col].fg = {128, 128, 128};
+                size_t si = 0;
+                while (si < label.size() && col < width)
+                {
+                    row[col].ch = utf8Decode(label, si);
+                    row[col].fg = {128, 128, 128};
+                    col++;
+                }
             }
 
             // Field background
@@ -471,11 +480,16 @@ namespace xterm
             }
 
             // Field text
-            for (int i = 0; i < (int)text.size() && fieldStart + i < fieldStart + fieldWidth; i++)
             {
-                row[fieldStart + i].ch = (char32_t)text[i];
-                row[fieldStart + i].fg = barFg_;
-                row[fieldStart + i].bg = fieldBg_;
+                size_t si = 0;
+                int i = 0;
+                while (si < text.size() && fieldStart + i < fieldStart + fieldWidth)
+                {
+                    row[fieldStart + i].ch = utf8Decode(text, si);
+                    row[fieldStart + i].fg = barFg_;
+                    row[fieldStart + i].bg = fieldBg_;
+                    i++;
+                }
             }
 
             // Cursor (underline the character)

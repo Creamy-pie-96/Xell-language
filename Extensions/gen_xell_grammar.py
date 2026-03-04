@@ -16,11 +16,13 @@ Generates:
   - Extensions/xell-vscode/snippets/xell.json
   - Extensions/xell-vscode/src/server/language_data.json   (completions, hover, diagnostics)
   - Extensions/xell-vscode/language-configuration.json      (indent patterns with all block keywords)
+  - stdlib/dialect_template.xesy                            (@convert dialect template)
 
 Usage:
     python3 Extensions/gen_xell_grammar.py              # generate all files
     python3 Extensions/gen_xell_grammar.py --check      # verify files are up-to-date
     python3 Extensions/gen_xell_grammar.py --install     # generate + build + install extension
+    python3 Extensions/gen_xell_grammar.py --gen_xesy [path]  # generate a .xesy template only
 """
 
 import re
@@ -48,6 +50,7 @@ SNIPPETS_OUT = VSCODE_DIR / "snippets" / "xell.json"
 LANG_DATA_OUT = VSCODE_DIR / "src" / "server" / "language_data.json"
 LANG_CONFIG_OUT = VSCODE_DIR / "language-configuration.json"
 TERMINAL_COLORS_OUT = VSCODE_DIR / "color_customizer" / "terminal_colors.json"
+XESY_TEMPLATE_OUT = ROOT / "stdlib" / "dialect_template.xesy"
 REGISTER_ALL_HPP = BUILTINS_DIR / "register_all.hpp"
 
 
@@ -298,6 +301,7 @@ def build_tmlanguage(kw_classes, builtin_cats):
 
     includes = [
         "#block-comment", "#line-comment", "#strings",
+        "#convert-decorator",
         "#function-definition", "#for-loop", "#for-in-loop", "#bring-statement",
         "#fn-declaration-keywords", "#return-keywords",
         "#conditional-keywords", "#loop-keywords", "#control-flow-keywords",
@@ -352,6 +356,18 @@ def build_tmlanguage(kw_classes, builtin_cats):
                 },
                 {"name": "constant.character.escape.xell", "match": "\\\\."}
             ]
+        }]
+    }
+
+    # @convert dialect decorator
+    repo["convert-decorator"] = {
+        "comment": "@convert \"dialect.xesy\" — dialect mapping directive",
+        "patterns": [{
+            "match": "^\\s*(@convert)\\s+(\"[^\"]*\")",
+            "captures": {
+                "1": {"name": "keyword.other.decorator.xell"},
+                "2": {"name": "string.quoted.double.xell"},
+            }
         }]
     }
 
@@ -1217,6 +1233,14 @@ def build_snippets(kw_classes, builtin_cats, tier2_modules):
 
     # ── Core language constructs (static) ────────────────────────────
 
+    # ── @convert dialect directive ────────────────────────────
+
+    snips["Convert Dialect Decorator"] = {
+        "prefix": "@convert",
+        "body": '@convert "${1:dialect.xesy}"',
+        "description": "Declare a dialect mapping file. Place at the top of a .xel file.",
+    }
+
     snips["Function Definition"] = {
         "prefix": "fn",
         "body": ["fn ${1:name}(${2:params}) :", "    ${3:# body}", ";"],
@@ -1608,6 +1632,17 @@ def build_language_data(kw_classes, builtin_cats, keywords):
     # All keyword names as a set (for diagnostics keyword filtering)
     data["allKeywordNames"] = sorted(keywords)
 
+    # @convert dialect system — canonical name lists for .xesy generation
+    all_builtin_names = sorted({n for names in builtin_cats.values() for n in names})
+    data["convertDirective"] = {
+        "syntax": '@convert "path.xesy"',
+        "description": "Declare a .xesy dialect mapping file at the top of a .xel file. "
+                       "The file maps canonical Xell keywords/builtins to custom names. "
+                       "Empty values mean 'keep canonical'.",
+        "canonicalKeywords": sorted(keywords),
+        "canonicalBuiltins": all_builtin_names,
+    }
+
     return data
 
 
@@ -1729,12 +1764,65 @@ def install_extension():
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 5b. GENERATE .xesy TEMPLATE (dialect mapping)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def build_xesy_template(keywords, builtin_cats):
+    """
+    Build a .xesy template JSON string from the dynamically extracted
+    keywords and builtins. This matches the output of the C++ --gen_xesy
+    command but is always in sync with the C++ sources.
+    """
+    lines = []
+    lines.append("{")
+    lines.append('  "_meta": {')
+    lines.append('    "dialect_name": "My Dialect",')
+    lines.append('    "author": "",')
+    lines.append('    "xell_version": "0.1.0",')
+    lines.append('    "description": "Custom keyword mapping for Xell. Fill in values to map canonical keywords to your dialect."')
+    lines.append("  },")
+    lines.append("")
+
+    # Collect all builtins in a flat sorted list
+    all_builtins = sorted({n for names in builtin_cats.values() for n in names})
+
+    lines.append('  "_comment_keywords": "=== Language Keywords ===",')
+    for i, kw in enumerate(sorted(keywords)):
+        trailing = "," if (i + 1 < len(keywords) or all_builtins) else ""
+        lines.append(f'  "{kw}": ""{trailing}')
+
+    lines.append("")
+    lines.append('  "_comment_builtins": "=== Built-in Functions ===",')
+    for i, name in enumerate(all_builtins):
+        trailing = "," if i + 1 < len(all_builtins) else ""
+        lines.append(f'  "{name}": ""{trailing}')
+
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def gen_xesy_to_file(output_path, keywords, builtin_cats):
+    """Write a .xesy template to the given path (CLI --gen_xesy mode)."""
+    content = build_xesy_template(keywords, builtin_cats)
+    out = Path(output_path)
+    if out.suffix != ".xesy":
+        out = out.with_suffix(".xesy")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w") as f:
+        f.write(content)
+    print(f"[gen_grammar] ✓ Generated .xesy template: {out}")
+    print(f"  Fill in values with your dialect words, then use:")
+    print(f'    @convert "{out.name}"    (at the top of your .xel file)')
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 6. MAIN
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def main():
     check_mode = "--check" in sys.argv
     install_mode = "--install" in sys.argv
+    gen_xesy_mode = "--gen_xesy" in sys.argv
 
     if not TOKEN_HPP.exists():
         print(f"ERROR: {TOKEN_HPP} not found!")
@@ -1749,6 +1837,17 @@ def main():
     all_builtins = []
     for cat, names in sorted(builtin_cats.items()):
         all_builtins.extend(names)
+
+    # --gen_xesy mode: just generate a .xesy template and exit
+    if gen_xesy_mode:
+        # Find the output path argument (next arg after --gen_xesy, or default)
+        try:
+            idx = sys.argv.index("--gen_xesy")
+            output = sys.argv[idx + 1] if idx + 1 < len(sys.argv) and not sys.argv[idx + 1].startswith("--") else "dialect.xesy"
+        except (ValueError, IndexError):
+            output = "dialect.xesy"
+        gen_xesy_to_file(output, keywords, builtin_cats)
+        sys.exit(0)
 
     print(f"[gen_grammar] Extracted from C++ sources:")
     print(f"  Keywords:  {len(keywords)} → {keywords}")
@@ -1775,6 +1874,8 @@ def main():
     terminal_colors = build_terminal_colors(kw_classes, builtin_cats)
     terminal_colors_json = json.dumps(terminal_colors, indent=2) + "\n"
 
+    xesy_template = build_xesy_template(keywords, builtin_cats)
+
     if check_mode:
         ok = True
         for path, new_content, name in [
@@ -1784,6 +1885,7 @@ def main():
             (LANG_DATA_OUT, lang_data_json, "language_data"),
             (LANG_CONFIG_OUT, lang_config_json, "language-configuration"),
             (TERMINAL_COLORS_OUT, terminal_colors_json, "terminal_colors"),
+            (XESY_TEMPLATE_OUT, xesy_template, "dialect_template.xesy"),
         ]:
             if path.exists():
                 existing = read_file(path)
@@ -1825,6 +1927,11 @@ def main():
         with open(TERMINAL_COLORS_OUT, "w") as f:
             f.write(terminal_colors_json)
         print(f"[gen_grammar] ✓ Wrote {TERMINAL_COLORS_OUT}")
+
+        XESY_TEMPLATE_OUT.parent.mkdir(parents=True, exist_ok=True)
+        with open(XESY_TEMPLATE_OUT, "w") as f:
+            f.write(xesy_template)
+        print(f"[gen_grammar] ✓ Wrote {XESY_TEMPLATE_OUT}")
 
         print(f"\n[gen_grammar] Done! Generated grammar with {len(keywords)} keywords, "
               f"{len(all_builtins)} builtins, {len(snippets)} snippets, "
