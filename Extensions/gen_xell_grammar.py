@@ -47,6 +47,7 @@ TOKEN_DATA_OUT = VSCODE_DIR / "color_customizer" / "token_data.json"
 SNIPPETS_OUT = VSCODE_DIR / "snippets" / "xell.json"
 LANG_DATA_OUT = VSCODE_DIR / "src" / "server" / "language_data.json"
 LANG_CONFIG_OUT = VSCODE_DIR / "language-configuration.json"
+TERMINAL_COLORS_OUT = VSCODE_DIR / "color_customizer" / "terminal_colors.json"
 REGISTER_ALL_HPP = BUILTINS_DIR / "register_all.hpp"
 
 
@@ -992,6 +993,193 @@ def build_token_data(kw_classes, builtin_cats):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 4a. GENERATE terminal_colors.json FOR XELL-TERMINAL
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Editor UI colors for the terminal IDE
+EDITOR_UI_COLORS = {
+    "editor_bg":         "#121212",
+    "editor_fg":         "#cccccc",
+    "gutter_bg":         "#1a1a1a",
+    "gutter_fg":         "#555555",
+    "gutter_active_fg":  "#cccccc",
+    "line_highlight":    "#1e1e2e",
+    "selection_bg":      "#264f78",
+    "cursor":            "#ffffff",
+    "scrollbar_bg":      "#1a1a1a",
+    "scrollbar_thumb":   "#555555",
+    "panel_border":      "#333333",
+    "tab_active_bg":     "#1e1e2e",
+    "tab_active_fg":     "#ffffff",
+    "tab_inactive_bg":   "#121212",
+    "tab_inactive_fg":   "#888888",
+    "status_bar_bg":     "#007acc",
+    "status_bar_fg":     "#ffffff",
+    "popup_bg":          "#252526",
+    "popup_fg":          "#cccccc",
+    "popup_border":      "#454545",
+    "popup_selected_bg": "#094771",
+    "popup_selected_fg": "#ffffff",
+    "error_fg":          "#f44747",
+    "warning_fg":        "#cca700",
+    "info_fg":           "#3794ff",
+    "diff_added":        "#2ea04366",
+    "diff_removed":      "#f8514966",
+    "diff_modified":     "#0078d466",
+    "search_match_bg":   "#515c6a",
+    "search_active_bg":  "#eea825",
+    "bracket_match_bg":  "#2d5b7e",
+    "indent_guide":      "#333333",
+    "indent_guide_active": "#555555",
+}
+
+
+def build_terminal_colors(kw_classes, builtin_cats):
+    """
+    Build terminal_colors.json — the single source of truth for all colors
+    in the xell-terminal IDE. Contains both editor UI colors and per-scope
+    token colors derived from the same DEFAULT_COLORS/DEFAULT_STYLES used
+    for the VS Code extension.
+
+    This file is consumed by xell-terminal's theme_loader.hpp.
+    """
+
+    # Build token_colors array from DEFAULT_COLORS + DEFAULT_STYLES
+    token_colors = []
+    for scope, color in DEFAULT_COLORS.items():
+        style = DEFAULT_STYLES.get(scope, "")
+        bold = "bold" in style
+        italic = "italic" in style
+        token_colors.append({
+            "scope": scope,
+            "fg": color,
+            "bold": bold,
+            "italic": italic,
+        })
+
+    # Also add wildcard entries for builtin categories that use support.function.*
+    # so the terminal can match support.function.archive.xell etc.
+    for cat in sorted(builtin_cats.keys()):
+        scope = f"support.function.{cat}.xell"
+        if scope not in DEFAULT_COLORS:
+            token_colors.append({
+                "scope": scope,
+                "fg": "#00ffff",  # default builtin color
+                "bold": False,
+                "italic": False,
+            })
+
+    # Build the complete TokenType → scope mapping for C++ consumption
+    # This maps each Xell TokenType enum name to its TextMate scope
+    token_type_map = {}
+
+    # Keywords → scopes (from kw_classes)
+    KW_CLASS_TO_SCOPE = {
+        "conditional":  "keyword.control.conditional.xell",
+        "loop":         "keyword.control.loop.xell",
+        "control_flow": "keyword.control.flow.xell",
+        "fn_decl":      "keyword.declaration.function.xell",
+        "return":       "keyword.control.return.xell",
+        "error":        "keyword.control.trycatch.xell",
+        "binding":      "keyword.other.binding.xell",
+        "import":       "keyword.control.import.xell",
+        "module":       "keyword.control.module.xell",
+        "oop_decl":     "keyword.declaration.type.xell",
+        "oop_modifier": "keyword.other.modifier.xell",
+        "access":       "storage.modifier.xell",
+        "generator":    "keyword.control.yield.xell",
+        "async":        "keyword.control.async.xell",
+        "logical":      "keyword.operator.logical.xell",
+        "comparison":   "keyword.operator.comparison.word.xell",
+        "constants":    "constant.language.boolean.true.xell",  # true/false/none all same color
+        "special":      "keyword.other.special.xell",
+    }
+
+    kw_map = extract_keyword_map(read_file(TOKEN_HPP))
+    for kw_str, enum_name in kw_map.items():
+        for cls, kw_list in kw_classes.items():
+            if kw_str in kw_list:
+                scope = KW_CLASS_TO_SCOPE.get(cls, "keyword.other.special.xell")
+                token_type_map[enum_name] = scope
+                break
+
+    # Operators → scopes
+    OP_MAP = {
+        "PLUS": "keyword.operator.arithmetic.xell",
+        "MINUS": "keyword.operator.arithmetic.xell",
+        "STAR": "keyword.operator.arithmetic.xell",
+        "SLASH": "keyword.operator.arithmetic.xell",
+        "PERCENT": "keyword.operator.arithmetic.xell",
+        "PLUS_PLUS": "keyword.operator.increment.xell",
+        "MINUS_MINUS": "keyword.operator.increment.xell",
+        "EQUAL": "keyword.operator.assignment.xell",
+        "PLUS_EQUAL": "keyword.operator.assignment.xell",
+        "MINUS_EQUAL": "keyword.operator.assignment.xell",
+        "STAR_EQUAL": "keyword.operator.assignment.xell",
+        "SLASH_EQUAL": "keyword.operator.assignment.xell",
+        "PERCENT_EQUAL": "keyword.operator.assignment.xell",
+        "EQUAL_EQUAL": "keyword.operator.comparison.xell",
+        "BANG_EQUAL": "keyword.operator.comparison.xell",
+        "GREATER": "keyword.operator.comparison.xell",
+        "LESS": "keyword.operator.comparison.xell",
+        "GREATER_EQUAL": "keyword.operator.comparison.xell",
+        "LESS_EQUAL": "keyword.operator.comparison.xell",
+        "BANG": "keyword.operator.logical.xell",
+        "ARROW": "keyword.operator.access.xell",
+        "FAT_ARROW": "keyword.operator.access.xell",
+    }
+    token_type_map.update(OP_MAP)
+
+    # Literals → scopes
+    LITERAL_MAP = {
+        "NUMBER": "constant.numeric.integer.xell",
+        "IMAGINARY": "constant.numeric.float.xell",
+        "STRING": "string.quoted.double.xell",
+        "RAW_STRING": "string.quoted.double.xell",
+        "BYTE_STRING": "string.quoted.double.xell",
+        "TRUE_KW": "constant.language.boolean.true.xell",
+        "FALSE_KW": "constant.language.boolean.false.xell",
+        "NONE_KW": "constant.language.none.xell",
+    }
+    token_type_map.update(LITERAL_MAP)
+
+    # Punctuation → scopes
+    PUNCT_MAP = {
+        "LPAREN": "punctuation.bracket.round.xell",
+        "RPAREN": "punctuation.bracket.round.xell",
+        "LBRACKET": "punctuation.bracket.square.xell",
+        "RBRACKET": "punctuation.bracket.square.xell",
+        "LBRACE": "punctuation.bracket.curly.xell",
+        "RBRACE": "punctuation.bracket.curly.xell",
+        "COMMA": "punctuation.separator.comma.xell",
+        "COLON": "punctuation.separator.colon.xell",
+        "SEMICOLON": "punctuation.terminator.block.xell",
+        "DOT": "punctuation.terminator.statement.xell",
+        "ELLIPSIS": "keyword.operator.access.xell",
+        "AT": "keyword.other.special.xell",
+    }
+    token_type_map.update(PUNCT_MAP)
+
+    # Special → scopes
+    SPECIAL_MAP = {
+        "IDENTIFIER": "variable.other.xell",
+        "PIPE": "keyword.operator.arithmetic.xell",
+        "AMP_AMP": "keyword.operator.logical.xell",
+        "PIPE_PIPE": "keyword.operator.logical.xell",
+        "TILDE": "keyword.operator.arithmetic.xell",
+    }
+    token_type_map.update(SPECIAL_MAP)
+
+    return OrderedDict([
+        ("version", 1),
+        ("theme", "xell-default"),
+        ("editor_ui", EDITOR_UI_COLORS),
+        ("token_colors", token_colors),
+        ("token_type_map", token_type_map),
+    ])
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 4b. GENERATE xell.json SNIPPETS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1584,6 +1772,9 @@ def main():
     lang_config = build_language_config(lang_data["blockKeywords"])
     lang_config_json = json.dumps(lang_config, indent=2) + "\n"
 
+    terminal_colors = build_terminal_colors(kw_classes, builtin_cats)
+    terminal_colors_json = json.dumps(terminal_colors, indent=2) + "\n"
+
     if check_mode:
         ok = True
         for path, new_content, name in [
@@ -1592,6 +1783,7 @@ def main():
             (SNIPPETS_OUT, snippets_json, "snippets"),
             (LANG_DATA_OUT, lang_data_json, "language_data"),
             (LANG_CONFIG_OUT, lang_config_json, "language-configuration"),
+            (TERMINAL_COLORS_OUT, terminal_colors_json, "terminal_colors"),
         ]:
             if path.exists():
                 existing = read_file(path)
@@ -1629,9 +1821,15 @@ def main():
             f.write(lang_config_json)
         print(f"[gen_grammar] ✓ Wrote {LANG_CONFIG_OUT}")
 
+        TERMINAL_COLORS_OUT.parent.mkdir(parents=True, exist_ok=True)
+        with open(TERMINAL_COLORS_OUT, "w") as f:
+            f.write(terminal_colors_json)
+        print(f"[gen_grammar] ✓ Wrote {TERMINAL_COLORS_OUT}")
+
         print(f"\n[gen_grammar] Done! Generated grammar with {len(keywords)} keywords, "
               f"{len(all_builtins)} builtins, {len(snippets)} snippets, "
-              f"{len(lang_data['builtins'])} completion entries.")
+              f"{len(lang_data['builtins'])} completion entries, "
+              f"{len(terminal_colors['token_type_map'])} terminal color mappings.")
 
         if install_mode:
             if not install_extension():

@@ -26,12 +26,20 @@ endif()
 
 # ---- Source files ------------------------------------------------------------
 
+# Xell core sources needed by the terminal IDE (lexer for syntax highlighting)
+set(XELL_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../src")
+
+set(XELL_CORE_SOURCES
+    ${XELL_CORE_DIR}/lexer/lexer.cpp
+)
+
 set(TERMINAL_SOURCES
     src/main.cpp
     src/terminal/screen_buffer.cpp
     src/terminal/vt_parser.cpp
     src/terminal/input_handler.cpp
     src/renderer/renderer.cpp
+    ${XELL_CORE_SOURCES}
 )
 
 # Platform-specific PTY implementation
@@ -46,6 +54,9 @@ endif()
 add_executable(xell-terminal ${TERMINAL_SOURCES})
 
 target_include_directories(xell-terminal PRIVATE src)
+
+# Include Xell core headers (for lexer, token, etc.)
+target_include_directories(xell-terminal PRIVATE ${XELL_CORE_DIR})
 
 # ---- Link libraries ----------------------------------------------------------
 
@@ -75,6 +86,16 @@ add_custom_command(TARGET xell-terminal POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_SRC}" "${FONT_DST}"
     COMMENT "Copying font to build directory"
+)
+
+# ---- Copy terminal_colors.json to build directory ----------------------------
+
+set(COLORS_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../Extensions/xell-vscode/color_customizer/terminal_colors.json")
+set(COLORS_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/terminal_colors.json")
+
+add_custom_command(TARGET xell-terminal POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COLORS_SRC}" "${COLORS_DST}"
+    COMMENT "Copying terminal_colors.json to build directory"
 )
 
 # ---- Install -----------------------------------------------------------------

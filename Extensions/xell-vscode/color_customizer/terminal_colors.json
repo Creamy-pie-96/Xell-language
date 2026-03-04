@@ -1,0 +1,597 @@
+{
+  "version": 1,
+  "theme": "xell-default",
+  "editor_ui": {
+    "editor_bg": "#121212",
+    "editor_fg": "#cccccc",
+    "gutter_bg": "#1a1a1a",
+    "gutter_fg": "#555555",
+    "gutter_active_fg": "#cccccc",
+    "line_highlight": "#1e1e2e",
+    "selection_bg": "#264f78",
+    "cursor": "#ffffff",
+    "scrollbar_bg": "#1a1a1a",
+    "scrollbar_thumb": "#555555",
+    "panel_border": "#333333",
+    "tab_active_bg": "#1e1e2e",
+    "tab_active_fg": "#ffffff",
+    "tab_inactive_bg": "#121212",
+    "tab_inactive_fg": "#888888",
+    "status_bar_bg": "#007acc",
+    "status_bar_fg": "#ffffff",
+    "popup_bg": "#252526",
+    "popup_fg": "#cccccc",
+    "popup_border": "#454545",
+    "popup_selected_bg": "#094771",
+    "popup_selected_fg": "#ffffff",
+    "error_fg": "#f44747",
+    "warning_fg": "#cca700",
+    "info_fg": "#3794ff",
+    "diff_added": "#2ea04366",
+    "diff_removed": "#f8514966",
+    "diff_modified": "#0078d466",
+    "search_match_bg": "#515c6a",
+    "search_active_bg": "#eea825",
+    "bracket_match_bg": "#2d5b7e",
+    "indent_guide": "#333333",
+    "indent_guide_active": "#555555"
+  },
+  "token_colors": [
+    {
+      "scope": "comment.block.arrow.xell",
+      "fg": "#98c379",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "comment.line.number-sign.xell",
+      "fg": "#5c6370",
+      "bold": false,
+      "italic": true
+    },
+    {
+      "scope": "punctuation.definition.comment.begin.xell",
+      "fg": "#98c379",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "punctuation.definition.comment.end.xell",
+      "fg": "#98c379",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "constant.character.escape.xell",
+      "fg": "#d19a66",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "constant.language.boolean.true.xell",
+      "fg": "#c678dd",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "constant.language.boolean.false.xell",
+      "fg": "#c678dd",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "constant.language.none.xell",
+      "fg": "#c678dd",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "constant.numeric.float.xell",
+      "fg": "#d19a66",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "constant.numeric.integer.xell",
+      "fg": "#d19a66",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "string.quoted.double.xell",
+      "fg": "#98c379",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "string.interpolation.xell",
+      "fg": "#d19a66",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "punctuation.section.interpolation.begin.xell",
+      "fg": "#c678dd",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "punctuation.section.interpolation.end.xell",
+      "fg": "#c678dd",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "entity.name.function.call.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "entity.name.function.definition.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "entity.name.function.method.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.builtin.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.builtin.os.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.math.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.type.conversion.xell",
+      "fg": "#008080",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "keyword.control.conditional.xell",
+      "fg": "#e06c75",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.control.loop.xell",
+      "fg": "#e06c75",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.control.flow.xell",
+      "fg": "#ef596f",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.control.trycatch.xell",
+      "fg": "#d19a66",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.control.import.xell",
+      "fg": "#c678dd",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.control.module.xell",
+      "fg": "#b267e6",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.control.return.xell",
+      "fg": "#e5c07b",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.control.yield.xell",
+      "fg": "#e5c07b",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.control.async.xell",
+      "fg": "#61afef",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.declaration.function.xell",
+      "fg": "#e5c07b",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.declaration.type.xell",
+      "fg": "#56b6c2",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.other.modifier.xell",
+      "fg": "#56b6c2",
+      "bold": true,
+      "italic": true
+    },
+    {
+      "scope": "keyword.other.binding.xell",
+      "fg": "#61afef",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "keyword.other.special.xell",
+      "fg": "#e5c07b",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "storage.modifier.xell",
+      "fg": "#d19a66",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "keyword.operator.arithmetic.xell",
+      "fg": "#c678dd",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "keyword.operator.assignment.xell",
+      "fg": "#c678dd",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "keyword.operator.comparison.xell",
+      "fg": "#c678dd",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "keyword.operator.comparison.word.xell",
+      "fg": "#c678dd",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "keyword.operator.logical.xell",
+      "fg": "#c678dd",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "keyword.operator.increment.xell",
+      "fg": "#c678dd",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "keyword.operator.access.xell",
+      "fg": "#61afef",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "scope": "punctuation.bracket.round.xell",
+      "fg": "#abb2bf",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "punctuation.bracket.square.xell",
+      "fg": "#abb2bf",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "punctuation.bracket.curly.xell",
+      "fg": "#abb2bf",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "punctuation.separator.colon.xell",
+      "fg": "#abb2bf",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "punctuation.separator.comma.xell",
+      "fg": "#abb2bf",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "punctuation.terminator.block.xell",
+      "fg": "#abb2bf",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "punctuation.terminator.statement.xell",
+      "fg": "#abb2bf",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "variable.other.xell",
+      "fg": "#eeeeee",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "variable.other.loop.xell",
+      "fg": "#eeeeee",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "variable.parameter.xell",
+      "fg": "#eeeeee",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "meta.function.definition.xell",
+      "fg": "#eeeeee",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.archive.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.bytes.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.casting.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.collection.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.datetime.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.fs.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.generator.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.hash.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.io.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.json.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.list.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.map.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.network.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.os.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.process.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.regex.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.shell.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.string.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.sysmon.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.textproc.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.type.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "scope": "support.function.util.xell",
+      "fg": "#00ffff",
+      "bold": false,
+      "italic": false
+    }
+  ],
+  "token_type_map": {
+    "FN": "keyword.declaration.function.xell",
+    "GIVE": "keyword.control.return.xell",
+    "IF": "keyword.control.conditional.xell",
+    "ELIF": "keyword.control.conditional.xell",
+    "ELSE": "keyword.control.conditional.xell",
+    "FOR": "keyword.control.loop.xell",
+    "WHILE": "keyword.control.loop.xell",
+    "IN": "keyword.control.loop.xell",
+    "BREAK": "keyword.control.flow.xell",
+    "CONTINUE": "keyword.control.flow.xell",
+    "TRY": "keyword.control.trycatch.xell",
+    "CATCH": "keyword.control.trycatch.xell",
+    "FINALLY": "keyword.control.trycatch.xell",
+    "INCASE": "keyword.control.conditional.xell",
+    "LET": "keyword.other.binding.xell",
+    "BE": "keyword.other.binding.xell",
+    "LOOP": "keyword.control.loop.xell",
+    "BRING": "keyword.control.import.xell",
+    "FROM": "keyword.control.import.xell",
+    "AS": "keyword.control.import.xell",
+    "MODULE": "keyword.control.module.xell",
+    "EXPORT": "keyword.control.module.xell",
+    "REQUIRES": "keyword.control.module.xell",
+    "ENUM": "keyword.declaration.type.xell",
+    "STRUCT": "keyword.declaration.type.xell",
+    "CLASS": "keyword.declaration.type.xell",
+    "INHERITS": "keyword.other.modifier.xell",
+    "IMMUTABLE": "keyword.other.binding.xell",
+    "PRIVATE": "storage.modifier.xell",
+    "PROTECTED": "storage.modifier.xell",
+    "PUBLIC": "storage.modifier.xell",
+    "STATIC": "storage.modifier.xell",
+    "INTERFACE": "keyword.declaration.type.xell",
+    "IMPLEMENTS": "keyword.other.modifier.xell",
+    "ABSTRACT": "keyword.declaration.type.xell",
+    "MIXIN": "keyword.declaration.type.xell",
+    "WITH": "keyword.other.modifier.xell",
+    "YIELD": "keyword.control.yield.xell",
+    "ASYNC": "keyword.control.async.xell",
+    "AWAIT": "keyword.control.async.xell",
+    "TRUE_KW": "constant.language.boolean.true.xell",
+    "FALSE_KW": "constant.language.boolean.false.xell",
+    "NONE_KW": "constant.language.none.xell",
+    "AND": "keyword.operator.logical.xell",
+    "OR": "keyword.operator.logical.xell",
+    "NOT": "keyword.operator.logical.xell",
+    "IS": "keyword.operator.comparison.word.xell",
+    "EQ": "keyword.operator.comparison.word.xell",
+    "NE": "keyword.operator.comparison.word.xell",
+    "GT": "keyword.operator.comparison.word.xell",
+    "LT": "keyword.operator.comparison.word.xell",
+    "GE": "keyword.operator.comparison.word.xell",
+    "LE": "keyword.operator.comparison.word.xell",
+    "OF": "keyword.other.special.xell",
+    "PLUS": "keyword.operator.arithmetic.xell",
+    "MINUS": "keyword.operator.arithmetic.xell",
+    "STAR": "keyword.operator.arithmetic.xell",
+    "SLASH": "keyword.operator.arithmetic.xell",
+    "PERCENT": "keyword.operator.arithmetic.xell",
+    "PLUS_PLUS": "keyword.operator.increment.xell",
+    "MINUS_MINUS": "keyword.operator.increment.xell",
+    "EQUAL": "keyword.operator.assignment.xell",
+    "PLUS_EQUAL": "keyword.operator.assignment.xell",
+    "MINUS_EQUAL": "keyword.operator.assignment.xell",
+    "STAR_EQUAL": "keyword.operator.assignment.xell",
+    "SLASH_EQUAL": "keyword.operator.assignment.xell",
+    "PERCENT_EQUAL": "keyword.operator.assignment.xell",
+    "EQUAL_EQUAL": "keyword.operator.comparison.xell",
+    "BANG_EQUAL": "keyword.operator.comparison.xell",
+    "GREATER": "keyword.operator.comparison.xell",
+    "LESS": "keyword.operator.comparison.xell",
+    "GREATER_EQUAL": "keyword.operator.comparison.xell",
+    "LESS_EQUAL": "keyword.operator.comparison.xell",
+    "BANG": "keyword.operator.logical.xell",
+    "ARROW": "keyword.operator.access.xell",
+    "FAT_ARROW": "keyword.operator.access.xell",
+    "NUMBER": "constant.numeric.integer.xell",
+    "IMAGINARY": "constant.numeric.float.xell",
+    "STRING": "string.quoted.double.xell",
+    "RAW_STRING": "string.quoted.double.xell",
+    "BYTE_STRING": "string.quoted.double.xell",
+    "LPAREN": "punctuation.bracket.round.xell",
+    "RPAREN": "punctuation.bracket.round.xell",
+    "LBRACKET": "punctuation.bracket.square.xell",
+    "RBRACKET": "punctuation.bracket.square.xell",
+    "LBRACE": "punctuation.bracket.curly.xell",
+    "RBRACE": "punctuation.bracket.curly.xell",
+    "COMMA": "punctuation.separator.comma.xell",
+    "COLON": "punctuation.separator.colon.xell",
+    "SEMICOLON": "punctuation.terminator.block.xell",
+    "DOT": "punctuation.terminator.statement.xell",
+    "ELLIPSIS": "keyword.operator.access.xell",
+    "AT": "keyword.other.special.xell",
+    "IDENTIFIER": "variable.other.xell",
+    "PIPE": "keyword.operator.arithmetic.xell",
+    "AMP_AMP": "keyword.operator.logical.xell",
+    "PIPE_PIPE": "keyword.operator.logical.xell",
+    "TILDE": "keyword.operator.arithmetic.xell"
+  }
+}

@@ -63,6 +63,8 @@ static void printHelp()
     std::cout << "  xell --lint [file]    Alias for --check\n";
     std::cout << "  xell --make_module <path> ...\n";
     std::cout << "                        Register modules & build .xell_meta + cache\n";
+    std::cout << "  xell --make_module --update <path> ...\n";
+    std::cout << "                        Update changed modules from hash & build .xell_meta + cache\n";
     std::cout << "  xell --terminal       Launch Xell Terminal (SDL2 GUI)\n";
     std::cout << "  xell --customize      Launch color customizer\n";
     std::cout << "  xell --kernel         Run as notebook kernel\n";
