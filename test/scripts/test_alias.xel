@@ -5,7 +5,7 @@
 print("=== Alias (as) tests ===")
 
 # bring single function with alias
-bring json_parse from "json" as parse_json
+bring json_parse of json as parse_json
 result = parse_json("[1, 2, 3]")
 print(len(result))
 print(type(result))
@@ -14,18 +14,18 @@ print(type(result))
 # (this would error: json_parse("[1]"))
 
 # bring another function with alias
-bring json_stringify from "json" as to_json
+bring json_stringify of json as to_json
 print(to_json([10, 20]))
 
 # bring regex with alias
-bring regex_match from "regex" as matches
+bring regex_match of regex as matches
 print(matches("hello world", "hello"))
 
-bring regex_find from "regex" as find_pattern
+bring regex_find of regex as find_pattern
 print(find_pattern("abc 123 xyz", "[0-9]+"))
 
 # bring from datetime with alias
-bring timestamp from "datetime" as get_ts
+bring timestamp of datetime as get_ts
 t = get_ts()
 print(t > 0)
 
@@ -34,8 +34,8 @@ bring greet from "mylib.xel" as say_hello
 print(say_hello("Xell"))
 
 # bring multiple, alias each
-bring json_parse from "json" as jp
-bring json_stringify from "json" as js
+bring json_parse of json as jp
+bring json_stringify of json as js
 data = jp("[42]")
 print(js(data))
 

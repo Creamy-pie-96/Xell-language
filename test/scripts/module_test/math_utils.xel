@@ -1,0 +1,15 @@
+# math_utils.xel — basic math utility module
+# Testing JSON preservation in --update mode
+
+module math_utils:
+    export fn square(x):
+        give x * x
+    ;
+    export fn cube(x):
+        give x * x * x
+    ;
+    export fn double(x):
+        give x * 2
+    ;
+    export PI = 3.14159
+;

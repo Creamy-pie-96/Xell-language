@@ -1,0 +1,41 @@
+# class_module.xel — module with class and struct exports
+
+module shapes:
+    export class Circle:
+        radius = 0
+
+        fn __init__(self, r):
+            self->radius = r
+        ;
+
+        fn area(self):
+            give 3.14159 * self->radius * self->radius
+        ;
+
+        fn describe(self):
+            give "Circle(r=" + str(self->radius) + ")"
+        ;
+    ;
+
+    export class Rectangle:
+        width = 0
+        height = 0
+
+        fn __init__(self, w, h):
+            self->width = w
+            self->height = h
+        ;
+
+        fn area(self):
+            give self->width * self->height
+        ;
+
+        fn describe(self):
+            give "Rectangle(" + str(self->width) + "x" + str(self->height) + ")"
+        ;
+    ;
+
+    export fn circle_area(r):
+        give 3.14159 * r * r
+    ;
+;

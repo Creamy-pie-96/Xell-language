@@ -30,16 +30,46 @@
       "include": "#bring-statement"
     },
     {
-      "include": "#declaration-keywords"
+      "include": "#fn-declaration-keywords"
     },
     {
-      "include": "#control-keywords"
+      "include": "#return-keywords"
+    },
+    {
+      "include": "#conditional-keywords"
     },
     {
       "include": "#loop-keywords"
     },
     {
+      "include": "#control-flow-keywords"
+    },
+    {
+      "include": "#error-keywords"
+    },
+    {
+      "include": "#binding-keywords"
+    },
+    {
       "include": "#import-keywords"
+    },
+    {
+      "include": "#module-keywords"
+    },
+    {
+      "include": "#oop-declaration-keywords"
+    },
+    {
+      "include": "#oop-modifier-keywords"
+    },
+    {
+      "include": "#access-keywords"
+    },
+    {
+      "include": "#generator-keywords"
+    },
+    {
+      "include": "#async-keywords"
     },
     {
       "include": "#logical-operators"
@@ -54,10 +84,16 @@
       "include": "#none-constant"
     },
     {
+      "include": "#special-keywords"
+    },
+    {
       "include": "#archive-builtins"
     },
     {
       "include": "#bytes-builtins"
+    },
+    {
+      "include": "#casting-builtins"
     },
     {
       "include": "#collection-builtins"
@@ -301,38 +337,66 @@
         }
       ]
     },
-    "declaration-keywords": {
-      "comment": "Declaration: fn, give, of",
+    "fn-declaration-keywords": {
+      "comment": "Function declaration: fn",
       "patterns": [
         {
           "name": "keyword.declaration.function.xell",
           "match": "\\b(fn)\\b"
-        },
-        {
-          "name": "keyword.control.return.xell",
-          "match": "\\b(give)\\b"
-        },
-        {
-          "name": "keyword.other.special.xell",
-          "match": "\\b(of)\\b"
         }
       ]
     },
-    "control-keywords": {
-      "comment": "Control: elif, else, for, if, while",
+    "return-keywords": {
+      "comment": "Return: give",
       "patterns": [
         {
-          "name": "keyword.control.flow.xell",
-          "match": "\\b(while|elif|else|for|if)\\b"
+          "name": "keyword.control.return.xell",
+          "match": "\\b(give)\\b"
+        }
+      ]
+    },
+    "conditional-keywords": {
+      "comment": "Conditional: elif, else, if, incase",
+      "patterns": [
+        {
+          "name": "keyword.control.conditional.xell",
+          "match": "\\b(incase|elif|else|if)\\b"
         }
       ]
     },
     "loop-keywords": {
-      "comment": "Loop: in",
+      "comment": "Loop: for, in, loop, while",
       "patterns": [
         {
           "name": "keyword.control.loop.xell",
-          "match": "\\b(range|in)\\b"
+          "match": "\\b(range|while|loop|for|in)\\b"
+        }
+      ]
+    },
+    "control-flow-keywords": {
+      "comment": "Control flow: break, continue",
+      "patterns": [
+        {
+          "name": "keyword.control.flow.xell",
+          "match": "\\b(continue|break)\\b"
+        }
+      ]
+    },
+    "error-keywords": {
+      "comment": "Error handling: catch, finally, try",
+      "patterns": [
+        {
+          "name": "keyword.control.trycatch.xell",
+          "match": "\\b(finally|catch|try)\\b"
+        }
+      ]
+    },
+    "binding-keywords": {
+      "comment": "Binding: be, immutable, let",
+      "patterns": [
+        {
+          "name": "keyword.other.binding.xell",
+          "match": "\\b(immutable|let|be)\\b"
         }
       ]
     },
@@ -345,12 +409,66 @@
         }
       ]
     },
+    "module-keywords": {
+      "comment": "Module: export, module, requires",
+      "patterns": [
+        {
+          "name": "keyword.control.module.xell",
+          "match": "\\b(requires|export|module)\\b"
+        }
+      ]
+    },
+    "oop-declaration-keywords": {
+      "comment": "OOP declaration: abstract, class, enum, interface, mixin, struct",
+      "patterns": [
+        {
+          "name": "keyword.declaration.type.xell",
+          "match": "\\b(interface|abstract|struct|class|mixin|enum)\\b"
+        }
+      ]
+    },
+    "oop-modifier-keywords": {
+      "comment": "OOP modifier: implements, inherits, with",
+      "patterns": [
+        {
+          "name": "keyword.other.modifier.xell",
+          "match": "\\b(implements|inherits|with)\\b"
+        }
+      ]
+    },
+    "access-keywords": {
+      "comment": "Access: private, protected, public, static",
+      "patterns": [
+        {
+          "name": "storage.modifier.xell",
+          "match": "\\b(protected|private|public|static)\\b"
+        }
+      ]
+    },
+    "generator-keywords": {
+      "comment": "Generator: yield",
+      "patterns": [
+        {
+          "name": "keyword.control.yield.xell",
+          "match": "\\b(yield)\\b"
+        }
+      ]
+    },
+    "async-keywords": {
+      "comment": "Async: async, await",
+      "patterns": [
+        {
+          "name": "keyword.control.async.xell",
+          "match": "\\b(async|await)\\b"
+        }
+      ]
+    },
     "logical-operators": {
-      "comment": "Logical: and, not, not, or",
+      "comment": "Logical: and, not, or",
       "patterns": [
         {
           "name": "keyword.operator.logical.xell",
-          "match": "\\b(and|not|not|or)\\b"
+          "match": "\\b(and|not|or)\\b"
         }
       ]
     },
@@ -360,6 +478,15 @@
         {
           "name": "keyword.operator.comparison.word.xell",
           "match": "\\b(eq|ge|gt|is|le|lt|ne)\\b"
+        }
+      ]
+    },
+    "special-keywords": {
+      "comment": "Special: of",
+      "patterns": [
+        {
+          "name": "keyword.other.special.xell",
+          "match": "\\b(of)\\b"
         }
       ]
     },
@@ -398,6 +525,15 @@
         {
           "name": "support.function.bytes.xell",
           "match": "\\b(byte_at|byte_len|bytes|bytes|bytes_concat|bytes_slice|decode|encode|to_bytes)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "casting-builtins": {
+      "comment": "CASTING builtins: Bool, Complex, Float, Int, List, Set, String, Tuple, auto, iSet, number",
+      "patterns": [
+        {
+          "name": "support.function.casting.xell",
+          "match": "\\b(Bool|Complex|Float|Int|List|Set|String|Tuple|auto|iSet|number)\\b(?=\\s*\\()"
         }
       ]
     },

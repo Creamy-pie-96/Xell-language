@@ -1,0 +1,237 @@
+# test_real_world_bring.xel — Real-world usage of the bring system
+#
+# This script lives in test/scripts/ and uses `from "module_test/..."` to
+# import modules from the module_test directory, exactly as a user would.
+#
+# Run from the test/scripts/ directory:
+#   cd test/scripts && ../../build/xell test_real_world_bring.xel
+#
+# What this tests (in real usage, not unit tests):
+#   - from "dir/file.xel" bring specific functions
+#   - from "dir/file.xel" bring * (wildcard)
+#   - from "dir/file.xel" bring with aliases
+#   - bring classes from modules
+#   - bring variables from modules
+#   - bring nested modules and access submodules
+#   - bring same-named submodules from different parents
+#   - partial aliases
+#   - metadata warning (no .xell_meta in dir)
+
+# ──────────────────────────────────────────────────────────
+# Helper
+# ──────────────────────────────────────────────────────────
+total = 0
+pass_count = 0
+fail_count = 0
+
+fn ok(label, got, want):
+    total = total + 1
+    if got eq want:
+        print("  ✓ " + label)
+        pass_count = pass_count + 1
+    ;
+    else:
+        print("  ✗ " + label)
+        print("      got:  " + str(got))
+        print("      want: " + str(want))
+        fail_count = fail_count + 1
+    ;
+;
+
+# ══════════════════════════════════════════════════════════
+# 1. Bring math functions from file
+# ══════════════════════════════════════════════════════════
+print("\n── 1. Math functions from file ──")
+
+fn test_math_from_file():
+    from "module_test" bring square, cube, double of math_utils
+    ok("square(6)", square(6), 36)
+    ok("cube(4)", cube(4), 64)
+    ok("double(15)", double(15), 30)
+;
+test_math_from_file()
+
+# ══════════════════════════════════════════════════════════
+# 2. Bring math variable (PI) from file
+# ══════════════════════════════════════════════════════════
+print("\n── 2. Math variable from file ──")
+
+fn test_math_var():
+    from "module_test" bring PI of math_utils
+    ok("PI value", PI, 3.14159)
+;
+test_math_var()
+
+# ══════════════════════════════════════════════════════════
+# 3. Bring string functions with alias
+# ══════════════════════════════════════════════════════════
+print("\n── 3. String functions with alias ──")
+
+fn test_string_alias():
+    from "module_test" bring greet of string_utils as say_hello
+    from "module_test" bring farewell of string_utils as say_bye
+    ok("greet aliased", say_hello("Dev"), "Hello, Dev!")
+    ok("farewell aliased", say_bye("Dev"), "Goodbye, Dev!")
+;
+test_string_alias()
+
+# ══════════════════════════════════════════════════════════
+# 4. Bring string version variable
+# ══════════════════════════════════════════════════════════
+print("\n── 4. String utils VERSION variable ──")
+
+fn test_string_var():
+    from "module_test" bring VERSION of string_utils
+    ok("VERSION from string_utils", VERSION, "1.0.0")
+;
+test_string_var()
+
+# ══════════════════════════════════════════════════════════
+# 5. Bring wildcard from file (all of a module)
+# ══════════════════════════════════════════════════════════
+print("\n── 5. Wildcard bring from file ──")
+
+fn test_wildcard():
+    from "module_test" bring * of math_utils
+    ok("wildcard: square(7)", square(7), 49)
+    ok("wildcard: cube(2)", cube(2), 8)
+    ok("wildcard: double(11)", double(11), 22)
+    ok("wildcard: PI", PI, 3.14159)
+;
+test_wildcard()
+
+# ══════════════════════════════════════════════════════════
+# 6. Bring class from module file
+# ══════════════════════════════════════════════════════════
+print("\n── 6. Class import from module ──")
+
+fn test_class_import():
+    from "module_test" bring Circle, Rectangle, circle_area of shapes
+    c = Circle(5)
+    ok("Circle area", c->area(), 3.14159 * 25)
+    ok("Circle describe", c->describe(), "Circle(r=5)")
+    r = Rectangle(3, 4)
+    ok("Rectangle area", r->area(), 12)
+    ok("Rectangle describe", r->describe(), "Rectangle(3x4)")
+    ok("circle_area fn", circle_area(10), 3.14159 * 100)
+;
+test_class_import()
+
+# ══════════════════════════════════════════════════════════
+# 7. Bring variables & immutables from config module
+# ══════════════════════════════════════════════════════════
+print("\n── 7. Variable & immutable import ──")
+
+fn test_config_vars():
+    from "module_test" bring MAX_RETRIES, TIMEOUT, APP_NAME, VERSION of config
+    ok("MAX_RETRIES", MAX_RETRIES, 3)
+    ok("TIMEOUT", TIMEOUT, 30)
+    ok("APP_NAME", APP_NAME, "TestApp")
+    ok("VERSION (immutable)", VERSION, "2.5.0")
+;
+test_config_vars()
+
+# ══════════════════════════════════════════════════════════
+# 8. Bring config function
+# ══════════════════════════════════════════════════════════
+print("\n── 8. Config function import ──")
+
+fn test_config_fn():
+    from "module_test" bring get_config of config
+    cfg = get_config()
+    ok("get_config returns map", type(cfg), "map")
+;
+test_config_fn()
+
+# ══════════════════════════════════════════════════════════
+# 9. Bring nested modules (physics->mechanics)
+# ══════════════════════════════════════════════════════════
+print("\n── 9. Nested module import ──")
+
+fn test_nested():
+    from "module_test" bring velocity of physics
+    ok("velocity(100, 10)", velocity(100, 10), 10)
+
+    from "module_test" bring force of physics->mechanics
+    ok("force(10, 9.8)", force(10, 9.8), 98.0)
+
+    from "module_test" bring work of physics->mechanics
+    ok("work(50, 3)", work(50, 3), 150)
+;
+test_nested()
+
+# ══════════════════════════════════════════════════════════
+# 10. Same-named submodule from different parents
+# ══════════════════════════════════════════════════════════
+print("\n── 10. Same-named submodule in different parents ──")
+
+fn test_same_name():
+    from "module_test" bring tag of alpha->helper as alpha_tag
+    from "module_test" bring tag of beta->helper as beta_tag
+    ok("alpha->helper->tag()", alpha_tag(), "alpha_helper")
+    ok("beta->helper->tag()", beta_tag(), "beta_helper")
+;
+test_same_name()
+
+# ══════════════════════════════════════════════════════════
+# 11. Partial alias — alias fewer items than imported
+# ══════════════════════════════════════════════════════════
+print("\n── 11. Partial alias ──")
+
+fn test_partial_alias():
+    from "module_test" bring square, cube, double of math_utils as sq
+    # sq = square (aliased), cube and double keep original names
+    ok("partial alias: sq(8)", sq(8), 64)
+    ok("partial alias: cube(3)", cube(3), 27)
+    ok("partial alias: double(5)", double(5), 10)
+;
+test_partial_alias()
+
+# ══════════════════════════════════════════════════════════
+# 12. Bring class with alias
+# ══════════════════════════════════════════════════════════
+print("\n── 12. Class with alias ──")
+
+fn test_class_alias():
+    from "module_test" bring Circle of shapes as Circ
+    c = Circ(3)
+    ok("Circle aliased as Circ", round(c->area(), 4), round(3.14159 * 9, 4))
+;
+test_class_alias()
+
+# ══════════════════════════════════════════════════════════
+# 13. Bring bare module object (no 'of')
+# ══════════════════════════════════════════════════════════
+print("\n── 13. Bare module bring ──")
+
+fn test_bare_bring():
+    from "module_test" bring math_utils
+    ok("bare bring: math_utils->square(9)", math_utils->square(9), 81)
+    ok("bare bring: math_utils->PI", math_utils->PI, 3.14159)
+;
+test_bare_bring()
+
+# ══════════════════════════════════════════════════════════
+# 14. and-chaining across files
+# ══════════════════════════════════════════════════════════
+print("\n── 14. and-chaining across modules ──")
+
+fn test_and_chain():
+    from "module_test" bring square of math_utils and greet of string_utils
+    ok("and-chain: square(4)", square(4), 16)
+    ok("and-chain: greet(User)", greet("User"), "Hello, User!")
+;
+test_and_chain()
+
+# ══════════════════════════════════════════════════════════
+# Summary
+# ══════════════════════════════════════════════════════════
+print("\n══════════════════════════════════════════════════")
+print("  Results: " + str(pass_count) + "/" + str(total) + " passed")
+if fail_count gt 0:
+    print("  FAILED: " + str(fail_count) + " test(s)")
+;
+else:
+    print("  ALL TESTS PASSED! ✅")
+;
+print("══════════════════════════════════════════════════")

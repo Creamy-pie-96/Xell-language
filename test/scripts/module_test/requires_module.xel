@@ -1,0 +1,13 @@
+# requires_module.xel — module that uses requires keyword
+
+module calculator:
+    requires math_utils
+
+    export fn hypotenuse(a, b):
+        give sqrt(math_utils->square(a) + math_utils->square(b))
+    ;
+
+    export fn area_circle(r):
+        give math_utils->PI * math_utils->square(r)
+    ;
+;

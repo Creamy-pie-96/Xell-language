@@ -1,0 +1,12 @@
+# variable_module.xel — module that exports variables and immutables
+
+module config:
+    export MAX_RETRIES = 3
+    export TIMEOUT = 30
+    export APP_NAME = "TestApp"
+    export immutable VERSION = "2.5.0"
+
+    export fn get_config():
+        give {"max_retries": MAX_RETRIES, "timeout": TIMEOUT, "app": APP_NAME}
+    ;
+;

@@ -30,10 +30,13 @@ namespace xell
             {"be", TokenType::BE},
             {"loop", TokenType::LOOP},
 
-            // Import
+            // Import / module
             {"bring", TokenType::BRING},
             {"from", TokenType::FROM},
             {"as", TokenType::AS},
+            {"module", TokenType::MODULE},
+            {"export", TokenType::EXPORT},
+            {"requires", TokenType::REQUIRES},
 
             // Enum
             {"enum", TokenType::ENUM},

@@ -363,7 +363,7 @@ static void testBringWildcard()
     runTest("bring * from json makes json_parse available", []()
             {
         auto out = runXell(R"(
-            bring * from "json"
+            bring * of json
             x = json_parse("[1, 2, 3]")
             print(len(x))
         )");
@@ -372,7 +372,7 @@ static void testBringWildcard()
     runTest("bring * from regex makes regex_match available", []()
             {
         auto out = runXell(R"(
-            bring * from "regex"
+            bring * of regex
             print(regex_match("hello world", "hello"))
         )");
         XASSERT_EQ(out[0], "true"); });
@@ -380,7 +380,7 @@ static void testBringWildcard()
     runTest("bring * from datetime makes now available", []()
             {
         auto out = runXell(R"(
-            bring * from "datetime"
+            bring * of datetime
             t = now()
             print(len(t) > 0)
         )");
@@ -392,7 +392,7 @@ static void testBringWildcard()
         try
         {
             runXell(R"(
-                bring * from "archive"
+                bring * of archive
                 zip_archive("/nonexistent", "/tmp/test.zip")
             )");
         }
@@ -406,7 +406,7 @@ static void testBringWildcard()
     runTest("bring * from process makes whoami available", []()
             {
         auto out = runXell(R"(
-            bring * from "process"
+            bring * of process
             w = whoami()
             print(len(w) > 0)
         )");
@@ -420,7 +420,7 @@ static void testBringSelective()
     runTest("bring specific function from json", []()
             {
         auto out = runXell(R"(
-            bring json_parse from "json"
+            bring json_parse of json
             x = json_parse("[10, 20]")
             print(len(x))
         )");
@@ -431,7 +431,7 @@ static void testBringSelective()
         try
         {
             runXell(R"(
-                bring json_parse from "json"
+                bring json_parse of json
                 json_stringify([1,2,3])
             )");
             XASSERT(false); // json_stringify should fail
@@ -445,7 +445,7 @@ static void testBringSelective()
     runTest("bring multiple specific functions", []()
             {
         auto out = runXell(R"(
-            bring json_parse, json_stringify from "json"
+            bring json_parse, json_stringify of json
             x = json_parse("[1, 2]")
             print(json_stringify(x))
         )");
@@ -456,7 +456,7 @@ static void testBringSelective()
         try
         {
             runXell(R"(
-                bring nonexistent_func from "json"
+                bring nonexistent_func of json
             )");
             XASSERT(false);
         }
@@ -473,7 +473,7 @@ static void testBringAlias()
     runTest("bring function with alias", []()
             {
         auto out = runXell(R"(
-            bring json_parse from "json" as jp
+            bring json_parse of json as jp
             x = jp("[5, 10]")
             print(len(x))
         )");
@@ -484,7 +484,7 @@ static void testBringAlias()
         try
         {
             runXell(R"(
-                bring json_parse from "json" as jp
+                bring json_parse of json as jp
                 json_parse("[1]")
             )");
             XASSERT(false); // json_parse should not be available
@@ -556,7 +556,7 @@ static void testBringUnknownModule()
             {
         try
         {
-            runXell(R"(bring * from "totally_fake_module")");
+            runXell(R"(bring totally_fake_module)");
             XASSERT(false);
         }
         catch (const BringError &)
@@ -572,8 +572,8 @@ static void testMultipleModules()
     runTest("bring from multiple modules in sequence", []()
             {
         auto out = runXell(R"(
-            bring * from "json"
-            bring * from "regex"
+            bring * of json
+            bring * of regex
             x = json_parse("[1, 2, 3]")
             print(len(x))
             print(regex_match("abc", "a.c"))
@@ -584,8 +584,8 @@ static void testMultipleModules()
     runTest("bring selective from multiple modules", []()
             {
         auto out = runXell(R"(
-            bring json_parse from "json"
-            bring regex_match from "regex"
+            bring json_parse of json
+            bring regex_match of regex
             x = json_parse("[42]")
             print(len(x))
             print(regex_match("test", "t..t"))
@@ -642,7 +642,7 @@ static void testModuleFunctionality()
     runTest("json_parse + json_stringify roundtrip", []()
             {
         auto out = runXell(R"(
-            bring * from "json"
+            bring * of json
             x = json_parse("[1, 2, 3]")
             print(json_stringify(x))
         )");
@@ -651,7 +651,7 @@ static void testModuleFunctionality()
     runTest("regex operations after bring", []()
             {
         auto out = runXell(R"(
-            bring * from "regex"
+            bring * of regex
             print(regex_find("hello world 123", "[0-9]+"))
             print(regex_replace_all("hello", "l", "r"))
         )");
@@ -661,7 +661,7 @@ static void testModuleFunctionality()
     runTest("datetime after bring", []()
             {
         auto out = runXell(R"(
-            bring * from "datetime"
+            bring * of datetime
             t = timestamp()
             print(t > 0)
         )");
@@ -670,7 +670,7 @@ static void testModuleFunctionality()
     runTest("Tier 1 still works alongside Tier 2", []()
             {
         auto out = runXell(R"(
-            bring * from "json"
+            bring * of json
             print(upper("hello"))
             x = json_parse("[1]")
             print(len(x))
@@ -681,7 +681,7 @@ static void testModuleFunctionality()
     runTest("user function can shadow brought module function", []()
             {
         auto out = runXell(R"(
-            bring * from "json"
+            bring * of json
             fn json_parse(x):
                 give "custom"
             ;
@@ -697,7 +697,7 @@ static void testBringTier1Module()
     runTest("bring * from Tier 1 module is valid", []()
             {
         auto out = runXell(R"(
-            bring * from "math"
+            bring * of math
             print(floor(3.7))
         )");
         XASSERT_EQ(out[0], "3"); });
@@ -705,10 +705,1059 @@ static void testBringTier1Module()
     runTest("bring specific from Tier 1 module works", []()
             {
         auto out = runXell(R"(
-            bring floor from "math"
+            bring floor of math
             print(floor(9.9))
         )");
         XASSERT_EQ(out[0], "9"); });
+}
+
+// =============================================================================
+// New Module System Tests (module def, export, bring of, nested, -> access)
+// =============================================================================
+
+static void testModuleDefinition()
+{
+    std::cout << "\n── Module Definition ──\n";
+
+    runTest("basic module definition", []()
+            {
+        auto out = runXell(R"(
+            module math_utils:
+                fn square(x):
+                    give x * x
+                ;
+                fn cube(x):
+                    give x * x * x
+                ;
+            ;
+            print(type(math_utils))
+        )");
+        XASSERT_EQ(out[0], "module"); });
+
+    runTest("module -> member access (implicit exports)", []()
+            {
+        auto out = runXell(R"(
+            module helpers:
+                fn greet(name):
+                    give "Hello, " + name
+                ;
+                pi = 3.14159
+            ;
+            print(helpers->greet("World"))
+            print(helpers->pi)
+        )");
+        XASSERT_EQ(out[0], "Hello, World");
+        XASSERT_EQ(out[1], "3.14159"); });
+
+    runTest("module with explicit exports", []()
+            {
+        auto out = runXell(R"(
+            module mymod:
+                export fn public_fn():
+                    give "public"
+                ;
+                fn private_fn():
+                    give "private"
+                ;
+            ;
+            print(mymod->public_fn())
+        )");
+        XASSERT_EQ(out[0], "public"); });
+
+    runTest("explicit export hides non-exported names", []()
+            {
+        try
+        {
+            runXell(R"(
+                module mymod:
+                    export fn public_fn():
+                        give "public"
+                    ;
+                    fn private_fn():
+                        give "private"
+                    ;
+                ;
+                mymod->private_fn()
+            )");
+            XASSERT(false);
+        }
+        catch (const AttributeError &)
+        {
+            XASSERT(true);
+        } });
+
+    runTest("module __name__ dunder", []()
+            {
+        auto out = runXell(R"(
+            module mylib:
+                x = 1
+            ;
+            print(mylib->__name__)
+        )");
+        XASSERT_EQ(out[0], "mylib"); });
+
+    runTest("module __exports__ dunder returns list", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                export a = 1
+                export b = 2
+            ;
+            exps = m->__exports__
+            print(type(exps))
+        )");
+        // This should return a list
+        XASSERT_EQ(out[0], "list"); });
+
+    runTest("module with variable exports", []()
+            {
+        auto out = runXell(R"(
+            module config:
+                export version = "1.0.0"
+                export debug = true
+            ;
+            print(config->version)
+            print(config->debug)
+        )");
+        XASSERT_EQ(out[0], "1.0.0");
+        XASSERT_EQ(out[1], "true"); });
+}
+
+static void testModuleExportDecl()
+{
+    std::cout << "\n── Export Declaration ──\n";
+
+    runTest("export fn inside module", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                export fn add(a, b):
+                    give a + b
+                ;
+            ;
+            print(m->add(3, 4))
+        )");
+        XASSERT_EQ(out[0], "7"); });
+
+    runTest("export variable inside module", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                export x = 42
+            ;
+            print(m->x)
+        )");
+        XASSERT_EQ(out[0], "42"); });
+
+    runTest("export immutable inside module", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                export immutable PI = 3.14159
+            ;
+            print(m->PI)
+        )");
+        XASSERT_EQ(out[0], "3.14159"); });
+}
+
+static void testBringOfSyntax()
+{
+    std::cout << "\n── bring X of module (new syntax) ──\n";
+
+    runTest("bring single name of module", []()
+            {
+        auto out = runXell(R"(
+            module math:
+                fn square(x):
+                    give x * x
+                ;
+                fn cube(x):
+                    give x * x * x
+                ;
+            ;
+            bring square of math
+            print(square(5))
+        )");
+        XASSERT_EQ(out[0], "25"); });
+
+    runTest("bring multiple names of module", []()
+            {
+        auto out = runXell(R"(
+            module calc:
+                fn add(a, b):
+                    give a + b
+                ;
+                fn mul(a, b):
+                    give a * b
+                ;
+            ;
+            bring add, mul of calc
+            print(add(2, 3))
+            print(mul(4, 5))
+        )");
+        XASSERT_EQ(out[0], "5");
+        XASSERT_EQ(out[1], "20"); });
+
+    runTest("bring * of module (wildcard)", []()
+            {
+        auto out = runXell(R"(
+            module utils:
+                fn double(x):
+                    give x * 2
+                ;
+                fn triple(x):
+                    give x * 3
+                ;
+            ;
+            bring * of utils
+            print(double(10))
+            print(triple(10))
+        )");
+        XASSERT_EQ(out[0], "20");
+        XASSERT_EQ(out[1], "30"); });
+
+    runTest("bring with alias", []()
+            {
+        auto out = runXell(R"(
+            module math:
+                fn square(x):
+                    give x * x
+                ;
+            ;
+            bring square of math as sq
+            print(sq(6))
+        )");
+        XASSERT_EQ(out[0], "36"); });
+
+    runTest("bring module itself (no of)", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                fn hello():
+                    give "hi"
+                ;
+            ;
+            bring m
+            print(m->hello())
+        )");
+        XASSERT_EQ(out[0], "hi"); });
+
+    runTest("bring nonexistent name of module errors", []()
+            {
+        try
+        {
+            runXell(R"(
+                module m:
+                    fn foo():
+                        give 1
+                    ;
+                ;
+                bring bar of m
+            )");
+            XASSERT(false);
+        }
+        catch (const BringError &)
+        {
+            XASSERT(true);
+        } });
+}
+
+static void testNestedModules()
+{
+    std::cout << "\n── Nested Modules ──\n";
+
+    runTest("module as first-class value", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                fn get_val():
+                    give 42
+                ;
+            ;
+            x = m
+            print(x->get_val())
+        )");
+        XASSERT_EQ(out[0], "42"); });
+
+    runTest("module passed to function", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                fn value():
+                    give 99
+                ;
+            ;
+            fn use_mod(mod):
+                give mod->value()
+            ;
+            print(use_mod(m))
+        )");
+        XASSERT_EQ(out[0], "99"); });
+
+    runTest("module toString representation", []()
+            {
+        auto out = runXell(R"(
+            module mymod:
+                x = 1
+            ;
+            print(mymod)
+        )");
+        XASSERT_EQ(out[0], "<module mymod>"); });
+}
+
+// =============================================================================
+// Requires Keyword Tests
+// =============================================================================
+
+static void testRequiresKeyword()
+{
+    std::cout << "\n── requires keyword ──\n";
+
+    runTest("requires brings whole module into module scope", []()
+            {
+        auto out = runXell(R"(
+            module utils:
+                fn double(x):
+                    give x * 2
+                ;
+            ;
+            module app:
+                requires utils
+                export fn compute(x):
+                    give utils->double(x) + 1
+                ;
+            ;
+            print(app->compute(5))
+        )");
+        XASSERT_EQ(out[0], "11"); });
+
+    runTest("requires items of module path", []()
+            {
+        auto out = runXell(R"(
+            module math_lib:
+                export fn add(a, b):
+                    give a + b
+                ;
+                export fn sub(a, b):
+                    give a - b
+                ;
+            ;
+            module calculator:
+                requires add, sub of math_lib
+                export fn calc(a, b):
+                    give add(a, b) * sub(a, b)
+                ;
+            ;
+            print(calculator->calc(10, 3))
+        )");
+        // (10+3) * (10-3) = 13 * 7 = 91
+        XASSERT_EQ(out[0], "91"); });
+
+    runTest("requires missing module throws RequireError", []()
+            {
+        try
+        {
+            runXell(R"(
+                module app:
+                    requires nonexistent_module
+                    export fn foo():
+                        give 1
+                    ;
+                ;
+            )");
+            XASSERT(false);
+        }
+        catch (const RequireError &)
+        {
+            XASSERT(true);
+        } });
+
+    runTest("requires missing item from module throws RequireError", []()
+            {
+        try
+        {
+            runXell(R"(
+                module utils:
+                    export fn add(a, b):
+                        give a + b
+                    ;
+                ;
+                module app:
+                    requires nonexistent of utils
+                    export fn foo():
+                        give 1
+                    ;
+                ;
+            )");
+            XASSERT(false);
+        }
+        catch (const RequireError &)
+        {
+            XASSERT(true);
+        } });
+
+    runTest("requires builtin module works", []()
+            {
+        auto out = runXell(R"(
+            module app:
+                requires json
+                export fn parse_data(s):
+                    give json_parse(s)
+                ;
+            ;
+            data = app->parse_data("[1, 2, 3]")
+            print(len(data))
+        )");
+        XASSERT_EQ(out[0], "3"); });
+}
+
+// =============================================================================
+// @eager Decorator Tests
+// =============================================================================
+
+static void testEagerDecorator()
+{
+    std::cout << "\n── @eager decorator ──\n";
+
+    runTest("@eager bring parses correctly", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                fn greet():
+                    give "hello"
+                ;
+            ;
+            @eager bring m
+            print(m->greet())
+        )");
+        XASSERT_EQ(out[0], "hello"); });
+
+    runTest("@eager bring with of syntax", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                fn foo():
+                    give 42
+                ;
+            ;
+            @eager bring foo of m
+            print(foo())
+        )");
+        XASSERT_EQ(out[0], "42"); });
+
+    runTest("invalid decorator on bring errors", []()
+            {
+        try
+        {
+            runXell(R"(
+                module m:
+                    fn foo():
+                        give 1
+                    ;
+                ;
+                @invalid bring m
+            )");
+            XASSERT(false);
+        }
+        catch (const ParseError &)
+        {
+            XASSERT(true);
+        } });
+}
+
+// =============================================================================
+// Conflict Resolution Tests
+// =============================================================================
+
+static void testConflictResolution()
+{
+    std::cout << "\n── Conflict Resolution ──\n";
+
+    runTest("partial aliases — fewer aliases than items", []()
+            {
+        // 1 alias for 2 items: first gets aliased, second keeps its name
+        auto out = runXell(R"(
+            module m:
+                fn a():
+                    give 1
+                ;
+                fn b():
+                    give 2
+                ;
+            ;
+            bring a, b of m as aliased_a
+            print(aliased_a())
+            print(b())
+        )");
+        XASSERT_EQ(out[0], "1");
+        XASSERT_EQ(out[1], "2"); });
+
+    runTest("too many aliases is parse error", []()
+            {
+        try
+        {
+            runXell(R"(
+                module m:
+                    fn a():
+                        give 1
+                    ;
+                ;
+                bring a of m as x, y, z
+            )");
+            XASSERT(false);
+        }
+        catch (const ParseError &)
+        {
+            XASSERT(true);
+        } });
+
+    runTest("bring * collision detection", []()
+            {
+        try
+        {
+            runXell(R"(
+                module m1:
+                    fn add(a, b):
+                        give a + b
+                    ;
+                ;
+                module m2:
+                    fn add(a, b):
+                        give a * b
+                    ;
+                ;
+                bring * of m1
+                bring * of m2
+            )");
+            XASSERT(false);
+        }
+        catch (const BringError &e)
+        {
+            std::string msg = e.what();
+            XASSERT(msg.find("already in scope") != std::string::npos);
+        } });
+
+    runTest("bring * with alias avoids collision", []()
+            {
+        auto out = runXell(R"(
+            module m1:
+                fn add(a, b):
+                    give a + b
+                ;
+            ;
+            module m2:
+                fn add(a, b):
+                    give a * b
+                ;
+            ;
+            bring * of m1 as math
+            bring * of m2 as calc
+            print(math->add(2, 3))
+            print(calc->add(2, 3))
+        )");
+        XASSERT_EQ(out[0], "5");
+        XASSERT_EQ(out[1], "6"); });
+
+    runTest("correct alias count matches items", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                fn a():
+                    give 10
+                ;
+                fn b():
+                    give 20
+                ;
+            ;
+            bring a, b of m as x, y
+            print(x())
+            print(y())
+        )");
+        XASSERT_EQ(out[0], "10");
+        XASSERT_EQ(out[1], "20"); });
+}
+
+// =============================================================================
+// Dunder Variables Tests
+// =============================================================================
+
+static void testDunderVariables()
+{
+    std::cout << "\n── Dunder Variables ──\n";
+
+    runTest("__name__ of top-level module", []()
+            {
+        auto out = runXell(R"(
+            module mylib:
+                x = 1
+            ;
+            print(mylib->__name__)
+        )");
+        XASSERT_EQ(out[0], "mylib"); });
+
+    runTest("__name__ of nested module is qualified", []()
+            {
+        auto out = runXell(R"(
+            module lib:
+                export module math_lib:
+                    export fn add(a, b):
+                        give a + b
+                    ;
+                ;
+            ;
+            print(lib->math_lib->__name__)
+        )");
+        XASSERT_EQ(out[0], "lib->math_lib"); });
+
+    runTest("__exports__ returns list of export names", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                export fn foo():
+                    give 1
+                ;
+                export bar = 42
+                fn private_fn():
+                    give 2
+                ;
+            ;
+            exps = m->__exports__
+            print(len(exps))
+        )");
+        XASSERT_EQ(out[0], "2"); });
+
+    runTest("__submodules__ returns list of submodule names", []()
+            {
+        auto out = runXell(R"(
+            module lib:
+                export module sub1:
+                    export x = 1
+                ;
+                export module sub2:
+                    export y = 2
+                ;
+            ;
+            subs = lib->__submodules__
+            print(len(subs))
+        )");
+        XASSERT_EQ(out[0], "2"); });
+
+    runTest("__module__ is none for top-level module", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                x = 1
+            ;
+            print(m->__module__)
+        )");
+        XASSERT_EQ(out[0], "none"); });
+
+    runTest("__module__ of nested module is parent name", []()
+            {
+        auto out = runXell(R"(
+            module lib:
+                export module child:
+                    export x = 1
+                ;
+            ;
+            print(lib->child->__module__)
+        )");
+        XASSERT_EQ(out[0], "lib"); });
+
+    runTest("__version__ is none when not set", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                x = 1
+            ;
+            print(m->__version__)
+        )");
+        XASSERT_EQ(out[0], "none"); });
+
+    runTest("__version__ set by module author", []()
+            {
+        auto out = runXell(R"(
+            module mylib:
+                __version__ = "2.3.1"
+                export fn add(a, b):
+                    give a + b
+                ;
+            ;
+            print(mylib->__version__)
+        )");
+        XASSERT_EQ(out[0], "2.3.1"); });
+
+    runTest("__cached__ is none without bytecode", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                x = 1
+            ;
+            print(m->__cached__)
+        )");
+        XASSERT_EQ(out[0], "none"); });
+
+    runTest("global __name__ is __main__ for direct run", []()
+            {
+        auto out = runXell(R"(
+            print(__name__)
+        )");
+        XASSERT_EQ(out[0], "__main__"); });
+
+    runTest("global __args__ is none when not set", []()
+            {
+        auto out = runXell(R"(
+            print(__args__)
+        )");
+        XASSERT_EQ(out[0], "none"); });
+}
+
+// =============================================================================
+// Module Method Calls Tests
+// =============================================================================
+
+static void testModuleMethodCalls()
+{
+    std::cout << "\n── Module Method Calls (mod->fn()) ──\n";
+
+    runTest("call exported function via -> on module", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                fn greet(name):
+                    give "Hello, " + name
+                ;
+            ;
+            print(m->greet("World"))
+        )");
+        XASSERT_EQ(out[0], "Hello, World"); });
+
+    runTest("call exported function with multiple args", []()
+            {
+        auto out = runXell(R"(
+            module math:
+                fn add(a, b):
+                    give a + b
+                ;
+            ;
+            print(math->add(10, 20))
+        )");
+        XASSERT_EQ(out[0], "30"); });
+
+    runTest("call function on nested module", []()
+            {
+        auto out = runXell(R"(
+            module lib:
+                export module math:
+                    export fn square(x):
+                        give x * x
+                    ;
+                ;
+            ;
+            print(lib->math->square(7))
+        )");
+        XASSERT_EQ(out[0], "49"); });
+
+    runTest("module method with no explicit exports (all visible)", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                fn a():
+                    give "A"
+                ;
+                fn b():
+                    give "B"
+                ;
+            ;
+            print(m->a())
+            print(m->b())
+        )");
+        XASSERT_EQ(out[0], "A");
+        XASSERT_EQ(out[1], "B"); });
+
+    runTest("private function not callable via ->", []()
+            {
+        try
+        {
+            runXell(R"(
+                module m:
+                    export fn visible():
+                        give 1
+                    ;
+                    fn hidden():
+                        give 2
+                    ;
+                ;
+                m->hidden()
+            )");
+            XASSERT(false);
+        }
+        catch (const AttributeError &)
+        {
+            XASSERT(true);
+        } });
+}
+
+// =============================================================================
+// Deep Nested Access Tests
+// =============================================================================
+
+static void testDeepNestedAccess()
+{
+    std::cout << "\n── Deep Nested Module Access ──\n";
+
+    runTest("two-level nesting: lib->math_lib->add", []()
+            {
+        auto out = runXell(R"(
+            module lib:
+                export module math_lib:
+                    export fn add(a, b):
+                        give a + b
+                    ;
+                    export fn sub(a, b):
+                        give a - b
+                    ;
+                ;
+            ;
+            print(lib->math_lib->add(3, 4))
+            print(lib->math_lib->sub(10, 3))
+        )");
+        XASSERT_EQ(out[0], "7");
+        XASSERT_EQ(out[1], "7"); });
+
+    runTest("three-level nesting", []()
+            {
+        auto out = runXell(R"(
+            module root:
+                export module mid:
+                    export module leaf:
+                        export fn value():
+                            give 42
+                        ;
+                    ;
+                ;
+            ;
+            print(root->mid->leaf->value())
+        )");
+        XASSERT_EQ(out[0], "42"); });
+
+    runTest("bring from deep nested path", []()
+            {
+        auto out = runXell(R"(
+            module lib:
+                export module math:
+                    export fn square(x):
+                        give x * x
+                    ;
+                ;
+            ;
+            bring square of lib->math
+            print(square(9))
+        )");
+        XASSERT_EQ(out[0], "81"); });
+
+    runTest("bring * from deep nested path", []()
+            {
+        auto out = runXell(R"(
+            module lib:
+                export module tools:
+                    export fn double(x):
+                        give x * 2
+                    ;
+                    export fn triple(x):
+                        give x * 3
+                    ;
+                ;
+            ;
+            bring * of lib->tools
+            print(double(5))
+            print(triple(5))
+        )");
+        XASSERT_EQ(out[0], "10");
+        XASSERT_EQ(out[1], "15"); });
+
+    runTest("multiple modules in same parent", []()
+            {
+        auto out = runXell(R"(
+            module lib:
+                export module math:
+                    export fn add(a, b):
+                        give a + b
+                    ;
+                ;
+                export module string:
+                    export fn greet(name):
+                        give "Hi " + name
+                    ;
+                ;
+            ;
+            print(lib->math->add(1, 2))
+            print(lib->string->greet("Bob"))
+        )");
+        XASSERT_EQ(out[0], "3");
+        XASSERT_EQ(out[1], "Hi Bob"); });
+}
+
+// =============================================================================
+// And Chaining Tests
+// =============================================================================
+
+static void testAndChaining()
+{
+    std::cout << "\n── and chaining ──\n";
+
+    runTest("bring items from two modules with and", []()
+            {
+        auto out = runXell(R"(
+            module m1:
+                fn foo():
+                    give "m1"
+                ;
+            ;
+            module m2:
+                fn bar():
+                    give "m2"
+                ;
+            ;
+            bring foo of m1 and bar of m2
+            print(foo())
+            print(bar())
+        )");
+        XASSERT_EQ(out[0], "m1");
+        XASSERT_EQ(out[1], "m2"); });
+
+    runTest("bring items from three modules with and", []()
+            {
+        auto out = runXell(R"(
+            module a:
+                fn fa():
+                    give 1
+                ;
+            ;
+            module b:
+                fn fb():
+                    give 2
+                ;
+            ;
+            module c:
+                fn fc():
+                    give 3
+                ;
+            ;
+            bring fa of a and fb of b and fc of c
+            print(fa() + fb() + fc())
+        )");
+        XASSERT_EQ(out[0], "6"); });
+}
+
+// =============================================================================
+// From "dir" Bring Syntax Tests
+// =============================================================================
+
+static void testFromDirBring()
+{
+    std::cout << "\n── from dir bring syntax ──\n";
+
+    runTest("from dir bring with .xel file", []()
+            {
+        writeFile(g_testDir + "/dirlib.xel", R"(
+            x = 99
+            fn get_x():
+                give 99
+            ;
+        )");
+        // Use full path for file-based bring (legacy syntax)
+        auto out = runXell(
+            "bring * from \"" + g_testDir + "/dirlib.xel\"\n"
+            "print(x)\n");
+        XASSERT_EQ(out[0], "99"); });
+}
+
+// =============================================================================
+// File-Based Module Resolution Tests (with test scripts)
+// =============================================================================
+
+static void testFileBasedResolution()
+{
+    std::cout << "\n── File-Based Module Resolution ──\n";
+
+    runTest("module defined in a .xell file can be resolved", []()
+            {
+        // Create a .xell file with a module definition
+        writeFile(g_testDir + "/mathmod.xell", R"(
+            module math_utils:
+                export fn add(a, b):
+                    give a + b
+                ;
+                export fn mul(a, b):
+                    give a * b
+                ;
+            ;
+        )");
+
+        // Run code that references this module via file-based resolution
+        // The interpreter should search the directory for .xell files
+        Lexer lexer("bring add of math_utils\nprint(add(3, 7))\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        interp.setSourceFile(g_testDir + "/test_main.xell");
+        interp.run(program);
+        auto out = interp.output();
+        XASSERT_EQ(out[0], "10"); });
+}
+
+// =============================================================================
+// Module Caching Tests
+// =============================================================================
+
+static void testModuleCaching()
+{
+    std::cout << "\n── Module Caching ──\n";
+
+    runTest("module is cached — same object returned", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                export counter = 0
+                export fn inc():
+                    give 1
+                ;
+            ;
+            a = m
+            b = m
+            print(a->__name__ == b->__name__)
+        )");
+        XASSERT_EQ(out[0], "true"); });
+
+    runTest("module can be brought by name after definition", []()
+            {
+        auto out = runXell(R"(
+            module cache_test:
+                export fn value():
+                    give 42
+                ;
+            ;
+            bring cache_test
+            print(cache_test->value())
+        )");
+        XASSERT_EQ(out[0], "42"); });
+
+    runTest("bring same module multiple times is idempotent", []()
+            {
+        auto out = runXell(R"(
+            module m:
+                export fn val():
+                    give 99
+                ;
+            ;
+            bring m
+            bring m
+            bring m
+            print(m->val())
+        )");
+        XASSERT_EQ(out[0], "99"); });
 }
 
 // =============================================================================
@@ -735,6 +1784,20 @@ int main()
     testLoadModuleCppApi();
     testModuleFunctionality();
     testBringTier1Module();
+    testModuleDefinition();
+    testModuleExportDecl();
+    testBringOfSyntax();
+    testNestedModules();
+    testRequiresKeyword();
+    testEagerDecorator();
+    testConflictResolution();
+    testDunderVariables();
+    testModuleMethodCalls();
+    testDeepNestedAccess();
+    testAndChaining();
+    testFromDirBring();
+    testFileBasedResolution();
+    testModuleCaching();
 
     cleanupTestDir();
 

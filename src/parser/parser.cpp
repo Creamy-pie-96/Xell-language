@@ -243,6 +243,12 @@ namespace xell
         }
         if (type == TokenType::BRING)
             return parseBringStmt();
+        if (type == TokenType::FROM)
+            return parseBringStmt(); // from "dir" bring ...
+        if (type == TokenType::MODULE)
+            return parseModuleDef();
+        if (type == TokenType::EXPORT)
+            return parseExportDecl();
         if (type == TokenType::TRY)
             return parseTryCatchStmt();
         if (type == TokenType::INCASE)
@@ -1582,6 +1588,23 @@ namespace xell
             return loopDef;
         }
 
+        // @eager on bring statement
+        if (check(TokenType::BRING) || check(TokenType::FROM))
+        {
+            bool hasEager = false;
+            for (const auto &dec : decorators)
+            {
+                if (dec == "eager")
+                    hasEager = true;
+                else
+                    throw ParseError("Unknown decorator '@" + dec + "' for bring statement; only @eager is supported", ln);
+            }
+            auto bringStmt = parseBringStmt();
+            if (auto *bs = dynamic_cast<BringStmt *>(bringStmt.get()))
+                bs->isEager = hasEager;
+            return bringStmt;
+        }
+
         // Expect fn or async fn
         bool isAsync = false;
         if (check(TokenType::ASYNC))
@@ -1592,7 +1615,7 @@ namespace xell
         }
 
         if (!check(TokenType::FN))
-            throw ParseError("Expected 'fn', 'class', 'abstract', 'mixin', or 'loop' after decorator(s)", current().line);
+            throw ParseError("Expected 'fn', 'class', 'abstract', 'mixin', 'loop', or 'bring' after decorator(s)", current().line);
 
         auto fnStmt = parseFnDef(isAsync);
         auto fnDef = std::unique_ptr<FnDef>(static_cast<FnDef *>(fnStmt.release()));
@@ -1621,35 +1644,117 @@ namespace xell
     }
 
     // ============================================================
-    // Bring statement (import)
+    // Bring statement (import) — supports both legacy and new module syntax
     // ============================================================
+    //
+    // Legacy: bring name1, name2 from "file" [as a, b]
+    //         bring * from "file"
+    //
+    // New:    bring module_path
+    //         bring X of module->path as alias
+    //         bring X, Y of module->path as a, b
+    //         bring * of module->path [as alias]
+    //         from "dir" bring X of module->path
+    //         bring X of A and Y of B as a, b
+    //
+    // Detection: if FROM follows names → old syntax
+    //            if OF follows names → new syntax
+    //            if no FROM or OF → new syntax (whole module bring)
 
     StmtPtr Parser::parseBringStmt()
     {
         int ln = current().line;
-        advance(); // consume BRING
 
-        bool bringAll = false;
-        std::vector<std::string> names;
+        // ── Handle "from" starting a bring stmt ──
+        std::string fromDir;
+        if (check(TokenType::FROM))
+        {
+            advance(); // consume FROM
 
-        if (check(TokenType::STAR))
-        {
-            bringAll = true;
-            advance(); // consume *
-        }
-        else
-        {
-            names.push_back(consume(TokenType::IDENTIFIER, "Expected name after 'bring'").value);
-            while (check(TokenType::COMMA))
+            if (check(TokenType::STRING))
             {
-                advance(); // consume comma
-                names.push_back(consume(TokenType::IDENTIFIER, "Expected name after ','").value);
+                fromDir = current().value;
+                advance(); // consume string
+
+                if (!check(TokenType::BRING))
+                    throw ParseError("Expected 'bring' after 'from \"dir\"'", current().line);
+            }
+            else
+            {
+                throw ParseError("Expected directory string after 'from'", current().line);
             }
         }
 
-        consume(TokenType::FROM, "Expected 'from' in bring statement");
-        std::string path = consume(TokenType::STRING, "Expected file path string after 'from'").value;
+        if (check(TokenType::BRING))
+            advance(); // consume BRING
 
+        // ── Parse first bring part ──
+        std::vector<BringPart> parts;
+
+        auto parseBringPart = [this]() -> BringPart
+        {
+            BringPart part;
+
+            if (check(TokenType::STAR))
+            {
+                part.bringAll = true;
+                advance(); // consume *
+            }
+            else
+            {
+                // Collect identifiers
+                part.items.push_back(consume(TokenType::IDENTIFIER, "Expected name after 'bring'").value);
+                while (check(TokenType::COMMA))
+                {
+                    advance(); // consume comma
+                    skipNewlines();
+                    part.items.push_back(consume(TokenType::IDENTIFIER, "Expected name after ','").value);
+                }
+            }
+
+            // Check for "of MODULE_PATH" (module-based resolution)
+            if (check(TokenType::OF))
+            {
+                advance(); // consume OF
+                part.hasModulePath = true;
+                part.modulePath.push_back(consume(TokenType::IDENTIFIER, "Expected module name after 'of'").value);
+                while (check(TokenType::ARROW))
+                {
+                    advance(); // consume ->
+                    part.modulePath.push_back(consume(TokenType::IDENTIFIER, "Expected module name after '->'").value);
+                }
+            }
+            // Check for "from \"file\"" (file-based resolution)
+            else if (check(TokenType::FROM))
+            {
+                advance(); // consume FROM
+                part.filePath = consume(TokenType::STRING, "Expected file path string after 'from'").value;
+            }
+
+            return part;
+        };
+
+        parts.push_back(parseBringPart());
+
+        // ── "and" chaining ──
+        while (check(TokenType::AND))
+        {
+            advance(); // consume AND
+            skipNewlines();
+
+            if (check(TokenType::FROM))
+            {
+                throw ParseError("'and from' chaining not yet supported — use separate bring statements", current().line);
+            }
+
+            // Optional "bring" keyword after "and"
+            if (check(TokenType::BRING))
+                advance();
+
+            parts.push_back(parseBringPart());
+        }
+
+        // ── Parse aliases: "as alias1, alias2" ──
         std::vector<std::string> aliases;
         if (check(TokenType::AS))
         {
@@ -1662,8 +1767,160 @@ namespace xell
             }
         }
 
+        // ── Alias count validation ──
+        // Aliases are assigned left-to-right. Fewer aliases than items is OK
+        // (unaliased items keep their original names). More aliases than items is an error.
+        if (!aliases.empty())
+        {
+            size_t totalItems = 0;
+            for (const auto &part : parts)
+            {
+                if (part.bringAll)
+                    totalItems += 1;
+                else
+                    totalItems += part.items.size();
+            }
+            if (aliases.size() > totalItems)
+            {
+                throw ParseError("Too many aliases: " + std::to_string(aliases.size()) +
+                                     " aliases for " + std::to_string(totalItems) + " imported items",
+                                 ln);
+            }
+        }
+
         consumeStatementEnd();
-        return std::make_unique<BringStmt>(bringAll, std::move(names), path, std::move(aliases), ln);
+        return std::make_unique<BringStmt>(std::move(parts), std::move(aliases), std::move(fromDir), ln);
+    }
+
+    // ============================================================
+    // Module definition: module name : body ;
+    // ============================================================
+
+    StmtPtr Parser::parseModuleDef()
+    {
+        int ln = current().line;
+        advance(); // consume MODULE
+
+        std::string name = consume(TokenType::IDENTIFIER, "Expected module name after 'module'").value;
+        consume(TokenType::COLON, "Expected ':' after module name");
+        skipNewlines();
+
+        // Parse module body — collects statements until ';'
+        // First, parse any 'requires' declarations at the top of the body
+        std::vector<std::string> requiresList;
+        std::vector<std::pair<std::vector<std::string>, std::vector<std::string>>> requiresItemsList;
+
+        while (check(TokenType::REQUIRES))
+        {
+            advance(); // consume REQUIRES
+            // Parse: requires IDENTIFIER
+            //    or: requires ITEMS of MODULE_PATH
+            std::vector<std::string> items;
+            items.push_back(consume(TokenType::IDENTIFIER, "Expected module/item name after 'requires'").value);
+            while (check(TokenType::COMMA))
+            {
+                advance();
+                items.push_back(consume(TokenType::IDENTIFIER, "Expected name after ','").value);
+            }
+
+            if (check(TokenType::OF))
+            {
+                advance(); // consume OF
+                std::vector<std::string> path;
+                path.push_back(consume(TokenType::IDENTIFIER, "Expected module name after 'of'").value);
+                while (check(TokenType::ARROW))
+                {
+                    advance();
+                    path.push_back(consume(TokenType::IDENTIFIER, "Expected module name after '->'").value);
+                }
+                requiresItemsList.emplace_back(std::move(items), std::move(path));
+            }
+            else
+            {
+                // Simple: requires json → whole module dependency
+                for (auto &item : items)
+                    requiresList.push_back(std::move(item));
+            }
+            consumeStatementEnd();
+        }
+
+        auto body = parseBlock();
+        consume(TokenType::SEMICOLON, "Expected ';' to close module block");
+
+        auto mod = std::make_unique<ModuleDef>(std::move(name), std::move(body), ln);
+        mod->requires_ = std::move(requiresList);
+        mod->requiresItems = std::move(requiresItemsList);
+        return mod;
+    }
+
+    // ============================================================
+    // Export declaration: export fn/class/struct/var/module
+    // ============================================================
+
+    StmtPtr Parser::parseExportDecl()
+    {
+        int ln = current().line;
+        advance(); // consume EXPORT
+        skipNewlines();
+
+        // Parse the declaration that follows export
+        StmtPtr decl;
+        TokenType nextType = current().type;
+
+        if (nextType == TokenType::FN)
+            decl = parseFnDef();
+        else if (nextType == TokenType::CLASS)
+            decl = parseClassDef();
+        else if (nextType == TokenType::ABSTRACT)
+        {
+            advance();
+            decl = parseClassDef(true);
+        }
+        else if (nextType == TokenType::MIXIN)
+        {
+            advance();
+            decl = parseClassDef(false, true);
+        }
+        else if (nextType == TokenType::STRUCT)
+            decl = parseStructDef();
+        else if (nextType == TokenType::MODULE)
+            decl = parseModuleDef();
+        else if (nextType == TokenType::ENUM)
+            decl = parseEnumDef();
+        else if (nextType == TokenType::IDENTIFIER)
+        {
+            // export x = value (variable export)
+            std::string varName = current().value;
+            int varLine = current().line;
+            advance();
+            if (check(TokenType::EQUAL))
+            {
+                advance();
+                auto value = parseExpression();
+                consumeStatementEnd();
+                decl = std::make_unique<Assignment>(std::move(varName), std::move(value), varLine);
+            }
+            else
+            {
+                throw ParseError("Expected '=' after variable name in export declaration", current().line);
+            }
+        }
+        else if (nextType == TokenType::IMMUTABLE)
+        {
+            // export immutable x = value
+            advance(); // consume immutable
+            std::string varName = consume(TokenType::IDENTIFIER, "Expected variable name after 'immutable'").value;
+            consume(TokenType::EQUAL, "Expected '=' in immutable binding");
+            auto value = parseExpression();
+            consumeStatementEnd();
+            decl = std::make_unique<ImmutableBinding>(std::move(varName), std::move(value), ln);
+        }
+        else
+        {
+            throw ParseError("Expected declaration after 'export' (fn, class, struct, module, or variable)", current().line);
+        }
+
+        return std::make_unique<ExportDecl>(std::move(decl), ln);
     }
 
     // ============================================================
@@ -2398,7 +2655,9 @@ namespace xell
                     consume(TokenType::RPAREN, "Expected ')' after method arguments");
                     // Method call: insert object as first arg
                     args.insert(args.begin(), std::move(expr));
-                    expr = std::make_unique<CallExpr>(member, std::move(args), ln);
+                    auto call = std::make_unique<CallExpr>(member, std::move(args), ln);
+                    call->isMethodCall = true;
+                    expr = std::move(call);
                     continue;
                 }
 

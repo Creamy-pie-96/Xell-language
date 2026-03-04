@@ -1007,26 +1007,29 @@ void test_parse_bring_all()
 {
     auto prog = parseSource("bring * from \"./helpers.xel\"");
     auto *bring = firstStmt<BringStmt>(prog);
-    XASSERT_EQ(bring->bringAll, true);
-    XASSERT_EQ(bring->path, std::string("./helpers.xel"));
+    XASSERT_EQ(bring->parts.size(), (size_t)1);
+    XASSERT_EQ(bring->parts[0].bringAll, true);
+    XASSERT_EQ(bring->parts[0].filePath, std::string("./helpers.xel"));
 }
 
 void test_parse_bring_named()
 {
     auto prog = parseSource("bring setup from \"./helpers.xel\"");
     auto *bring = firstStmt<BringStmt>(prog);
-    XASSERT_EQ(bring->bringAll, false);
-    XASSERT_EQ(bring->names.size(), (size_t)1);
-    XASSERT_EQ(bring->names[0], std::string("setup"));
+    XASSERT_EQ(bring->parts.size(), (size_t)1);
+    XASSERT_EQ(bring->parts[0].bringAll, false);
+    XASSERT_EQ(bring->parts[0].items.size(), (size_t)1);
+    XASSERT_EQ(bring->parts[0].items[0], std::string("setup"));
+    XASSERT_EQ(bring->parts[0].filePath, std::string("./helpers.xel"));
 }
 
 void test_parse_bring_multiple_with_aliases()
 {
     auto prog = parseSource("bring setup, deploy from \"./helpers.xel\" as s, d");
     auto *bring = firstStmt<BringStmt>(prog);
-    XASSERT_EQ(bring->names.size(), (size_t)2);
-    XASSERT_EQ(bring->names[0], std::string("setup"));
-    XASSERT_EQ(bring->names[1], std::string("deploy"));
+    XASSERT_EQ(bring->parts[0].items.size(), (size_t)2);
+    XASSERT_EQ(bring->parts[0].items[0], std::string("setup"));
+    XASSERT_EQ(bring->parts[0].items[1], std::string("deploy"));
     XASSERT_EQ(bring->aliases.size(), (size_t)2);
     XASSERT_EQ(bring->aliases[0], std::string("s"));
     XASSERT_EQ(bring->aliases[1], std::string("d"));

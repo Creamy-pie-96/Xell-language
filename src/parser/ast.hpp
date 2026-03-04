@@ -157,6 +157,7 @@ namespace xell
     {
         std::string callee;
         std::vector<ExprPtr> args;
+        bool isMethodCall = false; // true when rewritten from obj->method(args)
         CallExpr(std::string callee, std::vector<ExprPtr> args, int ln = 0)
             : callee(std::move(callee)), args(std::move(args)) { line = ln; }
     };
@@ -441,16 +442,29 @@ namespace xell
             : names(std::move(names)), value(std::move(val)) { line = ln; }
     };
 
+    // Bring statement — unified module import system
+    // Supports: bring X of module, bring * of module, bring X from "file",
+    //           from "dir" bring ..., and chaining, as aliases, @eager
+    struct BringPart
+    {
+        bool bringAll = false;               // bring * of ...
+        std::vector<std::string> items;      // specific items to bring
+        std::vector<std::string> modulePath; // module path: ["lib", "math_lib"]
+        bool hasModulePath = false;          // true if "of PATH" was specified
+        std::string filePath;                // from "file.xel" (empty if module-based)
+    };
+
     struct BringStmt : Stmt
     {
-        bool bringAll;                    // true for "bring * from ..."
-        std::vector<std::string> names;   // names to bring (empty if bringAll)
-        std::string path;                 // file path string
-        std::vector<std::string> aliases; // optional aliases
-        BringStmt(bool all, std::vector<std::string> names, std::string path,
-                  std::vector<std::string> aliases, int ln = 0)
-            : bringAll(all), names(std::move(names)), path(std::move(path)),
-              aliases(std::move(aliases)) { line = ln; }
+        std::vector<BringPart> parts;     // chained with "and"
+        std::vector<std::string> aliases; // as alias1, alias2 ...
+        std::string fromDir;              // from "dir" (empty if not specified)
+        bool isEager = false;             // @eager decorator applied
+        BringStmt(std::vector<BringPart> parts,
+                  std::vector<std::string> aliases,
+                  std::string fromDir, int ln = 0)
+            : parts(std::move(parts)), aliases(std::move(aliases)),
+              fromDir(std::move(fromDir)) { line = ln; }
     };
 
     // Enum definition: enum Color: Red, Green, Blue;
@@ -595,6 +609,32 @@ namespace xell
         std::vector<StmtPtr> body;        // block executed with resources in scope
         LetStmt(std::vector<LetBinding> bindings, std::vector<StmtPtr> body, int ln = 0)
             : bindings(std::move(bindings)), body(std::move(body)) { line = ln; }
+    };
+
+    // ============================================================
+    // Module system AST nodes
+    // ============================================================
+
+    // module name : body ;
+    struct ModuleDef : Stmt
+    {
+        std::string name;
+        std::vector<StmtPtr> body;                       // entire module body
+        std::vector<std::string> requires_;              // requires declarations (module names)
+        std::vector<std::pair<std::vector<std::string>,  // requires items
+                              std::vector<std::string>>> // requires paths (of X->Y)
+            requiresItems;
+        bool isExported = false; // true if preceded by export
+        ModuleDef(std::string name, std::vector<StmtPtr> body, int ln = 0)
+            : name(std::move(name)), body(std::move(body)) { line = ln; }
+    };
+
+    // export fn/class/struct/var/module — wraps any declaration
+    struct ExportDecl : Stmt
+    {
+        StmtPtr declaration; // the wrapped fn/class/struct/assignment/module
+        ExportDecl(StmtPtr decl, int ln = 0)
+            : declaration(std::move(decl)) { line = ln; }
     };
 
     // ============================================================

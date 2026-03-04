@@ -56,6 +56,8 @@ namespace xell
         StmtPtr parseFnDef(bool isAsync = false);
         StmtPtr parseGiveStmt();
         StmtPtr parseBringStmt();
+        StmtPtr parseModuleDef();
+        StmtPtr parseExportDecl();
         StmtPtr parseTryCatchStmt();
         StmtPtr parseInCaseStmt();
         StmtPtr parseEnumDef();

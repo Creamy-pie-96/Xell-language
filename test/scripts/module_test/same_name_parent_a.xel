@@ -1,0 +1,13 @@
+# same_name_parent_a.xel — module "alpha" with submodule "helper"
+
+module alpha:
+    export module helper:
+        export fn tag():
+            give "alpha_helper"
+        ;
+    ;
+
+    export fn identify():
+        give "I am alpha"
+    ;
+;

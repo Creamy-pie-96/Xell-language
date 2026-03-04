@@ -20,6 +20,7 @@
 #include "shell_state.hpp"
 #include "../builtins/builtin_registry.hpp"
 #include "../builtins/module_registry.hpp"
+#include "../module/module_resolver.hpp"
 #include "../parser/ast.hpp"
 #include "../lib/errors/error.hpp"
 #include <string>
@@ -78,7 +79,17 @@ namespace xell
         void reset();
 
         /// Set the source file path (for resolving relative bring paths)
-        void setSourceFile(const std::string &path) { sourceFile_ = path; }
+        void setSourceFile(const std::string &path)
+        {
+            sourceFile_ = path;
+            moduleResolver_.setSourceFile(path);
+        }
+
+        /// Set CLI arguments (for __args__ dunder)
+        void setCliArgs(const std::vector<std::string> &args) { cliArgs_ = args; }
+
+        /// Mark this interpreter as running the main file (for __name__ == "__main__")
+        void setIsMainFile(bool val) { isMainFile_ = val; }
 
         /// Access to global environment (testing / REPL)
         Environment &globals() { return globalEnv_; }
@@ -107,10 +118,17 @@ namespace xell
         BuiltinTable builtins_;    // Tier 1: always-available builtins
         BuiltinTable allBuiltins_; // ALL builtins (Tier 1 + Tier 2)
         ModuleRegistry moduleRegistry_;
+        ModuleResolver moduleResolver_;
         int callDepth_ = 0;
         static constexpr int MAX_CALL_DEPTH = 512;
         std::string sourceFile_;                        // current file path (for bring resolution)
         std::unordered_set<std::string> importedFiles_; // circular-import guard
+        std::vector<std::string> cliArgs_;              // CLI arguments (for __args__ dunder)
+        bool isMainFile_ = true;                        // true when running the entry-point file
+
+        // Module system: tracks names that have been export-declared in current scope.
+        // Used by execModuleDef to collect exports when building an XModule.
+        std::unordered_set<std::string> exportedNames_;
 
         // Access control: tracks the class that owns the currently executing method.
         // Set by callUserFn when calling a method (has "self" param). nullptr when
@@ -140,6 +158,8 @@ namespace xell
         void execGive(const GiveStmt *node);
         void execExprStmt(const ExprStmt *node);
         void execBring(const BringStmt *node);
+        void execModuleDef(const ModuleDef *node);
+        void execExportDecl(const ExportDecl *node);
         void execTryCatch(const TryCatchStmt *node);
         void execInCase(const InCaseStmt *node);
         void execLet(const LetStmt *node);
@@ -152,6 +172,11 @@ namespace xell
         void execInterfaceDef(const InterfaceDef *node);
         void execMemberAssignment(const MemberAssignment *node);
         void execIndexAssignment(const IndexAssignment *node);
+
+        /// Execute a .xell file and return all module objects defined within.
+        /// Used by ModuleResolver for file-based module resolution.
+        std::unordered_map<std::string, std::shared_ptr<XModule>>
+        executeModuleFile(const std::string &filePath);
 
         // ---- Expression evaluation -----------------------------------------
 

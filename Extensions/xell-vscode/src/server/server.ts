@@ -32,7 +32,7 @@ import {
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { XellDiagnostics } from './diagnostics';
-import { XELL_KEYWORDS, XELL_BUILTINS, XELL_OS_BUILTINS, XELL_MATH, ALL_COMPLETIONS } from './completions';
+import { XELL_KEYWORDS, XELL_BUILTINS, ALL_COMPLETIONS, LANG_DATA } from './completions';
 import { HOVER_INFO } from './hover';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -348,8 +348,8 @@ function extractUserIdentifiers(text: string): CompletionItem[] {
     const varRegex = /^\s*([a-zA-Z_]\w*)\s*=/gm;
     while ((match = varRegex.exec(text)) !== null) {
         const name = match[1];
-        // Skip keywords
-        const keywords = new Set(['fn', 'if', 'elif', 'else', 'for', 'while', 'give', 'bring', 'true', 'false', 'none']);
+        // Skip keywords (dynamically loaded from language_data.json)
+        const keywords = new Set(LANG_DATA.allKeywordNames);
         if (!seen.has(name) && !keywords.has(name)) {
             seen.add(name);
             items.push({ label: name, kind: CompletionItemKind.Variable, detail: 'User-defined variable', data: `user_var_${name}` });

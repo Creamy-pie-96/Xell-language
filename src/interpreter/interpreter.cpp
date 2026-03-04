@@ -1,5 +1,6 @@
 #include "interpreter.hpp"
 #include "../builtins/register_all.hpp"
+#include "../module/xmodule.hpp"
 #include "../lexer/lexer.hpp"
 #include "../parser/parser.hpp"
 #include <sstream>
@@ -150,6 +151,13 @@ namespace xell
         currentInterpreter_ = this;
         setInstanceHashCallback(&Interpreter::instanceHashCallback);
         registerBuiltins();
+
+        // Set up file executor for file-based module resolution
+        moduleResolver_.setFileExecutor(
+            [this](const std::string &filePath) -> std::unordered_map<std::string, std::shared_ptr<XModule>>
+            {
+                return executeModuleFile(filePath);
+            });
     }
 
     void Interpreter::reset()
@@ -183,6 +191,27 @@ namespace xell
     void Interpreter::run(const Program &program)
     {
         currentEnv_ = &globalEnv_;
+
+        // Inject module dunders into global scope
+        if (isMainFile_)
+            globalEnv_.define("__name__", XObject::makeString("__main__"));
+        else
+            globalEnv_.define("__name__", XObject::makeString(sourceFile_));
+
+        if (!cliArgs_.empty())
+        {
+            XList argList;
+            for (const auto &a : cliArgs_)
+                argList.push_back(XObject::makeString(a));
+            globalEnv_.define("__args__", XObject::makeList(std::move(argList)));
+        }
+        else
+        {
+            globalEnv_.define("__args__", XObject::makeNone());
+        }
+
+        globalEnv_.define("__file__", XObject::makeString(sourceFile_));
+
         for (const auto &stmt : program.statements)
         {
             exec(stmt.get());
@@ -451,6 +480,10 @@ namespace xell
             return execExprStmt(p);
         if (auto *p = dynamic_cast<const BringStmt *>(stmt))
             return execBring(p);
+        if (auto *p = dynamic_cast<const ModuleDef *>(stmt))
+            return execModuleDef(p);
+        if (auto *p = dynamic_cast<const ExportDecl *>(stmt))
+            return execExportDecl(p);
         if (auto *p = dynamic_cast<const TryCatchStmt *>(stmt))
             return execTryCatch(p);
         if (auto *p = dynamic_cast<const InCaseStmt *>(stmt))
@@ -1340,16 +1373,141 @@ namespace xell
 
     void Interpreter::execBring(const BringStmt *node)
     {
-        std::string rawPath = node->path;
-
-        // ── Check if the path refers to a built-in module ──────────────
-        if (moduleRegistry_.isBuiltinModule(rawPath))
+        // Helper: resolve a module path to an XModule
+        auto resolveModulePath = [&](const std::vector<std::string> &path, int line) -> std::shared_ptr<XModule>
         {
-            const auto &functions = moduleRegistry_.moduleFunctions(rawPath);
+            if (path.empty())
+                throw BringError("Empty module path in bring statement", line);
 
-            if (node->bringAll)
+            const std::string &root = path[0];
+            XObject rootObj;
+
+            if (currentEnv_->has(root))
             {
-                // bring * from "module" — inject all module functions
+                rootObj = currentEnv_->get(root, line);
+            }
+            else if (moduleResolver_.isSessionCached(root))
+            {
+                rootObj = XObject::makeModule(moduleResolver_.getSessionCached(root));
+            }
+            else
+            {
+                std::vector<std::string> warnings;
+                auto resolved = moduleResolver_.resolveFromFileSystem(root, node->fromDir, &warnings);
+                for (const auto &w : warnings)
+                    std::cerr << w << "\n";
+                if (resolved)
+                    rootObj = XObject::makeModule(resolved);
+                else
+                    throw BringError("Module '" + root + "' not found", line);
+            }
+
+            if (!rootObj.isModule())
+                throw BringError("'" + root + "' is not a module", line);
+
+            auto current = rootObj.asModuleShared();
+
+            for (size_t i = 1; i < path.size(); ++i)
+            {
+                if (!current->hasSubmodule(path[i]))
+                    throw BringError("Module '" + current->name + "' has no submodule '" + path[i] + "'", line);
+                current = current->submodules.at(path[i]);
+            }
+
+            return current;
+        };
+
+        // Helper: file-based bring (read .xel file, execute, extract names)
+        auto bringFromFile = [&](const BringPart &part, size_t &aliasIdx)
+        {
+            std::string rawPath = part.filePath;
+
+            // Resolve the file path relative to the current source file
+            std::string resolvedPath;
+            if (!node->fromDir.empty())
+                resolvedPath = canonicalPath(node->fromDir + "/" + rawPath);
+            else if (sourceFile_.empty())
+                resolvedPath = canonicalPath(rawPath);
+            else
+                resolvedPath = canonicalPath(resolvePath(sourceFile_, rawPath));
+
+            if (importedFiles_.count(resolvedPath))
+                throw BringError("Circular import detected: '" + rawPath + "'", node->line);
+
+            std::ifstream f(resolvedPath);
+            if (!f.is_open())
+                throw BringError("Cannot open file '" + rawPath + "' (resolved to '" + resolvedPath + "')", node->line);
+            std::ostringstream ss;
+            ss << f.rdbuf();
+            std::string source = ss.str();
+
+            auto mod = std::make_unique<ImportedModule>();
+            mod->interp = std::make_unique<Interpreter>();
+            mod->interp->sourceFile_ = resolvedPath;
+            mod->interp->importedFiles_ = importedFiles_;
+            mod->interp->importedFiles_.insert(resolvedPath);
+
+            try
+            {
+                Lexer lexer(source);
+                auto tokens = lexer.tokenize();
+                Parser parser(tokens);
+                mod->program = parser.parse();
+                mod->interp->run(mod->program);
+            }
+            catch (const XellError &e)
+            {
+                throw BringError("Error in '" + rawPath + "': " + e.what(), node->line);
+            }
+
+            Environment &childEnv = mod->interp->globals();
+
+            if (part.bringAll)
+            {
+                auto names = childEnv.allNames();
+                for (const auto &name : names)
+                {
+                    try
+                    {
+                        XObject val = childEnv.get(name, node->line);
+                        currentEnv_->define(name, std::move(val));
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+            else
+            {
+                for (size_t i = 0; i < part.items.size(); ++i)
+                {
+                    const std::string &name = part.items[i];
+                    std::string alias = name;
+                    if (aliasIdx < node->aliases.size())
+                        alias = node->aliases[aliasIdx++];
+
+                    try
+                    {
+                        XObject val = childEnv.get(name, node->line);
+                        currentEnv_->define(alias, std::move(val));
+                    }
+                    catch (const UndefinedVariableError &)
+                    {
+                        throw BringError("Name '" + name + "' not found in '" + rawPath + "'", node->line);
+                    }
+                }
+            }
+
+            importedModules_.push_back(std::move(mod));
+        };
+
+        // Helper: bring from builtin module
+        auto bringFromBuiltin = [&](const std::string &moduleName, const BringPart &part, size_t &aliasIdx)
+        {
+            const auto &functions = moduleRegistry_.moduleFunctions(moduleName);
+
+            if (part.bringAll)
+            {
                 for (const auto &fnName : functions)
                 {
                     auto it = allBuiltins_.find(fnName);
@@ -1359,108 +1517,452 @@ namespace xell
             }
             else
             {
-                // bring name1, name2 from "module" [as alias1, alias2]
-                for (size_t i = 0; i < node->names.size(); ++i)
+                for (const auto &item : part.items)
                 {
-                    const std::string &name = node->names[i];
-                    std::string alias = (i < node->aliases.size() && !node->aliases[i].empty())
-                                            ? node->aliases[i]
-                                            : name;
+                    std::string alias = item;
+                    if (aliasIdx < node->aliases.size())
+                        alias = node->aliases[aliasIdx++];
 
-                    auto it = allBuiltins_.find(name);
-                    if (it == allBuiltins_.end() || !moduleRegistry_.moduleHasFunction(rawPath, name))
-                        throw BringError("Name '" + name + "' not found in module '" + rawPath + "'", node->line);
+                    auto it = allBuiltins_.find(item);
+                    if (it == allBuiltins_.end() || !moduleRegistry_.moduleHasFunction(moduleName, item))
+                        throw BringError("Name '" + item + "' not found in module '" + moduleName + "'", node->line);
                     builtins_[alias] = it->second;
                 }
             }
-            return; // done — no file I/O needed
+        };
+
+        size_t aliasIdx = 0;
+
+        for (const auto &part : node->parts)
+        {
+            // ── File-based bring: bring X from "file.xel" ──
+            if (!part.filePath.empty())
+            {
+                bringFromFile(part, aliasIdx);
+                continue;
+            }
+
+            // ── Module-path bring: bring X of module->path ──
+            if (part.hasModulePath)
+            {
+                const std::string &root = part.modulePath[0];
+
+                // Try user-defined modules first (env / session cache / filesystem),
+                // fall back to builtins only if no user module is found.
+                bool resolvedAsUserModule = false;
+                std::shared_ptr<XModule> mod;
+
+                if (currentEnv_->has(root) || moduleResolver_.isSessionCached(root))
+                {
+                    // User-defined module found — always prefer it
+                    mod = resolveModulePath(part.modulePath, node->line);
+                    resolvedAsUserModule = true;
+                }
+                else if (part.modulePath.size() == 1 && moduleRegistry_.isBuiltinModule(root))
+                {
+                    // No user module by that name — use builtin
+                    bringFromBuiltin(root, part, aliasIdx);
+                    continue;
+                }
+                else
+                {
+                    // Try filesystem resolution (may also find user modules)
+                    mod = resolveModulePath(part.modulePath, node->line);
+                    resolvedAsUserModule = true;
+                }
+
+                (void)resolvedAsUserModule; // used for clarity, no runtime check needed
+
+                if (part.bringAll)
+                {
+                    std::string alias;
+                    if (aliasIdx < node->aliases.size())
+                    {
+                        alias = node->aliases[aliasIdx++];
+                        currentEnv_->define(alias, XObject::makeModule(mod));
+                    }
+                    else
+                    {
+                        for (const auto &[name, val] : mod->exports)
+                        {
+                            if (currentEnv_->hasLocal(name))
+                            {
+                                throw BringError("Name '" + name + "' already in scope — "
+                                                                   "collision from 'bring * of " +
+                                                     mod->qualifiedName() + "'. "
+                                                                            "Use 'bring * of " +
+                                                     mod->qualifiedName() + " as alias' to avoid",
+                                                 node->line);
+                            }
+                            currentEnv_->define(name, val);
+                        }
+                    }
+                }
+                else
+                {
+                    for (const auto &item : part.items)
+                    {
+                        const XObject *val = mod->getExport(item);
+                        if (!val)
+                            throw BringError("Name '" + item + "' not found in module '" +
+                                                 mod->qualifiedName() + "'",
+                                             node->line);
+                        std::string bindName = item;
+                        if (aliasIdx < node->aliases.size())
+                            bindName = node->aliases[aliasIdx++];
+                        currentEnv_->define(bindName, *val);
+                    }
+                }
+                continue;
+            }
+
+            // ── Bare bring: bring X → bring the module itself into scope ──
+            for (const auto &item : part.items)
+            {
+                XObject obj;
+                if (currentEnv_->has(item))
+                {
+                    obj = currentEnv_->get(item, node->line);
+                }
+                else if (moduleResolver_.isSessionCached(item))
+                {
+                    obj = XObject::makeModule(moduleResolver_.getSessionCached(item));
+                }
+                else if (moduleRegistry_.isBuiltinModule(item))
+                {
+                    // Bare bring of builtin: bring json → inject all functions
+                    const auto &functions = moduleRegistry_.moduleFunctions(item);
+                    for (const auto &fnName : functions)
+                    {
+                        auto it = allBuiltins_.find(fnName);
+                        if (it != allBuiltins_.end())
+                            builtins_[fnName] = it->second;
+                    }
+                    continue;
+                }
+                else
+                {
+                    std::vector<std::string> warnings;
+                    auto resolved = moduleResolver_.resolveFromFileSystem(item, node->fromDir, &warnings);
+                    for (const auto &w : warnings)
+                        std::cerr << w << "\n";
+                    if (resolved)
+                        obj = XObject::makeModule(resolved);
+                    else
+                        throw BringError("Module '" + item + "' not found", node->line);
+                }
+
+                std::string bindName = item;
+                if (aliasIdx < node->aliases.size())
+                    bindName = node->aliases[aliasIdx++];
+                currentEnv_->define(bindName, std::move(obj));
+            }
         }
+    }
 
-        // ── File-based bring (user .xel modules / 3rd party) ──────────
+    // ========================================================================
+    // Module definition: module name : body ;
+    // ========================================================================
 
-        // 1. Resolve the file path relative to the current source file
-        std::string resolvedPath;
-        if (sourceFile_.empty())
-            resolvedPath = canonicalPath(rawPath);
-        else
-            resolvedPath = canonicalPath(resolvePath(sourceFile_, rawPath));
+    void Interpreter::execModuleDef(const ModuleDef *node)
+    {
+        auto xmod = std::make_shared<XModule>();
+        xmod->name = node->name;
+        xmod->isMainModule = false;
+        xmod->filePath = sourceFile_;
 
-        // 2. Check for circular imports
-        if (importedFiles_.count(resolvedPath))
-            throw BringError("Circular import detected: '" + rawPath + "'", node->line);
-
-        // 3. Read the source file
-        std::ifstream f(resolvedPath);
-        if (!f.is_open())
-            throw BringError("Cannot open file '" + rawPath + "' (resolved to '" + resolvedPath + "')", node->line);
-        std::ostringstream ss;
-        ss << f.rdbuf();
-        std::string source = ss.str();
-
-        // 4. Lex → Parse into a module that we keep alive
-        auto mod = std::make_unique<ImportedModule>();
-        mod->interp = std::make_unique<Interpreter>();
-        mod->interp->sourceFile_ = resolvedPath;
-        // Share the circular-import guard (pass current set + this file)
-        mod->interp->importedFiles_ = importedFiles_;
-        mod->interp->importedFiles_.insert(resolvedPath);
+        // Module body executes in its own environment.
+        // IMPORTANT: the environment must be heap-allocated and owned by the
+        // XModule so that closures captured by exported functions remain valid
+        // after execModuleDef returns.
+        auto modEnvPtr = std::make_shared<Environment>(currentEnv_);
+        Environment &modEnv = *modEnvPtr;
+        auto *savedEnv = currentEnv_;
+        auto savedExports = std::move(exportedNames_);
+        exportedNames_.clear();
+        currentEnv_ = &modEnv;
 
         try
         {
-            Lexer lexer(source);
-            auto tokens = lexer.tokenize();
-            Parser parser(tokens);
-            mod->program = parser.parse();
-            mod->interp->run(mod->program);
-        }
-        catch (const XellError &e)
-        {
-            throw BringError("Error in '" + rawPath + "': " + e.what(), node->line);
-        }
-
-        // 5. Extract names from the child's global environment
-        Environment &childEnv = mod->interp->globals();
-
-        if (node->bringAll)
-        {
-            // bring * from "file" — bring everything
-            // User-defined imports can shadow builtins (evalCall checks user scope first)
-            auto names = childEnv.allNames();
-            for (const auto &name : names)
+            // ---- Phase: requires auto-bring ----
+            // Simple requires: requires json → bring the whole module
+            for (const auto &reqName : node->requires_)
             {
-                try
+                if (modEnv.has(reqName))
+                    continue; // Already available
+                if (moduleResolver_.isSessionCached(reqName))
                 {
-                    XObject val = childEnv.get(name, node->line);
-                    currentEnv_->define(name, std::move(val));
+                    modEnv.define(reqName, XObject::makeModule(moduleResolver_.getSessionCached(reqName)));
                 }
-                catch (...)
+                else if (moduleRegistry_.isBuiltinModule(reqName))
                 {
-                    // skip inaccessible names
+                    const auto &fns = moduleRegistry_.moduleFunctions(reqName);
+                    for (const auto &fnName : fns)
+                    {
+                        auto it = allBuiltins_.find(fnName);
+                        if (it != allBuiltins_.end())
+                            builtins_[fnName] = it->second;
+                    }
+                }
+                else
+                {
+                    throw RequireError("Required module '" + reqName + "' not found for module '" +
+                                           node->name + "'",
+                                       node->line);
                 }
             }
+
+            // Complex requires: requires X, Y of mod->path → bring items from module path
+            for (const auto &[items, path] : node->requiresItems)
+            {
+                if (path.empty())
+                    throw RequireError("Empty module path in requires", node->line);
+
+                // Resolve the module path
+                const std::string &root = path[0];
+                std::shared_ptr<XModule> current;
+
+                if (modEnv.has(root))
+                {
+                    XObject obj = modEnv.get(root, node->line);
+                    if (!obj.isModule())
+                        throw RequireError("'" + root + "' is not a module", node->line);
+                    current = obj.asModuleShared();
+                }
+                else if (moduleResolver_.isSessionCached(root))
+                {
+                    current = moduleResolver_.getSessionCached(root);
+                }
+                else
+                {
+                    throw RequireError("Required module '" + root + "' not found for module '" +
+                                           node->name + "'",
+                                       node->line);
+                }
+
+                for (size_t i = 1; i < path.size(); ++i)
+                {
+                    if (!current->hasSubmodule(path[i]))
+                        throw RequireError("Module '" + current->name + "' has no submodule '" +
+                                               path[i] + "'",
+                                           node->line);
+                    current = current->submodules.at(path[i]);
+                }
+
+                // Bring the requested items into the module environment
+                for (const auto &item : items)
+                {
+                    const XObject *val = current->getExport(item);
+                    if (!val)
+                        throw RequireError("Name '" + item + "' not found in module '" +
+                                               current->qualifiedName() + "' (required by '" +
+                                               node->name + "')",
+                                           node->line);
+                    modEnv.define(item, *val);
+                }
+            }
+
+            // ---- Phase: execute module body ----
+            for (const auto &stmt : node->body)
+                exec(stmt.get());
+        }
+        catch (...)
+        {
+            exportedNames_ = std::move(savedExports);
+            currentEnv_ = savedEnv;
+            throw;
+        }
+
+        // Capture user-defined __version__ if set inside module body
+        if (modEnv.hasLocal("__version__"))
+        {
+            XObject ver = modEnv.get("__version__", node->line);
+            if (ver.isString())
+                xmod->version = ver.asString();
+        }
+
+        // Collect exported names from the module environment.
+        // Also collect nested modules as submodules.
+        for (const auto &name : exportedNames_)
+        {
+            if (modEnv.hasLocal(name))
+            {
+                XObject val = modEnv.get(name, node->line);
+                if (val.isModule())
+                {
+                    // Nested module → register as submodule with parent tracking
+                    auto sub = val.asModuleShared();
+                    sub->parentName = xmod->name;
+                    xmod->submodules[name] = sub;
+                    xmod->exports[name] = std::move(val);
+                }
+                else
+                {
+                    xmod->exports[name] = std::move(val);
+                }
+            }
+        }
+
+        // If no explicit exports, export everything from module scope
+        if (exportedNames_.empty())
+        {
+            auto names = modEnv.allNames();
+            for (const auto &name : names)
+            {
+                // Only export module-level names (not inherited from parent)
+                if (modEnv.hasLocal(name))
+                {
+                    XObject val = modEnv.get(name, node->line);
+                    if (val.isModule())
+                    {
+                        auto sub = val.asModuleShared();
+                        sub->parentName = xmod->name;
+                        xmod->submodules[name] = sub;
+                        xmod->exports[name] = std::move(val);
+                    }
+                    else
+                    {
+                        xmod->exports[name] = std::move(val);
+                    }
+                }
+            }
+        }
+
+        // Cache in session resolver for bring-by-name
+        moduleResolver_.cacheModule(xmod->name, xmod);
+
+        // Keep module environment alive — closures in exported functions
+        // hold raw pointers to this environment
+        xmod->ownedEnv = modEnvPtr;
+
+        exportedNames_ = std::move(savedExports);
+        currentEnv_ = savedEnv;
+
+        // Bind the module object in the enclosing scope
+        XObject modObj = XObject::makeModule(xmod);
+
+        // If this module definition was itself exported, the ExportDecl
+        // handler already marked its name — we just need to define it.
+        currentEnv_->define(node->name, std::move(modObj));
+    }
+
+    // ========================================================================
+    // Export declaration: export <decl>
+    // ========================================================================
+    //
+    // Executes the inner declaration normally, then records its name in
+    // exportedNames_ so the enclosing module-definition can collect it.
+
+    void Interpreter::execExportDecl(const ExportDecl *node)
+    {
+        // For exported variable assignments, we must force-define in the current
+        // (module) scope to avoid walking up the parent chain and updating a
+        // builtin/parent variable instead.  Functions, classes, etc. already
+        // define in the current scope.
+        if (auto *a = dynamic_cast<const Assignment *>(node->declaration.get()))
+        {
+            XObject value = eval(a->value.get());
+            currentEnv_->define(a->name, std::move(value));
+            exportedNames_.insert(a->name);
+        }
+        else if (auto *im = dynamic_cast<const ImmutableBinding *>(node->declaration.get()))
+        {
+            XObject value = eval(im->value.get());
+            currentEnv_->defineImmutable(im->name, std::move(value));
+            exportedNames_.insert(im->name);
         }
         else
         {
-            // bring name1, name2 from "file" [as alias1, alias2]
-            for (size_t i = 0; i < node->names.size(); ++i)
-            {
-                const std::string &name = node->names[i];
-                std::string alias = (i < node->aliases.size()) ? node->aliases[i] : name;
+            // Execute the inner declaration normally
+            exec(node->declaration.get());
 
-                try
+            // Figure out what name was declared and record it
+            if (auto *f = dynamic_cast<const FnDef *>(node->declaration.get()))
+                exportedNames_.insert(f->name);
+            else if (auto *c = dynamic_cast<const ClassDef *>(node->declaration.get()))
+                exportedNames_.insert(c->name);
+            else if (auto *s = dynamic_cast<const StructDef *>(node->declaration.get()))
+                exportedNames_.insert(s->name);
+            else if (auto *e = dynamic_cast<const EnumDef *>(node->declaration.get()))
+                exportedNames_.insert(e->name);
+            else if (auto *m = dynamic_cast<const ModuleDef *>(node->declaration.get()))
+                exportedNames_.insert(m->name);
+        }
+        // TODO: support export for decorated defs when needed
+    }
+
+    // ========================================================================
+    // New bring statement: bring X of mod->path, bring * of mod, etc.
+    // ========================================================================
+    //
+    // Handles the new module-aware bring syntax.  Each BringPart describes one
+    // segment: items to bring + the module path to resolve them from.
+    //
+    // Resolution order for a module path like "math->trig":
+    //   1. Walk currentEnv_ looking for "math" — must be an XModule
+    //   2. Inside math's exports, look for submodule "trig"
+    //   3. Extract requested items from the final module's exports
+    //
+    // TODO: When bytecode/VM cache (.xelc) is ready, check __xelcache__
+    //       first and skip source re-evaluation if hash matches.
+
+    // ========================================================================
+    // executeModuleFile — parse + execute a .xell file, return module objects
+    // ========================================================================
+
+    std::unordered_map<std::string, std::shared_ptr<XModule>>
+    Interpreter::executeModuleFile(const std::string &filePath)
+    {
+        std::unordered_map<std::string, std::shared_ptr<XModule>> result;
+
+        // Read the file
+        std::ifstream f(filePath);
+        if (!f.is_open())
+            return result;
+        std::string source((std::istreambuf_iterator<char>(f)),
+                           std::istreambuf_iterator<char>());
+
+        // Create a child interpreter that shares our module resolver cache
+        auto child = std::make_unique<Interpreter>();
+        child->setSourceFile(filePath);
+        child->setIsMainFile(false);
+        child->moduleResolver_.shareImportGuard(moduleResolver_.importingFiles());
+
+        // The child already has the importing guard shared above.
+        // Session-cached modules will be accessible through the resolver.
+
+        // Lex, parse, execute
+        Lexer lexer(source);
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        child->run(program);
+
+        // Collect all module objects from the child's global environment
+        auto allNames = child->globals().allNames();
+        for (const auto &name : allNames)
+        {
+            if (child->globals().hasLocal(name))
+            {
+                XObject val = child->globals().get(name, 0);
+                if (val.isModule())
                 {
-                    XObject val = childEnv.get(name, node->line);
-                    currentEnv_->define(alias, std::move(val));
-                }
-                catch (const UndefinedVariableError &)
-                {
-                    throw BringError("Name '" + name + "' not found in '" + rawPath + "'", node->line);
+                    auto mod = val.asModuleShared();
+                    mod->filePath = filePath;
+                    result[name] = mod;
+                    // Also cache in our resolver
+                    moduleResolver_.cacheModule(name, mod);
                 }
             }
         }
 
-        // 6. Keep the module alive so AST pointers & closureEnvs stay valid
-        importedModules_.push_back(std::move(mod));
+        // Keep the child alive so its environment doesn't dangle
+        auto imported = std::make_unique<ImportedModule>();
+        imported->program = std::move(program);
+        imported->interp = std::move(child);
+        importedModules_.push_back(std::move(imported));
+
+        return result;
     }
 
     // ========================================================================
@@ -2306,6 +2808,25 @@ namespace xell
             }
         }
 
+        // ---- Module method call: mod->fn(args) ----
+        // The parser rewrites mod->fn(a, b) as CallExpr("fn", [mod, a, b]) with isMethodCall=true.
+        // Only dispatch to module exports when this is actually a method call rewrite,
+        // NOT when a module just happens to be the first argument of a regular function call.
+        if (node->isMethodCall && !args.empty() && args[0].isModule())
+        {
+            const auto &mod = *args[0].asModuleShared();
+            const XObject *exported = mod.getExport(node->callee);
+            if (exported && exported->isFunction())
+            {
+                // Remove the module from args (module functions don't take self)
+                args.erase(args.begin());
+                return callUserFn(exported->asFunction(), args, node->line);
+            }
+            if (exported)
+                throw TypeError("'" + node->callee + "' in module '" + mod.name + "' is not callable", node->line);
+            throw AttributeError("module '" + mod.name + "' has no export '" + node->callee + "'", node->line);
+        }
+
         // ---- Parent method call: parent->method(args) ----
         // Inside a class method, `parent` is the parent class definition.
         // parent->method(args) should call the parent's method with `self` injected.
@@ -2536,6 +3057,21 @@ namespace xell
                 executingMethodClass_ = savedMethodClass;
                 return result;
             }
+        }
+
+        // ---- Module method call (second pass, after Tier 2 check) ----
+        if (node->isMethodCall && !args.empty() && args[0].isModule())
+        {
+            const auto &mod = *args[0].asModuleShared();
+            const XObject *exported = mod.getExport(node->callee);
+            if (exported && exported->isFunction())
+            {
+                args.erase(args.begin());
+                return callUserFn(exported->asFunction(), args, node->line);
+            }
+            if (exported)
+                throw TypeError("'" + node->callee + "' in module '" + mod.name + "' is not callable", node->line);
+            throw AttributeError("module '" + mod.name + "' has no export '" + node->callee + "'", node->line);
         }
 
         // Look up user-defined function (throws if not found)
@@ -2966,6 +3502,70 @@ namespace xell
                 return mi->fnObject;
             std::string kind = def.isClass ? "class" : "struct";
             throw AttributeError("'" + def.name + "' " + kind + " has no member '" + node->member + "'", node->line);
+        }
+
+        // Module member access: mod->name (exported symbol or submodule)
+        if (obj.isModule())
+        {
+            const auto &mod = *obj.asModuleShared();
+
+            // __name__ dunder
+            if (node->member == "__name__")
+                return XObject::makeString(mod.qualifiedName());
+            // __file__ / __path__ — absolute source path
+            if (node->member == "__file__" || node->member == "__path__")
+                return XObject::makeString(mod.filePath);
+            // __module__ — parent module name
+            if (node->member == "__module__")
+            {
+                if (mod.parentName.empty())
+                    return XObject::makeNone();
+                return XObject::makeString(mod.parentName);
+            }
+            // __version__ — user-set version string
+            if (node->member == "__version__")
+            {
+                if (mod.version.empty())
+                    return XObject::makeNone();
+                return XObject::makeString(mod.version);
+            }
+            // __cached__ — path to .xelc bytecode (future)
+            if (node->member == "__cached__")
+            {
+                if (mod.cachedPath.empty())
+                    return XObject::makeNone();
+                return XObject::makeString(mod.cachedPath);
+            }
+            // __exports__ — list of exported names
+            if (node->member == "__exports__")
+            {
+                XList names;
+                for (const auto &n : mod.exportNames())
+                    names.push_back(XObject::makeString(n));
+                return XObject::makeList(std::move(names));
+            }
+            // __submodules__ — list of submodule names
+            if (node->member == "__submodules__")
+            {
+                XList names;
+                for (const auto &n : mod.submoduleNames())
+                    names.push_back(XObject::makeString(n));
+                return XObject::makeList(std::move(names));
+            }
+
+            // Check exports
+            const XObject *val = mod.getExport(node->member);
+            if (val)
+                return *val;
+
+            // Check submodules
+            if (mod.hasSubmodule(node->member))
+            {
+                auto sub = mod.submodules.at(node->member);
+                return XObject::makeModule(sub);
+            }
+
+            throw AttributeError("module '" + mod.name + "' has no export '" + node->member + "'", node->line);
         }
 
         throw TypeError("member access (->) not supported on " +

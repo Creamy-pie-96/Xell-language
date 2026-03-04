@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <unordered_set>
 #include <unordered_map>
+#include <filesystem>
 
 namespace xell
 {
@@ -34,26 +35,107 @@ namespace xell
     public:
         StaticAnalyzer()
         {
-            // All built-in function names the interpreter provides
-            builtins_ = {
-                // IO
-                "print",
-                // Type
-                "type", "str", "num",
-                // Util
-                "assert",
-                // Collection
-                "len", "push", "pop", "keys", "values", "range", "set", "has",
-                // Math
-                "floor", "ceil", "round", "abs", "mod",
-                // OS
-                "mkdir", "rm", "cp", "mv", "exists", "is_file", "is_dir",
-                "ls", "read", "write", "append", "file_size",
-                "cwd", "cd", "abspath", "basename", "dirname", "ext",
-                "env_get", "env_set", "env_unset", "env_has",
-                "run", "run_capture", "pid",
-                // Shell control
-                "set_e", "unset_e", "exit_code"};
+            // ─── All built-in function names the interpreter provides ───
+            // Kept comprehensive so --check doesn't produce false positives.
+            // IO
+            builtins_.insert({"print", "input", "exit"});
+            // Type
+            builtins_.insert({"type", "typeof", "str", "int", "float", "num", "complex",
+                              "real", "imag", "conjugate", "magnitude",
+                              "Int", "Float", "String", "Complex", "Bool", "number", "auto",
+                              "List", "Tuple", "Set", "iSet"});
+            // Util
+            builtins_.insert({"assert", "format"});
+            // Collection
+            builtins_.insert({"len", "push", "pop", "keys", "values", "range", "set",
+                              "has", "add", "remove", "contains", "to_set", "to_tuple",
+                              "to_list", "union_set", "intersect", "diff"});
+            // Math
+            builtins_.insert({"floor", "ceil", "round", "abs", "mod", "pow", "sqrt",
+                              "log", "log10", "sin", "cos", "tan", "cot", "sec", "csc",
+                              "asin", "acos", "atan", "atan2", "acot", "asec", "acsc",
+                              "sinh", "cosh", "tanh", "coth", "sech", "csch",
+                              "asinh", "acosh", "atanh", "acoth", "asech", "acsch",
+                              "clamp", "random", "random_int", "random_choice",
+                              "is_nan", "is_inf", "to_int", "to_float", "hex", "bin"});
+            // String
+            builtins_.insert({"split", "join", "trim", "trim_start", "trim_end",
+                              "upper", "lower", "replace", "replace_first",
+                              "starts_with", "ends_with", "index_of", "substr",
+                              "char_at", "repeat", "pad_start", "pad_end", "reverse",
+                              "count", "is_empty", "is_numeric", "is_alpha", "lines", "to_chars"});
+            // List
+            builtins_.insert({"shift", "unshift", "insert", "remove_val", "sort", "sort_desc",
+                              "slice", "flatten", "unique", "first", "last",
+                              "zip", "sum", "min", "max", "avg", "size",
+                              "enumerate", "zip_longest"});
+            // Map
+            builtins_.insert({"delete_key", "get", "merge", "entries", "from_entries"});
+            // OS
+            builtins_.insert({"mkdir", "rm", "cp", "mv", "exists", "is_file", "is_dir",
+                              "ls", "read", "write", "append", "file_size",
+                              "cwd", "cd", "abspath", "basename", "dirname", "ext",
+                              "env_get", "env_set", "env_unset", "env_has",
+                              "run", "run_capture", "pid",
+                              "set_e", "unset_e", "exit_code"});
+            // Hash
+            builtins_.insert({"hash", "is_hashable", "hash_seed"});
+            // Bytes
+            builtins_.insert({"bytes", "encode", "decode", "byte_at", "byte_len",
+                              "bytes_concat", "bytes_slice", "to_bytes"});
+            // Generator
+            builtins_.insert({"next", "is_exhausted", "gen_collect"});
+            // Datetime
+            builtins_.insert({"now", "timestamp", "timestamp_ms", "format_date",
+                              "parse_date", "sleep", "sleep_sec", "time_since"});
+            // Regex
+            builtins_.insert({"regex_match", "regex_match_full", "regex_find",
+                              "regex_find_all", "regex_replace", "regex_replace_all",
+                              "regex_split", "regex_groups"});
+            // JSON/CSV/TOML/YAML
+            builtins_.insert({"json_parse", "json_stringify", "json_pretty",
+                              "json_read", "json_write", "csv_parse", "csv_read",
+                              "csv_write", "toml_read", "yaml_read"});
+            // FS
+            builtins_.insert({"ls_all", "pwd", "touch", "cat", "read_lines", "write_lines",
+                              "is_symlink", "symlink", "hardlink", "ln", "readlink",
+                              "chmod", "chown", "chgrp", "stat", "modified_time", "created_time",
+                              "find", "find_regex", "locate", "glob", "file_diff", "tree",
+                              "extension", "stem", "realpath", "join_path", "normalize",
+                              "is_absolute", "relative_path", "home_dir", "temp_dir",
+                              "disk_usage", "disk_free", "xxd", "strings"});
+            // Shell
+            builtins_.insert({"error", "clear", "reset", "logout", "alias", "unalias",
+                              "export_env", "env_list", "printenv", "set_env", "which",
+                              "whereis", "type_cmd", "man", "history", "history_add",
+                              "yes_cmd", "true_val", "false_val", "source_file"});
+            // Textproc
+            builtins_.insert({"head", "tail", "tail_follow", "grep", "grep_regex",
+                              "grep_recursive", "sed", "awk", "cut", "sort_file",
+                              "uniq", "wc", "tee", "tr", "patch", "less", "more", "xargs"});
+            // Process
+            builtins_.insert({"ps", "kill", "kill_name", "pkill", "pgrep", "pidof",
+                              "pstree", "jobs", "bg", "fg", "nohup", "nice", "wait_pid",
+                              "ppid", "spawn", "run_timeout", "getuid", "is_root", "id",
+                              "whoami", "hostname", "uname", "uptime", "time_cmd",
+                              "watch", "strace", "lsof", "sys_info", "os_name", "arch",
+                              "exec_proc", "signal_send"});
+            // Sysmon
+            builtins_.insert({"free", "vmstat", "iostat", "mpstat", "sar",
+                              "cpu_count", "cpu_usage", "mem_total", "mem_free", "mem_used",
+                              "lscpu", "lsmem", "lspci", "lsusb", "lsblk", "fdisk",
+                              "mount_fs", "umount_fs", "dmesg", "journalctl",
+                              "w_cmd", "last_logins", "ulimit_info", "cal", "date_str"});
+            // Network
+            builtins_.insert({"ping", "http_get", "http_post", "http_put", "http_delete",
+                              "download", "dns_lookup", "nslookup", "host_lookup",
+                              "whois", "traceroute", "netstat", "ss", "ifconfig", "ip_cmd",
+                              "route", "iptables", "ufw", "nc", "telnet_connect",
+                              "rsync", "local_ip", "public_ip"});
+            // Archive
+            builtins_.insert({"zip_archive", "unzip_archive", "tar_create", "tar_extract",
+                              "gzip_compress", "gunzip_decompress", "bzip2_compress",
+                              "bunzip2_decompress", "xz_compress", "xz_decompress"});
 
             // Common misspellings → correct name
             typoMap_ = {
@@ -90,43 +172,22 @@ namespace xell
                 {"ciel", "ceil"},
                 {"roud", "round"},
                 {"rond", "round"},
-                {"read_flie", "read_file"},
-                {"write_flie", "write_file"},
-                {"file_exits", "file_exists"},
-                {"file_exist", "file_exists"},
-                {"lst_dir", "list_dir"},
-                {"mkae_dir", "make_dir"},
-                {"getevn", "getenv"},
-                {"setevn", "setenv"},
             };
         }
 
         std::vector<LintDiagnostic> analyze(const Program &program)
         {
             diagnostics_.clear();
-            // First pass: collect all top-level definitions
             scopes_.clear();
             scopes_.push_back({}); // global scope
 
+            // First pass: collect all top-level definitions
             for (auto &stmt : program.statements)
-            {
                 collectDefinitions(stmt.get());
-            }
 
             // Second pass: check usage
-            scopes_.clear();
-            scopes_.push_back({}); // reset to global
-
-            // Re-collect definitions so we know what's available
             for (auto &stmt : program.statements)
-            {
-                collectDefinitions(stmt.get());
-            }
-
-            for (auto &stmt : program.statements)
-            {
                 checkStatement(stmt.get());
-            }
 
             return diagnostics_;
         }
@@ -136,6 +197,7 @@ namespace xell
         std::unordered_map<std::string, std::string> typoMap_;
         std::vector<std::unordered_set<std::string>> scopes_;
         std::vector<LintDiagnostic> diagnostics_;
+        bool hasWildcardBring_ = false; // suppress "undefined" when wildcard bring is in scope
 
         void pushScope() { scopes_.push_back({}); }
         void popScope()
@@ -152,7 +214,6 @@ namespace xell
 
         bool isDefined(const std::string &name) const
         {
-            // Check all scopes from innermost to outermost
             for (int i = (int)scopes_.size() - 1; i >= 0; i--)
             {
                 if (scopes_[i].count(name))
@@ -161,31 +222,59 @@ namespace xell
             return builtins_.count(name) > 0;
         }
 
+        // ─── collectDefinitions ──────────────────────────────────
+        // First pass: register all names defined at this scope level.
+
         void collectDefinitions(const Stmt *stmt)
         {
             if (!stmt)
                 return;
 
-            if (auto *assign = dynamic_cast<const Assignment *>(stmt))
-            {
-                define(assign->name);
-            }
+            if (auto *a = dynamic_cast<const Assignment *>(stmt))
+                define(a->name);
+            else if (auto *imm = dynamic_cast<const ImmutableBinding *>(stmt))
+                define(imm->name);
             else if (auto *fn = dynamic_cast<const FnDef *>(stmt))
-            {
                 define(fn->name);
+            else if (auto *cls = dynamic_cast<const ClassDef *>(stmt))
+                define(cls->name);
+            else if (auto *st = dynamic_cast<const StructDef *>(stmt))
+                define(st->name);
+            else if (auto *en = dynamic_cast<const EnumDef *>(stmt))
+            {
+                define(en->name);
+                for (auto &m : en->members)
+                    define(m);
             }
+            else if (auto *iface = dynamic_cast<const InterfaceDef *>(stmt))
+                define(iface->name);
+            else if (auto *mod = dynamic_cast<const ModuleDef *>(stmt))
+                define(mod->name);
+            else if (auto *exp = dynamic_cast<const ExportDecl *>(stmt))
+                collectDefinitions(exp->declaration.get());
+            else if (auto *decFn = dynamic_cast<const DecoratedFnDef *>(stmt))
+                collectDefinitions(decFn->fnDef.get());
+            else if (auto *decCls = dynamic_cast<const DecoratedClassDef *>(stmt))
+                collectDefinitions(decCls->classDef.get());
             else if (auto *bring = dynamic_cast<const BringStmt *>(stmt))
             {
-                // Imported names (or aliases) are defined
                 if (!bring->aliases.empty())
                 {
-                    for (auto &alias : bring->aliases)
+                    for (const auto &alias : bring->aliases)
                         define(alias);
                 }
                 else
                 {
-                    for (auto &name : bring->names)
-                        define(name);
+                    for (const auto &part : bring->parts)
+                    {
+                        if (part.bringAll)
+                            hasWildcardBring_ = true;
+                        else
+                        {
+                            for (const auto &item : part.items)
+                                define(item);
+                        }
+                    }
                 }
             }
             else if (auto *forStmt = dynamic_cast<const ForStmt *>(stmt))
@@ -195,7 +284,20 @@ namespace xell
                 if (forStmt->hasRest)
                     define(forStmt->restName);
             }
+            else if (auto *destr = dynamic_cast<const DestructuringAssignment *>(stmt))
+            {
+                for (auto &n : destr->names)
+                    define(n);
+            }
+            else if (auto *letStmt = dynamic_cast<const LetStmt *>(stmt))
+            {
+                for (auto &b : letStmt->bindings)
+                    define(b.name);
+            }
         }
+
+        // ─── checkStatement ──────────────────────────────────────
+        // Second pass: walk every statement and check for errors.
 
         void checkStatement(const Stmt *stmt)
         {
@@ -207,6 +309,11 @@ namespace xell
                 checkExpr(assign->value.get());
                 define(assign->name);
             }
+            else if (auto *imm = dynamic_cast<const ImmutableBinding *>(stmt))
+            {
+                checkExpr(imm->value.get());
+                define(imm->name);
+            }
             else if (auto *exprStmt = dynamic_cast<const ExprStmt *>(stmt))
             {
                 checkExpr(exprStmt->expr.get());
@@ -214,31 +321,13 @@ namespace xell
             else if (auto *ifStmt = dynamic_cast<const IfStmt *>(stmt))
             {
                 checkExpr(ifStmt->condition.get());
-                pushScope();
-                for (auto &s : ifStmt->body)
-                {
-                    collectDefinitions(s.get());
-                    checkStatement(s.get());
-                }
-                popScope();
+                checkBlock(ifStmt->body);
                 for (auto &elif : ifStmt->elifs)
                 {
                     checkExpr(elif.condition.get());
-                    pushScope();
-                    for (auto &s : elif.body)
-                    {
-                        collectDefinitions(s.get());
-                        checkStatement(s.get());
-                    }
-                    popScope();
+                    checkBlock(elif.body);
                 }
-                pushScope();
-                for (auto &s : ifStmt->elseBody)
-                {
-                    collectDefinitions(s.get());
-                    checkStatement(s.get());
-                }
-                popScope();
+                checkBlock(ifStmt->elseBody);
             }
             else if (auto *forStmt = dynamic_cast<const ForStmt *>(stmt))
             {
@@ -249,23 +338,17 @@ namespace xell
                     define(vn);
                 if (forStmt->hasRest)
                     define(forStmt->restName);
-                for (auto &s : forStmt->body)
-                {
-                    collectDefinitions(s.get());
-                    checkStatement(s.get());
-                }
+                checkBlockContents(forStmt->body);
                 popScope();
             }
             else if (auto *whileStmt = dynamic_cast<const WhileStmt *>(stmt))
             {
                 checkExpr(whileStmt->condition.get());
-                pushScope();
-                for (auto &s : whileStmt->body)
-                {
-                    collectDefinitions(s.get());
-                    checkStatement(s.get());
-                }
-                popScope();
+                checkBlock(whileStmt->body);
+            }
+            else if (auto *loopStmt = dynamic_cast<const LoopStmt *>(stmt))
+            {
+                checkBlock(loopStmt->body);
             }
             else if (auto *fn = dynamic_cast<const FnDef *>(stmt))
             {
@@ -273,11 +356,10 @@ namespace xell
                 pushScope();
                 for (auto &p : fn->params)
                     define(p);
-                for (auto &s : fn->body)
-                {
-                    collectDefinitions(s.get());
-                    checkStatement(s.get());
-                }
+                // Variadic param
+                if (fn->isVariadic && !fn->variadicName.empty())
+                    define(fn->variadicName);
+                checkBlockContents(fn->body);
                 popScope();
             }
             else if (auto *give = dynamic_cast<const GiveStmt *>(stmt))
@@ -285,20 +367,191 @@ namespace xell
                 if (give->value)
                     checkExpr(give->value.get());
             }
+            else if (auto *cls = dynamic_cast<const ClassDef *>(stmt))
+            {
+                define(cls->name);
+                pushScope();
+                define("self"); // self is always available in class body
+                // Fields
+                for (auto &f : cls->fields)
+                {
+                    define(f.name);
+                    if (f.defaultValue)
+                        checkExpr(f.defaultValue.get());
+                }
+                // Methods
+                for (auto &m : cls->methods)
+                    checkStatement(m.get());
+                // Properties
+                for (auto &p : cls->properties)
+                {
+                    if (p.getter)
+                        checkStatement(p.getter.get());
+                    if (p.setter)
+                        checkStatement(p.setter.get());
+                }
+                popScope();
+            }
+            else if (auto *st = dynamic_cast<const StructDef *>(stmt))
+            {
+                define(st->name);
+                pushScope();
+                define("self");
+                for (auto &f : st->fields)
+                {
+                    define(f.name);
+                    if (f.defaultValue)
+                        checkExpr(f.defaultValue.get());
+                }
+                for (auto &m : st->methods)
+                    checkStatement(m.get());
+                popScope();
+            }
+            else if (auto *en = dynamic_cast<const EnumDef *>(stmt))
+            {
+                define(en->name);
+                for (auto &m : en->members)
+                    define(m);
+                for (auto &v : en->memberValues)
+                    if (v)
+                        checkExpr(v.get());
+            }
+            else if (auto *iface = dynamic_cast<const InterfaceDef *>(stmt))
+            {
+                define(iface->name);
+            }
+            else if (auto *mod = dynamic_cast<const ModuleDef *>(stmt))
+            {
+                define(mod->name);
+                pushScope();
+                // First collect all definitions in module body
+                for (auto &s : mod->body)
+                    collectDefinitions(s.get());
+                // Then check them
+                for (auto &s : mod->body)
+                    checkStatement(s.get());
+                popScope();
+            }
+            else if (auto *exp = dynamic_cast<const ExportDecl *>(stmt))
+            {
+                checkStatement(exp->declaration.get());
+            }
+            else if (auto *decFn = dynamic_cast<const DecoratedFnDef *>(stmt))
+            {
+                // Decorators should be defined
+                for (auto &d : decFn->decorators)
+                {
+                    if (!isDefined(d))
+                        diagnostics_.push_back({decFn->line,
+                                                "Undefined decorator '" + d + "'", "warning"});
+                }
+                checkStatement(decFn->fnDef.get());
+            }
+            else if (auto *decCls = dynamic_cast<const DecoratedClassDef *>(stmt))
+            {
+                for (auto &d : decCls->decorators)
+                {
+                    if (!isDefined(d))
+                        diagnostics_.push_back({decCls->line,
+                                                "Undefined decorator '" + d + "'", "warning"});
+                }
+                checkStatement(decCls->classDef.get());
+            }
+            else if (auto *tryStmt = dynamic_cast<const TryCatchStmt *>(stmt))
+            {
+                checkBlock(tryStmt->tryBody);
+                if (!tryStmt->catchBody.empty())
+                {
+                    pushScope();
+                    if (!tryStmt->catchVarName.empty())
+                        define(tryStmt->catchVarName);
+                    checkBlockContents(tryStmt->catchBody);
+                    popScope();
+                }
+                checkBlock(tryStmt->finallyBody);
+            }
+            else if (auto *incase = dynamic_cast<const InCaseStmt *>(stmt))
+            {
+                checkExpr(incase->subject.get());
+                for (auto &c : incase->clauses)
+                {
+                    for (auto &v : c.values)
+                        checkExpr(v.get());
+                    checkBlock(c.body);
+                }
+                checkBlock(incase->elseBody);
+            }
             else if (auto *bring = dynamic_cast<const BringStmt *>(stmt))
             {
                 if (!bring->aliases.empty())
                 {
-                    for (auto &alias : bring->aliases)
+                    for (const auto &alias : bring->aliases)
                         define(alias);
                 }
                 else
                 {
-                    for (auto &name : bring->names)
-                        define(name);
+                    for (const auto &part : bring->parts)
+                    {
+                        if (part.bringAll)
+                            hasWildcardBring_ = true;
+                        else
+                        {
+                            for (const auto &item : part.items)
+                                define(item);
+                        }
+                    }
                 }
             }
+            else if (auto *destr = dynamic_cast<const DestructuringAssignment *>(stmt))
+            {
+                checkExpr(destr->value.get());
+                for (auto &n : destr->names)
+                    define(n);
+            }
+            else if (auto *memAssign = dynamic_cast<const MemberAssignment *>(stmt))
+            {
+                checkExpr(memAssign->object.get());
+                checkExpr(memAssign->value.get());
+            }
+            else if (auto *idxAssign = dynamic_cast<const IndexAssignment *>(stmt))
+            {
+                checkExpr(idxAssign->object.get());
+                checkExpr(idxAssign->index.get());
+                checkExpr(idxAssign->value.get());
+            }
+            else if (auto *letStmt = dynamic_cast<const LetStmt *>(stmt))
+            {
+                pushScope();
+                for (auto &b : letStmt->bindings)
+                {
+                    checkExpr(b.expr.get());
+                    define(b.name);
+                }
+                checkBlockContents(letStmt->body);
+                popScope();
+            }
+            // BreakStmt, ContinueStmt — nothing to check
         }
+
+        // ─── Helper: check a block (push/pop scope) ─────────────
+        void checkBlock(const std::vector<StmtPtr> &block)
+        {
+            if (block.empty())
+                return;
+            pushScope();
+            checkBlockContents(block);
+            popScope();
+        }
+
+        void checkBlockContents(const std::vector<StmtPtr> &block)
+        {
+            for (auto &s : block)
+                collectDefinitions(s.get());
+            for (auto &s : block)
+                checkStatement(s.get());
+        }
+
+        // ─── checkExpr ──────────────────────────────────────────
 
         void checkExpr(const Expr *expr)
         {
@@ -308,9 +561,8 @@ namespace xell
             if (auto *ident = dynamic_cast<const Identifier *>(expr))
             {
                 const std::string &name = ident->name;
-                if (!isDefined(name))
+                if (!isDefined(name) && !hasWildcardBring_)
                 {
-                    // Check for typos
                     auto it = typoMap_.find(name);
                     if (it != typoMap_.end())
                     {
@@ -320,7 +572,6 @@ namespace xell
                     }
                     else
                     {
-                        // Check for close matches to builtins
                         std::string suggestion = findClosest(name);
                         if (!suggestion.empty())
                         {
@@ -339,8 +590,7 @@ namespace xell
             }
             else if (auto *call = dynamic_cast<const CallExpr *>(expr))
             {
-                // Check if function name is defined
-                if (!isDefined(call->callee))
+                if (!isDefined(call->callee) && !call->isMethodCall && !hasWildcardBring_)
                 {
                     auto it = typoMap_.find(call->callee);
                     if (it != typoMap_.end())
@@ -366,7 +616,6 @@ namespace xell
                         }
                     }
                 }
-                // Check arguments
                 for (auto &arg : call->args)
                     checkExpr(arg.get());
             }
@@ -393,16 +642,54 @@ namespace xell
                 for (auto &elem : list->elements)
                     checkExpr(elem.get());
             }
+            else if (auto *tup = dynamic_cast<const TupleLiteral *>(expr))
+            {
+                for (auto &elem : tup->elements)
+                    checkExpr(elem.get());
+            }
+            else if (auto *setLit = dynamic_cast<const SetLiteral *>(expr))
+            {
+                for (auto &elem : setLit->elements)
+                    checkExpr(elem.get());
+            }
             else if (auto *map = dynamic_cast<const MapLiteral *>(expr))
             {
                 for (auto &entry : map->entries)
-                {
                     checkExpr(entry.second.get());
-                }
             }
             else if (auto *postfix = dynamic_cast<const PostfixExpr *>(expr))
             {
                 checkExpr(postfix->operand.get());
+            }
+            else if (auto *ternary = dynamic_cast<const TernaryExpr *>(expr))
+            {
+                checkExpr(ternary->value.get());
+                checkExpr(ternary->condition.get());
+                checkExpr(ternary->alternative.get());
+            }
+            else if (auto *ifExpr = dynamic_cast<const IfExpr *>(expr))
+            {
+                for (auto &branch : ifExpr->branches)
+                {
+                    if (branch.condition)
+                        checkExpr(branch.condition.get());
+                    if (branch.value)
+                        checkExpr(branch.value.get());
+                }
+            }
+            else if (auto *lambda = dynamic_cast<const LambdaExpr *>(expr))
+            {
+                pushScope();
+                for (auto &p : lambda->params)
+                    define(p);
+                if (lambda->singleExpr)
+                    checkExpr(lambda->singleExpr.get());
+                checkBlockContents(lambda->body);
+                popScope();
+            }
+            else if (auto *spread = dynamic_cast<const SpreadExpr *>(expr))
+            {
+                checkExpr(spread->operand.get());
             }
         }
 
@@ -413,7 +700,7 @@ namespace xell
                 return "";
 
             std::string best;
-            int bestDist = 3; // Max edit distance to consider
+            int bestDist = 3;
 
             for (auto &builtin : builtins_)
             {
@@ -425,7 +712,6 @@ namespace xell
                 }
             }
 
-            // Also check user-defined names
             for (int i = (int)scopes_.size() - 1; i >= 0; i--)
             {
                 for (auto &def : scopes_[i])
@@ -446,7 +732,7 @@ namespace xell
         {
             int m = a.size(), n = b.size();
             if (std::abs(m - n) > 3)
-                return 4; // early exit
+                return 4;
 
             std::vector<int> prev(n + 1), curr(n + 1);
             for (int j = 0; j <= n; j++)

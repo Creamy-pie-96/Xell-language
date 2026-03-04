@@ -335,8 +335,8 @@ function extractUserIdentifiers(text) {
     const varRegex = /^\s*([a-zA-Z_]\w*)\s*=/gm;
     while ((match = varRegex.exec(text)) !== null) {
         const name = match[1];
-        // Skip keywords
-        const keywords = new Set(['fn', 'if', 'elif', 'else', 'for', 'while', 'give', 'bring', 'true', 'false', 'none']);
+        // Skip keywords (dynamically loaded from language_data.json)
+        const keywords = new Set(completions_1.LANG_DATA.allKeywordNames);
         if (!seen.has(name) && !keywords.has(name)) {
             seen.add(name);
             items.push({ label: name, kind: node_1.CompletionItemKind.Variable, detail: 'User-defined variable', data: `user_var_${name}` });

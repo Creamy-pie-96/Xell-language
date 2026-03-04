@@ -108,9 +108,20 @@ fi
 
 step "2/6" "Building Xell..."
 
-if [ "$CLEAN" = true ] && [ -d "$BUILD_DIR" ]; then
-    echo "  Cleaning build directory..."
-    rm -rf "$BUILD_DIR"
+if [ "$CLEAN" = true ]; then
+    echo "  Cleaning everything for fresh install..."
+    # Build directory
+    [ -d "$BUILD_DIR" ] && rm -rf "$BUILD_DIR"
+    # Installed binaries
+    $SUDO rm -f "$BIN_DIR/xell" "$BIN_DIR/xell-terminal" 2>/dev/null || true
+    # Symlinks in ~/.local/bin
+    rm -f "$HOME/.local/bin/xell" "$HOME/.local/bin/xell-terminal" 2>/dev/null || true
+    # Installed data (both system and local)
+    $SUDO rm -rf "/usr/local/share/xell" 2>/dev/null || true
+    rm -rf "$HOME/.local/share/xell" 2>/dev/null || true
+    # Terminal build
+    [ -d "$SCRIPT_DIR/xell-terminal/build" ] && rm -rf "$SCRIPT_DIR/xell-terminal/build"
+    ok "Cleaned: build dirs, binaries, data, symlinks"
 fi
 
 mkdir -p "$BUILD_DIR"
@@ -148,12 +159,19 @@ if [ "$INSTALL_MODE" = "system" ]; then
     trap 'rm -rf "$TMP_STAGE"' EXIT
 
     cp "$BUILD_DIR/xell" "$TMP_STAGE/xell"
-    ok "Staged binary to $TMP_STAGE"
 
     $SUDO mkdir -p "$BIN_DIR"
     $SUDO mv "$TMP_STAGE/xell" "$BIN_DIR/xell"
     $SUDO chmod 755 "$BIN_DIR/xell"
     ok "Binary installed: $BIN_DIR/xell"
+
+    # Also ensure ~/.local/bin/xell points to the system binary so that
+    # shells with cached hash tables or PATH ordering pick up the right one.
+    LOCAL_BIN="$HOME/.local/bin"
+    mkdir -p "$LOCAL_BIN"
+    rm -f "$LOCAL_BIN/xell"
+    ln -sf "$BIN_DIR/xell" "$LOCAL_BIN/xell"
+    ok "Symlinked $LOCAL_BIN/xell → $BIN_DIR/xell"
 else
     mkdir -p "$BIN_DIR"
     cp "$BUILD_DIR/xell" "$BIN_DIR/xell"
@@ -231,6 +249,9 @@ if [ -d "$TERMINAL_SRC" ]; then
                 $SUDO mv "$TMP_TERM/xell-terminal" "$BIN_DIR/xell-terminal"
                 $SUDO chmod 755 "$BIN_DIR/xell-terminal"
                 rm -rf "$TMP_TERM"
+                # Symlink to ~/.local/bin too
+                rm -f "$HOME/.local/bin/xell-terminal"
+                ln -sf "$BIN_DIR/xell-terminal" "$HOME/.local/bin/xell-terminal"
             else
                 cp "$TERMINAL_BUILD/xell-terminal" "$BIN_DIR/xell-terminal"
                 chmod 755 "$BIN_DIR/xell-terminal"
@@ -305,6 +326,21 @@ if [ "$INSTALL_MODE" = "local" ]; then
         echo ""
         warn "Add ~/.local/bin to your PATH:"
         echo -e "    ${BOLD}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc && source ~/.bashrc${NC}"
+    fi
+fi
+
+# ---- Verify installation ----
+
+WHICH_XELL=$(which xell 2>/dev/null || true)
+if [ -n "$WHICH_XELL" ]; then
+    # Resolve symlinks to get the real path
+    REAL_XELL=$(readlink -f "$WHICH_XELL" 2>/dev/null || echo "$WHICH_XELL")
+    REAL_BIN=$(readlink -f "$BIN_DIR/xell" 2>/dev/null || echo "$BIN_DIR/xell")
+    if [ "$REAL_XELL" = "$REAL_BIN" ]; then
+        ok "which xell → $WHICH_XELL ✓"
+    else
+        warn "which xell → $WHICH_XELL (expected $BIN_DIR/xell)"
+        warn "Your PATH may have a stale xell. Remove it: rm $WHICH_XELL"
     fi
 fi
 

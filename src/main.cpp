@@ -21,6 +21,9 @@
 #include <string>
 #include <cstdlib>
 #include <vector>
+#include <map>
+#include <set>
+#include <filesystem>
 
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
@@ -28,6 +31,7 @@
 #include "analyzer/static_analyzer.hpp"
 #include "lib/errors/error.hpp"
 #include "repl/repl.hpp"
+#include "hash/hash_algorithm.hpp"
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -57,6 +61,8 @@ static void printHelp()
     std::cout << "  xell <file.xel>       Execute a Xell script\n";
     std::cout << "  xell --check [file]   Lint: parse-only check (file or stdin)\n";
     std::cout << "  xell --lint [file]    Alias for --check\n";
+    std::cout << "  xell --make_module <path> ...\n";
+    std::cout << "                        Register modules & build .xell_meta + cache\n";
     std::cout << "  xell --terminal       Launch Xell Terminal (SDL2 GUI)\n";
     std::cout << "  xell --customize      Launch color customizer\n";
     std::cout << "  xell --kernel         Run as notebook kernel\n";
@@ -66,7 +72,7 @@ static void printHelp()
 
 // ---- Execute a file ---------------------------------------------------------
 
-static int executeFile(const std::string &path)
+static int executeFile(const std::string &path, const std::vector<std::string> &cliArgs = {})
 {
     std::string source = readFile(path);
 
@@ -79,6 +85,8 @@ static int executeFile(const std::string &path)
         xell::Parser parser(tokens);
         auto program = parser.parse();
         interpreter.setSourceFile(path);
+        interpreter.setIsMainFile(true);
+        interpreter.setCliArgs(cliArgs);
         interpreter.run(program);
 
         // Print captured output (from print() calls)
@@ -481,6 +489,373 @@ static int runKernel()
     return 0;
 }
 
+// ---- xell --make_module: register modules and build metadata ----------------
+
+// Collect all module definitions from a parsed AST
+// Module info with full hierarchy for .xell_meta
+struct ModuleInfo
+{
+    std::string name;
+    std::vector<std::string> exports;
+    std::vector<ModuleInfo> submodules;
+};
+
+static void collectModuleDefs(const xell::Stmt *stmt,
+                              std::vector<ModuleInfo> &modules)
+{
+    if (auto *mod = dynamic_cast<const xell::ModuleDef *>(stmt))
+    {
+        ModuleInfo info;
+        info.name = mod->name;
+
+        for (const auto &s : mod->body)
+        {
+            if (auto *ed = dynamic_cast<const xell::ExportDecl *>(s.get()))
+            {
+                if (auto *fn = dynamic_cast<const xell::FnDef *>(ed->declaration.get()))
+                    info.exports.push_back(fn->name);
+                else if (auto *st = dynamic_cast<const xell::StructDef *>(ed->declaration.get()))
+                    info.exports.push_back(st->name);
+                else if (auto *cls = dynamic_cast<const xell::ClassDef *>(ed->declaration.get()))
+                    info.exports.push_back(cls->name);
+                else if (auto *a = dynamic_cast<const xell::Assignment *>(ed->declaration.get()))
+                    info.exports.push_back(a->name);
+                else if (auto *im = dynamic_cast<const xell::ImmutableBinding *>(ed->declaration.get()))
+                    info.exports.push_back(im->name);
+                else if (auto *nm = dynamic_cast<const xell::ModuleDef *>(ed->declaration.get()))
+                {
+                    info.exports.push_back(nm->name);
+                    // Also collect as submodule
+                    std::vector<ModuleInfo> nested;
+                    collectModuleDefs(nm, nested);
+                    if (!nested.empty())
+                        info.submodules.push_back(nested[0]);
+                }
+            }
+            else
+            {
+                // Check for non-exported nested modules too
+                std::vector<ModuleInfo> nested;
+                collectModuleDefs(s.get(), nested);
+                for (auto &n : nested)
+                    info.submodules.push_back(std::move(n));
+            }
+        }
+        modules.push_back(std::move(info));
+    }
+}
+
+// Helper to write ModuleInfo as JSON with proper submodule hierarchy
+static void writeModuleJson(std::ostream &out, const ModuleInfo &mod,
+                            const std::string &fileName, const std::string &hash,
+                            int indent)
+{
+    std::string pad(indent, ' ');
+    out << pad << "\"" << mod.name << "\": {\n";
+    out << pad << "  \"file\": \"" << fileName << "\",\n";
+    out << pad << "  \"hash\": \"" << hash << "\",\n";
+    out << pad << "  \"exports\": [";
+    for (size_t i = 0; i < mod.exports.size(); i++)
+    {
+        if (i)
+            out << ", ";
+        out << "\"" << mod.exports[i] << "\"";
+    }
+    out << "],\n";
+    out << pad << "  \"submodules\": {";
+    if (mod.submodules.empty())
+    {
+        out << "}";
+    }
+    else
+    {
+        out << "\n";
+        for (size_t i = 0; i < mod.submodules.size(); i++)
+        {
+            if (i)
+                out << ",\n";
+            // Submodules share the same file and hash
+            writeModuleJson(out, mod.submodules[i], fileName, hash, indent + 4);
+        }
+        out << "\n"
+            << pad << "  }";
+    }
+    out << "\n"
+        << pad << "}";
+}
+
+static int makeModule(int argc, char *argv[])
+{
+    namespace fs = std::filesystem;
+
+    bool updateMode = false;
+    std::vector<std::string> targets;
+
+    for (int i = 2; i < argc; i++)
+    {
+        std::string arg = argv[i];
+        if (arg == "--update")
+            updateMode = true;
+        else
+            targets.push_back(arg);
+    }
+
+    if (targets.empty())
+    {
+        std::cerr << "Usage: xell --make_module [--update] <file.xel|directory> ...\n";
+        return 1;
+    }
+
+    // Expand targets: directories → all .xel/.xell files in them
+    std::vector<std::string> files;
+    for (const auto &t : targets)
+    {
+        fs::path p(t);
+        if (fs::is_directory(p))
+        {
+            for (auto &entry : fs::recursive_directory_iterator(p))
+            {
+                if (entry.is_regular_file())
+                {
+                    auto ext = entry.path().extension().string();
+                    if (ext == ".xel" || ext == ".xell")
+                        files.push_back(entry.path().string());
+                }
+            }
+        }
+        else if (fs::exists(p))
+        {
+            files.push_back(p.string());
+        }
+        else
+        {
+            std::cerr << "Warning: '" << t << "' not found, skipping.\n";
+        }
+    }
+
+    if (files.empty())
+    {
+        std::cerr << "No .xel or .xell files found.\n";
+        return 1;
+    }
+
+    // Group files by directory for .xell_meta generation
+    std::map<std::string, std::vector<std::string>> dirFiles;
+    for (const auto &f : files)
+    {
+        fs::path dir = fs::path(f).parent_path();
+        if (dir.empty())
+            dir = ".";
+        dirFiles[dir.string()].push_back(f);
+    }
+
+    int totalModules = 0;
+
+    for (auto &[dir, dirFileList] : dirFiles)
+    {
+        // In update mode, load existing .xell_meta to preserve unchanged entries
+        // Key: module_name → raw JSON fragment (the whole "name": { ... } block)
+        std::map<std::string, std::string> preservedModules;
+        std::set<std::string> skippedFiles;
+        std::set<std::string> changedFiles;
+
+        if (updateMode)
+        {
+            fs::path metaPath = fs::path(dir) / ".xell_meta";
+            if (fs::exists(metaPath))
+            {
+                // Read existing .xell_meta and extract module entries
+                std::ifstream mf(metaPath);
+                std::string existingMeta((std::istreambuf_iterator<char>(mf)),
+                                         std::istreambuf_iterator<char>());
+
+                // Extract each module's JSON entry from the existing metadata.
+                // Format: "module_name": { "file": "...", ... }
+                // We find the "modules" section and extract entries with brace-matching.
+                auto modulesPos = existingMeta.find("\"modules\"");
+                if (modulesPos != std::string::npos)
+                {
+                    auto braceStart = existingMeta.find('{', modulesPos + 9);
+                    if (braceStart != std::string::npos)
+                    {
+                        size_t pos = braceStart + 1;
+                        while (pos < existingMeta.size())
+                        {
+                            // Find next quoted module name
+                            auto nameStart = existingMeta.find('"', pos);
+                            if (nameStart == std::string::npos || existingMeta[nameStart - 1] == '}')
+                                break;
+                            auto nameEnd = existingMeta.find('"', nameStart + 1);
+                            if (nameEnd == std::string::npos)
+                                break;
+                            std::string modName = existingMeta.substr(nameStart + 1, nameEnd - nameStart - 1);
+
+                            // Skip past the colon to the opening brace
+                            auto objStart = existingMeta.find('{', nameEnd);
+                            if (objStart == std::string::npos)
+                                break;
+
+                            // Brace-match to find the end of this module's JSON object
+                            int depth = 1;
+                            size_t objEnd = objStart + 1;
+                            while (objEnd < existingMeta.size() && depth > 0)
+                            {
+                                if (existingMeta[objEnd] == '{')
+                                    depth++;
+                                else if (existingMeta[objEnd] == '}')
+                                    depth--;
+                                objEnd++;
+                            }
+
+                            // Extract the full fragment: "module_name": { ... }
+                            std::string fragment = existingMeta.substr(nameStart - 4, objEnd - (nameStart - 4));
+                            // Clean up — ensure it starts with proper indentation
+                            auto firstQuote = fragment.find('"');
+                            if (firstQuote != std::string::npos)
+                                fragment = "    " + fragment.substr(firstQuote);
+                            preservedModules[modName] = fragment;
+
+                            pos = objEnd;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Track newly processed modules
+        struct ProcessedModule
+        {
+            std::string jsonFragment;
+            std::string name;
+        };
+        std::vector<ProcessedModule> newModules;
+
+        for (const auto &filePath : dirFileList)
+        {
+            // Read source
+            std::string source = readFile(filePath);
+            std::string hash = xell::hash::sha256_string(source);
+            std::string relFile = fs::path(filePath).filename().string();
+
+            // Check update mode — skip if hash matches
+            if (updateMode)
+            {
+                fs::path cacheDir = fs::path(dir) / "__xelcache__";
+                fs::path hashFile = cacheDir / (fs::path(filePath).filename().string() + ".hash");
+                if (fs::exists(hashFile))
+                {
+                    std::ifstream hf(hashFile);
+                    std::string storedHash;
+                    std::getline(hf, storedHash);
+                    if (storedHash == hash)
+                    {
+                        std::cout << "  ⏭  " << filePath << " (unchanged)\n";
+                        skippedFiles.insert(relFile);
+                        continue;
+                    }
+                }
+            }
+
+            changedFiles.insert(relFile);
+
+            // Parse
+            try
+            {
+                xell::Lexer lexer(source);
+                auto tokens = lexer.tokenize();
+                xell::Parser parser(tokens);
+                auto program = parser.parse();
+
+                // Collect module definitions with hierarchy
+                std::vector<ModuleInfo> modules;
+                for (const auto &stmt : program.statements)
+                    collectModuleDefs(stmt.get(), modules);
+
+                for (const auto &mod : modules)
+                {
+                    std::ostringstream fragment;
+                    writeModuleJson(fragment, mod, relFile, hash, 4);
+                    newModules.push_back({fragment.str(), mod.name});
+
+                    totalModules++;
+                    std::cout << "  \xe2\x9c\x93 " << mod.name << " (from " << relFile << ")\n";
+                }
+
+                // Write __xelcache__/ hash file
+                fs::path cacheDir = fs::path(dir) / "__xelcache__";
+                fs::create_directories(cacheDir);
+
+                std::ofstream hashOut(cacheDir / (relFile + ".hash"));
+                hashOut << hash;
+
+                std::ofstream xelcOut(cacheDir / (relFile + "c"));
+                xelcOut << "# xelc bytecode placeholder — will be replaced when bytecode VM is implemented\n";
+                xelcOut << "# source_hash: " << hash << "\n";
+            }
+            catch (const xell::XellError &e)
+            {
+                std::cerr << "  ✗ Error in " << filePath << ": " << e.what() << "\n";
+            }
+        }
+
+        // Build .xell_meta — merge preserved entries with new entries
+        std::ostringstream meta;
+        meta << "{\n";
+        meta << "  \"xell_meta_version\": 1,\n";
+        meta << "  \"directory\": \"" << dir << "\",\n";
+        meta << "  \"modules\": {\n";
+
+        bool firstModule = true;
+
+        // First: add preserved entries from unchanged files
+        // (skip any module whose file was changed — those get fresh entries)
+        if (updateMode && !skippedFiles.empty())
+        {
+            for (auto &[modName, fragment] : preservedModules)
+            {
+                // Check if this module came from a changed file
+                // by looking for "file": "xxx" in the fragment
+                bool fromChangedFile = false;
+                for (auto &cf : changedFiles)
+                {
+                    if (fragment.find("\"" + cf + "\"") != std::string::npos)
+                    {
+                        fromChangedFile = true;
+                        break;
+                    }
+                }
+                if (fromChangedFile)
+                    continue;
+
+                if (!firstModule)
+                    meta << ",\n";
+                firstModule = false;
+                meta << fragment;
+            }
+        }
+
+        // Then: add newly processed modules
+        for (auto &mod : newModules)
+        {
+            if (!firstModule)
+                meta << ",\n";
+            firstModule = false;
+            meta << mod.jsonFragment;
+        }
+
+        meta << "\n  }\n}\n";
+
+        // Write .xell_meta
+        std::string metaPath = (fs::path(dir) / ".xell_meta").string();
+        std::ofstream metaFile(metaPath);
+        metaFile << meta.str();
+        std::cout << "  📝 Wrote " << metaPath << "\n";
+    }
+
+    std::cout << "\n✅ Registered " << totalModules << " module(s) from " << files.size() << " file(s).\n";
+    return 0;
+}
+
 // ---- Main -------------------------------------------------------------------
 
 int main(int argc, char *argv[])
@@ -530,6 +905,15 @@ int main(int argc, char *argv[])
         return runKernel();
     }
 
+    if (arg1 == "--make_module")
+    {
+        return makeModule(argc, argv);
+    }
+
     // Default: treat as file to execute
-    return executeFile(arg1);
+    // Any remaining args after the filename are passed as __args__
+    std::vector<std::string> cliArgs;
+    for (int i = 2; i < argc; ++i)
+        cliArgs.push_back(argv[i]);
+    return executeFile(arg1, cliArgs);
 }

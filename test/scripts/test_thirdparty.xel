@@ -16,7 +16,7 @@ print(LIBRARY_VERSION)
 print(upper(greet("xell")))
 
 # Mix with Tier 2 modules
-bring * from "json"
+bring * of json
 data = json_parse("[1, 2, 3]")
 print(len(data))
 

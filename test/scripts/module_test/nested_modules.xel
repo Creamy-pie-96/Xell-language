@@ -1,0 +1,29 @@
+# nested_modules.xel — tests nested module hierarchy
+
+module physics:
+    export fn velocity(d, t):
+        give d / t
+    ;
+
+    export module mechanics:
+        export fn force(m, a):
+            give m * a
+        ;
+        export fn work(f, d):
+            give f * d
+        ;
+
+        export module quantum:
+            export fn energy(m):
+                # E = mc^2 (simplified)
+                give m * 299792458 * 299792458
+            ;
+        ;
+    ;
+
+    export module optics:
+        export fn refraction(n1, n2, angle):
+            give n1 * sin(angle) / n2
+        ;
+    ;
+;

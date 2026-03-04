@@ -38,10 +38,13 @@ namespace xell
         BE,   // let ... be (RAII / context manager)
         LOOP, // loop : ... ; (infinite loop)
 
-        // Import keywords
+        // Import / module keywords
         BRING,
         FROM,
         AS,
+        MODULE,
+        EXPORT,
+        REQUIRES,
 
         // Enum keyword
         ENUM,
@@ -178,6 +181,9 @@ namespace xell
             {(int)TokenType::BRING, "BRING"},
             {(int)TokenType::FROM, "FROM"},
             {(int)TokenType::AS, "AS"},
+            {(int)TokenType::MODULE, "MODULE"},
+            {(int)TokenType::EXPORT, "EXPORT"},
+            {(int)TokenType::REQUIRES, "REQUIRES"},
             {(int)TokenType::ENUM, "ENUM"},
             {(int)TokenType::STRUCT, "STRUCT"},
             {(int)TokenType::CLASS, "CLASS"},

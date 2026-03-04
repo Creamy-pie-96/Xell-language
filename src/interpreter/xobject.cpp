@@ -1,4 +1,5 @@
 #include "xobject.hpp"
+#include "../module/xmodule.hpp"
 #include "../lib/errors/error.hpp"
 #include <sstream>
 #include <cmath>
@@ -60,6 +61,8 @@ namespace xell
             return "struct_def";
         case XType::INSTANCE:
             return "instance";
+        case XType::MODULE:
+            return "module";
         }
         return "unknown";
     }
@@ -194,6 +197,9 @@ namespace xell
             break;
         case XType::INSTANCE:
             delete static_cast<XInstance *>(payload);
+            break;
+        case XType::MODULE:
+            delete static_cast<std::shared_ptr<XModule> *>(payload);
             break;
         }
     }
@@ -361,6 +367,12 @@ namespace xell
         return XObject(allocData(XType::INSTANCE, p));
     }
 
+    XObject XObject::makeModule(std::shared_ptr<XModule> mod)
+    {
+        auto *p = new std::shared_ptr<XModule>(std::move(mod));
+        return XObject(allocData(XType::MODULE, p));
+    }
+
     // ========================================================================
     // Default constructor → none
     // ========================================================================
@@ -467,6 +479,7 @@ namespace xell
     bool XObject::isGenerator() const { return type() == XType::GENERATOR; }
     bool XObject::isStructDef() const { return type() == XType::STRUCT_DEF; }
     bool XObject::isInstance() const { return type() == XType::INSTANCE; }
+    bool XObject::isModule() const { return type() == XType::MODULE; }
 
     // ========================================================================
     // Payload access (unchecked — caller must verify type)
@@ -598,6 +611,21 @@ namespace xell
     XInstance &XObject::asInstanceMut()
     {
         return *static_cast<XInstance *>(data_->payload);
+    }
+
+    const XModule &XObject::asModule() const
+    {
+        return **static_cast<std::shared_ptr<XModule> *>(data_->payload);
+    }
+
+    XModule &XObject::asModuleMut()
+    {
+        return **static_cast<std::shared_ptr<XModule> *>(data_->payload);
+    }
+
+    std::shared_ptr<XModule> XObject::asModuleShared() const
+    {
+        return *static_cast<std::shared_ptr<XModule> *>(data_->payload);
     }
 
     // ========================================================================
@@ -742,6 +770,9 @@ namespace xell
                 cloned.fields[k] = v.clone();
             return makeInstance(std::move(cloned));
         }
+        case XType::MODULE:
+            // Modules are shared — return as-is (ref counted shared_ptr)
+            return *this;
         }
         return makeNone();
     }
@@ -973,6 +1004,12 @@ namespace xell
             }
             oss << ")";
             return oss.str();
+        }
+
+        case XType::MODULE:
+        {
+            const XModule &mod = asModule();
+            return "<module " + mod.qualifiedName() + ">";
         }
         }
 

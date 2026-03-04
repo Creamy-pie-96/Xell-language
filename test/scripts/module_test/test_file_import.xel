@@ -1,0 +1,47 @@
+# test_file_import.xel — Test file-based bring (from "file.xel")
+#
+# Run: xell test/scripts/module_test/test_file_import.xel
+#
+# This tests:
+#  - bring * from "file.xel"
+#  - bring X from "file.xel"
+#  - bring X from "file.xel" as alias
+
+passed = 0
+failed = 0
+
+fn check(label, actual, expected):
+    if actual eq expected:
+        print("  ✓ " + label)
+        passed = passed + 1
+    ;
+    else:
+        print("  ✗ " + label + " — got: " + str(actual) + ", expected: " + str(expected))
+        failed = failed + 1
+    ;
+;
+
+print("\n── File-Based Module Import ──")
+
+# bring specific function from file
+bring square, cube from "math_utils.xel"
+check("bring square from file", square(4), 16)
+check("bring cube from file", cube(3), 27)
+
+# bring with alias from file
+bring greet from "string_utils.xel" as say_hi
+check("bring greet as say_hi from file", say_hi("Xell"), "Hello, Xell!")
+
+# bring all from file
+bring * from "variable_module.xel"
+check("bring * from variable file — config module exists", type(config), "module")
+
+print("\n═══════════════════════════════════════════")
+print("  Results: " + str(passed) + "/" + str(passed + failed) + " passed")
+if failed gt 0:
+    print("  FAILED: " + str(failed) + " test(s)")
+;
+else:
+    print("  ALL TESTS PASSED!")
+;
+print("═══════════════════════════════════════════")

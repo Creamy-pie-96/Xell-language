@@ -1,0 +1,2976 @@
+{
+    "keywords": [
+        {
+            "name": "abstract",
+            "kind": "Keyword",
+            "detail": "Abstract class",
+            "hover": {
+                "sig": "abstract class Name:",
+                "detail": "Define an abstract class."
+            }
+        },
+        {
+            "name": "and",
+            "kind": "Keyword",
+            "detail": "Logical AND",
+            "hover": {
+                "sig": "a and b",
+                "detail": "Logical AND operator."
+            }
+        },
+        {
+            "name": "as",
+            "kind": "Keyword",
+            "detail": "Import alias",
+            "hover": {
+                "sig": "bring X as alias",
+                "detail": "Alias an imported name."
+            }
+        },
+        {
+            "name": "async",
+            "kind": "Keyword",
+            "detail": "Async function",
+            "hover": {
+                "sig": "async fn name():",
+                "detail": "Declare an async function."
+            }
+        },
+        {
+            "name": "await",
+            "kind": "Keyword",
+            "detail": "Await async",
+            "hover": {
+                "sig": "await expression",
+                "detail": "Wait for an async operation to complete."
+            }
+        },
+        {
+            "name": "be",
+            "kind": "Keyword",
+            "detail": "Let-be binding",
+            "hover": {
+                "sig": "let x be value",
+                "detail": "Alternative immutable binding syntax."
+            }
+        },
+        {
+            "name": "break",
+            "kind": "Keyword",
+            "detail": "Break out of loop",
+            "hover": {
+                "sig": "break",
+                "detail": "Exit the current loop."
+            }
+        },
+        {
+            "name": "bring",
+            "kind": "Keyword",
+            "detail": "Import from module or file",
+            "hover": {
+                "sig": "bring name of module",
+                "detail": "Import names from a module or file."
+            }
+        },
+        {
+            "name": "catch",
+            "kind": "Keyword",
+            "detail": "Catch an error",
+            "hover": {
+                "sig": "catch e:",
+                "detail": "Handle an error caught from the try block."
+            }
+        },
+        {
+            "name": "class",
+            "kind": "Keyword",
+            "detail": "Define a class",
+            "hover": {
+                "sig": "class Name:",
+                "detail": "Define a class with methods and fields."
+            }
+        },
+        {
+            "name": "continue",
+            "kind": "Keyword",
+            "detail": "Skip to next iteration",
+            "hover": {
+                "sig": "continue",
+                "detail": "Skip to the next iteration of the loop."
+            }
+        },
+        {
+            "name": "elif",
+            "kind": "Keyword",
+            "detail": "Else-if branch",
+            "hover": {
+                "sig": "elif condition:",
+                "detail": "Else-if branch after an if statement."
+            }
+        },
+        {
+            "name": "else",
+            "kind": "Keyword",
+            "detail": "Else branch",
+            "hover": {
+                "sig": "else:",
+                "detail": "Else branch \u2014 runs when no if/elif matched."
+            }
+        },
+        {
+            "name": "enum",
+            "kind": "Keyword",
+            "detail": "Define an enumeration",
+            "hover": {
+                "sig": "enum Name:",
+                "detail": "Define an enumeration."
+            }
+        },
+        {
+            "name": "eq",
+            "kind": "Keyword",
+            "detail": "Equal",
+            "hover": {
+                "sig": "a eq b",
+                "detail": "Equal (alias for ==)."
+            }
+        },
+        {
+            "name": "export",
+            "kind": "Keyword",
+            "detail": "Export from module",
+            "hover": {
+                "sig": "export fn/class/var",
+                "detail": "Mark a declaration as exported from a module."
+            }
+        },
+        {
+            "name": "false",
+            "kind": "Constant",
+            "detail": "Boolean false",
+            "hover": {
+                "sig": "false",
+                "detail": "Boolean constant: false."
+            }
+        },
+        {
+            "name": "finally",
+            "kind": "Keyword",
+            "detail": "Finally block",
+            "hover": {
+                "sig": "finally:",
+                "detail": "Code that always runs after try/catch."
+            }
+        },
+        {
+            "name": "fn",
+            "kind": "Keyword",
+            "detail": "Define a function",
+            "hover": {
+                "sig": "fn name(params):",
+                "detail": "Define a function. Body follows on indented lines, ends with ;"
+            }
+        },
+        {
+            "name": "for",
+            "kind": "Keyword",
+            "detail": "For loop",
+            "hover": {
+                "sig": "for item in collection:",
+                "detail": "For loop over a list or range. Body indented, ends with ;"
+            }
+        },
+        {
+            "name": "from",
+            "kind": "Keyword",
+            "detail": "Import source directory",
+            "hover": {
+                "sig": "from \"dir\" bring ...",
+                "detail": "Specify search directory for file-based imports."
+            }
+        },
+        {
+            "name": "ge",
+            "kind": "Keyword",
+            "detail": "Greater or equal",
+            "hover": {
+                "sig": "a ge b",
+                "detail": "Greater or equal (alias for >=)."
+            }
+        },
+        {
+            "name": "give",
+            "kind": "Keyword",
+            "detail": "Give back a value from function",
+            "hover": {
+                "sig": "give expression",
+                "detail": "Give back a value from a function."
+            }
+        },
+        {
+            "name": "gt",
+            "kind": "Keyword",
+            "detail": "Greater than",
+            "hover": {
+                "sig": "a gt b",
+                "detail": "Greater than (alias for >)."
+            }
+        },
+        {
+            "name": "if",
+            "kind": "Keyword",
+            "detail": "Conditional statement",
+            "hover": {
+                "sig": "if condition:",
+                "detail": "Conditional branch. Body indented, elif/else optional."
+            }
+        },
+        {
+            "name": "immutable",
+            "kind": "Keyword",
+            "detail": "Immutable variable",
+            "hover": {
+                "sig": "immutable name = value",
+                "detail": "Declare an immutable variable."
+            }
+        },
+        {
+            "name": "implements",
+            "kind": "Keyword",
+            "detail": "Implement interface",
+            "hover": {
+                "sig": "class X implements IFace:",
+                "detail": "Implement an interface."
+            }
+        },
+        {
+            "name": "in",
+            "kind": "Keyword",
+            "detail": "Iterator keyword",
+            "hover": {
+                "sig": "for x in items:",
+                "detail": "Iterator keyword \u2014 iterates over collection elements."
+            }
+        },
+        {
+            "name": "incase",
+            "kind": "Keyword",
+            "detail": "Switch/match statement",
+            "hover": {
+                "sig": "incase value:",
+                "detail": "Switch/match statement."
+            }
+        },
+        {
+            "name": "inherits",
+            "kind": "Keyword",
+            "detail": "Class inheritance",
+            "hover": {
+                "sig": "class Child inherits Parent:",
+                "detail": "Inherit from a parent class."
+            }
+        },
+        {
+            "name": "interface",
+            "kind": "Keyword",
+            "detail": "Define an interface",
+            "hover": {
+                "sig": "interface Name:",
+                "detail": "Define an interface with required methods."
+            }
+        },
+        {
+            "name": "is",
+            "kind": "Keyword",
+            "detail": "Equality check",
+            "hover": {
+                "sig": "a is b",
+                "detail": "Equality check (alias for ==)."
+            }
+        },
+        {
+            "name": "le",
+            "kind": "Keyword",
+            "detail": "Less or equal",
+            "hover": {
+                "sig": "a le b",
+                "detail": "Less or equal (alias for <=)."
+            }
+        },
+        {
+            "name": "let",
+            "kind": "Keyword",
+            "detail": "Immutable binding",
+            "hover": {
+                "sig": "let name = value",
+                "detail": "Declare an immutable binding."
+            }
+        },
+        {
+            "name": "loop",
+            "kind": "Keyword",
+            "detail": "Infinite loop",
+            "hover": {
+                "sig": "loop:",
+                "detail": "Infinite loop. Break to exit."
+            }
+        },
+        {
+            "name": "lt",
+            "kind": "Keyword",
+            "detail": "Less than",
+            "hover": {
+                "sig": "a lt b",
+                "detail": "Less than (alias for <)."
+            }
+        },
+        {
+            "name": "mixin",
+            "kind": "Keyword",
+            "detail": "Define a mixin",
+            "hover": {
+                "sig": "mixin Name:",
+                "detail": "Define a mixin for shared behavior."
+            }
+        },
+        {
+            "name": "module",
+            "kind": "Keyword",
+            "detail": "Define a module",
+            "hover": {
+                "sig": "module name:",
+                "detail": "Define a module with exported members."
+            }
+        },
+        {
+            "name": "ne",
+            "kind": "Keyword",
+            "detail": "Not equal",
+            "hover": {
+                "sig": "a ne b",
+                "detail": "Not equal (alias for !=)."
+            }
+        },
+        {
+            "name": "none",
+            "kind": "Constant",
+            "detail": "None value",
+            "hover": {
+                "sig": "none",
+                "detail": "The absence of a value."
+            }
+        },
+        {
+            "name": "not",
+            "kind": "Keyword",
+            "detail": "Logical NOT",
+            "hover": {
+                "sig": "not a",
+                "detail": "Logical negation operator."
+            }
+        },
+        {
+            "name": "of",
+            "kind": "Keyword",
+            "detail": "Module source",
+            "hover": {
+                "sig": "bring X of module",
+                "detail": "Specify the module source for an import."
+            }
+        },
+        {
+            "name": "or",
+            "kind": "Keyword",
+            "detail": "Logical OR",
+            "hover": {
+                "sig": "a or b",
+                "detail": "Logical OR operator."
+            }
+        },
+        {
+            "name": "private",
+            "kind": "Keyword",
+            "detail": "Private access",
+            "hover": {
+                "sig": "private fn/field",
+                "detail": "Restrict access to class internals only."
+            }
+        },
+        {
+            "name": "protected",
+            "kind": "Keyword",
+            "detail": "Protected access",
+            "hover": {
+                "sig": "protected fn/field",
+                "detail": "Restrict access to class and subclasses."
+            }
+        },
+        {
+            "name": "public",
+            "kind": "Keyword",
+            "detail": "Public access",
+            "hover": {
+                "sig": "public fn/field",
+                "detail": "Allow access from anywhere."
+            }
+        },
+        {
+            "name": "requires",
+            "kind": "Keyword",
+            "detail": "Module dependency",
+            "hover": {
+                "sig": "requires module_name",
+                "detail": "Declare a module dependency."
+            }
+        },
+        {
+            "name": "static",
+            "kind": "Keyword",
+            "detail": "Static member",
+            "hover": {
+                "sig": "static fn/field",
+                "detail": "Declare a class-level (not instance) member."
+            }
+        },
+        {
+            "name": "struct",
+            "kind": "Keyword",
+            "detail": "Define a struct",
+            "hover": {
+                "sig": "struct Name:",
+                "detail": "Define a struct (value type with fields)."
+            }
+        },
+        {
+            "name": "true",
+            "kind": "Constant",
+            "detail": "Boolean true",
+            "hover": {
+                "sig": "true",
+                "detail": "Boolean constant: true."
+            }
+        },
+        {
+            "name": "try",
+            "kind": "Keyword",
+            "detail": "Try-catch block",
+            "hover": {
+                "sig": "try:",
+                "detail": "Begin a try-catch block for error handling."
+            }
+        },
+        {
+            "name": "while",
+            "kind": "Keyword",
+            "detail": "While loop",
+            "hover": {
+                "sig": "while condition:",
+                "detail": "While loop. Body indented, ends with ;"
+            }
+        },
+        {
+            "name": "with",
+            "kind": "Keyword",
+            "detail": "Include mixin",
+            "hover": {
+                "sig": "class X with MixinA:",
+                "detail": "Include a mixin into a class."
+            }
+        },
+        {
+            "name": "yield",
+            "kind": "Keyword",
+            "detail": "Yield from generator",
+            "hover": {
+                "sig": "yield value",
+                "detail": "Yield a value from a generator function."
+            }
+        }
+    ],
+    "builtins": [
+        {
+            "name": "bunzip2_decompress",
+            "category": "archive",
+            "kind": "Function"
+        },
+        {
+            "name": "bzip2_compress",
+            "category": "archive",
+            "kind": "Function"
+        },
+        {
+            "name": "gunzip_decompress",
+            "category": "archive",
+            "kind": "Function"
+        },
+        {
+            "name": "gzip_compress",
+            "category": "archive",
+            "kind": "Function"
+        },
+        {
+            "name": "tar_create",
+            "category": "archive",
+            "kind": "Function"
+        },
+        {
+            "name": "tar_extract",
+            "category": "archive",
+            "kind": "Function"
+        },
+        {
+            "name": "unzip_archive",
+            "category": "archive",
+            "kind": "Function"
+        },
+        {
+            "name": "xz_compress",
+            "category": "archive",
+            "kind": "Function"
+        },
+        {
+            "name": "xz_decompress",
+            "category": "archive",
+            "kind": "Function"
+        },
+        {
+            "name": "zip_archive",
+            "category": "archive",
+            "kind": "Function"
+        },
+        {
+            "name": "byte_at",
+            "category": "bytes",
+            "kind": "Function"
+        },
+        {
+            "name": "byte_len",
+            "category": "bytes",
+            "kind": "Function"
+        },
+        {
+            "name": "bytes",
+            "category": "bytes",
+            "kind": "Function"
+        },
+        {
+            "name": "bytes",
+            "category": "bytes",
+            "kind": "Function"
+        },
+        {
+            "name": "bytes_concat",
+            "category": "bytes",
+            "kind": "Function"
+        },
+        {
+            "name": "bytes_slice",
+            "category": "bytes",
+            "kind": "Function"
+        },
+        {
+            "name": "decode",
+            "category": "bytes",
+            "kind": "Function"
+        },
+        {
+            "name": "encode",
+            "category": "bytes",
+            "kind": "Function"
+        },
+        {
+            "name": "to_bytes",
+            "category": "bytes",
+            "kind": "Function"
+        },
+        {
+            "name": "Bool",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "Complex",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "Float",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "Int",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "List",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "Set",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "String",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "Tuple",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "auto",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "iSet",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "number",
+            "category": "casting",
+            "kind": "Function"
+        },
+        {
+            "name": "add",
+            "category": "collection",
+            "kind": "Function"
+        },
+        {
+            "name": "contains",
+            "category": "collection",
+            "kind": "Function",
+            "hover": {
+                "sig": "contains(collection, item)",
+                "detail": "Check if list or string contains item.",
+                "params": [
+                    "collection \u2014 list or string",
+                    "item \u2014 value to search"
+                ]
+            }
+        },
+        {
+            "name": "diff",
+            "category": "collection",
+            "kind": "Function"
+        },
+        {
+            "name": "has",
+            "category": "collection",
+            "kind": "Function",
+            "hover": {
+                "sig": "has(map, key)",
+                "detail": "Check if a key exists in a map.",
+                "params": [
+                    "map \u2014 a map",
+                    "key \u2014 key to check"
+                ]
+            }
+        },
+        {
+            "name": "intersect",
+            "category": "collection",
+            "kind": "Function"
+        },
+        {
+            "name": "keys",
+            "category": "collection",
+            "kind": "Function",
+            "hover": {
+                "sig": "keys(map)",
+                "detail": "Return all keys of a map as a list.",
+                "params": [
+                    "map \u2014 a map"
+                ]
+            }
+        },
+        {
+            "name": "len",
+            "category": "collection",
+            "kind": "Function",
+            "hover": {
+                "sig": "len(collection)",
+                "detail": "Return the number of elements in a list, map, or string.",
+                "params": [
+                    "collection \u2014 list, map, or string"
+                ]
+            }
+        },
+        {
+            "name": "pop",
+            "category": "collection",
+            "kind": "Function",
+            "hover": {
+                "sig": "pop(list)",
+                "detail": "Remove and return the last item from a list.",
+                "params": [
+                    "list \u2014 the list"
+                ]
+            }
+        },
+        {
+            "name": "push",
+            "category": "collection",
+            "kind": "Function",
+            "hover": {
+                "sig": "push(list, item)",
+                "detail": "Append item to end of list. Mutates the list.",
+                "params": [
+                    "list \u2014 the list",
+                    "item \u2014 value to append"
+                ]
+            }
+        },
+        {
+            "name": "range",
+            "category": "collection",
+            "kind": "Function",
+            "hover": {
+                "sig": "range(start, end [, step])",
+                "detail": "Generate a list of numbers from start to end (exclusive).",
+                "params": [
+                    "start \u2014 starting number",
+                    "end \u2014 ending number (exclusive)",
+                    "step \u2014 increment (default 1)"
+                ]
+            }
+        },
+        {
+            "name": "remove",
+            "category": "collection",
+            "kind": "Function"
+        },
+        {
+            "name": "set",
+            "category": "collection",
+            "kind": "Function",
+            "hover": {
+                "sig": "set(collection, key, value)",
+                "detail": "Set a value at a key/index in a map or list.",
+                "params": [
+                    "collection \u2014 map or list",
+                    "key \u2014 key or index",
+                    "value \u2014 new value"
+                ]
+            }
+        },
+        {
+            "name": "to_list",
+            "category": "collection",
+            "kind": "Function"
+        },
+        {
+            "name": "to_set",
+            "category": "collection",
+            "kind": "Function"
+        },
+        {
+            "name": "to_tuple",
+            "category": "collection",
+            "kind": "Function"
+        },
+        {
+            "name": "union_set",
+            "category": "collection",
+            "kind": "Function"
+        },
+        {
+            "name": "values",
+            "category": "collection",
+            "kind": "Function",
+            "hover": {
+                "sig": "values(map)",
+                "detail": "Return all values of a map as a list.",
+                "params": [
+                    "map \u2014 a map"
+                ]
+            }
+        },
+        {
+            "name": "format_date",
+            "category": "datetime",
+            "kind": "Function"
+        },
+        {
+            "name": "now",
+            "category": "datetime",
+            "kind": "Function"
+        },
+        {
+            "name": "parse_date",
+            "category": "datetime",
+            "kind": "Function"
+        },
+        {
+            "name": "sleep",
+            "category": "datetime",
+            "kind": "Function",
+            "hover": {
+                "sig": "sleep(seconds)",
+                "detail": "Pause execution for given seconds.",
+                "params": [
+                    "seconds \u2014 duration"
+                ]
+            }
+        },
+        {
+            "name": "sleep_sec",
+            "category": "datetime",
+            "kind": "Function"
+        },
+        {
+            "name": "time_since",
+            "category": "datetime",
+            "kind": "Function"
+        },
+        {
+            "name": "timestamp",
+            "category": "datetime",
+            "kind": "Function"
+        },
+        {
+            "name": "timestamp_ms",
+            "category": "datetime",
+            "kind": "Function"
+        },
+        {
+            "name": "cat",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "chgrp",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "chmod",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "chown",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "created_time",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "disk_free",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "disk_usage",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "extension",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "file_diff",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "find",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "find_regex",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "glob",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "hardlink",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "home_dir",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "is_absolute",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "is_symlink",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "join_path",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "ln",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "locate",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "ls_all",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "modified_time",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "normalize",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "pwd",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "read_lines",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "readlink",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "realpath",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "relative_path",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "stat",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "stem",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "strings",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "symlink",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "temp_dir",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "touch",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "tree",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "write_lines",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "xxd",
+            "category": "fs",
+            "kind": "Function"
+        },
+        {
+            "name": "gen_collect",
+            "category": "generator",
+            "kind": "Function"
+        },
+        {
+            "name": "is_exhausted",
+            "category": "generator",
+            "kind": "Function"
+        },
+        {
+            "name": "next",
+            "category": "generator",
+            "kind": "Function"
+        },
+        {
+            "name": "hash",
+            "category": "hash",
+            "kind": "Function"
+        },
+        {
+            "name": "hash_seed",
+            "category": "hash",
+            "kind": "Function"
+        },
+        {
+            "name": "hash_seed",
+            "category": "hash",
+            "kind": "Function"
+        },
+        {
+            "name": "hash_seed",
+            "category": "hash",
+            "kind": "Function"
+        },
+        {
+            "name": "is_hashable",
+            "category": "hash",
+            "kind": "Function"
+        },
+        {
+            "name": "exit",
+            "category": "io",
+            "kind": "Function"
+        },
+        {
+            "name": "input",
+            "category": "io",
+            "kind": "Function",
+            "hover": {
+                "sig": "input(prompt)",
+                "detail": "Read a line of input from the user.",
+                "params": [
+                    "prompt \u2014 prompt string"
+                ]
+            }
+        },
+        {
+            "name": "print",
+            "category": "io",
+            "kind": "Function",
+            "hover": {
+                "sig": "print(value1, value2, ...)",
+                "detail": "Print one or more values to stdout, separated by spaces.",
+                "params": [
+                    "value1 \u2014 first value to print",
+                    "... \u2014 additional values"
+                ]
+            }
+        },
+        {
+            "name": "csv_parse",
+            "category": "json",
+            "kind": "Function"
+        },
+        {
+            "name": "csv_read",
+            "category": "json",
+            "kind": "Function"
+        },
+        {
+            "name": "csv_write",
+            "category": "json",
+            "kind": "Function"
+        },
+        {
+            "name": "json_parse",
+            "category": "json",
+            "kind": "Function"
+        },
+        {
+            "name": "json_pretty",
+            "category": "json",
+            "kind": "Function"
+        },
+        {
+            "name": "json_read",
+            "category": "json",
+            "kind": "Function"
+        },
+        {
+            "name": "json_stringify",
+            "category": "json",
+            "kind": "Function"
+        },
+        {
+            "name": "json_write",
+            "category": "json",
+            "kind": "Function"
+        },
+        {
+            "name": "toml_read",
+            "category": "json",
+            "kind": "Function"
+        },
+        {
+            "name": "yaml_read",
+            "category": "json",
+            "kind": "Function"
+        },
+        {
+            "name": "avg",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "enumerate",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "first",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "flatten",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "insert",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "last",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "max",
+            "category": "list",
+            "kind": "Function",
+            "hover": {
+                "sig": "max(a, b)",
+                "detail": "Return the larger of two values.",
+                "params": [
+                    "a \u2014 first value",
+                    "b \u2014 second value"
+                ]
+            }
+        },
+        {
+            "name": "min",
+            "category": "list",
+            "kind": "Function",
+            "hover": {
+                "sig": "min(a, b)",
+                "detail": "Return the smaller of two values.",
+                "params": [
+                    "a \u2014 first value",
+                    "b \u2014 second value"
+                ]
+            }
+        },
+        {
+            "name": "remove_val",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "shift",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "size",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "slice",
+            "category": "list",
+            "kind": "Function",
+            "hover": {
+                "sig": "slice(list, start [, end])",
+                "detail": "Get a sub-list from start to end index.",
+                "params": [
+                    "list \u2014 the list",
+                    "start \u2014 start index",
+                    "end \u2014 end index (exclusive)"
+                ]
+            }
+        },
+        {
+            "name": "sort",
+            "category": "list",
+            "kind": "Function",
+            "hover": {
+                "sig": "sort(list)",
+                "detail": "Sort a list in ascending order.",
+                "params": [
+                    "list \u2014 the list"
+                ]
+            }
+        },
+        {
+            "name": "sort_desc",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "sum",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "unique",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "unshift",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "zip",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "zip_longest",
+            "category": "list",
+            "kind": "Function"
+        },
+        {
+            "name": "delete_key",
+            "category": "map",
+            "kind": "Function"
+        },
+        {
+            "name": "entries",
+            "category": "map",
+            "kind": "Function"
+        },
+        {
+            "name": "from_entries",
+            "category": "map",
+            "kind": "Function"
+        },
+        {
+            "name": "get",
+            "category": "map",
+            "kind": "Function"
+        },
+        {
+            "name": "merge",
+            "category": "map",
+            "kind": "Function"
+        },
+        {
+            "name": "abs",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "abs(x)",
+                "detail": "Absolute value of x.",
+                "params": [
+                    "x \u2014 any number"
+                ]
+            }
+        },
+        {
+            "name": "acos",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "acosh",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "acot",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "acoth",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "acsc",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "acsch",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "asec",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "asech",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "asin",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "asinh",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "atan",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "atan2",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "atanh",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "bin",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "ceil",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "ceil(x)",
+                "detail": "Smallest integer \u2265 x.",
+                "params": [
+                    "x \u2014 any number"
+                ]
+            }
+        },
+        {
+            "name": "clamp",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "cos",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "cos(x)",
+                "detail": "Cosine of x (radians).",
+                "params": [
+                    "x \u2014 angle in radians"
+                ]
+            }
+        },
+        {
+            "name": "cosh",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "cot",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "coth",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "csc",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "csch",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "floor",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "floor(x)",
+                "detail": "Largest integer \u2264 x.",
+                "params": [
+                    "x \u2014 any number"
+                ]
+            }
+        },
+        {
+            "name": "hex",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "is_inf",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "is_nan",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "log",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "log(x)",
+                "detail": "Natural logarithm of x.",
+                "params": [
+                    "x \u2014 positive number"
+                ]
+            }
+        },
+        {
+            "name": "log10",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "log10(x)",
+                "detail": "Base-10 logarithm of x.",
+                "params": [
+                    "x \u2014 positive number"
+                ]
+            }
+        },
+        {
+            "name": "mod",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "mod(a, b)",
+                "detail": "Modulo: remainder of a / b.",
+                "params": [
+                    "a \u2014 dividend",
+                    "b \u2014 divisor"
+                ]
+            }
+        },
+        {
+            "name": "pow",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "pow(base, exp)",
+                "detail": "Raise base to the power of exp.",
+                "params": [
+                    "base \u2014 base number",
+                    "exp \u2014 exponent"
+                ]
+            }
+        },
+        {
+            "name": "random",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "random()",
+                "detail": "Generate a random float between 0 and 1."
+            }
+        },
+        {
+            "name": "random_choice",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "random_int",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "random_int(min, max)",
+                "detail": "Generate a random integer in [min, max].",
+                "params": [
+                    "min \u2014 minimum",
+                    "max \u2014 maximum"
+                ]
+            }
+        },
+        {
+            "name": "round",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "round(x [, decimals])",
+                "detail": "Round x to nearest integer or to given decimal places.",
+                "params": [
+                    "x \u2014 any number",
+                    "decimals \u2014 decimal places (optional)"
+                ]
+            }
+        },
+        {
+            "name": "sec",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "sech",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "sin",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "sin(x)",
+                "detail": "Sine of x (radians).",
+                "params": [
+                    "x \u2014 angle in radians"
+                ]
+            }
+        },
+        {
+            "name": "sinh",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "sqrt",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "sqrt(x)",
+                "detail": "Square root of x.",
+                "params": [
+                    "x \u2014 non-negative number"
+                ]
+            }
+        },
+        {
+            "name": "tan",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "tan(x)",
+                "detail": "Tangent of x (radians).",
+                "params": [
+                    "x \u2014 angle in radians"
+                ]
+            }
+        },
+        {
+            "name": "tanh",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "to_float",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "to_float(value)",
+                "detail": "Convert value to float.",
+                "params": [
+                    "value \u2014 any value"
+                ]
+            }
+        },
+        {
+            "name": "to_int",
+            "category": "math",
+            "kind": "Function",
+            "hover": {
+                "sig": "to_int(value)",
+                "detail": "Convert value to integer.",
+                "params": [
+                    "value \u2014 any value"
+                ]
+            }
+        },
+        {
+            "name": "dns_lookup",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "download",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "host_lookup",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "http_delete",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "http_get",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "http_post",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "http_put",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "ifconfig",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "ip_cmd",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "iptables",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "local_ip",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "nc",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "netstat",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "nslookup",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "ping",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "public_ip",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "route",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "rsync",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "ss",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "telnet_connect",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "traceroute",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "ufw",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "whois",
+            "category": "network",
+            "kind": "Function"
+        },
+        {
+            "name": "abspath",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "abspath(path)",
+                "detail": "Get absolute path from relative path.",
+                "params": [
+                    "path \u2014 path"
+                ]
+            }
+        },
+        {
+            "name": "append",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "append(path, data)",
+                "detail": "Append string data to end of file.",
+                "params": [
+                    "path \u2014 file path",
+                    "data \u2014 string content"
+                ]
+            }
+        },
+        {
+            "name": "basename",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "basename(path)",
+                "detail": "Get the file name portion of a path.",
+                "params": [
+                    "path \u2014 file path"
+                ]
+            }
+        },
+        {
+            "name": "cd",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "cd(path)",
+                "detail": "Change the current working directory.",
+                "params": [
+                    "path \u2014 new directory"
+                ]
+            }
+        },
+        {
+            "name": "cp",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "cp(source, dest)",
+                "detail": "Copy a file or directory.",
+                "params": [
+                    "source \u2014 source path",
+                    "dest \u2014 destination path"
+                ]
+            }
+        },
+        {
+            "name": "cwd",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "cwd()",
+                "detail": "Get current working directory as string."
+            }
+        },
+        {
+            "name": "dirname",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "dirname(path)",
+                "detail": "Get the directory portion of a path.",
+                "params": [
+                    "path \u2014 file path"
+                ]
+            }
+        },
+        {
+            "name": "env_get",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "env_get(name)",
+                "detail": "Get environment variable value.",
+                "params": [
+                    "name \u2014 variable name"
+                ]
+            }
+        },
+        {
+            "name": "env_has",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "env_has(name)",
+                "detail": "Check if environment variable exists.",
+                "params": [
+                    "name \u2014 variable name"
+                ]
+            }
+        },
+        {
+            "name": "env_set",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "env_set(name, value)",
+                "detail": "Set environment variable.",
+                "params": [
+                    "name \u2014 variable name",
+                    "value \u2014 string value"
+                ]
+            }
+        },
+        {
+            "name": "env_unset",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "env_unset(name)",
+                "detail": "Unset an environment variable.",
+                "params": [
+                    "name \u2014 variable name"
+                ]
+            }
+        },
+        {
+            "name": "exists",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "exists(path)",
+                "detail": "Check if a path exists.",
+                "params": [
+                    "path \u2014 path to check"
+                ]
+            }
+        },
+        {
+            "name": "exit_code",
+            "category": "os",
+            "kind": "Function"
+        },
+        {
+            "name": "ext",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "ext(path)",
+                "detail": "Get the file extension (including the dot).",
+                "params": [
+                    "path \u2014 file path"
+                ]
+            }
+        },
+        {
+            "name": "file_size",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "file_size(path)",
+                "detail": "Get file size in bytes.",
+                "params": [
+                    "path \u2014 file path"
+                ]
+            }
+        },
+        {
+            "name": "is_dir",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "is_dir(path)",
+                "detail": "Check if path is a directory.",
+                "params": [
+                    "path \u2014 path to check"
+                ]
+            }
+        },
+        {
+            "name": "is_file",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "is_file(path)",
+                "detail": "Check if path is a regular file.",
+                "params": [
+                    "path \u2014 path to check"
+                ]
+            }
+        },
+        {
+            "name": "ls",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "ls(path)",
+                "detail": "List directory contents as list of names.",
+                "params": [
+                    "path \u2014 directory path"
+                ]
+            }
+        },
+        {
+            "name": "mkdir",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "mkdir(path)",
+                "detail": "Create directory (and parents) recursively.",
+                "params": [
+                    "path \u2014 directory path"
+                ]
+            }
+        },
+        {
+            "name": "mv",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "mv(source, dest)",
+                "detail": "Move/rename a file or directory.",
+                "params": [
+                    "source \u2014 current path",
+                    "dest \u2014 new path"
+                ]
+            }
+        },
+        {
+            "name": "pid",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "pid()",
+                "detail": "Get the current process ID."
+            }
+        },
+        {
+            "name": "read",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "read(path)",
+                "detail": "Read entire file contents as string.",
+                "params": [
+                    "path \u2014 file path"
+                ]
+            }
+        },
+        {
+            "name": "rm",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "rm(path)",
+                "detail": "Remove a file or directory (recursive).",
+                "params": [
+                    "path \u2014 path to remove"
+                ]
+            }
+        },
+        {
+            "name": "run",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "run(command)",
+                "detail": "Run an external command. Returns exit code.",
+                "params": [
+                    "command \u2014 shell command string"
+                ]
+            }
+        },
+        {
+            "name": "run_capture",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "run_capture(command)",
+                "detail": "Run command and capture output. Returns map with exit_code, stdout, stderr.",
+                "params": [
+                    "command \u2014 shell command string"
+                ]
+            }
+        },
+        {
+            "name": "set_e",
+            "category": "os",
+            "kind": "Function"
+        },
+        {
+            "name": "unset_e",
+            "category": "os",
+            "kind": "Function"
+        },
+        {
+            "name": "write",
+            "category": "os",
+            "kind": "Function",
+            "hover": {
+                "sig": "write(path, data)",
+                "detail": "Write string data to file (overwrites).",
+                "params": [
+                    "path \u2014 file path",
+                    "data \u2014 string content"
+                ]
+            }
+        },
+        {
+            "name": "arch",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "bg",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "exec_proc",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "fg",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "getuid",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "hostname",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "id",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "is_root",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "jobs",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "kill",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "kill_name",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "lsof",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "nice",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "nohup",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "os_name",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "pgrep",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "pidof",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "pkill",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "ppid",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "ps",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "pstree",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "run_timeout",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "signal_send",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "spawn",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "strace",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "sys_info",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "time_cmd",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "uname",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "uptime",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "wait_pid",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "watch",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "whoami",
+            "category": "process",
+            "kind": "Function"
+        },
+        {
+            "name": "regex_find",
+            "category": "regex",
+            "kind": "Function"
+        },
+        {
+            "name": "regex_find_all",
+            "category": "regex",
+            "kind": "Function"
+        },
+        {
+            "name": "regex_groups",
+            "category": "regex",
+            "kind": "Function"
+        },
+        {
+            "name": "regex_match",
+            "category": "regex",
+            "kind": "Function"
+        },
+        {
+            "name": "regex_match_full",
+            "category": "regex",
+            "kind": "Function"
+        },
+        {
+            "name": "regex_replace",
+            "category": "regex",
+            "kind": "Function"
+        },
+        {
+            "name": "regex_replace_all",
+            "category": "regex",
+            "kind": "Function"
+        },
+        {
+            "name": "regex_split",
+            "category": "regex",
+            "kind": "Function"
+        },
+        {
+            "name": "alias",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "clear",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "env_list",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "error",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "export_env",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "false_val",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "history",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "history_add",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "logout",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "man",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "printenv",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "reset",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "set_env",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "source_file",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "true_val",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "type_cmd",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "unalias",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "whereis",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "which",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "yes_cmd",
+            "category": "shell",
+            "kind": "Function"
+        },
+        {
+            "name": "char_at",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "char_at(text, index)",
+                "detail": "Get character at index.",
+                "params": [
+                    "text \u2014 a string",
+                    "index \u2014 position"
+                ]
+            }
+        },
+        {
+            "name": "count",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "ends_with",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "ends_with(text, suffix)",
+                "detail": "Check if string ends with suffix.",
+                "params": [
+                    "text \u2014 a string",
+                    "suffix \u2014 suffix to check"
+                ]
+            }
+        },
+        {
+            "name": "index_of",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "index_of(collection, item)",
+                "detail": "Find index of first occurrence.",
+                "params": [
+                    "collection \u2014 list or string",
+                    "item \u2014 value to find"
+                ]
+            }
+        },
+        {
+            "name": "is_alpha",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "is_empty",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "is_numeric",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "join",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "join(list, delimiter)",
+                "detail": "Join list elements into a string.",
+                "params": [
+                    "list \u2014 list of strings",
+                    "delimiter \u2014 separator string"
+                ]
+            }
+        },
+        {
+            "name": "lines",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "lower",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "lower(text)",
+                "detail": "Convert string to lowercase.",
+                "params": [
+                    "text \u2014 a string"
+                ]
+            }
+        },
+        {
+            "name": "pad_end",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "pad_start",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "repeat",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "replace",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "replace(text, old, new)",
+                "detail": "Replace all occurrences.",
+                "params": [
+                    "text \u2014 a string",
+                    "old \u2014 search string",
+                    "new \u2014 replacement"
+                ]
+            }
+        },
+        {
+            "name": "replace_first",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "reverse",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "reverse(list)",
+                "detail": "Reverse a list in-place.",
+                "params": [
+                    "list \u2014 the list"
+                ]
+            }
+        },
+        {
+            "name": "split",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "split(text, delimiter)",
+                "detail": "Split string into a list.",
+                "params": [
+                    "text \u2014 the string",
+                    "delimiter \u2014 separator"
+                ]
+            }
+        },
+        {
+            "name": "starts_with",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "starts_with(text, prefix)",
+                "detail": "Check if string starts with prefix.",
+                "params": [
+                    "text \u2014 a string",
+                    "prefix \u2014 prefix to check"
+                ]
+            }
+        },
+        {
+            "name": "substr",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "substr(text, start [, length])",
+                "detail": "Get a substring.",
+                "params": [
+                    "text \u2014 a string",
+                    "start \u2014 start index",
+                    "length \u2014 characters to extract"
+                ]
+            }
+        },
+        {
+            "name": "to_chars",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "trim",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "trim(text)",
+                "detail": "Remove leading/trailing whitespace.",
+                "params": [
+                    "text \u2014 a string"
+                ]
+            }
+        },
+        {
+            "name": "trim_end",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "trim_start",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
+            "name": "upper",
+            "category": "string",
+            "kind": "Function",
+            "hover": {
+                "sig": "upper(text)",
+                "detail": "Convert string to uppercase.",
+                "params": [
+                    "text \u2014 a string"
+                ]
+            }
+        },
+        {
+            "name": "cal",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "cpu_count",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "cpu_usage",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "date_str",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "dmesg",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "fdisk",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "free",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "iostat",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "journalctl",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "last_logins",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "lsblk",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "lscpu",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "lsmem",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "lspci",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "lsusb",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "mem_free",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "mem_total",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "mem_used",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "mount_fs",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "mpstat",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "sar",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "ulimit_info",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "umount_fs",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "vmstat",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "w_cmd",
+            "category": "sysmon",
+            "kind": "Function"
+        },
+        {
+            "name": "awk",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "cut",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "grep",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "grep_recursive",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "grep_regex",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "head",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "less",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "more",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "patch",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "sed",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "sort_file",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "tail",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "tail_follow",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "tee",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "tr",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "uniq",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "wc",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "xargs",
+            "category": "textproc",
+            "kind": "Function"
+        },
+        {
+            "name": "complex",
+            "category": "type",
+            "kind": "Function"
+        },
+        {
+            "name": "conjugate",
+            "category": "type",
+            "kind": "Function"
+        },
+        {
+            "name": "float",
+            "category": "type",
+            "kind": "Function"
+        },
+        {
+            "name": "imag",
+            "category": "type",
+            "kind": "Function"
+        },
+        {
+            "name": "int",
+            "category": "type",
+            "kind": "Function"
+        },
+        {
+            "name": "magnitude",
+            "category": "type",
+            "kind": "Function"
+        },
+        {
+            "name": "num",
+            "category": "type",
+            "kind": "Function",
+            "hover": {
+                "sig": "num(value)",
+                "detail": "Convert string to number.",
+                "params": [
+                    "value \u2014 numeric string or number"
+                ]
+            }
+        },
+        {
+            "name": "real",
+            "category": "type",
+            "kind": "Function"
+        },
+        {
+            "name": "str",
+            "category": "type",
+            "kind": "Function",
+            "hover": {
+                "sig": "str(value)",
+                "detail": "Convert value to string.",
+                "params": [
+                    "value \u2014 any value"
+                ]
+            }
+        },
+        {
+            "name": "type",
+            "category": "type",
+            "kind": "Function",
+            "hover": {
+                "sig": "type(value)",
+                "detail": "Return the type name of value as a string.",
+                "params": [
+                    "value \u2014 any value"
+                ]
+            }
+        },
+        {
+            "name": "type",
+            "category": "type",
+            "kind": "Function",
+            "hover": {
+                "sig": "type(value)",
+                "detail": "Return the type name of value as a string.",
+                "params": [
+                    "value \u2014 any value"
+                ]
+            }
+        },
+        {
+            "name": "typeof",
+            "category": "type",
+            "kind": "Function",
+            "hover": {
+                "sig": "typeof(value)",
+                "detail": "Return the type name of value as a string.",
+                "params": [
+                    "value \u2014 any value"
+                ]
+            }
+        },
+        {
+            "name": "assert",
+            "category": "util",
+            "kind": "Function",
+            "hover": {
+                "sig": "assert(condition, message)",
+                "detail": "Assert a condition is true. Throws error with message if false.",
+                "params": [
+                    "condition \u2014 boolean expression",
+                    "message \u2014 error message on failure"
+                ]
+            }
+        },
+        {
+            "name": "format",
+            "category": "util",
+            "kind": "Function"
+        }
+    ],
+    "blockKeywords": [
+        "abstract",
+        "catch",
+        "class",
+        "elif",
+        "else",
+        "enum",
+        "finally",
+        "fn",
+        "for",
+        "if",
+        "incase",
+        "interface",
+        "loop",
+        "mixin",
+        "module",
+        "struct",
+        "try",
+        "while"
+    ],
+    "allKeywordNames": [
+        "abstract",
+        "and",
+        "as",
+        "async",
+        "await",
+        "be",
+        "break",
+        "bring",
+        "catch",
+        "class",
+        "continue",
+        "elif",
+        "else",
+        "enum",
+        "eq",
+        "export",
+        "false",
+        "finally",
+        "fn",
+        "for",
+        "from",
+        "ge",
+        "give",
+        "gt",
+        "if",
+        "immutable",
+        "implements",
+        "in",
+        "incase",
+        "inherits",
+        "interface",
+        "is",
+        "le",
+        "let",
+        "loop",
+        "lt",
+        "mixin",
+        "module",
+        "ne",
+        "none",
+        "not",
+        "of",
+        "or",
+        "private",
+        "protected",
+        "public",
+        "requires",
+        "static",
+        "struct",
+        "true",
+        "try",
+        "while",
+        "with",
+        "yield"
+    ]
+}

@@ -1,0 +1,13 @@
+# same_name_parent_b.xel — module "beta" with submodule "helper" (same name!)
+
+module beta:
+    export module helper:
+        export fn tag():
+            give "beta_helper"
+        ;
+    ;
+
+    export fn identify():
+        give "I am beta"
+    ;
+;

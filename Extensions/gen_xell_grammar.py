@@ -14,6 +14,8 @@ Generates:
   - Extensions/xell-vscode/syntaxes/xell.tmLanguage.json
   - Extensions/xell-vscode/color_customizer/token_data.json
   - Extensions/xell-vscode/snippets/xell.json
+  - Extensions/xell-vscode/src/server/language_data.json   (completions, hover, diagnostics)
+  - Extensions/xell-vscode/language-configuration.json      (indent patterns with all block keywords)
 
 Usage:
     python3 Extensions/gen_xell_grammar.py              # generate all files
@@ -36,17 +38,20 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 SRC_DIR = ROOT / "src"
 TOKEN_HPP = SRC_DIR / "lexer" / "token.hpp"
+LEXER_CPP = SRC_DIR / "lexer" / "lexer.cpp"
 BUILTINS_DIR = SRC_DIR / "builtins"
 
 VSCODE_DIR = SCRIPT_DIR / "xell-vscode"
 TMLANG_OUT = VSCODE_DIR / "syntaxes" / "xell.tmLanguage.json"
 TOKEN_DATA_OUT = VSCODE_DIR / "color_customizer" / "token_data.json"
 SNIPPETS_OUT = VSCODE_DIR / "snippets" / "xell.json"
+LANG_DATA_OUT = VSCODE_DIR / "src" / "server" / "language_data.json"
+LANG_CONFIG_OUT = VSCODE_DIR / "language-configuration.json"
 REGISTER_ALL_HPP = BUILTINS_DIR / "register_all.hpp"
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 1. EXTRACT DATA FROM C++ HEADERS
+# 1. EXTRACT DATA FROM C++ HEADERS (fully dynamic)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def read_file(path):
@@ -54,36 +59,184 @@ def read_file(path):
         return f.read()
 
 
-def extract_enum_names(src):
-    """Extract all TokenType enum names from token.hpp."""
+def extract_keyword_map(token_src):
+    """
+    Dynamically extract the keywordMap() from lexer.cpp.
+    Returns dict: keyword_string → ENUM_NAME.
+    e.g. {"fn": "FN", "bring": "BRING", "module": "MODULE", ...}
+    """
+    # keywordMap() lives in lexer.cpp, not token.hpp
+    if not LEXER_CPP.exists():
+        print(f"WARNING: {LEXER_CPP} not found")
+        return {}
+
+    lexer_src = read_file(LEXER_CPP)
+
+    # Find the keywordMap function body — the map = { ... };
+    m = re.search(r'keywordMap\s*\(\s*\)\s*\{.*?map\s*=\s*\{(.*?)\}\s*;', lexer_src, re.DOTALL)
+    if not m:
+        print("WARNING: Could not find keywordMap() in lexer.cpp")
+        return {}
+
+    body = m.group(1)
+    # Match: {"keyword", TokenType::ENUM_NAME}
+    pairs = re.findall(r'\{\s*"(\w+)"\s*,\s*TokenType::(\w+)\s*\}', body)
+    return {kw: enum for kw, enum in pairs}
+
+
+def extract_enum_categories(src):
+    """
+    Parse the TokenType enum, reading section comments to automatically
+    determine categories. Returns dict: category_name → [ENUM_NAME, ...].
+    e.g. {"Control flow": ["FN", "GIVE", "IF", ...], "Import / module": ["BRING", ...]}
+    """
     m = re.search(r'enum\s+class\s+TokenType\s*\{(.*?)\}', src, re.DOTALL)
     if not m:
-        return []
+        return {}
+
     body = m.group(1)
-    names = re.findall(r'\b([A-Z][A-Z_0-9]+)\b', body)
-    return names
+    categories = {}
+    current_category = "other"
+
+    for line in body.split('\n'):
+        line = line.strip()
+
+        # Check for section comment like: // Control flow keywords
+        comment_m = re.match(r'^//\s*(.+?)(?:\s+keywords?)?$', line)
+        if comment_m:
+            current_category = comment_m.group(1).strip()
+            continue
+
+        # Check for enum entry
+        enum_m = re.match(r'^([A-Z][A-Z_0-9]+)\s*,?', line)
+        if enum_m:
+            name = enum_m.group(1)
+            categories.setdefault(current_category, []).append(name)
+
+    return categories
 
 
-# Map from TokenType enum → lowercase keyword (only for actual keywords)
-KEYWORD_ENUM_MAP = {
-    "FN": "fn", "GIVE": "give", "IF": "if", "ELIF": "elif",
-    "ELSE": "else", "FOR": "for", "WHILE": "while", "IN": "in",
-    "BRING": "bring", "FROM": "from", "AS": "as",
-    "AND": "and", "OR": "or", "NOT": "not",
-    "IS": "is", "EQ": "eq", "NE": "ne", "GT": "gt", "LT": "lt",
-    "GE": "ge", "LE": "le", "OF": "of",
-    "TRUE_KW": "true", "FALSE_KW": "false", "NONE_KW": "none",
+def extract_keywords_dynamic(token_src):
+    """Extract all keyword strings from keywordMap() — fully dynamic."""
+    kw_map = extract_keyword_map(token_src)
+    return sorted(kw_map.keys())
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# CATEGORY → GRAMMAR SCOPE mapping (driven by enum comments)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Maps section comment labels → TextMate grammar scope classification.
+# If a new section comment is added in token.hpp but not here,
+# keywords fall into "declaration" as default.
+CATEGORY_TO_CLASS = {
+    "Boolean & None":       "constants",
+    "Control flow":         "control",     # will be sub-classified below
+    "Import / module":      "import",      # will be sub-classified below
+    "Enum":                 "oop_decl",
+    "OOP":                  "oop_decl",    # will be sub-classified below
+    "Generator":            "generator",
+    "Async":                "async",
+    "Logical":              "logical",
+    "Comparison":           "comparison",
+    "Utility":              "special",
 }
 
 
-def extract_keywords_dynamic(src):
-    """Extract keywords by finding which enum names match our keyword map."""
-    enum_names = extract_enum_names(src)
-    keywords = []
-    for name in enum_names:
-        if name in KEYWORD_ENUM_MAP:
-            keywords.append(KEYWORD_ENUM_MAP[name])
-    return keywords
+def classify_keywords(token_src):
+    """
+    Fully dynamic keyword classification.
+    Reads enum categories from token.hpp + keywordMap from lexer.cpp
+    to determine which keywords belong to which grammar scope class.
+    """
+    kw_map = extract_keyword_map(token_src)       # {"fn": "FN", "module": "MODULE", ...}
+    enum_cats = extract_enum_categories(token_src) # {"Control flow": ["FN","GIVE",...], ...}
+
+    # Reverse: ENUM_NAME → category_comment
+    enum_to_cat = {}
+    for cat_comment, names in enum_cats.items():
+        for name in names:
+            enum_to_cat[name] = cat_comment
+
+    # Build fine-grained classification
+    result = {
+        "conditional":  [],   # if, elif, else, incase
+        "loop":         [],   # for, while, loop, in
+        "control_flow": [],   # break, continue
+        "fn_decl":      [],   # fn
+        "return":       [],   # give
+        "error":        [],   # try, catch, finally
+        "binding":      [],   # let, be, immutable
+        "import":       [],   # bring, from, as
+        "module":       [],   # module, export, requires
+        "oop_decl":     [],   # class, struct, interface, abstract, mixin, enum
+        "oop_modifier": [],   # inherits, implements, with
+        "access":       [],   # private, protected, public, static
+        "generator":    [],   # yield
+        "async":        [],   # async, await
+        "logical":      [],   # and, or, not
+        "comparison":   [],   # is, eq, ne, gt, lt, ge, le
+        "constants":    [],   # true, false, none
+        "special":      [],   # of
+    }
+
+    # Fine-grained sub-classification rules
+    CONDITIONAL_WORDS = {"if", "elif", "else", "incase"}
+    LOOP_WORDS = {"for", "while", "loop", "in"}
+    CONTROL_FLOW_WORDS = {"break", "continue"}
+    FN_DECL_WORDS = {"fn"}
+    RETURN_WORDS = {"give"}
+    ERROR_WORDS = {"try", "catch", "finally"}
+    BINDING_WORDS = {"let", "be", "immutable"}
+    IMPORT_WORDS = {"bring", "from", "as"}
+    MODULE_WORDS = {"module", "export", "requires"}
+    OOP_DECL_WORDS = {"class", "struct", "interface", "abstract", "mixin", "enum"}
+    OOP_MODIFIER_WORDS = {"inherits", "implements", "with"}
+    ACCESS_WORDS = {"private", "protected", "public", "static"}
+
+    for kw_str, enum_name in kw_map.items():
+        # Use fine-grained sub-classification
+        if kw_str in CONDITIONAL_WORDS:
+            result["conditional"].append(kw_str)
+        elif kw_str in LOOP_WORDS:
+            result["loop"].append(kw_str)
+        elif kw_str in CONTROL_FLOW_WORDS:
+            result["control_flow"].append(kw_str)
+        elif kw_str in FN_DECL_WORDS:
+            result["fn_decl"].append(kw_str)
+        elif kw_str in RETURN_WORDS:
+            result["return"].append(kw_str)
+        elif kw_str in ERROR_WORDS:
+            result["error"].append(kw_str)
+        elif kw_str in BINDING_WORDS:
+            result["binding"].append(kw_str)
+        elif kw_str in IMPORT_WORDS:
+            result["import"].append(kw_str)
+        elif kw_str in MODULE_WORDS:
+            result["module"].append(kw_str)
+        elif kw_str in OOP_DECL_WORDS:
+            result["oop_decl"].append(kw_str)
+        elif kw_str in OOP_MODIFIER_WORDS:
+            result["oop_modifier"].append(kw_str)
+        elif kw_str in ACCESS_WORDS:
+            result["access"].append(kw_str)
+        else:
+            # Fall back to enum category mapping
+            cat_comment = enum_to_cat.get(enum_name, "other")
+            matched = False
+            for prefix, cls in CATEGORY_TO_CLASS.items():
+                if cat_comment.startswith(prefix) or prefix in cat_comment:
+                    result[cls].append(kw_str)
+                    matched = True
+                    break
+            if not matched:
+                result["special"].append(kw_str)
+
+    # Sort each class
+    for cls in result:
+        result[cls] = sorted(result[cls])
+
+    return result
 
 
 def extract_builtins_from_file(filepath):
@@ -118,29 +271,8 @@ def extract_tier2_modules():
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 2. CLASSIFY KEYWORDS
+# 2. EXTRACT BUILTINS (unchanged — already dynamic)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-CONTROL_KW = {"if", "elif", "else", "for", "while"}
-IMPORT_KW = {"bring", "from", "as"}
-DECL_KW = {"fn", "give", "of"}
-LOGICAL_KW = {"and", "or", "not"}
-COMPARISON_KW = {"is", "eq", "ne", "gt", "lt", "ge", "le"}
-LOOP_KW = {"in"}
-CONSTANT_KW = {"true", "false", "none"}
-
-
-def classify_keywords(keywords):
-    result = {
-        "control": sorted(k for k in keywords if k in CONTROL_KW),
-        "import": sorted(k for k in keywords if k in IMPORT_KW),
-        "declaration": sorted(k for k in keywords if k in DECL_KW),
-        "logical": sorted(k for k in keywords if k in LOGICAL_KW),
-        "comparison": sorted(k for k in keywords if k in COMPARISON_KW),
-        "loop": sorted(k for k in keywords if k in LOOP_KW),
-        "constants": sorted(k for k in keywords if k in CONSTANT_KW),
-    }
-    return result
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -166,9 +298,15 @@ def build_tmlanguage(kw_classes, builtin_cats):
     includes = [
         "#block-comment", "#line-comment", "#strings",
         "#function-definition", "#for-loop", "#for-in-loop", "#bring-statement",
-        "#declaration-keywords", "#control-keywords", "#loop-keywords",
-        "#import-keywords", "#logical-operators", "#comparison-word-operators",
+        "#fn-declaration-keywords", "#return-keywords",
+        "#conditional-keywords", "#loop-keywords", "#control-flow-keywords",
+        "#error-keywords", "#binding-keywords",
+        "#import-keywords", "#module-keywords",
+        "#oop-declaration-keywords", "#oop-modifier-keywords", "#access-keywords",
+        "#generator-keywords", "#async-keywords",
+        "#logical-operators", "#comparison-word-operators",
         "#boolean-constants", "#none-constant",
+        "#special-keywords",
     ]
     for cat in sorted(builtin_cats.keys()):
         includes.append(f"#{cat}-builtins")
@@ -274,23 +412,36 @@ def build_tmlanguage(kw_classes, builtin_cats):
         }]
     }
 
-    # Keyword groups
-    if kw_classes["declaration"]:
-        repo["declaration-keywords"] = {
-            "comment": f"Declaration: {', '.join(kw_classes['declaration'])}",
+    # ── Fine-grained keyword groups ─────────────────────────
+
+    # Function declaration: fn
+    if kw_classes["fn_decl"]:
+        repo["fn-declaration-keywords"] = {
+            "comment": f"Function declaration: {', '.join(kw_classes['fn_decl'])}",
             "patterns": [
-                {"name": "keyword.declaration.function.xell", "match": "\\b(fn)\\b"},
-                {"name": "keyword.control.return.xell", "match": "\\b(give)\\b"},
-                {"name": "keyword.other.special.xell", "match": "\\b(of)\\b"},
+                {"name": "keyword.declaration.function.xell", "match": word_alt(kw_classes["fn_decl"])}
             ]
         }
-    if kw_classes["control"]:
-        repo["control-keywords"] = {
-            "comment": f"Control: {', '.join(kw_classes['control'])}",
+
+    # Return: give
+    if kw_classes["return"]:
+        repo["return-keywords"] = {
+            "comment": f"Return: {', '.join(kw_classes['return'])}",
             "patterns": [
-                {"name": "keyword.control.flow.xell", "match": word_alt(kw_classes["control"])}
+                {"name": "keyword.control.return.xell", "match": word_alt(kw_classes["return"])}
             ]
         }
+
+    # Conditionals: if, elif, else, incase
+    if kw_classes["conditional"]:
+        repo["conditional-keywords"] = {
+            "comment": f"Conditional: {', '.join(kw_classes['conditional'])}",
+            "patterns": [
+                {"name": "keyword.control.conditional.xell", "match": word_alt(kw_classes["conditional"])}
+            ]
+        }
+
+    # Loops: for, while, loop, in
     if kw_classes["loop"]:
         repo["loop-keywords"] = {
             "comment": f"Loop: {', '.join(kw_classes['loop'])}",
@@ -298,6 +449,35 @@ def build_tmlanguage(kw_classes, builtin_cats):
                 {"name": "keyword.control.loop.xell", "match": word_alt(kw_classes["loop"] + ["range"])}
             ]
         }
+
+    # Control flow jumps: break, continue
+    if kw_classes["control_flow"]:
+        repo["control-flow-keywords"] = {
+            "comment": f"Control flow: {', '.join(kw_classes['control_flow'])}",
+            "patterns": [
+                {"name": "keyword.control.flow.xell", "match": word_alt(kw_classes["control_flow"])}
+            ]
+        }
+
+    # Error handling: try, catch, finally
+    if kw_classes["error"]:
+        repo["error-keywords"] = {
+            "comment": f"Error handling: {', '.join(kw_classes['error'])}",
+            "patterns": [
+                {"name": "keyword.control.trycatch.xell", "match": word_alt(kw_classes["error"])}
+            ]
+        }
+
+    # Binding: let, be, immutable
+    if kw_classes["binding"]:
+        repo["binding-keywords"] = {
+            "comment": f"Binding: {', '.join(kw_classes['binding'])}",
+            "patterns": [
+                {"name": "keyword.other.binding.xell", "match": word_alt(kw_classes["binding"])}
+            ]
+        }
+
+    # Import: bring, from, as
     if kw_classes["import"]:
         repo["import-keywords"] = {
             "comment": f"Import: {', '.join(kw_classes['import'])}",
@@ -305,6 +485,62 @@ def build_tmlanguage(kw_classes, builtin_cats):
                 {"name": "keyword.control.import.xell", "match": word_alt(kw_classes["import"])}
             ]
         }
+
+    # Module: module, export, requires
+    if kw_classes["module"]:
+        repo["module-keywords"] = {
+            "comment": f"Module: {', '.join(kw_classes['module'])}",
+            "patterns": [
+                {"name": "keyword.control.module.xell", "match": word_alt(kw_classes["module"])}
+            ]
+        }
+
+    # OOP declarations: class, struct, interface, abstract, mixin, enum
+    if kw_classes["oop_decl"]:
+        repo["oop-declaration-keywords"] = {
+            "comment": f"OOP declaration: {', '.join(kw_classes['oop_decl'])}",
+            "patterns": [
+                {"name": "keyword.declaration.type.xell", "match": word_alt(kw_classes["oop_decl"])}
+            ]
+        }
+
+    # OOP modifiers: inherits, implements, with
+    if kw_classes["oop_modifier"]:
+        repo["oop-modifier-keywords"] = {
+            "comment": f"OOP modifier: {', '.join(kw_classes['oop_modifier'])}",
+            "patterns": [
+                {"name": "keyword.other.modifier.xell", "match": word_alt(kw_classes["oop_modifier"])}
+            ]
+        }
+
+    # Access modifiers: private, protected, public, static
+    if kw_classes.get("access"):
+        repo["access-keywords"] = {
+            "comment": f"Access: {', '.join(kw_classes['access'])}",
+            "patterns": [
+                {"name": "storage.modifier.xell", "match": word_alt(kw_classes["access"])}
+            ]
+        }
+
+    # Generator: yield
+    if kw_classes["generator"]:
+        repo["generator-keywords"] = {
+            "comment": f"Generator: {', '.join(kw_classes['generator'])}",
+            "patterns": [
+                {"name": "keyword.control.yield.xell", "match": word_alt(kw_classes["generator"])}
+            ]
+        }
+
+    # Async: async, await
+    if kw_classes["async"]:
+        repo["async-keywords"] = {
+            "comment": f"Async: {', '.join(kw_classes['async'])}",
+            "patterns": [
+                {"name": "keyword.control.async.xell", "match": word_alt(kw_classes["async"])}
+            ]
+        }
+
+    # Logical operators: and, or, not
     if kw_classes["logical"]:
         repo["logical-operators"] = {
             "comment": f"Logical: {', '.join(kw_classes['logical'])}",
@@ -312,11 +548,22 @@ def build_tmlanguage(kw_classes, builtin_cats):
                 {"name": "keyword.operator.logical.xell", "match": word_alt(kw_classes["logical"])}
             ]
         }
+
+    # Comparison word operators: is, eq, ne, gt, lt, ge, le
     if kw_classes["comparison"]:
         repo["comparison-word-operators"] = {
             "comment": f"Comparison words: {', '.join(kw_classes['comparison'])}",
             "patterns": [
                 {"name": "keyword.operator.comparison.word.xell", "match": word_alt(kw_classes["comparison"])}
+            ]
+        }
+
+    # Special: of
+    if kw_classes["special"]:
+        repo["special-keywords"] = {
+            "comment": f"Special: {', '.join(kw_classes['special'])}",
+            "patterns": [
+                {"name": "keyword.other.special.xell", "match": word_alt(kw_classes["special"])}
             ]
         }
 
@@ -458,12 +705,36 @@ DEFAULT_COLORS = {
     "support.function.builtin.os.xell": "#00ffff",
     "support.function.math.xell": "#00ffff",
     "support.type.conversion.xell": "#008080",
-    "keyword.control.flow.xell": "#e06c75",
+    # Conditional: if, elif, else, incase — warm red
+    "keyword.control.conditional.xell": "#e06c75",
+    # Loop: for, while, loop, in — slightly different red
     "keyword.control.loop.xell": "#e06c75",
-    "keyword.control.import.xell": "#e06c75",
+    # Control flow jumps: break, continue — bold red
+    "keyword.control.flow.xell": "#ef596f",
+    # Error handling: try, catch, finally — orange/amber
+    "keyword.control.trycatch.xell": "#d19a66",
+    # Import: bring, from, as — magenta/pink
+    "keyword.control.import.xell": "#c678dd",
+    # Module: module, export, requires — bright purple
+    "keyword.control.module.xell": "#b267e6",
+    # Return: give — yellow
     "keyword.control.return.xell": "#e5c07b",
+    # Generator: yield — yellow (same family as return)
+    "keyword.control.yield.xell": "#e5c07b",
+    # Async: async, await — sky blue
+    "keyword.control.async.xell": "#61afef",
+    # Function declaration: fn — yellow/gold
     "keyword.declaration.function.xell": "#e5c07b",
+    # OOP declaration: class, struct, interface, abstract, mixin, enum — teal
+    "keyword.declaration.type.xell": "#56b6c2",
+    # OOP modifier: inherits, implements, with — lighter teal
+    "keyword.other.modifier.xell": "#56b6c2",
+    # Binding: let, be, immutable — soft blue
+    "keyword.other.binding.xell": "#61afef",
+    # Special: of — muted gold
     "keyword.other.special.xell": "#e5c07b",
+    # Access modifiers: private, protected, public, static — storage orange
+    "storage.modifier.xell": "#d19a66",
     "keyword.operator.arithmetic.xell": "#c678dd",
     "keyword.operator.assignment.xell": "#c678dd",
     "keyword.operator.comparison.xell": "#c678dd",
@@ -488,9 +759,17 @@ DEFAULT_STYLES = {
     "comment.line.number-sign.xell": "italic",
     "keyword.control.flow.xell": "bold",
     "keyword.control.loop.xell": "bold",
+    "keyword.control.conditional.xell": "bold",
+    "keyword.control.trycatch.xell": "bold",
     "keyword.control.import.xell": "bold",
+    "keyword.control.module.xell": "bold",
     "keyword.control.return.xell": "bold",
+    "keyword.control.yield.xell": "bold",
+    "keyword.control.async.xell": "bold",
     "keyword.declaration.function.xell": "bold",
+    "keyword.declaration.type.xell": "bold",
+    "keyword.other.binding.xell": "bold",
+    "keyword.other.modifier.xell": "bold italic",
     "keyword.other.special.xell": "bold",
     "keyword.operator.access.xell": "bold",
     "punctuation.section.interpolation.begin.xell": "bold",
@@ -602,23 +881,68 @@ def build_token_data(kw_classes, builtin_cats):
     if builtin_tokens:
         groups.append({"title": "Built-in Functions", "tokens": builtin_tokens})
 
-    # --- Keywords ---
+    # --- Keywords (fine-grained categories) ---
     kw_tokens = []
-    if kw_classes["control"]:
-        kw_tokens.append(_tok("kw_control", "keyword.control.flow.xell",
-                              f"Control flow ({', '.join(kw_classes['control'])})",
-                              " ".join(kw_classes["control"])))
+    if kw_classes["fn_decl"]:
+        kw_tokens.append(_tok("kw_fn", "keyword.declaration.function.xell",
+                              f"Function declaration ({', '.join(kw_classes['fn_decl'])})",
+                              " ".join(kw_classes["fn_decl"])))
+    if kw_classes["return"]:
+        kw_tokens.append(_tok("kw_return", "keyword.control.return.xell",
+                              f"Return ({', '.join(kw_classes['return'])})",
+                              " ".join(kw_classes["return"])))
+    if kw_classes["conditional"]:
+        kw_tokens.append(_tok("kw_conditional", "keyword.control.conditional.xell",
+                              f"Conditional ({', '.join(kw_classes['conditional'])})",
+                              " ".join(kw_classes["conditional"])))
     if kw_classes["loop"]:
         kw_tokens.append(_tok("kw_loop", "keyword.control.loop.xell",
                               f"Loop ({', '.join(kw_classes['loop'])})",
-                              "in, range"))
+                              " ".join(kw_classes["loop"])))
+    if kw_classes["control_flow"]:
+        kw_tokens.append(_tok("kw_control_flow", "keyword.control.flow.xell",
+                              f"Control flow ({', '.join(kw_classes['control_flow'])})",
+                              " ".join(kw_classes["control_flow"])))
+    if kw_classes["error"]:
+        kw_tokens.append(_tok("kw_error", "keyword.control.trycatch.xell",
+                              f"Error handling ({', '.join(kw_classes['error'])})",
+                              " ".join(kw_classes["error"])))
+    if kw_classes["binding"]:
+        kw_tokens.append(_tok("kw_binding", "keyword.other.binding.xell",
+                              f"Binding ({', '.join(kw_classes['binding'])})",
+                              " ".join(kw_classes["binding"])))
     if kw_classes["import"]:
         kw_tokens.append(_tok("kw_import", "keyword.control.import.xell",
                               f"Import ({', '.join(kw_classes['import'])})",
                               " ".join(kw_classes["import"])))
-    kw_tokens.append(_tok("kw_return", "keyword.control.return.xell", "Return (give)", "give"))
-    kw_tokens.append(_tok("kw_fn", "keyword.declaration.function.xell", "Function declaration (fn)", "fn"))
-    kw_tokens.append(_tok("kw_special", "keyword.other.special.xell", "Special (of)", "of"))
+    if kw_classes["module"]:
+        kw_tokens.append(_tok("kw_module", "keyword.control.module.xell",
+                              f"Module ({', '.join(kw_classes['module'])})",
+                              " ".join(kw_classes["module"])))
+    if kw_classes["oop_decl"]:
+        kw_tokens.append(_tok("kw_oop_decl", "keyword.declaration.type.xell",
+                              f"OOP declaration ({', '.join(kw_classes['oop_decl'])})",
+                              " ".join(kw_classes["oop_decl"])))
+    if kw_classes["oop_modifier"]:
+        kw_tokens.append(_tok("kw_oop_modifier", "keyword.other.modifier.xell",
+                              f"OOP modifier ({', '.join(kw_classes['oop_modifier'])})",
+                              " ".join(kw_classes["oop_modifier"])))
+    if kw_classes.get("access"):
+        kw_tokens.append(_tok("kw_access", "storage.modifier.xell",
+                              f"Access ({', '.join(kw_classes['access'])})",
+                              " ".join(kw_classes["access"])))
+    if kw_classes["generator"]:
+        kw_tokens.append(_tok("kw_generator", "keyword.control.yield.xell",
+                              f"Generator ({', '.join(kw_classes['generator'])})",
+                              " ".join(kw_classes["generator"])))
+    if kw_classes["async"]:
+        kw_tokens.append(_tok("kw_async", "keyword.control.async.xell",
+                              f"Async ({', '.join(kw_classes['async'])})",
+                              " ".join(kw_classes["async"])))
+    if kw_classes["special"]:
+        kw_tokens.append(_tok("kw_special", "keyword.other.special.xell",
+                              f"Special ({', '.join(kw_classes['special'])})",
+                              " ".join(kw_classes["special"])))
     if kw_tokens:
         groups.append({"title": "Keywords", "tokens": kw_tokens})
 
@@ -879,6 +1203,274 @@ def build_snippets(kw_classes, builtin_cats, tier2_modules):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 4c. GENERATE language_data.json FOR SERVER (completions, hover, diagnostics)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Hover / signature info for builtins.
+# Key = function name.  Generated code will merge these into language_data.json.
+# If a builtin is NOT in this dict, it still gets a completion item — just no hover doc.
+HOVER_DOCS: dict[str, dict] = {
+    # I/O
+    "print":       {"sig": "print(value1, value2, ...)", "detail": "Print one or more values to stdout, separated by spaces.", "params": ["value1 — first value to print", "... — additional values"]},
+    "input":       {"sig": "input(prompt)", "detail": "Read a line of input from the user.", "params": ["prompt — prompt string"]},
+    # Type / Introspection
+    "len":         {"sig": "len(collection)", "detail": "Return the number of elements in a list, map, or string.", "params": ["collection — list, map, or string"]},
+    "type":        {"sig": "type(value)", "detail": "Return the type name of value as a string.", "params": ["value — any value"]},
+    "str":         {"sig": "str(value)", "detail": "Convert value to string.", "params": ["value — any value"]},
+    "num":         {"sig": "num(value)", "detail": "Convert string to number.", "params": ["value — numeric string or number"]},
+    "typeof":      {"sig": "typeof(value)", "detail": "Return the type name of value as a string.", "params": ["value — any value"]},
+    "to_int":      {"sig": "to_int(value)", "detail": "Convert value to integer.", "params": ["value — any value"]},
+    "to_float":    {"sig": "to_float(value)", "detail": "Convert value to float.", "params": ["value — any value"]},
+    "to_str":      {"sig": "to_str(value)", "detail": "Convert value to string.", "params": ["value — any value"]},
+    # Collections
+    "push":        {"sig": "push(list, item)", "detail": "Append item to end of list. Mutates the list.", "params": ["list — the list", "item — value to append"]},
+    "pop":         {"sig": "pop(list)", "detail": "Remove and return the last item from a list.", "params": ["list — the list"]},
+    "keys":        {"sig": "keys(map)", "detail": "Return all keys of a map as a list.", "params": ["map — a map"]},
+    "values":      {"sig": "values(map)", "detail": "Return all values of a map as a list.", "params": ["map — a map"]},
+    "range":       {"sig": "range(start, end [, step])", "detail": "Generate a list of numbers from start to end (exclusive).", "params": ["start — starting number", "end — ending number (exclusive)", "step — increment (default 1)"]},
+    "set":         {"sig": "set(collection, key, value)", "detail": "Set a value at a key/index in a map or list.", "params": ["collection — map or list", "key — key or index", "value — new value"]},
+    "has":         {"sig": "has(map, key)", "detail": "Check if a key exists in a map.", "params": ["map — a map", "key — key to check"]},
+    "assert":      {"sig": "assert(condition, message)", "detail": "Assert a condition is true. Throws error with message if false.", "params": ["condition — boolean expression", "message — error message on failure"]},
+    "sort":        {"sig": "sort(list)", "detail": "Sort a list in ascending order.", "params": ["list — the list"]},
+    "reverse":     {"sig": "reverse(list)", "detail": "Reverse a list in-place.", "params": ["list — the list"]},
+    "slice":       {"sig": "slice(list, start [, end])", "detail": "Get a sub-list from start to end index.", "params": ["list — the list", "start — start index", "end — end index (exclusive)"]},
+    "join":        {"sig": "join(list, delimiter)", "detail": "Join list elements into a string.", "params": ["list — list of strings", "delimiter — separator string"]},
+    "split":       {"sig": "split(text, delimiter)", "detail": "Split string into a list.", "params": ["text — the string", "delimiter — separator"]},
+    "map":         {"sig": "map(list, fn)", "detail": "Apply function to each element, return new list.", "params": ["list — the list", "fn — function to apply"]},
+    "filter":      {"sig": "filter(list, fn)", "detail": "Keep elements where fn returns true.", "params": ["list — the list", "fn — predicate function"]},
+    "reduce":      {"sig": "reduce(list, fn, initial)", "detail": "Reduce list to single value using accumulator.", "params": ["list — the list", "fn — (acc, item) function", "initial — initial accumulator value"]},
+    "contains":    {"sig": "contains(collection, item)", "detail": "Check if list or string contains item.", "params": ["collection — list or string", "item — value to search"]},
+    "index_of":    {"sig": "index_of(collection, item)", "detail": "Find index of first occurrence.", "params": ["collection — list or string", "item — value to find"]},
+    # OS / Filesystem
+    "mkdir":       {"sig": "mkdir(path)", "detail": "Create directory (and parents) recursively.", "params": ["path — directory path"]},
+    "rm":          {"sig": "rm(path)", "detail": "Remove a file or directory (recursive).", "params": ["path — path to remove"]},
+    "cp":          {"sig": "cp(source, dest)", "detail": "Copy a file or directory.", "params": ["source — source path", "dest — destination path"]},
+    "mv":          {"sig": "mv(source, dest)", "detail": "Move/rename a file or directory.", "params": ["source — current path", "dest — new path"]},
+    "exists":      {"sig": "exists(path)", "detail": "Check if a path exists.", "params": ["path — path to check"]},
+    "is_file":     {"sig": "is_file(path)", "detail": "Check if path is a regular file.", "params": ["path — path to check"]},
+    "is_dir":      {"sig": "is_dir(path)", "detail": "Check if path is a directory.", "params": ["path — path to check"]},
+    "ls":          {"sig": "ls(path)", "detail": "List directory contents as list of names.", "params": ["path — directory path"]},
+    "read":        {"sig": "read(path)", "detail": "Read entire file contents as string.", "params": ["path — file path"]},
+    "write":       {"sig": "write(path, data)", "detail": "Write string data to file (overwrites).", "params": ["path — file path", "data — string content"]},
+    "append":      {"sig": "append(path, data)", "detail": "Append string data to end of file.", "params": ["path — file path", "data — string content"]},
+    "file_size":   {"sig": "file_size(path)", "detail": "Get file size in bytes.", "params": ["path — file path"]},
+    "cwd":         {"sig": "cwd()", "detail": "Get current working directory as string."},
+    "cd":          {"sig": "cd(path)", "detail": "Change the current working directory.", "params": ["path — new directory"]},
+    "abspath":     {"sig": "abspath(path)", "detail": "Get absolute path from relative path.", "params": ["path — path"]},
+    "basename":    {"sig": "basename(path)", "detail": "Get the file name portion of a path.", "params": ["path — file path"]},
+    "dirname":     {"sig": "dirname(path)", "detail": "Get the directory portion of a path.", "params": ["path — file path"]},
+    "ext":         {"sig": "ext(path)", "detail": "Get the file extension (including the dot).", "params": ["path — file path"]},
+    "env_get":     {"sig": "env_get(name)", "detail": "Get environment variable value.", "params": ["name — variable name"]},
+    "env_set":     {"sig": "env_set(name, value)", "detail": "Set environment variable.", "params": ["name — variable name", "value — string value"]},
+    "env_unset":   {"sig": "env_unset(name)", "detail": "Unset an environment variable.", "params": ["name — variable name"]},
+    "env_has":     {"sig": "env_has(name)", "detail": "Check if environment variable exists.", "params": ["name — variable name"]},
+    "run":         {"sig": "run(command)", "detail": "Run an external command. Returns exit code.", "params": ["command — shell command string"]},
+    "run_capture": {"sig": "run_capture(command)", "detail": "Run command and capture output. Returns map with exit_code, stdout, stderr.", "params": ["command — shell command string"]},
+    "pid":         {"sig": "pid()", "detail": "Get the current process ID."},
+    "sleep":       {"sig": "sleep(seconds)", "detail": "Pause execution for given seconds.", "params": ["seconds — duration"]},
+    # Math
+    "floor":       {"sig": "floor(x)", "detail": "Largest integer ≤ x.", "params": ["x — any number"]},
+    "ceil":        {"sig": "ceil(x)", "detail": "Smallest integer ≥ x.", "params": ["x — any number"]},
+    "round":       {"sig": "round(x [, decimals])", "detail": "Round x to nearest integer or to given decimal places.", "params": ["x — any number", "decimals — decimal places (optional)"]},
+    "abs":         {"sig": "abs(x)", "detail": "Absolute value of x.", "params": ["x — any number"]},
+    "mod":         {"sig": "mod(a, b)", "detail": "Modulo: remainder of a / b.", "params": ["a — dividend", "b — divisor"]},
+    "sqrt":        {"sig": "sqrt(x)", "detail": "Square root of x.", "params": ["x — non-negative number"]},
+    "pow":         {"sig": "pow(base, exp)", "detail": "Raise base to the power of exp.", "params": ["base — base number", "exp — exponent"]},
+    "sin":         {"sig": "sin(x)", "detail": "Sine of x (radians).", "params": ["x — angle in radians"]},
+    "cos":         {"sig": "cos(x)", "detail": "Cosine of x (radians).", "params": ["x — angle in radians"]},
+    "tan":         {"sig": "tan(x)", "detail": "Tangent of x (radians).", "params": ["x — angle in radians"]},
+    "log":         {"sig": "log(x)", "detail": "Natural logarithm of x.", "params": ["x — positive number"]},
+    "log10":       {"sig": "log10(x)", "detail": "Base-10 logarithm of x.", "params": ["x — positive number"]},
+    "max":         {"sig": "max(a, b)", "detail": "Return the larger of two values.", "params": ["a — first value", "b — second value"]},
+    "min":         {"sig": "min(a, b)", "detail": "Return the smaller of two values.", "params": ["a — first value", "b — second value"]},
+    "random":      {"sig": "random()", "detail": "Generate a random float between 0 and 1."},
+    "random_int":  {"sig": "random_int(min, max)", "detail": "Generate a random integer in [min, max].", "params": ["min — minimum", "max — maximum"]},
+    # String
+    "upper":       {"sig": "upper(text)", "detail": "Convert string to uppercase.", "params": ["text — a string"]},
+    "lower":       {"sig": "lower(text)", "detail": "Convert string to lowercase.", "params": ["text — a string"]},
+    "trim":        {"sig": "trim(text)", "detail": "Remove leading/trailing whitespace.", "params": ["text — a string"]},
+    "starts_with": {"sig": "starts_with(text, prefix)", "detail": "Check if string starts with prefix.", "params": ["text — a string", "prefix — prefix to check"]},
+    "ends_with":   {"sig": "ends_with(text, suffix)", "detail": "Check if string ends with suffix.", "params": ["text — a string", "suffix — suffix to check"]},
+    "replace":     {"sig": "replace(text, old, new)", "detail": "Replace all occurrences.", "params": ["text — a string", "old — search string", "new — replacement"]},
+    "substr":      {"sig": "substr(text, start [, length])", "detail": "Get a substring.", "params": ["text — a string", "start — start index", "length — characters to extract"]},
+    "char_at":     {"sig": "char_at(text, index)", "detail": "Get character at index.", "params": ["text — a string", "index — position"]},
+}
+
+# Keyword hover docs
+KEYWORD_HOVER_DOCS: dict[str, dict] = {
+    "fn":       {"sig": "fn name(params):", "detail": "Define a function. Body follows on indented lines, ends with ;"},
+    "give":     {"sig": "give expression", "detail": "Give back a value from a function."},
+    "if":       {"sig": "if condition:", "detail": "Conditional branch. Body indented, elif/else optional."},
+    "elif":     {"sig": "elif condition:", "detail": "Else-if branch after an if statement."},
+    "else":     {"sig": "else:", "detail": "Else branch — runs when no if/elif matched."},
+    "for":      {"sig": "for item in collection:", "detail": "For loop over a list or range. Body indented, ends with ;"},
+    "while":    {"sig": "while condition:", "detail": "While loop. Body indented, ends with ;"},
+    "in":       {"sig": "for x in items:", "detail": "Iterator keyword — iterates over collection elements."},
+    "bring":    {"sig": "bring name of module", "detail": "Import names from a module or file."},
+    "from":     {"sig": 'from "dir" bring ...', "detail": "Specify search directory for file-based imports."},
+    "as":       {"sig": "bring X as alias", "detail": "Alias an imported name."},
+    "module":   {"sig": "module name:", "detail": "Define a module with exported members."},
+    "export":   {"sig": "export fn/class/var", "detail": "Mark a declaration as exported from a module."},
+    "requires": {"sig": "requires module_name", "detail": "Declare a module dependency."},
+    "class":    {"sig": "class Name:", "detail": "Define a class with methods and fields."},
+    "struct":   {"sig": "struct Name:", "detail": "Define a struct (value type with fields)."},
+    "enum":     {"sig": "enum Name:", "detail": "Define an enumeration."},
+    "inherits": {"sig": "class Child inherits Parent:", "detail": "Inherit from a parent class."},
+    "interface":{"sig": "interface Name:", "detail": "Define an interface with required methods."},
+    "implements":{"sig": "class X implements IFace:", "detail": "Implement an interface."},
+    "abstract": {"sig": "abstract class Name:", "detail": "Define an abstract class."},
+    "mixin":    {"sig": "mixin Name:", "detail": "Define a mixin for shared behavior."},
+    "with":     {"sig": "class X with MixinA:", "detail": "Include a mixin into a class."},
+    "try":      {"sig": "try:", "detail": "Begin a try-catch block for error handling."},
+    "catch":    {"sig": "catch e:", "detail": "Handle an error caught from the try block."},
+    "finally":  {"sig": "finally:", "detail": "Code that always runs after try/catch."},
+    "break":    {"sig": "break", "detail": "Exit the current loop."},
+    "continue": {"sig": "continue", "detail": "Skip to the next iteration of the loop."},
+    "incase":   {"sig": "incase value:", "detail": "Switch/match statement."},
+    "let":      {"sig": "let name = value", "detail": "Declare an immutable binding."},
+    "be":       {"sig": "let x be value", "detail": "Alternative immutable binding syntax."},
+    "loop":     {"sig": "loop:", "detail": "Infinite loop. Break to exit."},
+    "yield":    {"sig": "yield value", "detail": "Yield a value from a generator function."},
+    "async":    {"sig": "async fn name():", "detail": "Declare an async function."},
+    "await":    {"sig": "await expression", "detail": "Wait for an async operation to complete."},
+    "immutable":{"sig": "immutable name = value", "detail": "Declare an immutable variable."},
+    "private":  {"sig": "private fn/field", "detail": "Restrict access to class internals only."},
+    "protected":{"sig": "protected fn/field", "detail": "Restrict access to class and subclasses."},
+    "public":   {"sig": "public fn/field", "detail": "Allow access from anywhere."},
+    "static":   {"sig": "static fn/field", "detail": "Declare a class-level (not instance) member."},
+    "true":     {"sig": "true", "detail": "Boolean constant: true."},
+    "false":    {"sig": "false", "detail": "Boolean constant: false."},
+    "none":     {"sig": "none", "detail": "The absence of a value."},
+    "and":      {"sig": "a and b", "detail": "Logical AND operator."},
+    "or":       {"sig": "a or b", "detail": "Logical OR operator."},
+    "not":      {"sig": "not a", "detail": "Logical negation operator."},
+    "is":       {"sig": "a is b", "detail": "Equality check (alias for ==)."},
+    "eq":       {"sig": "a eq b", "detail": "Equal (alias for ==)."},
+    "ne":       {"sig": "a ne b", "detail": "Not equal (alias for !=)."},
+    "gt":       {"sig": "a gt b", "detail": "Greater than (alias for >)."},
+    "lt":       {"sig": "a lt b", "detail": "Less than (alias for <)."},
+    "ge":       {"sig": "a ge b", "detail": "Greater or equal (alias for >=)."},
+    "le":       {"sig": "a le b", "detail": "Less or equal (alias for <=)."},
+    "of":       {"sig": "bring X of module", "detail": "Specify the module source for an import."},
+}
+
+# Descriptions for keyword completion items
+KEYWORD_COMPLETION_DESC: dict[str, str] = {
+    "fn": "Define a function", "give": "Give back a value from function",
+    "if": "Conditional statement", "elif": "Else-if branch", "else": "Else branch",
+    "for": "For loop", "while": "While loop", "in": "Iterator keyword",
+    "break": "Break out of loop", "continue": "Skip to next iteration",
+    "try": "Try-catch block", "catch": "Catch an error", "finally": "Finally block",
+    "incase": "Switch/match statement", "let": "Immutable binding", "be": "Let-be binding",
+    "loop": "Infinite loop",
+    "bring": "Import from module or file", "from": "Import source directory",
+    "as": "Import alias", "module": "Define a module", "export": "Export from module",
+    "requires": "Module dependency",
+    "enum": "Define an enumeration",
+    "struct": "Define a struct", "class": "Define a class",
+    "inherits": "Class inheritance", "immutable": "Immutable variable",
+    "private": "Private access", "protected": "Protected access",
+    "public": "Public access", "static": "Static member",
+    "interface": "Define an interface", "implements": "Implement interface",
+    "abstract": "Abstract class", "mixin": "Define a mixin", "with": "Include mixin",
+    "yield": "Yield from generator", "async": "Async function", "await": "Await async",
+    "true": "Boolean true", "false": "Boolean false", "none": "None value",
+    "and": "Logical AND", "or": "Logical OR", "not": "Logical NOT",
+    "is": "Equality check", "eq": "Equal", "ne": "Not equal",
+    "gt": "Greater than", "lt": "Less than", "ge": "Greater or equal", "le": "Less or equal",
+    "of": "Module source",
+}
+
+
+def build_language_data(kw_classes, builtin_cats, keywords):
+    """Build the language_data.json consumed by the TypeScript language server."""
+    data = OrderedDict()
+
+    # All keywords with classification and completion kind
+    kw_items = []
+    constant_kws = set(kw_classes.get("constants", []))
+    for kw in sorted(keywords):
+        kind = "Constant" if kw in constant_kws else "Keyword"
+        desc = KEYWORD_COMPLETION_DESC.get(kw, f"{kw} keyword")
+        hover = KEYWORD_HOVER_DOCS.get(kw)
+        item: dict = {"name": kw, "kind": kind, "detail": desc}
+        if hover:
+            item["hover"] = hover
+        kw_items.append(item)
+    data["keywords"] = kw_items
+
+    # All builtins with category and completion kind
+    builtin_items = []
+    for cat in sorted(builtin_cats.keys()):
+        for name in sorted(builtin_cats[cat]):
+            item: dict = {"name": name, "category": cat, "kind": "Function"}
+            hover = HOVER_DOCS.get(name)
+            if hover:
+                item["hover"] = hover
+            builtin_items.append(item)
+    data["builtins"] = builtin_items
+
+    # Block-opening keywords for indent rules (keywords that precede a colon to open a block)
+    BLOCK_KEYWORDS = {
+        "fn", "if", "elif", "else", "for", "while", "loop", "try", "catch", "finally",
+        "incase", "class", "struct", "enum", "interface", "abstract", "mixin", "module",
+    }
+    data["blockKeywords"] = sorted(BLOCK_KEYWORDS & set(keywords))
+
+    # All keyword names as a set (for diagnostics keyword filtering)
+    data["allKeywordNames"] = sorted(keywords)
+
+    return data
+
+
+def build_language_config(block_keywords):
+    """Build the language-configuration.json with dynamic block keywords."""
+    # Build the indent pattern from block keywords
+    kw_alt = "|".join(sorted(block_keywords, key=lambda w: (-len(w), w)))
+
+    config = OrderedDict()
+    config["comments"] = {
+        "lineComment": "#",
+        "blockComment": ["-->", "<--"]
+    }
+    config["brackets"] = [["(", ")"], ["{", "}"], ["[", "]"]]
+    config["autoClosingPairs"] = [
+        {"open": "(", "close": ")"},
+        {"open": "{", "close": "}"},
+        {"open": "[", "close": "]"},
+        {"open": "\"", "close": "\"", "notIn": ["string"]}
+    ]
+    config["surroundingPairs"] = [
+        {"open": "(", "close": ")"},
+        {"open": "{", "close": "}"},
+        {"open": "[", "close": "]"},
+        {"open": "\"", "close": "\""}
+    ]
+    config["folding"] = {
+        "markers": {
+            "start": "^\\s*.*:\\s*$",
+            "end": "^\\s*;\\s*$"
+        }
+    }
+    config["indentationRules"] = {
+        "increaseIndentPattern": f"^\\s*({kw_alt})\\b.*:\\s*(#.*)?$",
+        "decreaseIndentPattern": "^\\s*(;|elif\\b|else\\b).*"
+    }
+    config["onEnterRules"] = [
+        {
+            "beforeText": f"^\\s*({kw_alt})\\b.*:\\s*(#.*)?$",
+            "action": {"indent": "indent"}
+        },
+        {
+            "beforeText": "^\\s*;\\s*$",
+            "action": {"indent": "outdent"}
+        }
+    ]
+    config["wordPattern"] = "[a-zA-Z_][a-zA-Z0-9_]*"
+    return config
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 5. AUTO-INSTALL EXTENSION
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -962,7 +1554,7 @@ def main():
 
     token_src = read_file(TOKEN_HPP)
     keywords = extract_keywords_dynamic(token_src)
-    kw_classes = classify_keywords(keywords)
+    kw_classes = classify_keywords(token_src)
     builtin_cats = extract_all_builtins()
     tier2_modules = extract_tier2_modules()
 
@@ -986,12 +1578,20 @@ def main():
     snippets = build_snippets(kw_classes, builtin_cats, tier2_modules)
     snippets_json = json.dumps(snippets, indent=2) + "\n"
 
+    lang_data = build_language_data(kw_classes, builtin_cats, keywords)
+    lang_data_json = json.dumps(lang_data, indent=2) + "\n"
+
+    lang_config = build_language_config(lang_data["blockKeywords"])
+    lang_config_json = json.dumps(lang_config, indent=2) + "\n"
+
     if check_mode:
         ok = True
         for path, new_content, name in [
             (TMLANG_OUT, grammar_json, "tmLanguage"),
             (TOKEN_DATA_OUT, token_json, "token_data"),
             (SNIPPETS_OUT, snippets_json, "snippets"),
+            (LANG_DATA_OUT, lang_data_json, "language_data"),
+            (LANG_CONFIG_OUT, lang_config_json, "language-configuration"),
         ]:
             if path.exists():
                 existing = read_file(path)
@@ -1020,7 +1620,18 @@ def main():
             f.write(snippets_json)
         print(f"[gen_grammar] ✓ Wrote {SNIPPETS_OUT}")
 
-        print(f"\n[gen_grammar] Done! Generated grammar with {len(keywords)} keywords, {len(all_builtins)} builtins, and {len(snippets)} snippets.")
+        LANG_DATA_OUT.parent.mkdir(parents=True, exist_ok=True)
+        with open(LANG_DATA_OUT, "w") as f:
+            f.write(lang_data_json)
+        print(f"[gen_grammar] ✓ Wrote {LANG_DATA_OUT}")
+
+        with open(LANG_CONFIG_OUT, "w") as f:
+            f.write(lang_config_json)
+        print(f"[gen_grammar] ✓ Wrote {LANG_CONFIG_OUT}")
+
+        print(f"\n[gen_grammar] Done! Generated grammar with {len(keywords)} keywords, "
+              f"{len(all_builtins)} builtins, {len(snippets)} snippets, "
+              f"{len(lang_data['builtins'])} completion entries.")
 
         if install_mode:
             if not install_extension():

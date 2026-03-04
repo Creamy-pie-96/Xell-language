@@ -1,0 +1,19 @@
+# string_utils.xel — string utility module
+
+module string_utils:
+    export fn greet(name):
+        give "Hello, " + name + "!"
+    ;
+    export fn farewell(name):
+        give "Goodbye, " + name + "!"
+    ;
+    export fn shout(msg):
+        give upper(msg)
+    ;
+    export VERSION = "1.0.0"
+
+    # Private — should NOT be accessible from outside
+    fn internal_helper():
+        give "secret"
+    ;
+;

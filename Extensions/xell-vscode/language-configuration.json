@@ -1,24 +1,63 @@
 {
   "comments": {
     "lineComment": "#",
-    "blockComment": ["-->", "<--"]
+    "blockComment": [
+      "-->",
+      "<--"
+    ]
   },
   "brackets": [
-    ["(", ")"],
-    ["{", "}"],
-    ["[", "]"]
+    [
+      "(",
+      ")"
+    ],
+    [
+      "{",
+      "}"
+    ],
+    [
+      "[",
+      "]"
+    ]
   ],
   "autoClosingPairs": [
-    { "open": "(", "close": ")" },
-    { "open": "{", "close": "}" },
-    { "open": "[", "close": "]" },
-    { "open": "\"", "close": "\"", "notIn": ["string"] }
+    {
+      "open": "(",
+      "close": ")"
+    },
+    {
+      "open": "{",
+      "close": "}"
+    },
+    {
+      "open": "[",
+      "close": "]"
+    },
+    {
+      "open": "\"",
+      "close": "\"",
+      "notIn": [
+        "string"
+      ]
+    }
   ],
   "surroundingPairs": [
-    { "open": "(", "close": ")" },
-    { "open": "{", "close": "}" },
-    { "open": "[", "close": "]" },
-    { "open": "\"", "close": "\"" }
+    {
+      "open": "(",
+      "close": ")"
+    },
+    {
+      "open": "{",
+      "close": "}"
+    },
+    {
+      "open": "[",
+      "close": "]"
+    },
+    {
+      "open": "\"",
+      "close": "\""
+    }
   ],
   "folding": {
     "markers": {
@@ -27,12 +66,12 @@
     }
   },
   "indentationRules": {
-    "increaseIndentPattern": "^\\s*(fn|if|elif|else|for|while)\\b.*:\\s*(#.*)?$",
+    "increaseIndentPattern": "^\\s*(interface|abstract|finally|incase|module|struct|catch|class|mixin|while|elif|else|enum|loop|for|try|fn|if)\\b.*:\\s*(#.*)?$",
     "decreaseIndentPattern": "^\\s*(;|elif\\b|else\\b).*"
   },
   "onEnterRules": [
     {
-      "beforeText": "^\\s*(fn|if|elif|else|for|while)\\b.*:\\s*(#.*)?$",
+      "beforeText": "^\\s*(interface|abstract|finally|incase|module|struct|catch|class|mixin|while|elif|else|enum|loop|for|try|fn|if)\\b.*:\\s*(#.*)?$",
       "action": {
         "indent": "indent"
       }

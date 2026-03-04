@@ -51,6 +51,14 @@
 #include "../xobject/ordered_hash_table.hpp"
 #include "../common/access_level.hpp"
 
+// Module object type
+// Forward declaration — XModule is defined in module/xmodule.hpp
+// (included in xobject.cpp where the full type is needed)
+namespace xell
+{
+    struct XModule;
+}
+
 namespace xell
 {
 
@@ -120,6 +128,7 @@ namespace xell
         GENERATOR,  // lazy generator (thread-based coroutine)
         STRUCT_DEF, // struct type definition (XStructDef)
         INSTANCE,   // struct/class instance (XInstance)
+        MODULE,     // module object (XModule)
     };
 
     /// Human-readable type name for error messages
@@ -341,6 +350,9 @@ namespace xell
         /// struct/class instance
         static XObject makeInstance(XInstance &&inst);
 
+        /// module object
+        static XObject makeModule(std::shared_ptr<XModule> mod);
+
         // ---- Default constructor → none ----
 
         XObject();
@@ -375,6 +387,7 @@ namespace xell
         bool isGenerator() const;
         bool isStructDef() const;
         bool isInstance() const;
+        bool isModule() const;
 
         // ---- Payload access (unchecked — caller must verify type first) ----
 
@@ -403,6 +416,9 @@ namespace xell
         std::shared_ptr<XStructDef> asStructDefShared() const;
         const XInstance &asInstance() const;
         XInstance &asInstanceMut();
+        const XModule &asModule() const;
+        XModule &asModuleMut();
+        std::shared_ptr<XModule> asModuleShared() const;
 
         // ---- Truthiness (for if/while conditions) ----
         //   none → false, bool → its value, number → false if 0.0

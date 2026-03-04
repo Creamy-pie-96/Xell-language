@@ -1,0 +1,297 @@
+# test_module_system.xel — Comprehensive test for the module system
+#
+# Run: xell test/scripts/module_test/test_module_system.xel
+# Expected: All assertions pass, prints test results
+#
+# Tests:
+#   1. Module definition & member access
+#   2. Export & privacy
+#   3. bring X of module
+#   4. bring * of module
+#   5. bring with alias
+#   6. Partial alias (fewer aliases than imports)
+#   7. Nested module access (->)
+#   8. Module variable exports
+#   9. Module as first-class value
+#  10. Dunder variables (__name__, __exports__, etc.)
+
+passed = 0
+failed = 0
+
+fn check(label, actual, expected):
+    if actual eq expected:
+        print("  ✓ " + label)
+        passed = passed + 1
+    ;
+    else:
+        print("  ✗ " + label + " — got: " + str(actual) + ", expected: " + str(expected))
+        failed = failed + 1
+    ;
+;
+
+# ═══════════════════════════════════════════
+# Test 1: Basic module definition & access
+# ═══════════════════════════════════════════
+print("\n── Test 1: Basic Module Definition ──")
+
+module greetings:
+    export fn hello(name):
+        give "Hello, " + name + "!"
+    ;
+    export fn bye(name):
+        give "Bye, " + name + "!"
+    ;
+    fn secret():
+        give "hidden"
+    ;
+;
+
+check("module->hello()", greetings->hello("World"), "Hello, World!")
+check("module->bye()", greetings->bye("World"), "Bye, World!")
+
+# ═══════════════════════════════════════════
+# Test 2: bring X of module
+# ═══════════════════════════════════════════
+print("\n── Test 2: bring X of module ──")
+
+module math_mod:
+    export fn square(x):
+        give x * x
+    ;
+    export fn cube(x):
+        give x * x * x
+    ;
+    export fn double(x):
+        give x * 2
+    ;
+;
+
+bring square, cube of math_mod
+check("bring square of math_mod", square(5), 25)
+check("bring cube of math_mod", cube(3), 27)
+
+# ═══════════════════════════════════════════
+# Test 3: bring * of module (wildcard)
+# ═══════════════════════════════════════════
+print("\n── Test 3: bring * of module ──")
+
+module utils:
+    export fn triple(x):
+        give x * 3
+    ;
+    export fn negate(x):
+        give 0 - x
+    ;
+;
+
+bring * of utils
+check("bring * — triple(10)", triple(10), 30)
+check("bring * — negate(7)", negate(7), -7)
+
+# ═══════════════════════════════════════════
+# Test 4: bring with alias
+# ═══════════════════════════════════════════
+print("\n── Test 4: bring with alias ──")
+
+module ops:
+    export fn add(a, b):
+        give a + b
+    ;
+    export fn mul(a, b):
+        give a * b
+    ;
+;
+
+bring add of ops as plus
+bring mul of ops as times
+check("bring add as plus", plus(3, 4), 7)
+check("bring mul as times", times(3, 4), 12)
+
+# ═══════════════════════════════════════════
+# Test 5: Partial alias (fewer aliases than imports)
+# ═══════════════════════════════════════════
+print("\n── Test 5: Partial Alias ──")
+
+module data:
+    export fn first():
+        give "FIRST"
+    ;
+    export fn second():
+        give "SECOND"
+    ;
+    export fn third():
+        give "THIRD"
+    ;
+;
+
+# Only alias the first, rest keep their name
+bring first, second, third of data as uno
+check("partial alias — aliased", uno(), "FIRST")
+check("partial alias — unaliased second", second(), "SECOND")
+check("partial alias — unaliased third", third(), "THIRD")
+
+# ═══════════════════════════════════════════
+# Test 6: Nested modules
+# ═══════════════════════════════════════════
+print("\n── Test 6: Nested Modules ──")
+
+module lib:
+    module math_lib:
+        export fn add(a, b):
+            give a + b
+        ;
+        module advanced:
+            export fn factorial(n):
+                if n le 1:
+                    give 1
+                ;
+                give n * factorial(n - 1)
+            ;
+        ;
+    ;
+    module str_lib:
+        export fn greet(name):
+            give "Hi " + name
+        ;
+    ;
+;
+
+check("nested: lib->math_lib->add()", lib->math_lib->add(2, 3), 5)
+check("nested: lib->str_lib->greet()", lib->str_lib->greet("Xell"), "Hi Xell")
+
+# Test bring from nested path
+bring add of lib->math_lib
+check("bring from nested path", add(10, 20), 30)
+
+# ═══════════════════════════════════════════
+# Test 7: Same-named submodule in different parents
+# ═══════════════════════════════════════════
+print("\n── Test 7: Same-Named Submodules ──")
+
+module parent_a:
+    module helper:
+        export fn tag():
+            give "from_a"
+        ;
+    ;
+;
+
+module parent_b:
+    module helper:
+        export fn tag():
+            give "from_b"
+        ;
+    ;
+;
+
+check("same-name sub: parent_a->helper->tag()", parent_a->helper->tag(), "from_a")
+check("same-name sub: parent_b->helper->tag()", parent_b->helper->tag(), "from_b")
+
+# ═══════════════════════════════════════════
+# Test 8: Module variable exports
+# ═══════════════════════════════════════════
+print("\n── Test 8: Variable Exports ──")
+
+module cfg:
+    export MAX = 100
+    export NAME = "TestConfig"
+    export fn get_max():
+        give MAX
+    ;
+;
+
+check("variable export: cfg->MAX", cfg->MAX, 100)
+check("variable export: cfg->NAME", cfg->NAME, "TestConfig")
+check("function uses exported var", cfg->get_max(), 100)
+
+# bring variable
+bring MAX of cfg as limit
+check("bring variable with alias", limit, 100)
+
+# ═══════════════════════════════════════════
+# Test 9: Module as first-class value
+# ═══════════════════════════════════════════
+print("\n── Test 9: Module as First-Class Value ──")
+
+module simple:
+    export fn val():
+        give 42
+    ;
+;
+
+m = simple
+check("module assigned to variable", m->val(), 42)
+
+fn call_mod_fn(mod):
+    give mod->val()
+;
+check("module passed to function", call_mod_fn(simple), 42)
+
+# ═══════════════════════════════════════════
+# Test 10: Dunder variables
+# ═══════════════════════════════════════════
+print("\n── Test 10: Dunder Variables ──")
+
+check("__name__ of module", greetings->__name__, "greetings")
+check("__name__ of nested", lib->math_lib->__name__, "lib->math_lib")
+check("type() of module", type(greetings), "module")
+
+# ═══════════════════════════════════════════
+# Test 11: and-chaining
+# ═══════════════════════════════════════════
+print("\n── Test 11: and-chaining ──")
+
+module mod_a:
+    export fn a_fn():
+        give "A"
+    ;
+;
+module mod_b:
+    export fn b_fn():
+        give "B"
+    ;
+;
+
+bring a_fn of mod_a and b_fn of mod_b
+check("and-chain: a_fn()", a_fn(), "A")
+check("and-chain: b_fn()", b_fn(), "B")
+
+# ═══════════════════════════════════════════
+# Test 12: Bring Tier 1 builtin
+# ═══════════════════════════════════════════
+print("\n── Test 12: Bring Tier 1 Builtins ──")
+
+bring floor of math
+check("bring floor of math (builtin)", floor(3.7), 3)
+
+bring ceil, abs of math
+check("bring ceil (builtin)", ceil(2.1), 3)
+check("bring abs (builtin)", abs(-5), 5)
+
+# ═══════════════════════════════════════════
+# Test 13: User module shadows builtin
+# ═══════════════════════════════════════════
+print("\n── Test 13: User Module Shadows Builtin ──")
+
+module math:
+    export fn custom_add(a, b):
+        give a + b
+    ;
+;
+
+# User-defined 'math' should shadow the builtin 'math'
+bring custom_add of math
+check("user module shadows builtin", custom_add(10, 20), 30)
+
+# ═══════════════════════════════════════════
+# Summary
+# ═══════════════════════════════════════════
+print("\n═══════════════════════════════════════════")
+print("  Results: " + str(passed) + "/" + str(passed + failed) + " passed")
+if failed gt 0:
+    print("  FAILED: " + str(failed) + " test(s)")
+;
+else:
+    print("  ALL TESTS PASSED!")
+;
+print("═══════════════════════════════════════════")

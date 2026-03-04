@@ -421,7 +421,7 @@ const PREVIEW_CODE = [
     ]},
     { parts: [
         { text: "    ", type: null },
-        { text: "if", type: "kw_control" }, { text: " ", type: null },
+        { text: "if", type: "kw_conditional" }, { text: " ", type: null },
         { text: "n", type: "var_other" }, { text: " ", type: null },
         { text: "<=", type: "op_comparison" }, { text: " ", type: null },
         { text: "1", type: "numeric_int" }, { text: ":", type: "sep_colon" },
@@ -542,7 +542,7 @@ const PREVIEW_CODE = [
     ]},
     { text: "", type: null },
     { parts: [
-        { text: "for", type: "kw_control" }, { text: " ", type: null },
+        { text: "for", type: "kw_loop" }, { text: " ", type: null },
         { text: "i", type: "var_loop" }, { text: " ", type: null },
         { text: "in", type: "kw_loop" }, { text: " ", type: null },
         { text: "range", type: "builtin_core" }, { text: "(", type: "bracket_round" },
@@ -608,7 +608,7 @@ const PREVIEW_CODE = [
         { text: "none", type: "language_none" },
     ]},
     { parts: [
-        { text: "if", type: "kw_control" }, { text: " ", type: null },
+        { text: "if", type: "kw_conditional" }, { text: " ", type: null },
         { text: "val", type: "var_other" }, { text: " ", type: null },
         { text: "is", type: "op_comparison_word" }, { text: " ", type: null },
         { text: "none", type: "language_none" }, { text: ":", type: "sep_colon" },
@@ -624,6 +624,142 @@ const PREVIEW_CODE = [
     ]},
     { parts: [
         { text: ";", type: "term_block" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "class", type: "kw_oop_decl" }, { text: " ", type: null },
+        { text: "Animal", type: "fn_def" }, { text: ":", type: "sep_colon" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "public", type: "kw_access" }, { text: " ", type: null },
+        { text: "fn", type: "kw_fn" }, { text: " ", type: null },
+        { text: "speak", type: "fn_def" }, { text: "(", type: "bracket_round" },
+        { text: "self", type: "var_param" },
+        { text: ")", type: "bracket_round" }, { text: ":", type: "sep_colon" },
+    ]},
+    { parts: [
+        { text: "        ", type: null },
+        { text: "give", type: "kw_return" }, { text: " ", type: null },
+        { text: "\"hello\"", type: "string_double" },
+    ]},
+    { parts: [
+        { text: "    ;", type: "term_block" },
+    ]},
+    { parts: [
+        { text: ";", type: "term_block" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "try", type: "kw_error" }, { text: ":", type: "sep_colon" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "let", type: "kw_binding" }, { text: " ", type: null },
+        { text: "x", type: "var_other" }, { text: " ", type: null },
+        { text: "=", type: "op_assignment" }, { text: " ", type: null },
+        { text: "42", type: "numeric_int" },
+    ]},
+    { parts: [
+        { text: "catch", type: "kw_error" }, { text: " ", type: null },
+        { text: "e", type: "var_param" }, { text: ":", type: "sep_colon" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "print", type: "builtin_core" }, { text: "(", type: "bracket_round" },
+        { text: "e", type: "var_other" },
+        { text: ")", type: "bracket_round" },
+    ]},
+    { parts: [
+        { text: ";", type: "term_block" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "module", type: "kw_module" }, { text: " ", type: null },
+        { text: "utils", type: "fn_def" }, { text: ":", type: "sep_colon" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "export", type: "kw_module" }, { text: " ", type: null },
+        { text: "fn", type: "kw_fn" }, { text: " ", type: null },
+        { text: "add", type: "fn_def" }, { text: "(", type: "bracket_round" },
+        { text: "a", type: "var_param" }, { text: ",", type: "sep_comma" },
+        { text: " ", type: null },
+        { text: "b", type: "var_param" },
+        { text: ")", type: "bracket_round" }, { text: ":", type: "sep_colon" },
+    ]},
+    { parts: [
+        { text: "        ", type: null },
+        { text: "give", type: "kw_return" }, { text: " ", type: null },
+        { text: "a", type: "var_other" }, { text: " ", type: null },
+        { text: "+", type: "op_arithmetic" }, { text: " ", type: null },
+        { text: "b", type: "var_other" },
+    ]},
+    { parts: [
+        { text: "    ;", type: "term_block" },
+    ]},
+    { parts: [
+        { text: ";", type: "term_block" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "async", type: "kw_async" }, { text: " ", type: null },
+        { text: "fn", type: "kw_fn" }, { text: " ", type: null },
+        { text: "fetch_data", type: "fn_def" }, { text: "(", type: "bracket_round" },
+        { text: ")", type: "bracket_round" }, { text: ":", type: "sep_colon" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "data", type: "var_other" }, { text: " ", type: null },
+        { text: "=", type: "op_assignment" }, { text: " ", type: null },
+        { text: "await", type: "kw_async" }, { text: " ", type: null },
+        { text: "http_get", type: "builtin_core" }, { text: "(", type: "bracket_round" },
+        { text: "\"https://api.example.com\"", type: "string_double" },
+        { text: ")", type: "bracket_round" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "yield", type: "kw_generator" }, { text: " ", type: null },
+        { text: "data", type: "var_other" },
+    ]},
+    { parts: [
+        { text: ";", type: "term_block" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "while", type: "kw_loop" }, { text: " ", type: null },
+        { text: "true", type: "boolean_true" }, { text: ":", type: "sep_colon" },
+    ]},
+    { parts: [
+        { text: "    ", type: null },
+        { text: "break", type: "kw_control_flow" },
+    ]},
+    { parts: [
+        { text: ";", type: "term_block" },
+    ]},
+    { text: "", type: null },
+    { parts: [
+        { text: "immutable", type: "kw_binding" }, { text: " ", type: null },
+        { text: "PI", type: "var_other" }, { text: " ", type: null },
+        { text: "=", type: "op_assignment" }, { text: " ", type: null },
+        { text: "3.14159", type: "numeric_float" },
+    ]},
+    { parts: [
+        { text: "struct", type: "kw_oop_decl" }, { text: " ", type: null },
+        { text: "Point", type: "fn_def" }, { text: "(", type: "bracket_round" },
+        { text: "x", type: "var_param" }, { text: ",", type: "sep_comma" },
+        { text: " ", type: null },
+        { text: "y", type: "var_param" },
+        { text: ")", type: "bracket_round" },
+    ]},
+    { parts: [
+        { text: "p", type: "var_other" }, { text: " ", type: null },
+        { text: "=", type: "op_assignment" }, { text: " ", type: null },
+        { text: "Point", type: "fn_call" }, { text: "(", type: "bracket_round" },
+        { text: "1", type: "numeric_int" }, { text: ",", type: "sep_comma" },
+        { text: " ", type: null },
+        { text: "2", type: "numeric_int" },
+        { text: ")", type: "bracket_round" },
     ]},
 ];
 
@@ -804,7 +940,7 @@ function saveAndInstall() { saveToExtension(true); }
 
 async function checkBackendMode() {
     try {
-        const res = await fetch('/api/status');
+        const res = await fetch('/api/status', { cache: 'no-store' });
         const data = await res.json();
         const btn = document.getElementById('saveBtn');
         const banner = document.getElementById('modeBanner');
@@ -847,7 +983,7 @@ function rebuildScopeMap() {
 
 async function loadCurrentRules() {
     try {
-        const res = await fetch('/api/current-rules');
+        const res = await fetch('/api/current-rules', { cache: 'no-store' });
         const data = await res.json();
         if (data.rules && data.rules.length > 0) {
             let applied = 0;
@@ -873,7 +1009,7 @@ async function loadTokenData() {
     const urls = ['/api/token-data', 'token_data.json'];
     for (const url of urls) {
         try {
-            const res = await fetch(url);
+            const res = await fetch(url, { cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
                 if (Array.isArray(data) && data.length > 0) { TOKEN_GROUPS = data; return; }

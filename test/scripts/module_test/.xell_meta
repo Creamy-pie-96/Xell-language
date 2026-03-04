@@ -1,0 +1,200 @@
+{
+  "xell_meta_version": 1,
+  "directory": "./module_test",
+  "modules": {
+    "alpha": {
+      "file": "same_name_parent_a.xel",
+      "hash": "5db2841d466cfc0322e8d445f59bb7a56bc94e2421dcebce4d4e8ce59c2eb11b",
+      "exports": ["helper", "identify"],
+      "submodules": {
+        "helper": {
+          "file": "same_name_parent_a.xel",
+          "hash": "5db2841d466cfc0322e8d445f59bb7a56bc94e2421dcebce4d4e8ce59c2eb11b",
+          "exports": ["tag"],
+          "submodules": {}
+        }
+      }
+    },
+    "beta": {
+      "file": "same_name_parent_b.xel",
+      "hash": "ed1ba8823d58a9cf30b023462f4f5643f18f59dd401249d81de3cc8c723407eb",
+      "exports": ["helper", "identify"],
+      "submodules": {
+        "helper": {
+          "file": "same_name_parent_b.xel",
+          "hash": "ed1ba8823d58a9cf30b023462f4f5643f18f59dd401249d81de3cc8c723407eb",
+          "exports": ["tag"],
+          "submodules": {}
+        }
+      }
+    },
+    "calculator": {
+      "file": "requires_module.xel",
+      "hash": "014ec5a26cb7b10937657bc4c39e0292806d878b9dd83f527a5598f348147fb1",
+      "exports": ["hypotenuse", "area_circle"],
+      "submodules": {}
+    },
+    "cfg": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": ["MAX", "NAME", "get_max"],
+      "submodules": {}
+    },
+    "config": {
+      "file": "variable_module.xel",
+      "hash": "28a249616583ce6ff88d186228c0a97cbe8d4b69c9b12f10b61979c6f624bb24",
+      "exports": ["MAX_RETRIES", "TIMEOUT", "APP_NAME", "VERSION", "get_config"],
+      "submodules": {}
+    },
+    "data": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": ["first", "second", "third"],
+      "submodules": {}
+    },
+    "greetings": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": ["hello", "bye"],
+      "submodules": {}
+    },
+    "lib": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": [],
+      "submodules": {
+        "math_lib": {
+          "file": "test_module_system.xel",
+          "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+          "exports": ["add"],
+          "submodules": {
+            "advanced": {
+              "file": "test_module_system.xel",
+              "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+              "exports": ["factorial"],
+              "submodules": {}
+            }
+          }
+        },
+        "str_lib": {
+          "file": "test_module_system.xel",
+          "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+          "exports": ["greet"],
+          "submodules": {}
+        }
+      }
+    },
+    "math": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": ["custom_add"],
+      "submodules": {}
+    },
+    "math_mod": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": ["square", "cube", "double"],
+      "submodules": {}
+    },
+    "mod_a": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": ["a_fn"],
+      "submodules": {}
+    },
+    "mod_b": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": ["b_fn"],
+      "submodules": {}
+    },
+    "ops": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": ["add", "mul"],
+      "submodules": {}
+    },
+    "parent_a": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": [],
+      "submodules": {
+        "helper": {
+          "file": "test_module_system.xel",
+          "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+          "exports": ["tag"],
+          "submodules": {}
+        }
+      }
+    },
+    "parent_b": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": [],
+      "submodules": {
+        "helper": {
+          "file": "test_module_system.xel",
+          "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+          "exports": ["tag"],
+          "submodules": {}
+        }
+      }
+    },
+    "physics": {
+      "file": "nested_modules.xel",
+      "hash": "899b03c8f2b51fbd9ed77ce8d9b8339f1be24307b24b64a38b946baf58bf441f",
+      "exports": ["velocity", "mechanics", "optics"],
+      "submodules": {
+        "mechanics": {
+          "file": "nested_modules.xel",
+          "hash": "899b03c8f2b51fbd9ed77ce8d9b8339f1be24307b24b64a38b946baf58bf441f",
+          "exports": ["force", "work", "quantum"],
+          "submodules": {
+            "quantum": {
+              "file": "nested_modules.xel",
+              "hash": "899b03c8f2b51fbd9ed77ce8d9b8339f1be24307b24b64a38b946baf58bf441f",
+              "exports": ["energy"],
+              "submodules": {}
+            }
+          }
+        },
+        "optics": {
+          "file": "nested_modules.xel",
+          "hash": "899b03c8f2b51fbd9ed77ce8d9b8339f1be24307b24b64a38b946baf58bf441f",
+          "exports": ["refraction"],
+          "submodules": {}
+        }
+      }
+    },
+    "shapes": {
+      "file": "class_module.xel",
+      "hash": "e104f412c710283c0c57dfe65dfa3ae07aaf6a6b6763e394bdb8a9787f126ad0",
+      "exports": ["Circle", "Rectangle", "circle_area"],
+      "submodules": {}
+    },
+    "simple": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": ["val"],
+      "submodules": {}
+    },
+    "string_utils": {
+      "file": "string_utils.xel",
+      "hash": "1c8f18fbc570eb9179e8809ab6bcbe131be67706655ddcd3263dcd8a52705154",
+      "exports": ["greet", "farewell", "shout", "VERSION"],
+      "submodules": {}
+    },
+    "utils": {
+      "file": "test_module_system.xel",
+      "hash": "7aeec0aa4cf16be67ebd8d014673e9cdccf9173e66be15faff1433205a83f1c6",
+      "exports": ["triple", "negate"],
+      "submodules": {}
+    },
+    "math_utils": {
+      "file": "math_utils.xel",
+      "hash": "dfdc08f6467b9d20b61b28f02c2fe2cfe8e2fe14267964e09d4bf678418e2190",
+      "exports": ["square", "cube", "double", "PI"],
+      "submodules": {}
+    }
+  }
+}

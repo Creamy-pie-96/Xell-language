@@ -230,6 +230,15 @@
         "example": "byte_at, byte_len, bytes"
       },
       {
+        "id": "builtin_casting",
+        "scope": "support.function.casting.xell",
+        "color": "#eeeeee",
+        "bold": false,
+        "italic": false,
+        "label": "Casting builtins (Bool, Complex, Float, Int, List, Set, String, Tuple, auto, iSet, number)",
+        "example": "Bool, Complex, Float"
+      },
+      {
         "id": "builtin_datetime",
         "scope": "support.function.datetime.xell",
         "color": "#eeeeee",
@@ -361,31 +370,13 @@
     "title": "Keywords",
     "tokens": [
       {
-        "id": "kw_control",
-        "scope": "keyword.control.flow.xell",
-        "color": "#e06c75",
+        "id": "kw_fn",
+        "scope": "keyword.declaration.function.xell",
+        "color": "#e5c07b",
         "bold": true,
         "italic": false,
-        "label": "Control flow (elif, else, for, if, while)",
-        "example": "elif else for if while"
-      },
-      {
-        "id": "kw_loop",
-        "scope": "keyword.control.loop.xell",
-        "color": "#e06c75",
-        "bold": true,
-        "italic": false,
-        "label": "Loop (in)",
-        "example": "in, range"
-      },
-      {
-        "id": "kw_import",
-        "scope": "keyword.control.import.xell",
-        "color": "#e06c75",
-        "bold": true,
-        "italic": false,
-        "label": "Import (as, bring, from)",
-        "example": "as bring from"
+        "label": "Function declaration (fn)",
+        "example": "fn"
       },
       {
         "id": "kw_return",
@@ -397,13 +388,112 @@
         "example": "give"
       },
       {
-        "id": "kw_fn",
-        "scope": "keyword.declaration.function.xell",
+        "id": "kw_conditional",
+        "scope": "keyword.control.conditional.xell",
+        "color": "#e06c75",
+        "bold": true,
+        "italic": false,
+        "label": "Conditional (elif, else, if, incase)",
+        "example": "elif else if incase"
+      },
+      {
+        "id": "kw_loop",
+        "scope": "keyword.control.loop.xell",
+        "color": "#e06c75",
+        "bold": true,
+        "italic": false,
+        "label": "Loop (for, in, loop, while)",
+        "example": "for in loop while"
+      },
+      {
+        "id": "kw_control_flow",
+        "scope": "keyword.control.flow.xell",
+        "color": "#ef596f",
+        "bold": true,
+        "italic": false,
+        "label": "Control flow (break, continue)",
+        "example": "break continue"
+      },
+      {
+        "id": "kw_error",
+        "scope": "keyword.control.trycatch.xell",
+        "color": "#d19a66",
+        "bold": true,
+        "italic": false,
+        "label": "Error handling (catch, finally, try)",
+        "example": "catch finally try"
+      },
+      {
+        "id": "kw_binding",
+        "scope": "keyword.other.binding.xell",
+        "color": "#61afef",
+        "bold": true,
+        "italic": false,
+        "label": "Binding (be, immutable, let)",
+        "example": "be immutable let"
+      },
+      {
+        "id": "kw_import",
+        "scope": "keyword.control.import.xell",
+        "color": "#c678dd",
+        "bold": true,
+        "italic": false,
+        "label": "Import (as, bring, from)",
+        "example": "as bring from"
+      },
+      {
+        "id": "kw_module",
+        "scope": "keyword.control.module.xell",
+        "color": "#b267e6",
+        "bold": true,
+        "italic": false,
+        "label": "Module (export, module, requires)",
+        "example": "export module requires"
+      },
+      {
+        "id": "kw_oop_decl",
+        "scope": "keyword.declaration.type.xell",
+        "color": "#56b6c2",
+        "bold": true,
+        "italic": false,
+        "label": "OOP declaration (abstract, class, enum, interface, mixin, struct)",
+        "example": "abstract class enum interface mixin struct"
+      },
+      {
+        "id": "kw_oop_modifier",
+        "scope": "keyword.other.modifier.xell",
+        "color": "#56b6c2",
+        "bold": true,
+        "italic": true,
+        "label": "OOP modifier (implements, inherits, with)",
+        "example": "implements inherits with"
+      },
+      {
+        "id": "kw_access",
+        "scope": "storage.modifier.xell",
+        "color": "#d19a66",
+        "bold": false,
+        "italic": false,
+        "label": "Access (private, protected, public, static)",
+        "example": "private protected public static"
+      },
+      {
+        "id": "kw_generator",
+        "scope": "keyword.control.yield.xell",
         "color": "#e5c07b",
         "bold": true,
         "italic": false,
-        "label": "Function declaration (fn)",
-        "example": "fn"
+        "label": "Generator (yield)",
+        "example": "yield"
+      },
+      {
+        "id": "kw_async",
+        "scope": "keyword.control.async.xell",
+        "color": "#61afef",
+        "bold": true,
+        "italic": false,
+        "label": "Async (async, await)",
+        "example": "async await"
       },
       {
         "id": "kw_special",
@@ -461,8 +551,8 @@
         "color": "#c678dd",
         "bold": false,
         "italic": false,
-        "label": "Logical (and, not, not, or)",
-        "example": "and not not or"
+        "label": "Logical (and, not, or)",
+        "example": "and not or"
       },
       {
         "id": "op_increment",

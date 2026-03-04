@@ -164,6 +164,22 @@ namespace xell
             : XellError("BringError", message, line) {}
     };
 
+    /// Module definition, resolution, or metadata errors.
+    class ModuleError : public XellError
+    {
+    public:
+        ModuleError(const std::string &message, int line)
+            : XellError("ModuleError", message, line) {}
+    };
+
+    /// Unsatisfied `requires` dependency in a module.
+    class RequireError : public XellError
+    {
+    public:
+        RequireError(const std::string &message, int line)
+            : XellError("RequireError", message, line) {}
+    };
+
     // ---- 3g. File-system / IO errors ----------------------------------------
 
     /// Built-in file operation on a missing or inaccessible path.

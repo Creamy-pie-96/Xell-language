@@ -562,13 +562,13 @@ static void testParserErrors()
         }
         XASSERT(caught); });
 
-    runTest("parser: missing 'from' in bring → ParseError", [&]()
+    runTest("parser: invalid bring syntax → ParseError", [&]()
             {
         bool caught = false;
-        try { parseSource("bring setup \"file.xel\""); }
+        try { parseSource("bring of"); }
         catch (const ParseError& e) {
             caught = true;
-            XASSERT(contains(e.what(), "Expected 'from'"));
+            XASSERT(contains(e.what(), "Expected name"));
         }
         XASSERT(caught); });
 

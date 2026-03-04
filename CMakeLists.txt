@@ -11,6 +11,7 @@ add_library(xell_lib
     src/parser/parser.cpp
     src/interpreter/xobject.cpp
     src/interpreter/interpreter.cpp
+    src/module/module_resolver.cpp
     src/os/fs.cpp
     src/os/env.cpp
     src/os/process.cpp
