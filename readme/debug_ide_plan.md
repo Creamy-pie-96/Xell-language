@@ -101,7 +101,7 @@ fn train_model() :
 ;
 ```
 
-Sampling mode — for large loops:
+Sampling mode — for anything repetitive (loops, recursive functions, repeated calls):
 
 ```
 @debug sample 100
@@ -111,6 +111,31 @@ for i in range(10000) :
 ```
 
 Traces iterations 0-49 and 9950-9999 (first 50% + last 50% of sample size).
+
+On recursive functions:
+
+```
+@debug sample 20
+fn fibonacci(n) :
+    if n <= 1 : give n ;
+    give fibonacci(n-1) + fibonacci(n-2)
+;
+fibonacci(100)   # traces first 10 + last 10 calls
+```
+
+On repeatedly called functions:
+
+```
+@debug sample 50
+fn process_batch(batch) :
+    transform(batch)
+;
+for b in batches :
+    process_batch(b)   # 1000 calls → traces first 25 + last 25
+;
+```
+
+Sampling applies to **any repeated execution** — loops, recursive calls, or functions called in a loop. The tracer counts invocations and applies the 50/50 split.
 
 ### 1.2 `@breakpoint` — Point-in-Time Inspection
 
@@ -594,24 +619,25 @@ private:
 
 ---
 
-## Part 4 — IPC for Debug Control (Not PTY Escape Sequences)
+## Part 4 — IPC for Debug Control (Cross-Platform)
 
 ### 4.1 The Problem with PTY Escape Sequences
 
 Using `\x1B[XSTEP:OVER\x07` over PTY is fragile — if program output or the shell writes simultaneously, commands can get corrupted or interleaved.
 
-### 4.2 Solution: Unix Domain Socket
+### 4.2 Solution: Cross-Platform IPC Channel
 
-A dedicated Unix socket for debug control messages:
-
-```
-/tmp/xell-debug-{pid}.sock
-```
-
-**Protocol:**
+A dedicated IPC channel — Unix domain socket on Linux/macOS, named pipe on Windows:
 
 ```
-IDE → Interpreter (socket):
+Linux/macOS:  /tmp/xell-debug-{pid}.sock     (Unix domain socket)
+Windows:      \\.\pipe\xell-debug-{pid}      (Named pipe)
+```
+
+**Protocol (same on all platforms — newline-delimited JSON):**
+
+```
+IDE → Interpreter:
     {"cmd": "step_over"}
     {"cmd": "step_into"}
     {"cmd": "step_out"}
@@ -621,7 +647,7 @@ IDE → Interpreter (socket):
     {"cmd": "add_watch", "expr": "x > 100"}
     {"cmd": "jump_to", "sequence": 42}
 
-Interpreter → IDE (socket):
+Interpreter → IDE:
     {"state": "paused", "line": 25, "seq": 42, "vars": {...}, "callStack": [...]}
     {"state": "running"}
     {"state": "finished", "trace": "file:///tmp/xell-trace-123.json"}
@@ -630,30 +656,37 @@ Interpreter → IDE (socket):
 **Benefits:**
 
 - No corruption from interleaved output
-- JSON messages are self-delimiting (newline-separated)
-- Bidirectional — IDE can send commands and interpreter can push state updates
+- JSON messages self-delimiting (newline-separated)
+- Bidirectional — IDE pushes commands, interpreter pushes state
 - Program stdout/stderr goes through PTY as normal (clean separation)
-- Socket auto-cleaned on process exit
+- Auto-cleaned on process exit
+- Fully cross-platform (Unix sockets + Windows named pipes)
 
 **Implementation:**
 
 ```cpp
-class DebugSocket {
-    int serverFd_ = -1;
-    int clientFd_ = -1;
-    std::string socketPath_;
-
+class DebugIPC {
 public:
-    void listen(pid_t pid);     // Interpreter side: create socket
-    void connect(pid_t pid);    // IDE side: connect to interpreter
+    void listen(int pid);       // Interpreter side: create channel
+    void connect(int pid);      // IDE side: connect
     void send(const std::string& json);
     std::string recv();         // Blocks until message
     bool poll(int timeoutMs);   // Non-blocking check
-    ~DebugSocket();             // Cleans up socket file
+    ~DebugIPC();                // Cleans up
+
+private:
+#ifdef _WIN32
+    HANDLE pipeHandle_ = INVALID_HANDLE_VALUE;
+    std::string pipePath_;      // \\.\pipe\xell-debug-{pid}
+#else
+    int serverFd_ = -1;
+    int clientFd_ = -1;
+    std::string socketPath_;    // /tmp/xell-debug-{pid}.sock
+#endif
 };
 ```
 
-The IDE connects when it detects `--debug` mode. The interpreter creates the socket at startup if debug is enabled.
+The IDE connects when it detects `--debug` mode. The interpreter creates the channel at startup if debug is enabled.
 
 ---
 
@@ -861,7 +894,7 @@ After debug run — bottom panel with time travel slider and event table.
 | ------------------------------------------ | ------- | --------------------------------------------------- |
 | `src/interpreter/trace_collector.hpp`      | **NEW** | TraceEntry, TraceEvent, TraceCollector, TrackFilter |
 | `src/interpreter/time_travel.hpp`          | **NEW** | TimeTravelEngine, Checkpoint, Delta                 |
-| `src/interpreter/debug_socket.hpp`         | **NEW** | Unix socket IPC for debug control                   |
+| `src/interpreter/debug_ipc.hpp`            | **NEW** | Cross-platform IPC (Unix socket / Win named pipe)   |
 | `src/interpreter/interpreter.hpp`          | MODIFY  | `TraceCollector* trace_`, `callStack_`, debug hooks |
 | `src/interpreter/interpreter.cpp`          | MODIFY  | Hook all exec methods, @decorator dispatch          |
 | `src/interpreter/environment.hpp`          | MODIFY  | Trace callbacks in `set()`, `define()`              |
