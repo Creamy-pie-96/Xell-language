@@ -31,6 +31,9 @@
 namespace xell
 {
 
+    // Forward declaration for watch expression AST
+    struct Expr;
+
     // =========================================================================
     // TraceEvent — every observable event in the interpreter
     // =========================================================================
@@ -278,6 +281,8 @@ namespace xell
         // ---- Blacklists (always excluded) ----
         std::unordered_set<std::string> notrackVars;
         std::unordered_set<std::string> notrackFns;
+        std::unordered_set<std::string> notrackClasses;
+        std::unordered_set<std::string> notrackObjs;
 
         // Should this variable be tracked?
         bool shouldTrackVar(const std::string &name) const
@@ -370,6 +375,8 @@ namespace xell
             trackObjs.clear();
             notrackVars.clear();
             notrackFns.clear();
+            notrackClasses.clear();
+            notrackObjs.clear();
             trackConditions = true;
             trackLoopFor = true;
             trackLoopWhile = true;
@@ -390,8 +397,8 @@ namespace xell
 
     struct WatchExpr
     {
-        std::string expression; // Raw expression string
-        // ExprPtr parsed;                             // Parsed AST (set later by Phase 5)
+        std::string expression;                    // Raw expression string
+        const Expr *parsed = nullptr;              // Parsed AST for evaluation
         bool lastValue = false;                    // Last evaluated boolean result
         std::unordered_set<std::string> dependsOn; // Variables this watch references
         bool dirty = false;                        // Set when a dependency changes
@@ -573,6 +580,18 @@ namespace xell
         {
             WatchExpr w;
             w.expression = expr;
+            w.dependsOn = deps;
+            w.dirty = true; // evaluate on first check
+            watches_.push_back(std::move(w));
+        }
+
+        // Phase 5 overload: add watch with parsed AST and auto-extracted deps
+        void addWatch(const std::string &expr, const Expr *parsedExpr,
+                      const std::unordered_set<std::string> &deps)
+        {
+            WatchExpr w;
+            w.expression = expr;
+            w.parsed = parsedExpr;
             w.dependsOn = deps;
             w.dirty = true; // evaluate on first check
             watches_.push_back(std::move(w));

@@ -1,5 +1,6 @@
 #include "parser.hpp"
 #include "../lib/errors/error.hpp"
+#include "../lexer/lexer.hpp"
 #include <sstream>
 #include <iostream>
 
@@ -1544,6 +1545,191 @@ namespace xell
             {
                 throw ParseError("Expected decorator name after '@'", current().line);
             }
+
+            // ── Debug/trace standalone decorators (Phase 5) ──────
+            // These are standalone statements, not function/class decorators
+            const std::string &lastDec = decorators.back();
+
+            // @debug on / @debug off / @debug sample N / @debug (before fn)
+            if (lastDec == "debug" && decorators.size() == 1)
+            {
+                skipNewlines();
+                // @debug on
+                if (check(TokenType::IDENTIFIER) && current().value == "on")
+                {
+                    advance();
+                    return std::make_unique<DebugToggleStmt>(true, ln);
+                }
+                // @debug off
+                if (check(TokenType::IDENTIFIER) && current().value == "off")
+                {
+                    advance();
+                    return std::make_unique<DebugToggleStmt>(false, ln);
+                }
+                // @debug sample N
+                if (check(TokenType::IDENTIFIER) && current().value == "sample")
+                {
+                    advance();
+                    skipNewlines();
+                    if (!check(TokenType::NUMBER))
+                        throw ParseError("Expected number after '@debug sample'", current().line);
+                    int n = std::stoi(current().value);
+                    advance();
+                    return std::make_unique<DebugSampleStmt>(n, ln);
+                }
+                // @debug before fn → falls through to normal decorator path
+            }
+
+            // @breakpoint("name") / @breakpoint pause / @breakpoint pause N
+            // @breakpoint("name") when EXPR
+            if (lastDec == "breakpoint" && decorators.size() == 1)
+            {
+                auto bp = std::make_unique<BreakpointStmt>(ln);
+                skipNewlines();
+                // @breakpoint pause [N]
+                if (check(TokenType::IDENTIFIER) && current().value == "pause")
+                {
+                    advance();
+                    bp->isPause = true;
+                    skipNewlines();
+                    // Optional timeout in seconds
+                    if (check(TokenType::NUMBER))
+                    {
+                        bp->pauseSeconds = std::stoi(current().value);
+                        advance();
+                    }
+                    return bp;
+                }
+                // @breakpoint("name") [when EXPR]
+                if (check(TokenType::LPAREN))
+                {
+                    advance(); // consume (
+                    if (check(TokenType::STRING))
+                    {
+                        bp->name = current().value;
+                        advance();
+                    }
+                    if (!check(TokenType::RPAREN))
+                        throw ParseError("Expected ')' after breakpoint name", current().line);
+                    advance(); // consume )
+                    skipNewlines();
+                    // Optional: when EXPR
+                    if (check(TokenType::IDENTIFIER) && current().value == "when")
+                    {
+                        advance();
+                        skipNewlines();
+                        bp->condition = parseExpression();
+                    }
+                    return bp;
+                }
+                // @breakpoint with no args — anonymous snapshot
+                return bp;
+            }
+
+            // @watch("expression")
+            if (lastDec == "watch" && decorators.size() == 1)
+            {
+                skipNewlines();
+                if (!check(TokenType::LPAREN))
+                    throw ParseError("Expected '(' after '@watch'", current().line);
+                advance(); // consume (
+                if (!check(TokenType::STRING))
+                    throw ParseError("Expected string expression in @watch(\"...\")", current().line);
+                std::string expr = current().value;
+                advance();
+                if (!check(TokenType::RPAREN))
+                    throw ParseError("Expected ')' after watch expression", current().line);
+                advance(); // consume )
+                // Parse the expression string into an AST node
+                Lexer watchLexer(expr);
+                auto watchTokens = watchLexer.tokenize();
+                Parser watchParser(watchTokens);
+                ExprPtr parsedExpr = watchParser.parseExpression();
+                return std::make_unique<WatchStmt>(std::move(expr), std::move(parsedExpr), ln);
+            }
+
+            // @checkpoint("name")
+            if (lastDec == "checkpoint" && decorators.size() == 1)
+            {
+                skipNewlines();
+                if (!check(TokenType::LPAREN))
+                    throw ParseError("Expected '(' after '@checkpoint'", current().line);
+                advance();
+                if (!check(TokenType::STRING))
+                    throw ParseError("Expected string name in @checkpoint(\"...\")", current().line);
+                std::string name = current().value;
+                advance();
+                if (!check(TokenType::RPAREN))
+                    throw ParseError("Expected ')' after checkpoint name", current().line);
+                advance();
+                return std::make_unique<CheckpointStmt>(std::move(name), ln);
+            }
+
+            // @track / @notrack — selective tracing
+            if ((lastDec == "track" || lastDec == "notrack") && decorators.size() == 1)
+            {
+                auto track = std::make_unique<TrackStmt>(ln);
+                track->isNotrack = (lastDec == "notrack");
+                // Do NOT skipNewlines here — categories must be on same line as @track
+                // A newline after @track means "no categories" (valid no-op)
+
+                // Helper lambda: check if current token is a usable category name
+                // Category names can be identifiers OR keywords (fn, class, for, while, loop)
+                auto isTrackCategory = [&]() -> bool
+                {
+                    return check(TokenType::IDENTIFIER) ||
+                           check(TokenType::FN) ||
+                           check(TokenType::CLASS) ||
+                           check(TokenType::FOR) ||
+                           check(TokenType::WHILE) ||
+                           check(TokenType::LOOP);
+                };
+
+                // Parse categories and category(items) groups
+                while (isTrackCategory())
+                {
+                    std::string cat = current().value;
+                    advance();
+                    // Check for parenthesized items: var(x,y,z), fn(a,b), class(C)
+                    if (check(TokenType::LPAREN))
+                    {
+                        advance(); // consume (
+                        std::vector<std::string> items;
+                        while (!check(TokenType::RPAREN) && !isAtEnd())
+                        {
+                            if (check(TokenType::IDENTIFIER))
+                            {
+                                items.push_back(current().value);
+                                advance();
+                            }
+                            if (check(TokenType::COMMA))
+                                advance();
+                        }
+                        if (!check(TokenType::RPAREN))
+                            throw ParseError("Expected ')' in @" + lastDec + " " + cat + "(...)", current().line);
+                        advance(); // consume )
+                        if (cat == "var")
+                            track->vars = std::move(items);
+                        else if (cat == "fn")
+                            track->fns = std::move(items);
+                        else if (cat == "class")
+                            track->classes = std::move(items);
+                        else if (cat == "obj")
+                            track->objs = std::move(items);
+                        else
+                            throw ParseError("Unknown @" + lastDec + " category '" + cat + "'; expected var, fn, class, or obj", current().line);
+                    }
+                    else
+                    {
+                        // Bare category name: loop, conditions, scope, etc.
+                        track->categories.push_back(cat);
+                    }
+                    // Do NOT skipNewlines here — @track ends at end of line
+                }
+                return track;
+            }
+            // ── End debug/trace decorators ──────────────────────
+
             skipNewlines();
         }
 

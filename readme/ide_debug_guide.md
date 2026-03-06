@@ -222,7 +222,7 @@ The debug system follows a 13-phase plan (see `readme/debug_ide_plan.md`):
 - [x] Phase 2: Enhanced Variables Tab
 - [x] Phase 3: Dashboard Panel
 - [x] Phase 4: TraceCollector engine + interpreter hooks
-- [ ] Phase 5: `@breakpoint` + `@watch` decorators
+- [x] Phase 5: `@breakpoint` + `@watch` decorators
 - [ ] Phase 6: Cross-module debug
 - [ ] Phase 7: Debug socket IPC
 - [ ] Phase 8: Timeline Tab

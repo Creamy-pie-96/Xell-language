@@ -12,6 +12,8 @@
 #include <iostream>
 #include <fstream>
 #include <limits>
+#include <thread>
+#include <chrono>
 
 // Portable dirname — returns directory part of a path (no <filesystem> needed)
 static std::string parentDir(const std::string &path)
@@ -144,6 +146,73 @@ namespace xell
     }
 
     // ========================================================================
+    // AST helper: extract variable names from a watch expression
+    // ========================================================================
+
+    static void collectExprDeps(const Expr *expr, std::unordered_set<std::string> &deps)
+    {
+        if (!expr)
+            return;
+        if (auto *p = dynamic_cast<const Identifier *>(expr))
+        {
+            deps.insert(p->name);
+            return;
+        }
+        if (auto *p = dynamic_cast<const BinaryExpr *>(expr))
+        {
+            collectExprDeps(p->left.get(), deps);
+            collectExprDeps(p->right.get(), deps);
+            return;
+        }
+        if (auto *p = dynamic_cast<const UnaryExpr *>(expr))
+        {
+            collectExprDeps(p->operand.get(), deps);
+            return;
+        }
+        if (auto *p = dynamic_cast<const PostfixExpr *>(expr))
+        {
+            collectExprDeps(p->operand.get(), deps);
+            return;
+        }
+        if (auto *p = dynamic_cast<const CallExpr *>(expr))
+        {
+            for (const auto &arg : p->args)
+                collectExprDeps(arg.get(), deps);
+            return;
+        }
+        if (auto *p = dynamic_cast<const IndexAccess *>(expr))
+        {
+            collectExprDeps(p->object.get(), deps);
+            collectExprDeps(p->index.get(), deps);
+            return;
+        }
+        if (auto *p = dynamic_cast<const MemberAccess *>(expr))
+        {
+            collectExprDeps(p->object.get(), deps);
+            return;
+        }
+        if (auto *p = dynamic_cast<const TernaryExpr *>(expr))
+        {
+            collectExprDeps(p->value.get(), deps);
+            collectExprDeps(p->condition.get(), deps);
+            collectExprDeps(p->alternative.get(), deps);
+            return;
+        }
+        if (auto *p = dynamic_cast<const ListLiteral *>(expr))
+        {
+            for (const auto &e : p->elements)
+                collectExprDeps(e.get(), deps);
+            return;
+        }
+        if (auto *p = dynamic_cast<const MapLiteral *>(expr))
+        {
+            for (const auto &e : p->entries)
+                collectExprDeps(e.second.get(), deps);
+            return;
+        }
+    }
+
+    // ========================================================================
     // Constructor / reset
     // ========================================================================
 
@@ -220,6 +289,39 @@ namespace xell
         for (const auto &stmt : program.statements)
         {
             exec(stmt.get());
+
+            // Evaluate dirty watches after each top-level statement
+            if (trace_ && trace_->enabled && trace_->hasDirtyWatches())
+            {
+                auto &watches = trace_->watches();
+                for (size_t wi = 0; wi < watches.size(); ++wi)
+                {
+                    auto &w = watches[wi];
+                    if (!w.dirty)
+                        continue;
+                    w.dirty = false;
+                    if (w.parsed)
+                    {
+                        try
+                        {
+                            XObject val = eval(w.parsed);
+                            bool nowTrue = val.truthy();
+                            if (nowTrue && !w.lastValue)
+                            {
+                                trace_->emit(TraceEvent::WATCH_TRIGGERED,
+                                             stmt->line, w.expression,
+                                             "", val.toString(),
+                                             "", "watch", stmt->line);
+                            }
+                            w.lastValue = nowTrue;
+                        }
+                        catch (...)
+                        {
+                            // Watch expression failed — ignore silently
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -505,6 +607,139 @@ namespace xell
             return execDecoratedFnDef(p);
         if (auto *p = dynamic_cast<const DecoratedClassDef *>(stmt))
             return execDecoratedClassDef(p);
+
+        // ── Debug/trace decorator statements (Phase 5) ──────
+        if (auto *p = dynamic_cast<const DebugToggleStmt *>(stmt))
+        {
+            if (trace_)
+                trace_->enabled = p->enable;
+            return;
+        }
+        if (auto *p = dynamic_cast<const DebugSampleStmt *>(stmt))
+        {
+            if (trace_)
+                trace_->setSampling(p->sampleSize);
+            return;
+        }
+        if (auto *p = dynamic_cast<const BreakpointStmt *>(stmt))
+        {
+            if (trace_ && trace_->enabled)
+            {
+                // Conditional breakpoint: check condition first
+                if (p->condition)
+                {
+                    XObject condVal = eval(p->condition.get());
+                    if (!condVal.truthy())
+                        return; // condition not met, skip
+                }
+                // Take a snapshot of all visible variables
+                trace_->takeSnapshot(
+                    p->name.empty() ? ("bp_line_" + std::to_string(p->line)) : p->name,
+                    p->line, currentEnv_, callStack_);
+                // Pause mode: block execution (Tab/F5 to resume via IPC, Phase 7+9)
+                if (p->isPause)
+                {
+                    trace_->emit(TraceEvent::BREAKPOINT_HIT, p->line,
+                                 p->name.empty() ? "pause" : p->name,
+                                 "", "", "", "pause", p->line);
+                    if (p->pauseSeconds > 0)
+                    {
+                        // Timed pause: sleep for N seconds
+                        std::this_thread::sleep_for(std::chrono::seconds(p->pauseSeconds));
+                    }
+                    else
+                    {
+                        // Interactive pause: wait for input on stdin
+                        // (will be replaced by IPC in Phase 7)
+                        std::string dummy;
+                        std::getline(std::cin, dummy);
+                    }
+                }
+            }
+            return;
+        }
+        if (auto *p = dynamic_cast<const WatchStmt *>(stmt))
+        {
+            if (trace_)
+            {
+                // Extract variable dependencies from the parsed expression
+                std::unordered_set<std::string> deps;
+                if (p->parsed)
+                    collectExprDeps(p->parsed.get(), deps);
+                trace_->addWatch(p->expression, p->parsed.get(), deps);
+            }
+            return;
+        }
+        if (auto *p = dynamic_cast<const CheckpointStmt *>(stmt))
+        {
+            if (trace_ && trace_->enabled)
+            {
+                trace_->takeSnapshot(p->name, p->line, currentEnv_, callStack_);
+                trace_->emit(TraceEvent::CHECKPOINT_SAVED, p->line, p->name);
+            }
+            return;
+        }
+        if (auto *p = dynamic_cast<const TrackStmt *>(stmt))
+        {
+            if (trace_)
+            {
+                auto &filter = trace_->filter();
+                if (p->isNotrack)
+                {
+                    for (auto &v : p->vars)
+                        filter.notrackVars.insert(v);
+                    for (auto &f : p->fns)
+                        filter.notrackFns.insert(f);
+                    for (auto &c : p->classes)
+                        filter.notrackClasses.insert(c);
+                    for (auto &o : p->objs)
+                        filter.notrackObjs.insert(o);
+                }
+                else
+                {
+                    for (auto &v : p->vars)
+                        filter.trackVars.insert(v);
+                    for (auto &f : p->fns)
+                        filter.trackFns.insert(f);
+                    for (auto &c : p->classes)
+                        filter.trackClasses.insert(c);
+                    for (auto &o : p->objs)
+                        filter.trackObjs.insert(o);
+                    for (auto &cat : p->categories)
+                    {
+                        if (cat == "loop")
+                        {
+                            filter.trackLoopFor = true;
+                            filter.trackLoopWhile = true;
+                        }
+                        else if (cat == "for")
+                            filter.trackLoopFor = true;
+                        else if (cat == "while")
+                            filter.trackLoopWhile = true;
+                        else if (cat == "conditions")
+                            filter.trackConditions = true;
+                        else if (cat == "scope")
+                            filter.trackScope = true;
+                        else if (cat == "imports")
+                            filter.trackImports = true;
+                        else if (cat == "returns")
+                            filter.trackReturns = true;
+                        else if (cat == "calls")
+                            filter.trackCalls = true;
+                        else if (cat == "mutations")
+                            filter.trackMutations = true;
+                        else if (cat == "types")
+                            filter.trackTypes = true;
+                        else if (cat == "perf")
+                            filter.trackPerf = true;
+                        else if (cat == "recursion")
+                            filter.trackRecursion = true;
+                    }
+                }
+            }
+            return;
+        }
+        // ── End debug/trace statements ──────────────────────
         if (auto *p = dynamic_cast<const StructDef *>(stmt))
             return execStructDef(p);
         if (auto *p = dynamic_cast<const ClassDef *>(stmt))
@@ -536,6 +771,40 @@ namespace xell
             for (const auto &stmt : stmts)
             {
                 exec(stmt.get());
+
+                // Evaluate dirty watches after each statement
+                if (trace_ && trace_->enabled && trace_->hasDirtyWatches())
+                {
+                    auto &watches = trace_->watches();
+                    for (size_t wi = 0; wi < watches.size(); ++wi)
+                    {
+                        auto &w = watches[wi];
+                        if (!w.dirty)
+                            continue;
+                        w.dirty = false;
+                        if (w.parsed)
+                        {
+                            try
+                            {
+                                XObject val = eval(w.parsed);
+                                bool nowTrue = val.truthy();
+                                if (nowTrue && !w.lastValue)
+                                {
+                                    // false → true transition: emit WATCH_TRIGGERED
+                                    trace_->emit(TraceEvent::WATCH_TRIGGERED,
+                                                 stmt->line, w.expression,
+                                                 "", val.toString(),
+                                                 "", "watch", stmt->line);
+                                }
+                                w.lastValue = nowTrue;
+                            }
+                            catch (...)
+                            {
+                                // Watch expression failed — ignore silently
+                            }
+                        }
+                    }
+                }
             }
         }
         catch (...)
@@ -3481,6 +3750,16 @@ namespace xell
         auto *savedEnv = currentEnv_;
         currentEnv_ = &fnEnv;
 
+        // @debug on fn: auto-enable tracing for this function call
+        bool debugFnRestore = false;
+        bool debugFnPrevEnabled = false;
+        if (trace_ && trace_->isFunctionDebugEnabled(fn.name))
+        {
+            debugFnPrevEnabled = trace_->enabled;
+            trace_->enabled = true;
+            debugFnRestore = true;
+        }
+
         // Trace: function called
         if (trace_ && trace_->enabled)
         {
@@ -3519,6 +3798,10 @@ namespace xell
                            "return", line);
             trace_->popCallStack();
         }
+
+        // @debug on fn: restore previous tracing state
+        if (debugFnRestore)
+            trace_->enabled = debugFnPrevEnabled;
 
         currentEnv_ = savedEnv;
         callDepth_--;
@@ -4513,6 +4796,14 @@ namespace xell
         for (auto it = node->decorators.rbegin(); it != node->decorators.rend(); ++it)
         {
             const std::string &decoratorName = *it;
+
+            // @debug on a function — enable tracing for this function
+            if (decoratorName == "debug")
+            {
+                if (trace_)
+                    trace_->enableForFunction(fnName);
+                continue;
+            }
 
             // Look up decorator function
             XObject decoratorFn;

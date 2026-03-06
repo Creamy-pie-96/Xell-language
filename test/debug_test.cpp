@@ -1,7 +1,7 @@
 // =============================================================================
-// Debug System Tests — TraceCollector + Interpreter Hooks
+// Debug System Tests — TraceCollector + Interpreter Hooks + Phase 5 Decorators
 // =============================================================================
-// Verifies Phase 4 of the Debug System Plan:
+// Verifies Phases 4 & 5 of the Debug System Plan:
 //   - TraceCollector event emission
 //   - TrackFilter whitelist/blacklist logic
 //   - SamplingState head/tail selection
@@ -11,6 +11,8 @@
 //   - Snapshot value-copy correctness
 //   - Zero-cost when disabled (trace_ null or enabled=false)
 //   - Watch dirty-flag dependency tracking
+//   - Phase 5: @debug on/off, @debug sample, @debug on fn,
+//     @breakpoint, @watch, @checkpoint, @track, @notrack
 // =============================================================================
 
 #include "../src/interpreter/interpreter.hpp"
@@ -885,6 +887,1025 @@ static void testIntegratedTracing()
 }
 
 // ============================================================================
+// Section 15: Phase 5 — @debug on / @debug off
+// ============================================================================
+
+static void testPhase5_DebugOnOff()
+{
+    std::cout << "\n===== Phase 5: @debug on/off =====\n";
+
+    runTest("@debug on enables tracing mid-code", []()
+            {
+        TraceCollector tc;
+        // Tracing starts disabled; @debug on enables it
+        Lexer lexer(
+            "x = 1\n"         // not traced (before @debug on)
+            "@debug on\n"
+            "y = 2\n"         // traced
+            "z = 3\n"         // traced
+            "@debug off\n"
+            "w = 4\n"         // not traced
+        );
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = false; // start disabled
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        // Only y and z should have VAR_BORN events
+        auto *evY = findEvent(tc.entries(), TraceEvent::VAR_BORN, "y");
+        auto *evZ = findEvent(tc.entries(), TraceEvent::VAR_BORN, "z");
+        auto *evX = findEvent(tc.entries(), TraceEvent::VAR_BORN, "x");
+        auto *evW = findEvent(tc.entries(), TraceEvent::VAR_BORN, "w");
+        XASSERT(evY != nullptr);
+        XASSERT(evZ != nullptr);
+        XASSERT(evX == nullptr);
+        XASSERT(evW == nullptr); });
+
+    runTest("@debug off disables tracing", []()
+            {
+        TraceCollector tc;
+        Lexer lexer(
+            "@debug on\n"
+            "a = 10\n"
+            "@debug off\n"
+            "b = 20\n"
+        );
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        auto *evA = findEvent(tc.entries(), TraceEvent::VAR_BORN, "a");
+        auto *evB = findEvent(tc.entries(), TraceEvent::VAR_BORN, "b");
+        XASSERT(evA != nullptr);
+        XASSERT(evB == nullptr); });
+
+    runTest("@debug on/off toggle multiple times", []()
+            {
+        TraceCollector tc;
+        Lexer lexer(
+            "@debug on\n"
+            "a = 1\n"
+            "@debug off\n"
+            "b = 2\n"
+            "@debug on\n"
+            "c = 3\n"
+            "@debug off\n"
+        );
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        XASSERT(findEvent(tc.entries(), TraceEvent::VAR_BORN, "a") != nullptr);
+        XASSERT(findEvent(tc.entries(), TraceEvent::VAR_BORN, "b") == nullptr);
+        XASSERT(findEvent(tc.entries(), TraceEvent::VAR_BORN, "c") != nullptr); });
+}
+
+// ============================================================================
+// Section 16: Phase 5 — @debug sample N
+// ============================================================================
+
+static void testPhase5_DebugSample()
+{
+    std::cout << "\n===== Phase 5: @debug sample N =====\n";
+
+    runTest("@debug sample sets sampling state", []()
+            {
+        TraceCollector tc;
+        Lexer lexer(
+            "@debug on\n"
+            "@debug sample 4\n"
+            "x = 0\n"
+        );
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        // Sampling state should be configured
+        XASSERT(tc.sampling().active);
+        XASSERT_EQ(tc.sampling().sampleSize, 4); });
+
+    runTest("@debug sample parses correctly", []()
+            {
+        // Just verifying it parses without error
+        Lexer lexer("@debug sample 100\nx = 42");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        // Should not throw
+        XASSERT(program.statements.size() >= 2); });
+}
+
+// ============================================================================
+// Section 17: Phase 5 — @debug on function
+// ============================================================================
+
+static void testPhase5_DebugOnFn()
+{
+    std::cout << "\n===== Phase 5: @debug on function =====\n";
+
+    runTest("@debug on fn enables tracing during call", []()
+            {
+        TraceCollector tc;
+        Lexer lexer(
+            "@debug\n"
+            "fn compute(x) :\n"
+            "    result = x * 2\n"
+            "    give result\n"
+            ";\n"
+            "a = 5\n"        // not traced (outside debug fn)
+            "b = compute(a)\n" // compute traced, a not traced
+        );
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = false; // globally disabled
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        // FN_CALLED/FN_RETURNED should exist (auto-enabled inside compute)
+        auto *called = findEvent(tc.entries(), TraceEvent::FN_CALLED, "compute");
+        auto *returned = findEvent(tc.entries(), TraceEvent::FN_RETURNED, "compute");
+        XASSERT(called != nullptr);
+        XASSERT(returned != nullptr); });
+
+    runTest("@debug on fn restores previous tracing state", []()
+            {
+        TraceCollector tc;
+        Lexer lexer(
+            "@debug\n"
+            "fn helper() : give 42 ;\n"
+            "before = 1\n"    // not traced
+            "r = helper()\n"  // traced inside helper
+            "after = 2\n"     // should NOT be traced (restored to false)
+        );
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        auto *evBefore = findEvent(tc.entries(), TraceEvent::VAR_BORN, "before");
+        auto *evAfter = findEvent(tc.entries(), TraceEvent::VAR_BORN, "after");
+        XASSERT(evBefore == nullptr);
+        XASSERT(evAfter == nullptr); });
+
+    runTest("@debug on fn works with tracing already on", []()
+            {
+                TraceCollector tc;
+                Lexer lexer(
+                    "@debug\n"
+                    "fn helper() : give 10 ;\n"
+                    "@debug on\n"
+                    "a = helper()\n" // trace was on, helper also debug-enabled
+                    "b = 99\n"       // still traced after helper returns (was already on)
+                );
+                auto tokens = lexer.tokenize();
+                Parser parser(tokens);
+                auto program = parser.parse();
+                Interpreter interp;
+                tc.enabled = false;
+                interp.setTraceCollector(&tc);
+                interp.run(program);
+                auto *evB = findEvent(tc.entries(), TraceEvent::VAR_BORN, "b");
+                XASSERT(evB != nullptr); // tracing should still be on after helper
+            });
+}
+
+// ============================================================================
+// Section 18: Phase 5 — @breakpoint
+// ============================================================================
+
+static void testPhase5_Breakpoint()
+{
+    std::cout << "\n===== Phase 5: @breakpoint =====\n";
+
+    runTest("@breakpoint(name) takes snapshot", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "x = 42\n"
+            "y = \"hello\"\n"
+            "@breakpoint(\"test_bp\")\n"
+            "z = 99\n",
+            tc);
+        // Should have a snapshot
+        XASSERT_GE((int)tc.snapshots().size(), 1);
+        const auto &snap = tc.snapshots()[0];
+        XASSERT_EQ(snap.name, "test_bp");
+        // BREAKPOINT_HIT event
+        auto *ev = findEvent(entries, TraceEvent::BREAKPOINT_HIT);
+        XASSERT(ev != nullptr); });
+
+    runTest("@breakpoint captures variable state", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "x = 42\n"
+            "name = \"alice\"\n"
+            "@breakpoint(\"state_check\")\n",
+            tc);
+        XASSERT_GE((int)tc.snapshots().size(), 1);
+        const auto &snap = tc.snapshots()[0];
+        // Should have captured x and name
+        bool foundX = false, foundName = false;
+        for (const auto &[scope, vars] : snap.scopeVars)
+        {
+            if (vars.count("x")) foundX = true;
+            if (vars.count("name")) foundName = true;
+        }
+        XASSERT(foundX);
+        XASSERT(foundName); });
+
+    runTest("@breakpoint pause N (timed) completes", []()
+            {
+        // Test with pause 1 second (short enough for a test)
+        Lexer lexer(
+            "@debug on\n"
+            "x = 1\n"
+            "@breakpoint pause 1\n"
+            "y = 2\n"
+            "@debug off\n"
+        );
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        TraceCollector tc;
+        tc.enabled = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        // Should complete after 1 second sleep
+        XASSERT(true); });
+
+    runTest("@breakpoint without name uses default", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "x = 1\n"
+            "@breakpoint(\"\")\n",
+            tc);
+        // Should still create snapshot even with empty name
+        XASSERT_GE((int)tc.snapshots().size(), 1); });
+
+    runTest("multiple @breakpoints create multiple snapshots", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "a = 1\n"
+            "@breakpoint(\"bp1\")\n"
+            "b = 2\n"
+            "@breakpoint(\"bp2\")\n"
+            "c = 3\n"
+            "@breakpoint(\"bp3\")\n",
+            tc);
+        XASSERT_GE((int)tc.snapshots().size(), 3);
+        XASSERT_EQ(tc.snapshots()[0].name, "bp1");
+        XASSERT_EQ(tc.snapshots()[1].name, "bp2");
+        XASSERT_EQ(tc.snapshots()[2].name, "bp3"); });
+}
+
+// ============================================================================
+// Section 19: Phase 5 — @breakpoint conditional (when)
+// ============================================================================
+
+static void testPhase5_BreakpointConditional()
+{
+    std::cout << "\n===== Phase 5: @breakpoint conditional =====\n";
+
+    runTest("@breakpoint when true takes snapshot", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "x = 42\n"
+            "@breakpoint(\"cond_bp\") when x > 10\n",
+            tc);
+        XASSERT_GE((int)tc.snapshots().size(), 1);
+        XASSERT_EQ(tc.snapshots()[0].name, "cond_bp"); });
+
+    runTest("@breakpoint when false skips snapshot", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "x = 5\n"
+            "@breakpoint(\"skip_bp\") when x > 100\n",
+            tc);
+        XASSERT_EQ((int)tc.snapshots().size(), 0); });
+
+    runTest("@breakpoint when in loop triggers selectively", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "for i in [1, 2, 3, 4, 5] :\n"
+            "    @breakpoint(\"loop_bp\") when i == 3\n"
+            ";\n",
+            tc);
+        // Only one snapshot (when i == 3)
+        XASSERT_EQ((int)tc.snapshots().size(), 1);
+        XASSERT_EQ(tc.snapshots()[0].name, "loop_bp"); });
+
+    runTest("@breakpoint when with complex expression", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "x = 10\n"
+            "y = 20\n"
+            "@breakpoint(\"complex\") when x + y > 25\n",
+            tc);
+        XASSERT_GE((int)tc.snapshots().size(), 1); });
+
+    runTest("@breakpoint when false→true across iterations", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "for i in [1, 2, 3, 10, 20, 30] :\n"
+            "    @breakpoint(\"big\") when i >= 10\n"
+            ";\n",
+            tc);
+        // Should trigger for i=10, 20, 30
+        XASSERT_EQ((int)tc.snapshots().size(), 3); });
+}
+
+// ============================================================================
+// Section 20: Phase 5 — @watch
+// ============================================================================
+
+static void testPhase5_Watch()
+{
+    std::cout << "\n===== Phase 5: @watch =====\n";
+
+    runTest("@watch registers watch expression", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@watch(\"x > 10\")\n"
+            "x = 5\n",
+            tc);
+        XASSERT_GE((int)tc.watches().size(), 1);
+        XASSERT_EQ(tc.watches()[0].expression, "x > 10"); });
+
+    runTest("@watch triggers on false→true transition", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@watch(\"x > 10\")\n"
+            "x = 5\n"   // false
+            "x = 15\n"  // true! → should trigger
+            "x = 20\n", // still true → no trigger
+            tc);
+        int triggers = countEvents(entries, TraceEvent::WATCH_TRIGGERED);
+        XASSERT_GE(triggers, 1); });
+
+    runTest("@watch does not trigger on true→true", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@watch(\"x > 0\")\n"
+            "x = 10\n"  // true
+            "x = 20\n"  // still true
+            "x = 30\n", // still true
+            tc);
+        // Should trigger at most once (initial false→true if x was undefined, or first assignment)
+        int triggers = countEvents(entries, TraceEvent::WATCH_TRIGGERED);
+        XASSERT(triggers <= 1); });
+
+    runTest("@watch re-triggers after false→true→false→true", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@watch(\"x > 10\")\n"
+            "x = 5\n"   // false
+            "x = 15\n"  // true → trigger
+            "x = 3\n"   // false (reset)
+            "x = 20\n", // true → trigger again
+            tc);
+        int triggers = countEvents(entries, TraceEvent::WATCH_TRIGGERED);
+        XASSERT_GE(triggers, 2); });
+
+    runTest("@watch parses complex expression", []()
+            {
+        // Just verify it parses without error
+        Lexer lexer("@watch(\"a + b > c * 2\")\na = 1\nb = 2\nc = 0");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        XASSERT(program.statements.size() >= 4); });
+
+    runTest("multiple @watch expressions", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@watch(\"x > 10\")\n"
+            "@watch(\"y < 0\")\n"
+            "x = 5\n"
+            "y = 5\n"
+            "x = 15\n"  // triggers first watch
+            "y = -1\n", // triggers second watch
+            tc);
+        XASSERT_GE((int)tc.watches().size(), 2);
+        int triggers = countEvents(entries, TraceEvent::WATCH_TRIGGERED);
+        XASSERT_GE(triggers, 2); });
+}
+
+// ============================================================================
+// Section 21: Phase 5 — @watch dependency tracking
+// ============================================================================
+
+static void testPhase5_WatchDependency()
+{
+    std::cout << "\n===== Phase 5: @watch dependency tracking =====\n";
+
+    runTest("watch extracts variable dependencies", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@watch(\"x > 10\")\n"
+            "x = 5\n",
+            tc);
+        XASSERT_GE((int)tc.watches().size(), 1);
+        // Should have "x" in dependsOn
+        XASSERT(tc.watches()[0].dependsOn.count("x")); });
+
+    runTest("watch with multiple variables extracts all deps", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@watch(\"a + b > threshold\")\n"
+            "a = 1\nb = 2\nthreshold = 10\n",
+            tc);
+        XASSERT(tc.watches()[0].dependsOn.count("a"));
+        XASSERT(tc.watches()[0].dependsOn.count("b"));
+        XASSERT(tc.watches()[0].dependsOn.count("threshold")); });
+
+    runTest("watch not dirtied by unrelated variable", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@watch(\"x > 100\")\n"
+            "x = 5\n"         // dirties (x is a dep), evaluates to false
+            "y = 999\n"       // does NOT dirty the watch (y is not a dep)
+            "z = 1000\n",     // does NOT dirty the watch (z is not a dep)
+            tc);
+        // The watch should have triggered 0 times (x never > 100)
+        int triggers = countEvents(entries, TraceEvent::WATCH_TRIGGERED);
+        XASSERT_EQ(triggers, 0); });
+}
+
+// ============================================================================
+// Section 22: Phase 5 — @checkpoint
+// ============================================================================
+
+static void testPhase5_Checkpoint()
+{
+    std::cout << "\n===== Phase 5: @checkpoint =====\n";
+
+    runTest("@checkpoint creates named snapshot", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "x = 10\n"
+            "@checkpoint(\"initial\")\n"
+            "x = 20\n"
+            "@checkpoint(\"after_change\")\n",
+            tc);
+        XASSERT_GE((int)tc.snapshots().size(), 2);
+        XASSERT_EQ(tc.snapshots()[0].name, "initial");
+        XASSERT_EQ(tc.snapshots()[1].name, "after_change"); });
+
+    runTest("@checkpoint captures state at that moment", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "x = 10\n"
+            "@checkpoint(\"before\")\n"
+            "x = 99\n"
+            "@checkpoint(\"after\")\n",
+            tc);
+        XASSERT_GE((int)tc.snapshots().size(), 2);
+        // First snapshot should have x=10, second x=99
+        bool foundBefore = false, foundAfter = false;
+        for (const auto &[scope, vars] : tc.snapshots()[0].scopeVars)
+        {
+            if (vars.count("x") && vars.at("x").second == "10")
+                foundBefore = true;
+        }
+        for (const auto &[scope, vars] : tc.snapshots()[1].scopeVars)
+        {
+            if (vars.count("x") && vars.at("x").second == "99")
+                foundAfter = true;
+        }
+        XASSERT(foundBefore);
+        XASSERT(foundAfter); });
+
+    runTest("@checkpoint emits CHECKPOINT_SAVED event", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@checkpoint(\"test\")\n",
+            tc);
+        auto *ev = findEvent(entries, TraceEvent::CHECKPOINT_SAVED);
+        XASSERT(ev != nullptr); });
+}
+
+// ============================================================================
+// Section 23: Phase 5 — @track
+// ============================================================================
+
+static void testPhase5_Track()
+{
+    std::cout << "\n===== Phase 5: @track =====\n";
+
+    runTest("@track var(x) only traces x", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@track var(x)\n"
+            "x = 10\n"
+            "y = 20\n"
+            "z = 30\n",
+            tc);
+        auto *evX = findEvent(entries, TraceEvent::VAR_BORN, "x");
+        auto *evY = findEvent(entries, TraceEvent::VAR_BORN, "y");
+        auto *evZ = findEvent(entries, TraceEvent::VAR_BORN, "z");
+        XASSERT(evX != nullptr);
+        XASSERT(evY == nullptr);
+        XASSERT(evZ == nullptr); });
+
+    runTest("@track var(a, b) traces multiple vars", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@track var(a, b)\n"
+            "a = 1\n"
+            "b = 2\n"
+            "c = 3\n",
+            tc);
+        XASSERT(findEvent(entries, TraceEvent::VAR_BORN, "a") != nullptr);
+        XASSERT(findEvent(entries, TraceEvent::VAR_BORN, "b") != nullptr);
+        XASSERT(findEvent(entries, TraceEvent::VAR_BORN, "c") == nullptr); });
+
+    runTest("@track fn(process) only traces process calls", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@track fn(process)\n"
+            "fn process(x) : give x * 2 ;\n"
+            "fn helper(x) : give x + 1 ;\n"
+            "a = process(5)\n"
+            "b = helper(5)\n",
+            tc);
+        auto *callProcess = findEvent(entries, TraceEvent::FN_CALLED, "process");
+        auto *callHelper = findEvent(entries, TraceEvent::FN_CALLED, "helper");
+        XASSERT(callProcess != nullptr);
+        XASSERT(callHelper == nullptr); });
+}
+
+// ============================================================================
+// Section 24: Phase 5 — @notrack
+// ============================================================================
+
+static void testPhase5_Notrack()
+{
+    std::cout << "\n===== Phase 5: @notrack =====\n";
+
+    runTest("@notrack var(temp) excludes temp", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@notrack var(temp)\n"
+            "x = 10\n"
+            "temp = 999\n"
+            "y = 20\n",
+            tc);
+        auto *evX = findEvent(entries, TraceEvent::VAR_BORN, "x");
+        auto *evTemp = findEvent(entries, TraceEvent::VAR_BORN, "temp");
+        auto *evY = findEvent(entries, TraceEvent::VAR_BORN, "y");
+        XASSERT(evX != nullptr);
+        XASSERT(evTemp == nullptr);
+        XASSERT(evY != nullptr); });
+
+    runTest("@notrack fn(helper) excludes helper calls", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@notrack fn(helper)\n"
+            "fn helper() : give 1 ;\n"
+            "fn main_fn() : give helper() ;\n"
+            "r = main_fn()\n",
+            tc);
+        auto *helperCall = findEvent(entries, TraceEvent::FN_CALLED, "helper");
+        auto *mainCall = findEvent(entries, TraceEvent::FN_CALLED, "main_fn");
+        XASSERT(helperCall == nullptr);
+        XASSERT(mainCall != nullptr); });
+
+    runTest("@notrack overrides @track for same item", []()
+            {
+                TraceCollector tc;
+                auto [output, entries] = runXellTraced(
+                    "@track var(x, y)\n"
+                    "@notrack var(y)\n"
+                    "x = 10\n"
+                    "y = 20\n",
+                    tc);
+                auto *evX = findEvent(entries, TraceEvent::VAR_BORN, "x");
+                auto *evY = findEvent(entries, TraceEvent::VAR_BORN, "y");
+                XASSERT(evX != nullptr);
+                XASSERT(evY == nullptr); // blacklist wins
+            });
+}
+
+// ============================================================================
+// Section 25: Phase 5 — @track categories
+// ============================================================================
+
+static void testPhase5_TrackCategories()
+{
+    std::cout << "\n===== Phase 5: @track categories =====\n";
+
+    runTest("@track loop enables loop events", []()
+            {
+        TraceCollector tc;
+        // Pre-disable loop tracking, then @track loop re-enables
+        Lexer lexer(
+            "@track loop\n"
+            "for i in [1, 2, 3] :\n"
+            "    print(i)\n"
+            ";\n"
+        );
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = true;
+        tc.filter().trackLoopFor = false;  // disabled initially
+        tc.filter().trackLoopWhile = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        // @track loop should have re-enabled
+        XASSERT(tc.filter().trackLoopFor);
+        XASSERT(tc.filter().trackLoopWhile); });
+
+    runTest("@track conditions enables branch events", []()
+            {
+        TraceCollector tc;
+        Lexer lexer("@track conditions\nx = 1\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = true;
+        tc.filter().trackConditions = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        XASSERT(tc.filter().trackConditions); });
+
+    runTest("@track perf enables performance tracking", []()
+            {
+        TraceCollector tc;
+        Lexer lexer("@track perf\nx = 1\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = true;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        XASSERT(tc.filter().trackPerf); });
+
+    runTest("@track multiple categories at once", []()
+            {
+        TraceCollector tc;
+        Lexer lexer("@track scope imports calls\nx = 1\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = true;
+        tc.filter().trackScope = false;
+        tc.filter().trackImports = false;
+        tc.filter().trackCalls = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        XASSERT(tc.filter().trackScope);
+        XASSERT(tc.filter().trackImports);
+        XASSERT(tc.filter().trackCalls); });
+
+    runTest("@track var() and category combined", []()
+            {
+        TraceCollector tc;
+        Lexer lexer("@track var(x, y) loop\nx = 1\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = true;
+        tc.filter().trackLoopFor = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        XASSERT(tc.filter().trackVars.count("x"));
+        XASSERT(tc.filter().trackVars.count("y"));
+        XASSERT(tc.filter().trackLoopFor); });
+}
+
+// ============================================================================
+// Section 26: Phase 5 — @track obj()
+// ============================================================================
+
+static void testPhase5_TrackObj()
+{
+    std::cout << "\n===== Phase 5: @track obj() =====\n";
+
+    runTest("@track obj(myInst) parses correctly", []()
+            {
+        TraceCollector tc;
+        Lexer lexer("@track obj(myInst, other)\nx = 1\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = true;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        XASSERT(tc.filter().trackObjs.count("myInst"));
+        XASSERT(tc.filter().trackObjs.count("other")); });
+
+    runTest("@notrack obj(x) parses correctly", []()
+            {
+        TraceCollector tc;
+        Lexer lexer("@notrack obj(temp_inst)\nx = 1\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = true;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        XASSERT(tc.filter().notrackObjs.count("temp_inst")); });
+
+    runTest("@notrack class(Temp) parses correctly", []()
+            {
+        TraceCollector tc;
+        Lexer lexer("@notrack class(Temp)\nx = 1\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = true;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        XASSERT(tc.filter().notrackClasses.count("Temp")); });
+}
+
+// ============================================================================
+// Section 27: Phase 5 — Edge Cases
+// ============================================================================
+
+static void testPhase5_EdgeCases()
+{
+    std::cout << "\n===== Phase 5: Edge Cases =====\n";
+
+    runTest("@debug on without trace collector does not crash", []()
+            {
+        Lexer lexer("@debug on\nx = 42\n@debug off\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        // No trace collector set — should not crash
+        interp.run(program);
+        XASSERT(true); });
+
+    runTest("@breakpoint without trace collector does not crash", []()
+            {
+        Lexer lexer("@breakpoint(\"test\")\nx = 42\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        interp.run(program); // no trace collector
+        XASSERT(true); });
+
+    runTest("@watch without trace collector does not crash", []()
+            {
+        Lexer lexer("@watch(\"x > 10\")\nx = 42\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        interp.run(program);
+        XASSERT(true); });
+
+    runTest("@checkpoint without trace collector does not crash", []()
+            {
+        Lexer lexer("@checkpoint(\"test\")\nx = 42\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        interp.run(program);
+        XASSERT(true); });
+
+    runTest("@track without trace collector does not crash", []()
+            {
+        Lexer lexer("@track var(x) loop\nx = 42\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        interp.run(program);
+        XASSERT(true); });
+
+    runTest("@notrack without trace collector does not crash", []()
+            {
+        Lexer lexer("@notrack fn(helper)\nx = 42\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        interp.run(program);
+        XASSERT(true); });
+
+    runTest("@debug sample without prior @debug on does not crash", []()
+            {
+        TraceCollector tc;
+        Lexer lexer("@debug sample 10\nx = 42\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        XASSERT(true); });
+
+    runTest("@breakpoint when with undefined var catches error", []()
+            {
+        TraceCollector tc;
+        // The condition references undefined variable — should not crash
+        // (breakpoint condition eval should handle errors gracefully)
+        try {
+            auto [output, entries] = runXellTraced(
+                "@breakpoint(\"undef_test\") when undefined_var > 10\n",
+                tc);
+        } catch (...) {
+            // If it throws, that's acceptable — just shouldn't segfault
+        }
+        XASSERT(true); });
+
+    runTest("empty @track parses correctly", []()
+            {
+        // @track with no categories should still be valid
+        Lexer lexer("@track\nx = 42\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        // Should not crash
+        XASSERT(true); });
+
+    runTest("@debug off when already off is idempotent", []()
+            {
+        TraceCollector tc;
+        Lexer lexer("@debug off\nx = 42\n@debug off\n");
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        XASSERT(!tc.enabled); });
+}
+
+// ============================================================================
+// Section 28: Phase 5 — Combined Decorator Scenarios
+// ============================================================================
+
+static void testPhase5_CombinedDecorators()
+{
+    std::cout << "\n===== Phase 5: Combined Decorators =====\n";
+
+    runTest("@debug on + @track + @breakpoint together", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@debug on\n"
+            "@track var(x)\n"
+            "x = 10\n"
+            "y = 20\n"
+            "@breakpoint(\"mid\")\n"
+            "x = 30\n"
+            "@debug off\n",
+            tc);
+        // x should be traced, y should not (whitelist)
+        XASSERT(findEvent(entries, TraceEvent::VAR_BORN, "x") != nullptr);
+        XASSERT(findEvent(entries, TraceEvent::VAR_BORN, "y") == nullptr);
+        // Snapshot should exist
+        XASSERT_GE((int)tc.snapshots().size(), 1); });
+
+    runTest("@debug on + @watch + variable change", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@debug on\n"
+            "@watch(\"count > 3\")\n"
+            "count = 0\n"
+            "count = 1\n"
+            "count = 2\n"
+            "count = 3\n"
+            "count = 4\n"  // should trigger
+            "@debug off\n",
+            tc);
+        int triggers = countEvents(entries, TraceEvent::WATCH_TRIGGERED);
+        XASSERT_GE(triggers, 1); });
+
+    runTest("@debug on + @notrack + @breakpoint", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@debug on\n"
+            "@notrack var(temp)\n"
+            "x = 10\n"
+            "temp = 999\n"
+            "@breakpoint(\"check\")\n"
+            "@debug off\n",
+            tc);
+        // x traced, temp not traced
+        XASSERT(findEvent(entries, TraceEvent::VAR_BORN, "x") != nullptr);
+        XASSERT(findEvent(entries, TraceEvent::VAR_BORN, "temp") == nullptr);
+        // But snapshot should still capture temp (snapshot captures ALL vars)
+        XASSERT_GE((int)tc.snapshots().size(), 1); });
+
+    runTest("@debug fn + @breakpoint inside fn", []()
+            {
+        TraceCollector tc;
+        Lexer lexer(
+            "@debug\n"
+            "fn process(x) :\n"
+            "    result = x * 2\n"
+            "    @breakpoint(\"inside_fn\")\n"
+            "    give result\n"
+            ";\n"
+            "r = process(21)\n"
+        );
+        auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+        auto program = parser.parse();
+        Interpreter interp;
+        tc.enabled = false;
+        interp.setTraceCollector(&tc);
+        interp.run(program);
+        // Snapshot should be taken (tracing enabled inside process)
+        XASSERT_GE((int)tc.snapshots().size(), 1);
+        XASSERT_EQ(tc.snapshots()[0].name, "inside_fn"); });
+
+    runTest("full pipeline: debug + track + watch + breakpoint + checkpoint", []()
+            {
+        TraceCollector tc;
+        auto [output, entries] = runXellTraced(
+            "@debug on\n"
+            "@track var(total, i)\n"
+            "@watch(\"total > 5\")\n"
+            "total = 0\n"
+            "@checkpoint(\"start\")\n"
+            "for i in [1, 2, 3, 4, 5] :\n"
+            "    total = total + i\n"
+            "    @breakpoint(\"iter\") when i == 3\n"
+            ";\n"
+            "@checkpoint(\"end\")\n"
+            "@debug off\n",
+            tc);
+        // Var tracking: total and i should be traced
+        XASSERT(findEvent(entries, TraceEvent::VAR_BORN, "total") != nullptr);
+        // Checkpoints: start and end
+        bool hasStart = false, hasEnd = false;
+        for (const auto &s : tc.snapshots())
+        {
+            if (s.name == "start") hasStart = true;
+            if (s.name == "end") hasEnd = true;
+        }
+        XASSERT(hasStart);
+        XASSERT(hasEnd);
+        // Breakpoint at i==3
+        bool hasIter = false;
+        for (const auto &s : tc.snapshots())
+            if (s.name == "iter") hasIter = true;
+        XASSERT(hasIter);
+        // Watch should have triggered (total goes 0→1→3→6→10→15; > 5 triggers at 6)
+        XASSERT_GE(countEvents(entries, TraceEvent::WATCH_TRIGGERED), 1); });
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -908,6 +1929,20 @@ int main()
     testEventNames();
     testCrossModuleSetup();
     testIntegratedTracing();
+    testPhase5_DebugOnOff();
+    testPhase5_DebugSample();
+    testPhase5_DebugOnFn();
+    testPhase5_Breakpoint();
+    testPhase5_BreakpointConditional();
+    testPhase5_Watch();
+    testPhase5_WatchDependency();
+    testPhase5_Checkpoint();
+    testPhase5_Track();
+    testPhase5_Notrack();
+    testPhase5_TrackCategories();
+    testPhase5_TrackObj();
+    testPhase5_EdgeCases();
+    testPhase5_CombinedDecorators();
 
     std::cout << "\n========================================\n";
     std::cout << " Results: " << g_passed << " passed, " << g_failed << " failed\n";

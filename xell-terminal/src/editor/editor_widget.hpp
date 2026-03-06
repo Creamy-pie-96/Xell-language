@@ -395,7 +395,7 @@ namespace xterm
                 return EditorAction::NONE;
             int maxW = view->maxLineWidth();
             int codeW = view->codeAreaWidth();
-            int maxScroll = std::max(0, maxW - codeW);
+            int maxScroll = std::max(0, maxW - codeW + 1);
             int newCol = std::clamp(view->scrollLeftCol() + delta, 0, maxScroll);
             view->scrollHorizontalTo(newCol);
             return EditorAction::HANDLED;

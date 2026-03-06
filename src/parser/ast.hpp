@@ -629,6 +629,65 @@ namespace xell
             : name(std::move(name)), body(std::move(body)) { line = ln; }
     };
 
+    // ============================================================
+    // Debug & Tracing decorators (Phase 5)
+    // ============================================================
+
+    // @debug on / @debug off — toggle section tracing
+    struct DebugToggleStmt : Stmt
+    {
+        bool enable; // true = on, false = off
+        DebugToggleStmt(bool on, int ln = 0) : enable(on) { line = ln; }
+    };
+
+    // @debug sample N — sampling mode for loops/calls
+    struct DebugSampleStmt : Stmt
+    {
+        int sampleSize;
+        DebugSampleStmt(int n, int ln = 0) : sampleSize(n) { line = ln; }
+    };
+
+    // @breakpoint("name") — snapshot (non-blocking)
+    // @breakpoint pause — pause execution
+    // @breakpoint pause N — pause for N seconds
+    // @breakpoint("name") when EXPR — conditional snapshot
+    struct BreakpointStmt : Stmt
+    {
+        std::string name;     // breakpoint label (may be empty)
+        bool isPause = false; // true for @breakpoint pause
+        int pauseSeconds = 0; // >0 for timed pause, 0 for Tab-resume
+        ExprPtr condition;    // non-null for conditional breakpoint
+        BreakpointStmt(int ln = 0) { line = ln; }
+    };
+
+    // @watch("expression") — alerts when expression becomes true
+    struct WatchStmt : Stmt
+    {
+        std::string expression; // raw string of the watch expression
+        ExprPtr parsed;         // parsed expression for evaluation
+        WatchStmt(std::string expr, ExprPtr parsedExpr, int ln = 0)
+            : expression(std::move(expr)), parsed(std::move(parsedExpr)) { line = ln; }
+    };
+
+    // @checkpoint("name") — full state save for time travel
+    struct CheckpointStmt : Stmt
+    {
+        std::string name;
+        CheckpointStmt(std::string n, int ln = 0) : name(std::move(n)) { line = ln; }
+    };
+
+    // @track var(x,y) fn(a,b) loop conditions — selective tracking
+    struct TrackStmt : Stmt
+    {
+        std::vector<std::string> vars;
+        std::vector<std::string> fns;
+        std::vector<std::string> classes;
+        std::vector<std::string> objs;       // @track obj(x,y) — instance tracking
+        std::vector<std::string> categories; // "loop", "conditions", "scope", "perf", etc.
+        bool isNotrack = false;              // true for @notrack
+        TrackStmt(int ln = 0) { line = ln; }
+    };
+
     // export fn/class/struct/var/module — wraps any declaration
     struct ExportDecl : Stmt
     {
