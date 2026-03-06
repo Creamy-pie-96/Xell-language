@@ -290,7 +290,16 @@ namespace xell
                         std::string h;
                         if (history_.down(h))
                         {
-                            setContent(h.empty() ? savedInput_ : h);
+                            if (h.empty())
+                            {
+                                // Past the most recent entry — clear to empty line
+                                setContent("");
+                                savedInput_.clear();
+                            }
+                            else
+                            {
+                                setContent(h);
+                            }
                         }
                     }
                     break;

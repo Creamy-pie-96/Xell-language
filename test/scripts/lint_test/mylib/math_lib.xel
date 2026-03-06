@@ -1,0 +1,36 @@
+# math_lib.xel — A math utility module for lint testing
+# Register with: xell --make_module math_lib.xel
+
+module math_lib:
+    export fn add(a, b):
+        give a + b
+    ;
+
+    export fn multiply(a, b):
+        give a * b
+    ;
+
+    export fn power(base, exp):
+        give pow(base, exp)
+    ;
+
+    export fn clamp_value(val, low=0, high=100):
+        give clamp(val, low, high)
+    ;
+
+    export fn sum_all(...nums):
+        total = 0
+        for n in nums:
+            total = total + n
+        ;
+        give total
+    ;
+
+    export PI = 3.14159265
+    export E  = 2.71828182
+
+    # Private — NOT exported
+    fn internal_round(x):
+        give round(x)
+    ;
+;

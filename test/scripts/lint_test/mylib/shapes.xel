@@ -1,0 +1,32 @@
+# shapes.xel — A module with class exports for lint testing
+# Register with: xell --make_module shapes.xel
+
+module shapes:
+    export class Circle:
+        radius = 0
+        fn __init__(self, r):
+            self->radius = r
+        ;
+        fn area(self):
+            give 3.14159 * self->radius * self->radius
+        ;
+    ;
+
+    export class Box:
+        width = 0
+        height = 0
+        fn __init__(self, w, h):
+            self->width = w
+            self->height = h
+        ;
+        fn area(self):
+            give self->width * self->height
+        ;
+    ;
+
+    export fn make_circle(r):
+        give Circle(r)
+    ;
+
+    export MAX_SIDES = 360
+;

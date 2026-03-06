@@ -1,0 +1,31 @@
+# str_lib.xel — A string utility module for lint testing
+# Register with: xell --make_module str_lib.xel
+
+module str_lib:
+    export fn greet(name):
+        give "Hello, " + name + "!"
+    ;
+
+    export fn farewell(name):
+        give "Goodbye, " + name + "!"
+    ;
+
+    export fn repeat_str(text, times):
+        give repeat(text, times)
+    ;
+
+    export fn format_name(first, last, title=""):
+        if title eq "":
+            give first + " " + last
+        ;
+        give title + " " + first + " " + last
+    ;
+
+    export VERSION = "2.0.0"
+    export AUTHOR  = "Xell"
+
+    # Private
+    fn sanitize(s):
+        give trim(s)
+    ;
+;

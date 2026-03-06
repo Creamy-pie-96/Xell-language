@@ -19,8 +19,10 @@
 #include <fstream>
 #include <sstream>
 #include <cctype>
+#include <regex>
 #include "../terminal/types.hpp"
 #include "../theme/theme_loader.hpp"
+#include "snippet_engine.hpp"
 
 namespace xterm
 {
@@ -67,6 +69,7 @@ namespace xterm
                                 std::istreambuf_iterator<char>());
 
             parseLanguageData(content);
+            loadBuiltinMembers(); // populate type members for -> access
         }
 
         void loadDefaults()
@@ -156,48 +159,143 @@ namespace xterm
 
         void clearUserSymbols() { userItems_.clear(); }
 
-        // Scan a buffer for user-defined names (simple regex-free scan)
+        int userSymbolCount() const { return (int)userItems_.size(); }
+
+        // Load snippet definitions as completion items
+        void loadSnippets(const SnippetEngine &engine)
+        {
+            for (auto &sn : engine.snippets())
+            {
+                CompletionItem item;
+                item.label = sn.prefix;
+                item.kind = CompletionKind::Snippet;
+                item.detail = "snippet";
+                item.signature = sn.description;
+                snippetItems_.push_back(item);
+            }
+        }
+
+        // Scan a buffer for user-defined names (regex-based scan)
         void scanBuffer(const std::vector<std::string> &lines)
         {
             clearUserSymbols();
             std::unordered_set<std::string> seen;
 
+            // Regex patterns for Xell constructs
+            static const std::regex fnPattern(R"(^\s*fn\s+([a-zA-Z_]\w*))");
+            static const std::regex letBePattern(R"(^\s*(?:let|be)\s+([a-zA-Z_]\w*))");
+            static const std::regex classPattern(R"(^\s*(?:class|struct)\s+([a-zA-Z_]\w*))");
+            static const std::regex modulePattern(R"(^\s*module\s+([a-zA-Z_]\w*))");
+            static const std::regex bringPattern(R"(^\s*bring\s+([a-zA-Z_]\w*))");
+            static const std::regex forPattern(R"(^\s*for\s+([a-zA-Z_]\w*)\s+in\b)");
+            static const std::regex catchPattern(R"(^\s*catch\s+([a-zA-Z_]\w*))");
+            // Variable assignment: name = value (but not ==, =>, or inside expressions)
+            static const std::regex varPattern(R"(^\s*([a-zA-Z_]\w*)\s*=(?!=)(?!>))");
+            // Lambda: name => body
+            static const std::regex lambdaPattern(R"(^\s*(?:let|be)?\s*([a-zA-Z_]\w*)\s*=>\s*)");
+
+            auto tryMatch = [&](const std::string &line, const std::regex &pat, CompletionKind kind)
+            {
+                std::smatch m;
+                if (std::regex_search(line, m, pat) && m.size() > 1)
+                {
+                    std::string name = m[1].str();
+                    if (!name.empty() && seen.find(name) == seen.end())
+                    {
+                        seen.insert(name);
+                        addUserSymbol(name, kind);
+                    }
+                }
+            };
+
             for (auto &line : lines)
             {
-                // Look for: fn name, let name, class name, be name
-                auto addMatch = [&](const std::string &prefix, CompletionKind kind)
-                {
-                    size_t pos = 0;
-                    while ((pos = line.find(prefix, pos)) != std::string::npos)
-                    {
-                        size_t start = pos + prefix.size();
-                        // Skip whitespace
-                        while (start < line.size() && line[start] == ' ')
-                            start++;
-                        // Read identifier
-                        size_t end = start;
-                        while (end < line.size() && (isalnum(line[end]) || line[end] == '_'))
-                            end++;
-                        if (end > start)
-                        {
-                            std::string name = line.substr(start, end - start);
-                            if (seen.find(name) == seen.end())
-                            {
-                                seen.insert(name);
-                                addUserSymbol(name, kind);
-                            }
-                        }
-                        pos = end;
-                    }
-                };
-
-                addMatch("fn ", CompletionKind::Function);
-                addMatch("let ", CompletionKind::Variable);
-                addMatch("be ", CompletionKind::Variable);
-                addMatch("class ", CompletionKind::Class);
-                addMatch("struct ", CompletionKind::Class);
-                addMatch("module ", CompletionKind::Module);
+                tryMatch(line, fnPattern, CompletionKind::Function);
+                tryMatch(line, letBePattern, CompletionKind::Variable);
+                tryMatch(line, classPattern, CompletionKind::Class);
+                tryMatch(line, modulePattern, CompletionKind::Module);
+                tryMatch(line, bringPattern, CompletionKind::Module);
+                tryMatch(line, forPattern, CompletionKind::Variable);
+                tryMatch(line, catchPattern, CompletionKind::Variable);
+                tryMatch(line, varPattern, CompletionKind::Variable);
+                tryMatch(line, lambdaPattern, CompletionKind::Function);
             }
+        }
+
+        // ── Load symbols from --check-symbols JSON output ─────────────
+        // Replaces scanBuffer with AST-derived symbols.
+        // JSON format: [{"name":"x","kind":"function","detail":"fn x(a,b)","params":["a","b"]}, ...]
+        void loadASTSymbols(const std::string &json)
+        {
+            clearUserSymbols();
+            moduleMembers_.clear(); // clear old scoped members too
+            if (json.empty() || json[0] != '[')
+            {
+                // Re-populate builtin members (they were cleared)
+                loadBuiltinMembers();
+                return;
+            }
+
+            // Lightweight JSON array-of-objects parser (no dependency)
+            size_t pos = 1; // skip '['
+            while (pos < json.size())
+            {
+                // Find next '{'
+                pos = json.find('{', pos);
+                if (pos == std::string::npos)
+                    break;
+
+                // Find matching '}'
+                size_t end = json.find('}', pos);
+                if (end == std::string::npos)
+                    break;
+
+                std::string obj = json.substr(pos, end - pos + 1);
+                pos = end + 1;
+
+                // Extract fields with simple string search
+                std::string name = extractJsonStr(obj, "name");
+                std::string kind = extractJsonStr(obj, "kind");
+                std::string detail = extractJsonStr(obj, "detail");
+                std::string scope = extractJsonStr(obj, "scope");
+
+                if (name.empty())
+                    continue;
+
+                // Skip parameters (method params etc.)
+                if (kind == "parameter")
+                    continue;
+
+                CompletionKind ck = CompletionKind::Variable;
+                if (kind == "function" || kind == "method")
+                    ck = CompletionKind::Function;
+                else if (kind == "class")
+                    ck = CompletionKind::Class;
+                else if (kind == "module")
+                    ck = CompletionKind::Module;
+                else if (kind == "import")
+                    ck = CompletionKind::Module;
+                else if (kind == "constant")
+                    ck = CompletionKind::Constant;
+
+                // If this symbol has a parent scope, it's a member — add to moduleMembers_
+                if (!scope.empty())
+                {
+                    CompletionItem item;
+                    item.label = name;
+                    item.kind = ck;
+                    item.detail = detail.empty() ? (scope + " member") : detail;
+                    moduleMembers_[scope].push_back(item);
+                }
+                else
+                {
+                    // Top-level symbol — add to global user completions
+                    addUserSymbol(name, ck, detail);
+                }
+            }
+
+            // Re-populate builtin type members (string, list, map, etc.)
+            loadBuiltinMembers();
         }
 
         // Fuzzy match: find completions matching prefix
@@ -256,6 +354,16 @@ namespace xterm
                     results.push_back(copy);
                 }
             }
+            for (auto &item : snippetItems_)
+            {
+                int s = score(item);
+                if (s >= 0)
+                {
+                    CompletionItem copy = item;
+                    copy.score = s + 50; // snippets get moderate boost
+                    results.push_back(copy);
+                }
+            }
 
             // Sort by score (highest first)
             std::sort(results.begin(), results.end(),
@@ -268,9 +376,127 @@ namespace xterm
             return results;
         }
 
+        // Match only members of a specific module (for -> access)
+        std::vector<CompletionItem> matchModuleMembers(const std::string &moduleName,
+                                                       const std::string &prefix,
+                                                       int maxResults = 20) const
+        {
+            auto it = moduleMembers_.find(moduleName);
+            if (it == moduleMembers_.end())
+                return {};
+
+            std::vector<CompletionItem> results;
+            std::string lowerPrefix = toLower(prefix);
+
+            for (auto &item : it->second)
+            {
+                std::string lowerLabel = toLower(item.label);
+                int s = -1;
+                if (prefix.empty())
+                    s = 500 - (int)item.label.size(); // show all members
+                else if (lowerLabel.substr(0, lowerPrefix.size()) == lowerPrefix)
+                    s = 1000 - (int)item.label.size();
+                else
+                {
+                    // Fuzzy match
+                    int pi = 0;
+                    for (int li = 0; li < (int)lowerLabel.size() && pi < (int)lowerPrefix.size(); li++)
+                        if (lowerLabel[li] == lowerPrefix[pi])
+                            pi++;
+                    if (pi == (int)lowerPrefix.size())
+                        s = 500 - (int)item.label.size();
+                }
+                if (s >= 0)
+                {
+                    CompletionItem copy = item;
+                    copy.score = s + 200; // high priority for member access
+                    results.push_back(copy);
+                }
+            }
+
+            std::sort(results.begin(), results.end(),
+                      [](const CompletionItem &a, const CompletionItem &b)
+                      { return a.score > b.score; });
+            if ((int)results.size() > maxResults)
+                results.resize(maxResults);
+            return results;
+        }
+
+        bool hasModuleMembers(const std::string &moduleName) const
+        {
+            if (moduleName == "__any__")
+                return true; // __any__ always "has members" (combined fallback)
+            return moduleMembers_.count(moduleName) > 0;
+        }
+
+        // Match members for __any__ (combined string+list+map+collection methods)
+        // Also handles looking up a specific type key (__string__, __list__, etc.)
+        // For __any__, deduplicates across all builtin type scopes
+        std::vector<CompletionItem> matchAnyMembers(const std::string &prefix,
+                                                    int maxResults = 25) const
+        {
+            std::vector<CompletionItem> combined;
+            std::unordered_set<std::string> seen;
+
+            // Gather from all builtin type scopes
+            static const std::vector<std::string> builtinTypes = {
+                "__string__", "__list__", "__map__", "__number__",
+                "__bytes__", "__type__"};
+
+            for (auto &typeKey : builtinTypes)
+            {
+                auto it = moduleMembers_.find(typeKey);
+                if (it == moduleMembers_.end())
+                    continue;
+                for (auto &item : it->second)
+                {
+                    if (seen.insert(item.label).second)
+                        combined.push_back(item);
+                }
+            }
+
+            // Now fuzzy-match from combined
+            std::vector<CompletionItem> results;
+            std::string lowerPrefix = toLower(prefix);
+
+            for (auto &item : combined)
+            {
+                std::string lowerLabel = toLower(item.label);
+                int s = -1;
+                if (prefix.empty())
+                    s = 500 - (int)item.label.size();
+                else if (lowerLabel.substr(0, lowerPrefix.size()) == lowerPrefix)
+                    s = 1000 - (int)item.label.size();
+                else
+                {
+                    int pi = 0;
+                    for (int li = 0; li < (int)lowerLabel.size() && pi < (int)lowerPrefix.size(); li++)
+                        if (lowerLabel[li] == lowerPrefix[pi])
+                            pi++;
+                    if (pi == (int)lowerPrefix.size())
+                        s = 500 - (int)item.label.size();
+                }
+                if (s >= 0)
+                {
+                    CompletionItem copy = item;
+                    copy.score = s + 150; // slightly lower than exact module members
+                    results.push_back(copy);
+                }
+            }
+
+            std::sort(results.begin(), results.end(),
+                      [](const CompletionItem &a, const CompletionItem &b)
+                      { return a.score > b.score; });
+            if ((int)results.size() > maxResults)
+                results.resize(maxResults);
+            return results;
+        }
+
     private:
         std::vector<CompletionItem> allItems_;
         std::vector<CompletionItem> userItems_;
+        std::vector<CompletionItem> snippetItems_;
+        std::unordered_map<std::string, std::vector<CompletionItem>> moduleMembers_;
 
         static std::string toLower(const std::string &s)
         {
@@ -278,6 +504,25 @@ namespace xterm
             for (auto &c : result)
                 c = std::tolower(c);
             return result;
+        }
+
+        // Extract a string value from a JSON object substring: "key":"value"
+        static std::string extractJsonStr(const std::string &obj, const std::string &key)
+        {
+            std::string needle = "\"" + key + "\"";
+            size_t pos = obj.find(needle);
+            if (pos == std::string::npos)
+                return "";
+            pos = obj.find(':', pos + needle.size());
+            if (pos == std::string::npos)
+                return "";
+            pos = obj.find('"', pos + 1);
+            if (pos == std::string::npos)
+                return "";
+            size_t end = obj.find('"', pos + 1);
+            if (end == std::string::npos)
+                return "";
+            return obj.substr(pos + 1, end - pos - 1);
         }
 
         // Minimal JSON parser for language_data.json
@@ -378,6 +623,57 @@ namespace xterm
             }
         }
 
+        // Populate moduleMembers_ with builtin type members for -> access.
+        // Maps language_data.json categories to special scope keys:
+        //   "string"     → "__string__"
+        //   "list"       → "__list__"  (also gets "collection" entries)
+        //   "map"        → "__map__"   (also gets "collection" entries)
+        //   "collection" → shared by __list__, __map__
+        //   "regex"      → "__string__" (regex methods on strings)
+        //   "bytes"      → "__bytes__"
+        // This allows -> on string literals, list literals, etc.
+        void loadBuiltinMembers()
+        {
+            // Category → builtin type scope keys
+            // Some categories map to multiple types (collection → list, map)
+            static const std::unordered_map<std::string, std::vector<std::string>> categoryToTypes = {
+                {"string", {"__string__"}},
+                {"regex", {"__string__"}},
+                {"textproc", {"__string__"}},
+                {"list", {"__list__"}},
+                {"collection", {"__list__", "__map__"}},
+                {"map", {"__map__"}},
+                {"math", {"__number__"}},
+                {"bytes", {"__bytes__"}},
+                {"io", {"__io__"}},
+                {"fs", {"__fs__"}},
+                {"json", {"__json__"}},
+                {"datetime", {"__datetime__"}},
+                {"type", {"__type__"}},
+                {"hash", {"__hash__"}},
+            };
+
+            for (auto &item : allItems_)
+            {
+                if (item.kind != CompletionKind::Builtin || item.category.empty())
+                    continue;
+
+                auto it = categoryToTypes.find(item.category);
+                if (it == categoryToTypes.end())
+                    continue;
+
+                for (auto &typeKey : it->second)
+                {
+                    CompletionItem member;
+                    member.label = item.label;
+                    member.kind = CompletionKind::Function; // builtins are callable
+                    member.detail = item.category + " method";
+                    member.signature = item.signature;
+                    moduleMembers_[typeKey].push_back(member);
+                }
+            }
+        }
+
         std::string extractString(const std::string &json, size_t keyPos) const
         {
             // Find the colon after the key
@@ -440,6 +736,23 @@ namespace xterm
             anchorCol_ = screenCol;
         }
 
+        // Show the popup with pre-built items (for module member access)
+        void showItems(int screenRow, int screenCol, const std::string &prefix,
+                       const std::vector<CompletionItem> &items)
+        {
+            prefix_ = prefix;
+            items_ = items;
+            if (items_.empty())
+            {
+                visible_ = false;
+                return;
+            }
+            visible_ = true;
+            selectedIdx_ = 0;
+            anchorRow_ = screenRow;
+            anchorCol_ = screenCol;
+        }
+
         void hide()
         {
             visible_ = false;
@@ -455,6 +768,20 @@ namespace xterm
                 return;
             prefix_ = prefix;
             items_ = db.match(prefix);
+            if (items_.empty())
+                hide();
+            else
+                selectedIdx_ = std::min(selectedIdx_, (int)items_.size() - 1);
+        }
+
+        // Update filter with pre-built items (for module member access)
+        void updateFilterItems(const std::string &prefix,
+                               const std::vector<CompletionItem> &items)
+        {
+            if (!visible_)
+                return;
+            prefix_ = prefix;
+            items_ = items;
             if (items_.empty())
                 hide();
             else

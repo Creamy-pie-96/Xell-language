@@ -1,0 +1,187 @@
+# lint_import_test.xel — Comprehensive lint test for all import patterns
+#
+# Run:  xell --check test/scripts/module_test/lint_import_test.xel
+# Expected: Only the lines marked "SHOULD ERROR" produce diagnostics.
+#           All other lines should pass without errors.
+
+# ═══════════════════════════════════════════════════════
+#  1. Bare bring: bring module_name (namespace access)
+# ═══════════════════════════════════════════════════════
+
+bring string_utils
+
+# ✓ Valid: namespace member access
+string_utils->greet("Xell")
+string_utils->farewell("World")
+string_utils->VERSION
+
+# ✗ SHOULD ERROR: 'me' is not exported from string_utils
+string_utils->me()
+
+# ✗ SHOULD ERROR: 'internal_helper' is private, not exported
+string_utils->internal_helper()
+
+# ═══════════════════════════════════════════════════════
+#  2. Named import: bring X of module
+# ═══════════════════════════════════════════════════════
+
+bring square, cube of math_utils
+
+# ✓ Valid: named imports are in scope
+square(5)
+cube(3)
+
+# ✗ SHOULD ERROR: wrong arity — square takes 1 arg
+square()
+square(1, 2)
+
+# ═══════════════════════════════════════════════════════
+#  3. Named import with alias: bring X of module as Y
+# ═══════════════════════════════════════════════════════
+
+bring farewell of string_utils as bye
+
+# ✓ Valid: alias is in scope with correct arity
+bye("Alice")
+
+# ✗ SHOULD ERROR: wrong arity — farewell takes 1 arg
+bye()
+bye("a", "b")
+
+# ═══════════════════════════════════════════════════════
+#  4. Wildcard import: bring * of module
+# ═══════════════════════════════════════════════════════
+
+# Local module for wildcard test
+module local_math:
+    export fn add(a, b):
+        give a + b
+    ;
+    export fn sub(a, b):
+        give a - b
+    ;
+    export PI = 3.14159
+;
+
+bring * of local_math
+
+# ✓ Valid: wildcard-imported names are in scope
+add(1, 2)
+sub(5, 3)
+
+# ═══════════════════════════════════════════════════════
+#  5. File-based import: bring X from "file.xel"
+# ═══════════════════════════════════════════════════════
+
+bring double from "math_utils.xel"
+
+# ✓ Valid
+double(7)
+
+# ✗ SHOULD ERROR: wrong arity — double takes 1 arg
+double()
+double(1, 2, 3)
+
+# ═══════════════════════════════════════════════════════
+#  6. Wildcard file import: bring * from "file.xel"
+# ═══════════════════════════════════════════════════════
+
+bring * from "variable_module.xel"
+
+# ✓ Valid: config module is now in scope
+config
+
+# ═══════════════════════════════════════════════════════
+#  7. Module member arity check (namespace->fn call)
+# ═══════════════════════════════════════════════════════
+
+bring math_utils
+
+# ✓ Valid: correct arity
+math_utils->square(5)
+math_utils->cube(3)
+
+# ✗ SHOULD ERROR: wrong arity
+math_utils->square()
+math_utils->square(1, 2)
+math_utils->cube()
+
+# ✗ SHOULD ERROR: not exported
+math_utils->nonexistent()
+
+# ═══════════════════════════════════════════════════════
+#  8. Class module imports
+# ═══════════════════════════════════════════════════════
+
+bring Circle of shapes from "class_module.xel"
+
+# ✓ Valid: class is in scope
+c = Circle(5)
+
+# ═══════════════════════════════════════════════════════
+#  9. Local function arity
+# ═══════════════════════════════════════════════════════
+
+fn greet_person(name, greeting):
+    give greeting + ", " + name
+;
+
+# ✓ Valid
+greet_person("Alice", "Hello")
+
+# ✗ SHOULD ERROR: wrong arity
+greet_person()
+greet_person("Alice")
+greet_person("Alice", "Hello", "extra")
+
+# ═══════════════════════════════════════════════════════
+# 10. Function with defaults (partial arity)
+# ═══════════════════════════════════════════════════════
+
+fn connect(host, port=8080, timeout=30):
+    give host + ":" + str(port)
+;
+
+# ✓ Valid: 1 to 3 args (port and timeout have defaults)
+connect("localhost")
+connect("localhost", 3000)
+connect("localhost", 3000, 60)
+
+# ✗ SHOULD ERROR: too few or too many args
+connect()
+connect("a", "b", "c", "d")
+
+# ═══════════════════════════════════════════════════════
+# 11. Variadic function
+# ═══════════════════════════════════════════════════════
+
+fn log(level, ...messages):
+    print(level)
+;
+
+# ✓ Valid: at least 1 arg (level), rest is variadic
+log("INFO")
+log("INFO", "msg1")
+log("INFO", "msg1", "msg2", "msg3")
+
+# ✗ SHOULD ERROR: need at least 1 arg (level)
+log()
+
+# ═══════════════════════════════════════════════════════
+# 12. Inline module definition + member check
+# ═══════════════════════════════════════════════════════
+
+module utils:
+    export fn helper(x):
+        give x + 1
+    ;
+    export NAME = "utils"
+;
+
+# ✓ Valid
+utils->helper(5)
+utils->NAME
+
+# ✗ SHOULD ERROR: no such export
+utils->missing()
+utils->bogus

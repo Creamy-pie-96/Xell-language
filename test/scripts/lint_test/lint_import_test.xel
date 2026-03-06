@@ -1,0 +1,194 @@
+# lint_import_test.xel — Comprehensive lint test for all import patterns
+#
+# Run:  xell --check lint_import_test.xel
+#       (from /test/scripts/lint_test/ directory)
+#
+# Modules live in ./mylib/ — registered with --make_module.
+# This file is in the PARENT directory to test cross-directory resolution.
+#
+# Lines marked "SHOULD ERROR" must produce a diagnostic.
+# All other lines must pass silently.
+
+# ═══════════════════════════════════════════════════════
+#  1. Bare bring — namespace access (from file in mylib/)
+# ═══════════════════════════════════════════════════════
+
+bring str_lib from "mylib/str_lib.xel"
+bring math_lib from "mylib/math_lib.xel" as ml
+
+# ── wait, bare bring is "bring X" — let me use the file-based variant
+# to bring the module objects, then test namespace access.
+
+# ✓ Valid: namespace access on imported module
+str_lib->greet("Xell")
+str_lib->farewell("World")
+str_lib->VERSION
+
+# ✗ SHOULD ERROR: 'sanitize' is private
+str_lib->sanitize("hello")
+ml->add(1,3)
+
+
+# ✗ SHOULD ERROR: 'nope' not exported
+str_lib->nope()
+
+# ═══════════════════════════════════════════════════════
+#  2. Named import with arity check
+# ═══════════════════════════════════════════════════════
+
+bring add, multiply from "mylib/math_lib.xel"
+
+# ✓ Valid
+add(1, 2)
+multiply(3, 4)
+
+# ✗ SHOULD ERROR: wrong arity — add takes 2
+add()
+add(1)
+add(1, 2, 3)
+
+# ✗ SHOULD ERROR: wrong arity — multiply takes 2
+multiply()
+
+# ═══════════════════════════════════════════════════════
+#  3. Named import with alias + arity
+# ═══════════════════════════════════════════════════════
+
+bring farewell of str_lib as bye
+
+# ✓ Valid: bye = farewell (takes 1 arg)
+bye("Alice")
+
+# ✗ SHOULD ERROR: wrong arity
+bye()
+bye("a", "b")
+
+# ═══════════════════════════════════════════════════════
+#  4. Wildcard import from file
+# ═══════════════════════════════════════════════════════
+
+bring * from "mylib/shapes.xel"
+
+# ✓ Valid: shapes module is in scope
+shapes
+
+# ═══════════════════════════════════════════════════════
+#  5. Module member arity via namespace->fn()
+# ═══════════════════════════════════════════════════════
+
+# ✓ Valid: correct arity
+math_lib->add(1, 2)
+math_lib->multiply(3, 4)
+math_lib->power(2, 10)
+
+# ✗ SHOULD ERROR: wrong arity
+math_lib->add()
+math_lib->add(1)
+math_lib->multiply(1, 2, 3)
+
+# ✗ SHOULD ERROR: not exported
+math_lib->internal_round(5)
+math_lib->nonexistent()
+
+# ═══════════════════════════════════════════════════════
+#  6. Functions with default params
+# ═══════════════════════════════════════════════════════
+
+bring clamp_value from "mylib/math_lib.xel"
+
+# ✓ Valid: 1 required, 2 optional
+clamp_value(50)
+clamp_value(50, 10)
+clamp_value(50, 10, 200)
+
+# ✗ SHOULD ERROR: too few args (min 1)
+clamp_value()
+
+# ✗ SHOULD ERROR: too many args (max 3)
+clamp_value(1, 2, 3, 4)
+
+# ═══════════════════════════════════════════════════════
+#  7. Variadic functions
+# ═══════════════════════════════════════════════════════
+
+bring sum_all from "mylib/math_lib.xel"
+
+# ✓ Valid: variadic, 0+ args
+sum_all()
+sum_all(1)
+sum_all(1, 2, 3, 4, 5)
+
+# ═══════════════════════════════════════════════════════
+#  8. Named import with format_name (2 required + 1 optional)
+# ═══════════════════════════════════════════════════════
+
+bring format_name from "mylib/str_lib.xel"
+
+# ✓ Valid: 2-3 args
+format_name("John", "Doe")
+format_name("John", "Doe", "Dr.")
+
+# ✗ SHOULD ERROR: too few
+format_name()
+format_name("John")
+
+# ✗ SHOULD ERROR: too many
+format_name("a", "b", "c", "d")
+
+# ═══════════════════════════════════════════════════════
+#  9. Class import + usage
+# ═══════════════════════════════════════════════════════
+
+bring Circle, Box of shapes
+
+# ✓ Valid
+c = Circle(5)
+b = Box(10, 20)
+
+# ═══════════════════════════════════════════════════════
+# 10. Local function arity
+# ═══════════════════════════════════════════════════════
+
+fn compute(x, y, z):
+    give x + y + z
+;
+
+# ✓ Valid
+compute(1, 2, 3)
+
+# ✗ SHOULD ERROR
+compute()
+compute(1)
+compute(1, 2, 3, 4)
+
+# ═══════════════════════════════════════════════════════
+# 11. Local module + member check
+# ═══════════════════════════════════════════════════════
+
+module counter:
+    export fn increment(val):
+        give val + 1
+    ;
+    export fn decrement(val):
+        give val - 1
+    ;
+    export START = 0
+;
+
+# ✓ Valid
+counter->increment(5)
+counter->decrement(5)
+counter->START
+
+# ✗ SHOULD ERROR
+counter->reset()
+counter->missing
+
+# ═══════════════════════════════════════════════════════
+# 12. Undefined variable/function (basic lint)
+# ═══════════════════════════════════════════════════════
+
+# ✗ SHOULD ERROR: undefined
+undefined_var
+unknown_function()
+pirnt("typo")

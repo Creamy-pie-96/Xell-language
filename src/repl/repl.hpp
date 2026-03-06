@@ -106,10 +106,22 @@ namespace xell
 
                 // Handle special REPL commands
                 if (handleCommand(input))
+                {
+                    // Save to history even for shell commands / REPL builtins
+                    // (except :clear, :history which don't need to be recalled)
+                    if (input != ":clear" && input != ":cls" &&
+                        input != ":history" && input != ":hist" &&
+                        input != ":help" && input != ":h")
+                    {
+                        history_.add(input);
+                        history_.save(historyPath_);
+                    }
                     continue;
+                }
 
                 // Execute the input (can be multiline)
                 history_.add(input);
+                history_.save(historyPath_); // save incrementally (survives SIGTERM)
                 execute(input);
             }
         }

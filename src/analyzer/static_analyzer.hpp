@@ -13,12 +13,16 @@
 // =============================================================================
 
 #include "../parser/ast.hpp"
+#include "../lexer/lexer.hpp"
+#include "../parser/parser.hpp"
 #include <string>
 #include <vector>
 #include <algorithm>
 #include <unordered_set>
 #include <unordered_map>
+#include <fstream>
 #include <filesystem>
+#include <regex>
 
 namespace xell
 {
@@ -192,12 +196,43 @@ namespace xell
             return diagnostics_;
         }
 
+        // Set source directory for resolving relative import paths
+        void setSourceDir(const std::string &dir)
+        {
+            sourceDir_ = dir;
+        }
+
+        // Expose module exports for IDE autocomplete (module name → set of exported member names)
+        const std::unordered_map<std::string, std::unordered_set<std::string>> &getModuleExports() const
+        {
+            return moduleExportsMap_;
+        }
+
     private:
+        // ─── Arity info for function call validation ───
+        struct FnArity
+        {
+            int minParams = 0; // number of required params (no default)
+            int maxParams = 0; // total params (including those with defaults)
+            bool isVariadic = false;
+        };
+
         std::unordered_set<std::string> builtins_;
         std::unordered_map<std::string, std::string> typoMap_;
         std::vector<std::unordered_set<std::string>> scopes_;
         std::vector<LintDiagnostic> diagnostics_;
-        bool hasWildcardBring_ = false; // suppress "undefined" when wildcard bring is in scope
+        bool hasWildcardBring_ = false;                   // suppress "undefined" when wildcard bring is in scope
+        std::string sourceDir_;                           // directory of the source file being analyzed
+        std::unordered_set<std::string> resolvedImports_; // avoid re-parsing same import file
+
+        // Function name → arity info (for argument count validation)
+        std::unordered_map<std::string, FnArity> fnArityMap_;
+
+        // Module name → set of exported member names
+        std::unordered_map<std::string, std::unordered_set<std::string>> moduleExportsMap_;
+
+        // "module.member" → arity info for module-exported functions
+        std::unordered_map<std::string, FnArity> moduleExportArityMap_;
 
         void pushScope() { scopes_.push_back({}); }
         void popScope()
@@ -210,6 +245,53 @@ namespace xell
         {
             if (!scopes_.empty())
                 scopes_.back().insert(name);
+        }
+
+        // Register a function's arity for argument count validation
+        void defineFn(const FnDef *fn)
+        {
+            if (!fn || fn->name.empty())
+                return;
+            define(fn->name);
+            FnArity arity;
+            arity.maxParams = (int)fn->params.size();
+            arity.isVariadic = fn->isVariadic;
+            // Count required params (those without defaults)
+            int required = 0;
+            for (size_t i = 0; i < fn->params.size(); i++)
+            {
+                bool hasDefault = (i < fn->defaults.size() && fn->defaults[i] != nullptr);
+                if (!hasDefault)
+                    required++;
+            }
+            arity.minParams = required;
+            fnArityMap_[fn->name] = arity;
+        }
+
+        // Register a function as a module export with arity info
+        void defineModuleExportFn(const std::string &moduleName, const FnDef *fn)
+        {
+            if (!fn || fn->name.empty())
+                return;
+            moduleExportsMap_[moduleName].insert(fn->name);
+            FnArity arity;
+            arity.maxParams = (int)fn->params.size();
+            arity.isVariadic = fn->isVariadic;
+            int required = 0;
+            for (size_t i = 0; i < fn->params.size(); i++)
+            {
+                bool hasDefault = (i < fn->defaults.size() && fn->defaults[i] != nullptr);
+                if (!hasDefault)
+                    required++;
+            }
+            arity.minParams = required;
+            moduleExportArityMap_[moduleName + "." + fn->name] = arity;
+        }
+
+        // Register a non-function module export (variable, class, etc.)
+        void defineModuleExport(const std::string &moduleName, const std::string &memberName)
+        {
+            moduleExportsMap_[moduleName].insert(memberName);
         }
 
         bool isDefined(const std::string &name) const
@@ -235,7 +317,7 @@ namespace xell
             else if (auto *imm = dynamic_cast<const ImmutableBinding *>(stmt))
                 define(imm->name);
             else if (auto *fn = dynamic_cast<const FnDef *>(stmt))
-                define(fn->name);
+                defineFn(fn);
             else if (auto *cls = dynamic_cast<const ClassDef *>(stmt))
                 define(cls->name);
             else if (auto *st = dynamic_cast<const StructDef *>(stmt))
@@ -249,7 +331,10 @@ namespace xell
             else if (auto *iface = dynamic_cast<const InterfaceDef *>(stmt))
                 define(iface->name);
             else if (auto *mod = dynamic_cast<const ModuleDef *>(stmt))
+            {
                 define(mod->name);
+                collectModuleExports(mod);
+            }
             else if (auto *exp = dynamic_cast<const ExportDecl *>(stmt))
                 collectDefinitions(exp->declaration.get());
             else if (auto *decFn = dynamic_cast<const DecoratedFnDef *>(stmt))
@@ -258,24 +343,7 @@ namespace xell
                 collectDefinitions(decCls->classDef.get());
             else if (auto *bring = dynamic_cast<const BringStmt *>(stmt))
             {
-                if (!bring->aliases.empty())
-                {
-                    for (const auto &alias : bring->aliases)
-                        define(alias);
-                }
-                else
-                {
-                    for (const auto &part : bring->parts)
-                    {
-                        if (part.bringAll)
-                            hasWildcardBring_ = true;
-                        else
-                        {
-                            for (const auto &item : part.items)
-                                define(item);
-                        }
-                    }
-                }
+                processBringStmt(bring);
             }
             else if (auto *forStmt = dynamic_cast<const ForStmt *>(stmt))
             {
@@ -352,7 +420,7 @@ namespace xell
             }
             else if (auto *fn = dynamic_cast<const FnDef *>(stmt))
             {
-                define(fn->name);
+                defineFn(fn);
                 pushScope();
                 for (auto &p : fn->params)
                     define(p);
@@ -423,6 +491,7 @@ namespace xell
             else if (auto *mod = dynamic_cast<const ModuleDef *>(stmt))
             {
                 define(mod->name);
+                collectModuleExports(mod);
                 pushScope();
                 // First collect all definitions in module body
                 for (auto &s : mod->body)
@@ -483,24 +552,7 @@ namespace xell
             }
             else if (auto *bring = dynamic_cast<const BringStmt *>(stmt))
             {
-                if (!bring->aliases.empty())
-                {
-                    for (const auto &alias : bring->aliases)
-                        define(alias);
-                }
-                else
-                {
-                    for (const auto &part : bring->parts)
-                    {
-                        if (part.bringAll)
-                            hasWildcardBring_ = true;
-                        else
-                        {
-                            for (const auto &item : part.items)
-                                define(item);
-                        }
-                    }
-                }
+                processBringStmt(bring);
             }
             else if (auto *destr = dynamic_cast<const DestructuringAssignment *>(stmt))
             {
@@ -551,6 +603,113 @@ namespace xell
                 checkStatement(s.get());
         }
 
+        // ─── processBringStmt ────────────────────────────────────
+        // Shared logic for both collectDefinitions and checkStatement
+        void processBringStmt(const BringStmt *bring)
+        {
+            if (!bring)
+                return;
+
+            // Collect all original item names across all parts (for alias mapping)
+            std::vector<std::string> originalNames;
+            for (const auto &part : bring->parts)
+            {
+                if (part.bringAll)
+                    originalNames.push_back("*");
+                else
+                    for (const auto &item : part.items)
+                        originalNames.push_back(item);
+            }
+
+            if (!bring->aliases.empty())
+            {
+                // Define aliases + unaliased items
+                for (size_t i = 0; i < originalNames.size(); i++)
+                {
+                    std::string bindName = (i < bring->aliases.size() && !bring->aliases[i].empty())
+                                               ? bring->aliases[i]
+                                               : originalNames[i];
+                    define(bindName);
+                }
+
+                // Resolve imports for arity info
+                for (const auto &part : bring->parts)
+                {
+                    if (part.bringAll)
+                    {
+                        if (!part.filePath.empty())
+                            resolveImportedFile(part.filePath, bring->fromDir);
+                        else if (part.hasModulePath && !part.modulePath.empty())
+                            resolveModuleImport(part.modulePath, bring->fromDir);
+                        else
+                            hasWildcardBring_ = true;
+                    }
+                    else if (part.hasModulePath && !part.modulePath.empty())
+                    {
+                        resolveModuleImportForArity(part.modulePath, part.items, bring->fromDir);
+                    }
+                    else if (!part.filePath.empty())
+                    {
+                        resolveImportedFileForArity(part.filePath, part.items, bring->fromDir);
+                    }
+                    else
+                    {
+                        // Bare bring with alias: bring module_name as m
+                        for (const auto &item : part.items)
+                            resolveBareBring(item, bring->fromDir);
+                    }
+                }
+
+                // Map alias names → original function arity
+                for (size_t i = 0; i < originalNames.size(); i++)
+                {
+                    if (i < bring->aliases.size() && !bring->aliases[i].empty())
+                    {
+                        auto arityIt = fnArityMap_.find(originalNames[i]);
+                        if (arityIt != fnArityMap_.end())
+                            fnArityMap_[bring->aliases[i]] = arityIt->second;
+                    }
+                }
+            }
+            else
+            {
+                // No aliases
+                for (const auto &part : bring->parts)
+                {
+                    if (part.bringAll)
+                    {
+                        if (!part.filePath.empty())
+                            resolveImportedFile(part.filePath, bring->fromDir);
+                        else if (part.hasModulePath && !part.modulePath.empty())
+                            resolveModuleImport(part.modulePath, bring->fromDir);
+                        else
+                            hasWildcardBring_ = true;
+                    }
+                    else if (part.hasModulePath && !part.modulePath.empty())
+                    {
+                        for (const auto &item : part.items)
+                            define(item);
+                        resolveModuleImportForArity(part.modulePath, part.items, bring->fromDir);
+                    }
+                    else if (!part.filePath.empty())
+                    {
+                        for (const auto &item : part.items)
+                            define(item);
+                        resolveImportedFileForArity(part.filePath, part.items, bring->fromDir);
+                    }
+                    else
+                    {
+                        // Bare bring: bring module_name → namespace
+                        for (const auto &item : part.items)
+                        {
+                            define(item);
+                            resolveBareBring(item, bring->fromDir);
+                        }
+                    }
+                }
+            }
+        }
+
         // ─── checkExpr ──────────────────────────────────────────
 
         void checkExpr(const Expr *expr)
@@ -590,7 +749,65 @@ namespace xell
             }
             else if (auto *call = dynamic_cast<const CallExpr *>(expr))
             {
-                if (!isDefined(call->callee) && !call->isMethodCall && !hasWildcardBring_)
+                if (call->isMethodCall)
+                {
+                    // Method call: obj->method(args)
+                    // args[0] is the object, args[1..] are the actual arguments
+                    // Check if the object is a known module and the method exists
+                    if (!call->args.empty())
+                    {
+                        if (auto *objIdent = dynamic_cast<const Identifier *>(call->args[0].get()))
+                        {
+                            const std::string &modName = objIdent->name;
+                            auto exportIt = moduleExportsMap_.find(modName);
+                            if (exportIt != moduleExportsMap_.end())
+                            {
+                                // We know this module's exports
+                                const auto &exports = exportIt->second;
+                                if (exports.find(call->callee) == exports.end())
+                                {
+                                    // Find closest export name for suggestion
+                                    std::string closest;
+                                    int bestDist = 3;
+                                    for (const auto &exp : exports)
+                                    {
+                                        int d = editDistance(call->callee, exp);
+                                        if (d < bestDist)
+                                        {
+                                            bestDist = d;
+                                            closest = exp;
+                                        }
+                                    }
+                                    if (!closest.empty())
+                                    {
+                                        diagnostics_.push_back({call->line,
+                                                                "Module '" + modName + "' has no export '" + call->callee +
+                                                                    "'. Did you mean '" + closest + "'?",
+                                                                "error"});
+                                    }
+                                    else
+                                    {
+                                        diagnostics_.push_back({call->line,
+                                                                "Module '" + modName + "' has no export '" + call->callee + "'",
+                                                                "error"});
+                                    }
+                                }
+                                else
+                                {
+                                    // Method exists — check arity (actual args exclude the object itself)
+                                    int actualArgs = (int)call->args.size() - 1;
+                                    std::string key = modName + "." + call->callee;
+                                    auto arityIt = moduleExportArityMap_.find(key);
+                                    if (arityIt != moduleExportArityMap_.end())
+                                    {
+                                        checkCallArity(call->callee, actualArgs, arityIt->second, call->line);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else if (!isDefined(call->callee) && !hasWildcardBring_)
                 {
                     auto it = typoMap_.find(call->callee);
                     if (it != typoMap_.end())
@@ -616,6 +833,16 @@ namespace xell
                         }
                     }
                 }
+                else if (isDefined(call->callee) && !call->isMethodCall)
+                {
+                    // Known function — validate argument count
+                    auto arityIt = fnArityMap_.find(call->callee);
+                    if (arityIt != fnArityMap_.end())
+                    {
+                        int actualArgs = (int)call->args.size();
+                        checkCallArity(call->callee, actualArgs, arityIt->second, call->line);
+                    }
+                }
                 for (auto &arg : call->args)
                     checkExpr(arg.get());
             }
@@ -636,6 +863,43 @@ namespace xell
             else if (auto *mapAcc = dynamic_cast<const MemberAccess *>(expr))
             {
                 checkExpr(mapAcc->object.get());
+                // Validate module member access: module->member
+                if (auto *objIdent = dynamic_cast<const Identifier *>(mapAcc->object.get()))
+                {
+                    const std::string &modName = objIdent->name;
+                    auto exportIt = moduleExportsMap_.find(modName);
+                    if (exportIt != moduleExportsMap_.end())
+                    {
+                        const auto &exports = exportIt->second;
+                        if (exports.find(mapAcc->member) == exports.end())
+                        {
+                            std::string closest;
+                            int bestDist = 3;
+                            for (const auto &exp : exports)
+                            {
+                                int d = editDistance(mapAcc->member, exp);
+                                if (d < bestDist)
+                                {
+                                    bestDist = d;
+                                    closest = exp;
+                                }
+                            }
+                            if (!closest.empty())
+                            {
+                                diagnostics_.push_back({mapAcc->line,
+                                                        "Module '" + modName + "' has no export '" + mapAcc->member +
+                                                            "'. Did you mean '" + closest + "'?",
+                                                        "error"});
+                            }
+                            else
+                            {
+                                diagnostics_.push_back({mapAcc->line,
+                                                        "Module '" + modName + "' has no export '" + mapAcc->member + "'",
+                                                        "error"});
+                            }
+                        }
+                    }
+                }
             }
             else if (auto *list = dynamic_cast<const ListLiteral *>(expr))
             {
@@ -749,6 +1013,554 @@ namespace xell
                 std::swap(prev, curr);
             }
             return prev[n];
+        }
+
+        // ─── Module file finder ──────────────────────────────────
+        // Searches for a module's .xel file by checking:
+        //   1. Direct path: sourceDir/moduleName.xel
+        //   2. fromDir/moduleName.xel
+        //   3. .xell_meta in sourceDir and parent directories
+        std::string findModuleFile(const std::string &moduleName, const std::string &fromDir)
+        {
+            namespace fs = std::filesystem;
+
+            // 1. Try direct path in sourceDir
+            if (!sourceDir_.empty())
+            {
+                std::string candidate = sourceDir_ + "/" + moduleName + ".xel";
+                if (fs::exists(candidate))
+                    return fs::canonical(candidate).string();
+            }
+
+            // 2. Try fromDir
+            if (!fromDir.empty())
+            {
+                std::string base = fromDir;
+                if (!sourceDir_.empty() && !fs::path(fromDir).is_absolute())
+                    base = sourceDir_ + "/" + fromDir;
+                std::string candidate = base + "/" + moduleName + ".xel";
+                if (fs::exists(candidate))
+                    return fs::canonical(candidate).string();
+            }
+
+            // 3. Search .xell_meta files in sourceDir subdirectories (where modules are registered)
+            if (!sourceDir_.empty())
+            {
+                try
+                {
+                    for (auto &entry : fs::directory_iterator(sourceDir_))
+                    {
+                        if (!entry.is_directory())
+                            continue;
+                        std::string metaPath = entry.path().string() + "/.xell_meta";
+                        if (fs::exists(metaPath))
+                        {
+                            std::string filePath = lookupInMeta(metaPath, moduleName);
+                            if (!filePath.empty())
+                            {
+                                std::string fullPath = entry.path().string() + "/" + filePath;
+                                if (fs::exists(fullPath))
+                                    return fs::canonical(fullPath).string();
+                            }
+                        }
+                    }
+                }
+                catch (...)
+                {
+                }
+            }
+
+            // 4. Search .xell_meta files starting from sourceDir upward
+            if (!sourceDir_.empty())
+            {
+                std::string searchDir = sourceDir_;
+                for (int depth = 0; depth < 10; depth++) // limit depth
+                {
+                    std::string metaPath = searchDir + "/.xell_meta";
+                    if (fs::exists(metaPath))
+                    {
+                        std::string filePath = lookupInMeta(metaPath, moduleName);
+                        if (!filePath.empty())
+                        {
+                            std::string fullPath = searchDir + "/" + filePath;
+                            if (fs::exists(fullPath))
+                                return fs::canonical(fullPath).string();
+                        }
+                    }
+                    // Go up one directory
+                    fs::path parent = fs::path(searchDir).parent_path();
+                    if (parent == searchDir || parent.empty())
+                        break;
+                    searchDir = parent.string();
+                }
+            }
+
+            return ""; // not found
+        }
+
+        // Read .xell_meta JSON and look up a module name → file path
+        std::string lookupInMeta(const std::string &metaPath, const std::string &moduleName)
+        {
+            std::ifstream f(metaPath);
+            if (!f.is_open())
+                return "";
+
+            std::string content((std::istreambuf_iterator<char>(f)),
+                                std::istreambuf_iterator<char>());
+
+            // Quick regex search: "module_name" : { "file": "filename.xel"
+            // This avoids a full JSON parser dependency
+            std::regex pat("\"" + moduleName + "\"\\s*:\\s*\\{\\s*\"file\"\\s*:\\s*\"([^\"]+)\"");
+            std::smatch match;
+            if (std::regex_search(content, match, pat))
+                return match[1].str();
+
+            return "";
+        }
+
+        // ─── Arity validation helper ────────────────────────────
+        void checkCallArity(const std::string &fnName, int actualArgs,
+                            const FnArity &arity, int line)
+        {
+            if (arity.isVariadic)
+            {
+                // Variadic: at least minParams required
+                if (actualArgs < arity.minParams)
+                {
+                    diagnostics_.push_back({line,
+                                            "'" + fnName + "' expects at least " +
+                                                std::to_string(arity.minParams) +
+                                                " argument(s), got " + std::to_string(actualArgs),
+                                            "error"});
+                }
+            }
+            else
+            {
+                if (actualArgs < arity.minParams)
+                {
+                    diagnostics_.push_back({line,
+                                            "'" + fnName + "' expects " +
+                                                (arity.minParams == arity.maxParams
+                                                     ? std::to_string(arity.minParams)
+                                                     : std::to_string(arity.minParams) + "-" + std::to_string(arity.maxParams)) +
+                                                " argument(s), got " + std::to_string(actualArgs),
+                                            "error"});
+                }
+                else if (actualArgs > arity.maxParams)
+                {
+                    diagnostics_.push_back({line,
+                                            "'" + fnName + "' expects " +
+                                                (arity.minParams == arity.maxParams
+                                                     ? std::to_string(arity.maxParams)
+                                                     : std::to_string(arity.minParams) + "-" + std::to_string(arity.maxParams)) +
+                                                " argument(s), got " + std::to_string(actualArgs),
+                                            "error"});
+                }
+            }
+        }
+
+        // ─── Collect exported members of a local module definition ──
+        void collectModuleExports(const ModuleDef *mod)
+        {
+            if (!mod)
+                return;
+            for (auto &s : mod->body)
+            {
+                if (auto *exp = dynamic_cast<const ExportDecl *>(s.get()))
+                {
+                    if (auto *fn = dynamic_cast<const FnDef *>(exp->declaration.get()))
+                        defineModuleExportFn(mod->name, fn);
+                    else if (auto *decFn = dynamic_cast<const DecoratedFnDef *>(exp->declaration.get()))
+                    {
+                        if (auto *fn2 = dynamic_cast<const FnDef *>(decFn->fnDef.get()))
+                            defineModuleExportFn(mod->name, fn2);
+                    }
+                    else if (auto *a = dynamic_cast<const Assignment *>(exp->declaration.get()))
+                        defineModuleExport(mod->name, a->name);
+                    else if (auto *imm = dynamic_cast<const ImmutableBinding *>(exp->declaration.get()))
+                        defineModuleExport(mod->name, imm->name);
+                    else if (auto *cls = dynamic_cast<const ClassDef *>(exp->declaration.get()))
+                        defineModuleExport(mod->name, cls->name);
+                    else if (auto *st = dynamic_cast<const StructDef *>(exp->declaration.get()))
+                        defineModuleExport(mod->name, st->name);
+                    else if (auto *en = dynamic_cast<const EnumDef *>(exp->declaration.get()))
+                        defineModuleExport(mod->name, en->name);
+                    else if (auto *iface = dynamic_cast<const InterfaceDef *>(exp->declaration.get()))
+                        defineModuleExport(mod->name, iface->name);
+                    else if (auto *nestedMod = dynamic_cast<const ModuleDef *>(exp->declaration.get()))
+                    {
+                        defineModuleExport(mod->name, nestedMod->name);
+                        // Recurse: populate the nested module's own export map
+                        collectModuleExports(nestedMod);
+                    }
+                }
+            }
+        }
+
+        // ─── Resolve bare bring (bring module_name) ──────────────
+        // Tries to find module_name.xel, parse it, and populate moduleExportsMap_
+        void resolveBareBring(const std::string &moduleName, const std::string &fromDir)
+        {
+            namespace fs = std::filesystem;
+
+            // Use centralized module resolution
+            std::string resolvedPath = findModuleFile(moduleName, fromDir);
+
+            if (resolvedImports_.count(resolvedPath))
+                return;
+            resolvedImports_.insert(resolvedPath);
+
+            std::ifstream file(resolvedPath);
+            if (!file.is_open())
+                return;
+
+            std::string source((std::istreambuf_iterator<char>(file)),
+                               std::istreambuf_iterator<char>());
+
+            try
+            {
+                Lexer lexer(source);
+                auto tokens = lexer.tokenize();
+                std::vector<CollectedParseError> errors;
+                Parser parser(tokens);
+                auto program = parser.parseLint(errors);
+
+                // Look for module definitions and collect their exports
+                for (auto &stmt : program.statements)
+                {
+                    if (auto *mod = dynamic_cast<const ModuleDef *>(stmt.get()))
+                    {
+                        // Register exports under the module name used in the bring
+                        collectModuleExportsFromImported(moduleName, mod);
+                    }
+                    else if (auto *exp = dynamic_cast<const ExportDecl *>(stmt.get()))
+                    {
+                        if (auto *mod2 = dynamic_cast<const ModuleDef *>(exp->declaration.get()))
+                            collectModuleExportsFromImported(moduleName, mod2);
+                    }
+                }
+            }
+            catch (...)
+            {
+            }
+        }
+
+        // Collect exports from an imported module definition
+        void collectModuleExportsFromImported(const std::string &bindName, const ModuleDef *mod)
+        {
+            if (!mod)
+                return;
+            for (auto &s : mod->body)
+            {
+                if (auto *exp = dynamic_cast<const ExportDecl *>(s.get()))
+                {
+                    if (auto *fn = dynamic_cast<const FnDef *>(exp->declaration.get()))
+                        defineModuleExportFn(bindName, fn);
+                    else if (auto *decFn = dynamic_cast<const DecoratedFnDef *>(exp->declaration.get()))
+                    {
+                        if (auto *fn2 = dynamic_cast<const FnDef *>(decFn->fnDef.get()))
+                            defineModuleExportFn(bindName, fn2);
+                    }
+                    else if (auto *a = dynamic_cast<const Assignment *>(exp->declaration.get()))
+                        defineModuleExport(bindName, a->name);
+                    else if (auto *imm = dynamic_cast<const ImmutableBinding *>(exp->declaration.get()))
+                        defineModuleExport(bindName, imm->name);
+                    else if (auto *cls = dynamic_cast<const ClassDef *>(exp->declaration.get()))
+                        defineModuleExport(bindName, cls->name);
+                    else if (auto *st = dynamic_cast<const StructDef *>(exp->declaration.get()))
+                        defineModuleExport(bindName, st->name);
+                    else if (auto *en = dynamic_cast<const EnumDef *>(exp->declaration.get()))
+                        defineModuleExport(bindName, en->name);
+                    else if (auto *iface = dynamic_cast<const InterfaceDef *>(exp->declaration.get()))
+                        defineModuleExport(bindName, iface->name);
+                    else if (auto *nestedMod = dynamic_cast<const ModuleDef *>(exp->declaration.get()))
+                    {
+                        defineModuleExport(bindName, nestedMod->name);
+                        // Recurse: populate the nested module's own export map
+                        collectModuleExportsFromImported(nestedMod->name, nestedMod);
+                    }
+                }
+            }
+        }
+
+        // ─── Resolve named imports with arity info ───────────────
+        // For "bring X of module" — resolve the module file to get arity info for X
+        void resolveModuleImportForArity(const std::vector<std::string> &modulePath,
+                                         const std::vector<std::string> &items,
+                                         const std::string &fromDir)
+        {
+            namespace fs = std::filesystem;
+
+            // Build the module name for lookup (last component or joined path)
+            std::string moduleName = modulePath.empty() ? "" : modulePath.back();
+
+            // Use centralized module resolution
+            std::string resolvedPath = findModuleFile(moduleName, fromDir);
+            if (resolvedPath.empty())
+            {
+                // Try with full module path joined (e.g. "lib/math_lib")
+                std::string fullName;
+                for (size_t i = 0; i < modulePath.size(); i++)
+                {
+                    if (i > 0)
+                        fullName += "/";
+                    fullName += modulePath[i];
+                }
+                if (fullName != moduleName)
+                    resolvedPath = findModuleFile(fullName, fromDir);
+            }
+
+            if (resolvedPath.empty())
+                return;
+
+            // Key: use "arity:" prefix to avoid conflict with wildcard resolution
+            // Include items in key so different bring statements can resolve different items
+            std::string arityKey = "arity:" + resolvedPath + ":";
+            for (const auto &item : items)
+                arityKey += item + ",";
+            if (resolvedImports_.count(arityKey))
+                return;
+            resolvedImports_.insert(arityKey);
+
+            std::ifstream file(resolvedPath);
+            if (!file.is_open())
+                return;
+
+            std::string source((std::istreambuf_iterator<char>(file)),
+                               std::istreambuf_iterator<char>());
+
+            try
+            {
+                Lexer lexer(source);
+                auto tokens = lexer.tokenize();
+                std::vector<CollectedParseError> errors;
+                Parser parser(tokens);
+                auto program = parser.parseLint(errors);
+
+                // Find exported functions matching the imported items
+                std::unordered_set<std::string> itemSet(items.begin(), items.end());
+                for (auto &stmt : program.statements)
+                    collectArityFromImported(stmt.get(), itemSet);
+            }
+            catch (...)
+            {
+            }
+        }
+
+        void resolveImportedFileForArity(const std::string &filePath,
+                                         const std::vector<std::string> &items,
+                                         const std::string &fromDir)
+        {
+            namespace fs = std::filesystem;
+
+            std::string resolvedPath;
+            if (!fromDir.empty())
+                resolvedPath = fromDir + "/" + filePath;
+            else
+                resolvedPath = filePath;
+
+            if (!sourceDir_.empty() && !fs::path(resolvedPath).is_absolute())
+            {
+                std::string candidate = sourceDir_ + "/" + resolvedPath;
+                if (fs::exists(candidate))
+                    resolvedPath = candidate;
+            }
+
+            if (fs::path(resolvedPath).extension().empty())
+                resolvedPath += ".xel";
+
+            try
+            {
+                if (fs::exists(resolvedPath))
+                    resolvedPath = fs::canonical(resolvedPath).string();
+            }
+            catch (...)
+            {
+            }
+
+            std::string arityKey = "arity:" + resolvedPath + ":";
+            for (const auto &item : items)
+                arityKey += item + ",";
+            if (resolvedImports_.count(arityKey))
+                return;
+            resolvedImports_.insert(arityKey);
+
+            std::ifstream file(resolvedPath);
+            if (!file.is_open())
+                return;
+
+            std::string source((std::istreambuf_iterator<char>(file)),
+                               std::istreambuf_iterator<char>());
+
+            try
+            {
+                Lexer lexer(source);
+                auto tokens = lexer.tokenize();
+                std::vector<CollectedParseError> errors;
+                Parser parser(tokens);
+                auto program = parser.parseLint(errors);
+
+                std::unordered_set<std::string> itemSet(items.begin(), items.end());
+                for (auto &stmt : program.statements)
+                    collectArityFromImported(stmt.get(), itemSet);
+            }
+            catch (...)
+            {
+            }
+        }
+
+        // Collect arity info for specific imported names from an imported file
+        void collectArityFromImported(const Stmt *stmt, const std::unordered_set<std::string> &items)
+        {
+            if (!stmt)
+                return;
+            if (auto *fn = dynamic_cast<const FnDef *>(stmt))
+            {
+                if (items.count(fn->name))
+                    defineFn(fn); // re-registers with arity info
+            }
+            else if (auto *exp = dynamic_cast<const ExportDecl *>(stmt))
+                collectArityFromImported(exp->declaration.get(), items);
+            else if (auto *decFn = dynamic_cast<const DecoratedFnDef *>(stmt))
+                collectArityFromImported(decFn->fnDef.get(), items);
+            else if (auto *mod = dynamic_cast<const ModuleDef *>(stmt))
+            {
+                // If the module name is in the imported items, collect its exports
+                // so member access validation works (e.g., bring mod from "file.xel" → mod->fn())
+                if (items.count(mod->name))
+                    collectModuleExportsFromImported(mod->name, mod);
+                // Also look inside module body for exported functions
+                for (auto &s : mod->body)
+                    collectArityFromImported(s.get(), items);
+            }
+        }
+
+        // ─── Import resolution ───────────────────────────────────
+        // Parse imported files to discover their exported names.
+        // This is a lightweight parse-only pass (no execution).
+
+        void resolveImportedFile(const std::string &filePath, const std::string &fromDir)
+        {
+            namespace fs = std::filesystem;
+
+            // Build the full path
+            std::string resolvedPath;
+            if (!fromDir.empty())
+                resolvedPath = fromDir + "/" + filePath;
+            else
+                resolvedPath = filePath;
+
+            // Try to resolve relative to source directory
+            if (!sourceDir_.empty() && !fs::path(resolvedPath).is_absolute())
+            {
+                std::string candidate = sourceDir_ + "/" + resolvedPath;
+                if (fs::exists(candidate))
+                    resolvedPath = candidate;
+            }
+
+            // Add .xel extension if missing
+            if (fs::path(resolvedPath).extension().empty())
+                resolvedPath += ".xel";
+
+            // Normalize path to avoid re-parsing
+            try
+            {
+                if (fs::exists(resolvedPath))
+                    resolvedPath = fs::canonical(resolvedPath).string();
+            }
+            catch (...)
+            {
+            }
+
+            // Skip if already resolved
+            if (resolvedImports_.count(resolvedPath))
+                return;
+            resolvedImports_.insert(resolvedPath);
+
+            // Read and parse the file
+            std::ifstream file(resolvedPath);
+            if (!file.is_open())
+                return; // File not found — silently skip (don't false-positive on missing files)
+
+            std::string source((std::istreambuf_iterator<char>(file)),
+                               std::istreambuf_iterator<char>());
+
+            try
+            {
+                Lexer lexer(source);
+                auto tokens = lexer.tokenize();
+
+                std::vector<CollectedParseError> errors;
+                Parser parser(tokens);
+                auto program = parser.parseLint(errors);
+
+                // Collect all top-level definitions from the imported file
+                for (auto &stmt : program.statements)
+                    collectImportedDefinitions(stmt.get());
+            }
+            catch (...)
+            {
+                // Parse/lex error in imported file — silently skip
+            }
+        }
+
+        void resolveModuleImport(const std::vector<std::string> &modulePath,
+                                 const std::string &fromDir)
+        {
+            namespace fs = std::filesystem;
+
+            // Convert module path to file path: ["lib", "math_lib"] → "lib/math_lib.xel"
+            std::string filePath;
+            for (size_t i = 0; i < modulePath.size(); i++)
+            {
+                if (i > 0)
+                    filePath += "/";
+                filePath += modulePath[i];
+            }
+
+            // Try as a file first
+            resolveImportedFile(filePath, fromDir);
+
+            // Also try via .xell_meta for cross-directory modules
+            std::string moduleName = modulePath.empty() ? "" : modulePath.back();
+            std::string metaResolved = findModuleFile(moduleName, fromDir);
+            if (!metaResolved.empty() && !resolvedImports_.count(metaResolved))
+                resolveImportedFile(metaResolved, "");
+        }
+
+        // Collect only top-level definitions from an imported file
+        // (no recursive descent into blocks — just the surface-level names)
+        void collectImportedDefinitions(const Stmt *stmt)
+        {
+            if (!stmt)
+                return;
+
+            if (auto *a = dynamic_cast<const Assignment *>(stmt))
+                define(a->name);
+            else if (auto *imm = dynamic_cast<const ImmutableBinding *>(stmt))
+                define(imm->name);
+            else if (auto *fn = dynamic_cast<const FnDef *>(stmt))
+                defineFn(fn);
+            else if (auto *cls = dynamic_cast<const ClassDef *>(stmt))
+                define(cls->name);
+            else if (auto *st = dynamic_cast<const StructDef *>(stmt))
+                define(st->name);
+            else if (auto *en = dynamic_cast<const EnumDef *>(stmt))
+            {
+                define(en->name);
+                for (auto &m : en->members)
+                    define(m);
+            }
+            else if (auto *iface = dynamic_cast<const InterfaceDef *>(stmt))
+                define(iface->name);
+            else if (auto *mod = dynamic_cast<const ModuleDef *>(stmt))
+                define(mod->name);
+            else if (auto *exp = dynamic_cast<const ExportDecl *>(stmt))
+                collectImportedDefinitions(exp->declaration.get());
+            else if (auto *decFn = dynamic_cast<const DecoratedFnDef *>(stmt))
+                collectImportedDefinitions(decFn->fnDef.get());
+            else if (auto *decCls = dynamic_cast<const DecoratedClassDef *>(stmt))
+                collectImportedDefinitions(decCls->classDef.get());
         }
     };
 

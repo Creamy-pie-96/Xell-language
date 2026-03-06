@@ -41,6 +41,7 @@
 #include <sys/types.h>
 #else
 #include <sys/wait.h>
+#include <sys/select.h>
 #include <unistd.h>
 #include <signal.h>
 #endif
@@ -227,6 +228,113 @@ namespace xterm
         while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
             result.pop_back();
         return result;
+    }
+
+    // ─── captureCommandSplitOutput ──────────────────────────────────────
+    // Like captureCommandWithStdin, but captures stdout and stderr separately.
+    // Used by --check-symbols: symbols on stdout, diagnostics on stderr.
+    static inline std::string captureCommandSplitOutput(
+        const std::string &cmd, const std::string &input, int &exitCode,
+        std::string &stdoutStr, std::string &stderrStr)
+    {
+        stdoutStr.clear();
+        stderrStr.clear();
+        int pipeIn[2], pipeOut[2], pipeErr[2];
+        if (pipe(pipeIn) != 0 || pipe(pipeOut) != 0 || pipe(pipeErr) != 0)
+        {
+            exitCode = -1;
+            return "[failed to create pipes]";
+        }
+        pid_t pid = fork();
+        if (pid < 0)
+        {
+            exitCode = -1;
+            return "[failed to fork]";
+        }
+        if (pid == 0)
+        {
+            // Child
+            close(pipeIn[1]);
+            close(pipeOut[0]);
+            close(pipeErr[0]);
+            dup2(pipeIn[0], STDIN_FILENO);
+            dup2(pipeOut[1], STDOUT_FILENO);
+            dup2(pipeErr[1], STDERR_FILENO);
+            close(pipeIn[0]);
+            close(pipeOut[1]);
+            close(pipeErr[1]);
+            execl("/bin/sh", "sh", "-c", cmd.c_str(), nullptr);
+            _exit(127);
+        }
+        // Parent
+        close(pipeIn[0]);
+        close(pipeOut[1]);
+        close(pipeErr[1]);
+
+        // Write input
+        const char *data = input.data();
+        size_t remaining = input.size();
+        while (remaining > 0)
+        {
+            ssize_t n = write(pipeIn[1], data, remaining);
+            if (n <= 0)
+                break;
+            data += n;
+            remaining -= n;
+        }
+        close(pipeIn[1]);
+
+        // Read stdout and stderr (use select to avoid blocking)
+        char buf[4096];
+        bool outOpen = true, errOpen = true;
+        while (outOpen || errOpen)
+        {
+            fd_set fds;
+            FD_ZERO(&fds);
+            int maxFd = 0;
+            if (outOpen)
+            {
+                FD_SET(pipeOut[0], &fds);
+                maxFd = std::max(maxFd, pipeOut[0]);
+            }
+            if (errOpen)
+            {
+                FD_SET(pipeErr[0], &fds);
+                maxFd = std::max(maxFd, pipeErr[0]);
+            }
+            if (select(maxFd + 1, &fds, nullptr, nullptr, nullptr) <= 0)
+                break;
+            if (outOpen && FD_ISSET(pipeOut[0], &fds))
+            {
+                ssize_t n = read(pipeOut[0], buf, sizeof(buf));
+                if (n > 0)
+                    stdoutStr.append(buf, n);
+                else
+                    outOpen = false;
+            }
+            if (errOpen && FD_ISSET(pipeErr[0], &fds))
+            {
+                ssize_t n = read(pipeErr[0], buf, sizeof(buf));
+                if (n > 0)
+                    stderrStr.append(buf, n);
+                else
+                    errOpen = false;
+            }
+        }
+        close(pipeOut[0]);
+        close(pipeErr[0]);
+
+        int status = 0;
+        waitpid(pid, &status, 0);
+        exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
+        // Strip trailing newlines
+        while (!stdoutStr.empty() && (stdoutStr.back() == '\n' || stdoutStr.back() == '\r'))
+            stdoutStr.pop_back();
+        while (!stderrStr.empty() && (stderrStr.back() == '\n' || stderrStr.back() == '\r'))
+            stderrStr.pop_back();
+
+        return stderrStr; // return stderr for backward compat (diagnostics)
     }
 
     // ─── Find xell binary ───────────────────────────────────────────────
@@ -449,6 +557,8 @@ namespace xterm
                 return vars;
 
             // Build a script that prints type and value of each variable
+            // Each __VAR__ print is wrapped in try/catch so one failure doesn't
+            // prevent others from being collected.
             std::string tmpFile = xellTempDir() + "/xell_vars_" + std::to_string(sessionId_) + ".xel";
             {
                 FILE *f = fopen(tmpFile.c_str(), "w");
@@ -456,17 +566,22 @@ namespace xterm
                     return vars;
                 for (auto &h : history_)
                     fprintf(f, "%s\n", h.c_str());
-                // Print type and value for each variable
+                // Print type and value for each variable, wrapped in try/catch
                 for (auto &name : varNames)
                 {
-                    fprintf(f, "print(\"__VAR__:%s:\" + str(type(%s)) + \":\" + str(%s))\n",
+                    fprintf(f, "try:\n");
+                    fprintf(f, "    print(\"__VAR__:%s:\" + str(type(%s)) + \":\" + str(%s))\n",
                             name.c_str(), name.c_str(), name.c_str());
+                    fprintf(f, "catch e:\n");
+                    fprintf(f, "    print(\"__VAR__:%s:?:unknown\")\n", name.c_str());
+                    fprintf(f, ";\n");
                 }
                 fclose(f);
             }
 
             int exitCode = 0;
-            std::string output = captureCommand(xellBin_ + " " + tmpFile, exitCode);
+            // Suppress stderr so error messages don't pollute __VAR__ output
+            std::string output = captureCommand(xellBin_ + " " + tmpFile + " 2>/dev/null", exitCode);
 
             // Parse __VAR__ lines
             std::istringstream ss(output);

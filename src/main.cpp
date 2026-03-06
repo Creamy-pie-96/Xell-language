@@ -12,6 +12,7 @@
 //   xell --revert  <file> [map.xesy]   Restore dialect from canonical
 //   xell --gen_xesy [output.xesy]      Generate template mapping file
 //   xell --terminal       Launch the Xell Terminal (SDL2 GUI)
+//   xell --ide             Alias for --terminal
 //   xell --customize      Launch the color customizer web app
 //   xell --kernel          Run as a JSON kernel for notebook integration
 //   xell --version        Print version information
@@ -35,6 +36,7 @@
 #include "parser/parser.hpp"
 #include "interpreter/interpreter.hpp"
 #include "analyzer/static_analyzer.hpp"
+#include "analyzer/symbol_collector.hpp"
 #include "lib/errors/error.hpp"
 #include "repl/repl.hpp"
 #include "hash/hash_algorithm.hpp"
@@ -80,6 +82,7 @@ static void printHelp()
     std::cout << "  xell --make_module --update <path> ...\n";
     std::cout << "                        Update changed modules from hash & build .xell_meta + cache\n";
     std::cout << "  xell --terminal       Launch Xell Terminal (SDL2 GUI)\n";
+    std::cout << "  xell --ide            Alias for --terminal\n";
     std::cout << "  xell --customize      Launch color customizer\n";
     std::cout << "  xell --kernel         Run as notebook kernel\n";
     std::cout << "  xell --version        Show version\n";
@@ -768,7 +771,8 @@ static std::string readStdin()
     return ss.str();
 }
 
-static int lintSource(const std::string &source)
+static int lintSource(const std::string &source, const std::string &sourceDir = "",
+                      bool emitSymbols = false)
 {
     // Shallow check: lex + parse (with recovery) + static analysis — no execution.
     // This is fast and safe for the LSP to call on every keystroke.
@@ -802,6 +806,8 @@ static int lintSource(const std::string &source)
 
     // --- Step 3: Static analysis on the partial AST ---
     xell::StaticAnalyzer analyzer;
+    if (!sourceDir.empty())
+        analyzer.setSourceDir(sourceDir);
     auto diagnostics = analyzer.analyze(program);
 
     for (auto &d : diagnostics)
@@ -821,20 +827,65 @@ static int lintSource(const std::string &source)
                   << " \xe2\x80\x94 " << d.message << "\n";
     }
 
+    // --- Step 4 (optional): Emit symbols as JSON on stdout ---
+    if (emitSymbols)
+    {
+        xell::SymbolCollector collector;
+        auto symbols = collector.collect(program);
+
+        // Inject module exports discovered by the static analyzer
+        // (these come from resolved imports, not the current file's AST)
+        auto &modExports = analyzer.getModuleExports();
+        for (auto &[modName, members] : modExports)
+        {
+            for (auto &member : members)
+            {
+                // Only add if not already present from the local AST
+                bool found = false;
+                for (auto &s : symbols)
+                    if (s.name == member && s.parentScope == modName)
+                    {
+                        found = true;
+                        break;
+                    }
+                if (!found)
+                {
+                    xell::SymbolInfo sym;
+                    sym.name = member;
+                    sym.kind = xell::SymbolKind::Method; // generic — could be fn or var
+                    sym.line = 0;
+                    sym.detail = modName + "->" + member;
+                    sym.parentScope = modName;
+                    symbols.push_back(sym);
+                }
+            }
+        }
+
+        std::cout << xell::SymbolCollector::toJSON(symbols) << "\n";
+    }
+
     return exitCode;
 }
 
-static int checkFile(const std::string &path)
+static int checkFile(const std::string &path, bool emitSymbols = false)
 {
     std::string source = readFile(path);
     // Auto-detect @convert and convert dialect → canonical in-memory
     source = applyConvertIfNeeded(source, path);
-    return lintSource(source);
+    // Always resolve to absolute path first so parent_path is never empty
+    std::string absPath = std::filesystem::absolute(path).string();
+    std::string dir = std::filesystem::path(absPath).parent_path().string();
+    return lintSource(source, dir, emitSymbols);
 }
 
-static int checkStdin()
+static int checkStdin(bool emitSymbols = false)
 {
-    return lintSource(readStdin());
+    // For stdin, try to use CWD as source dir for import resolution
+    char *cwd = getcwd(nullptr, 0);
+    std::string dir = cwd ? std::string(cwd) : "";
+    if (cwd)
+        free(cwd);
+    return lintSource(readStdin(), dir, emitSymbols);
 }
 
 // ---- Launch the color customizer -------------------------------------------
@@ -1558,6 +1609,16 @@ int main(int argc, char *argv[])
         return checkStdin();
     }
 
+    // --check-symbols — lint + output symbol map as JSON on stdout
+    // Used by the IDE to get diagnostics AND autocomplete symbols in one call
+    if (arg1 == "--check-symbols")
+    {
+        if (argc >= 3)
+            return checkFile(argv[2], true);
+        // No file argument → read from stdin
+        return checkStdin(true);
+    }
+
     // --check-string "raw code" — lint code passed directly as a string
     // (no file I/O, used by the IDE for live linting on buffer changes)
     if (arg1 == "--check-string")
@@ -1573,7 +1634,7 @@ int main(int argc, char *argv[])
         return launchCustomizer();
     }
 
-    if (arg1 == "--terminal" || arg1 == "-t")
+    if (arg1 == "--terminal" || arg1 == "-t" || arg1 == "--ide")
     {
         return launchTerminal();
     }

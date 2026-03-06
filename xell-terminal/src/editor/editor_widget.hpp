@@ -564,6 +564,83 @@ namespace xterm
                 activeView()->clearDiagnostics();
         }
 
+        // ── Autocomplete support ────────────────────────────────────
+
+        // Insert text at the current cursor position
+        void insertTextAtCursor(const std::string &text)
+        {
+            auto view = activeView();
+            if (!view)
+                return;
+            view->insertText(text);
+        }
+
+        // Set ghost text (inline autocomplete suggestion)
+        void setGhostText(const std::string &text, int line, int col)
+        {
+            auto view = activeView();
+            if (view)
+                view->setGhostText(text, line, col);
+        }
+
+        void clearGhostText()
+        {
+            auto view = activeView();
+            if (view)
+                view->clearGhostText();
+        }
+
+        // Set active tab stop highlight (for snippet mode)
+        void setActiveTabStop(int line, int col, int length)
+        {
+            auto view = activeView();
+            if (view)
+                view->setActiveTabStop(line, col, length);
+        }
+
+        void clearActiveTabStop()
+        {
+            auto view = activeView();
+            if (view)
+                view->clearActiveTabStop();
+        }
+
+        // Set selection range in the active editor
+        void setSelection(int startRow, int startCol, int endRow, int endCol)
+        {
+            auto view = activeView();
+            if (!view)
+                return;
+            view->setCursor({startRow, startCol});
+            view->selection().active = true;
+            view->selection().anchor = {startRow, startCol};
+            view->selection().cursor = {endRow, endCol};
+            view->setCursor({endRow, endCol});
+        }
+
+        void clearSelection()
+        {
+            auto view = activeView();
+            if (view)
+                view->clearSelection();
+        }
+
+        // Check if ghost text is currently showing
+        bool hasGhostText() const
+        {
+            auto view = activeView();
+            return view && view->hasGhostText();
+        }
+
+        // Get the ghost text string (for Tab acceptance)
+        std::string getGhostText() const
+        {
+            auto view = activeView();
+            if (view && view->hasGhostText())
+                return view->ghostText();
+            return "";
+        }
+
         // ── Tab bar click ────────────────────────────────────────
 
         void handleTabBarClick(int col)

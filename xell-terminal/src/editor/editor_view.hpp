@@ -657,7 +657,33 @@ namespace xterm
                             cell.fg = diagColor;
                         }
 
+                        // Active snippet tab stop highlight
+                        if (tabStopLine_ >= 0 && bufferRow == tabStopLine_ &&
+                            bufCol >= tabStopCol_ && bufCol < tabStopCol_ + tabStopLen_)
+                        {
+                            cell.bg = {60, 60, 90}; // subtle blue highlight for tab stop
+                        }
+
                         cell.dirty = true;
+                    }
+
+                    // ── Ghost text (dim inline suggestion after cursor) ──
+                    if (bufferRow == ghostLine_ && !ghostText_.empty())
+                    {
+                        int ghostStartCol = ghostCol_ - scrollLeftCol_;
+                        Color ghostFg = {100, 100, 100}; // dim grey
+                        for (int gi = 0; gi < (int)ghostText_.size(); gi++)
+                        {
+                            int screenCol2 = gutterW + ghostStartCol + gi;
+                            if (screenCol2 >= gutterW && screenCol2 < rect_.w)
+                            {
+                                auto &gc = out.cells[screenRow][screenCol2];
+                                gc.ch = static_cast<char32_t>(static_cast<unsigned char>(ghostText_[gi]));
+                                gc.fg = ghostFg;
+                                gc.italic = true;
+                                gc.dirty = true;
+                            }
+                        }
                     }
                 }
                 else
@@ -750,6 +776,43 @@ namespace xterm
 
         void clearDiagnostics() { diagnosticLines_.clear(); }
 
+        // ── Ghost text (autocomplete inline suggestion) ─────────────
+
+        void setGhostText(const std::string &text, int line, int col)
+        {
+            ghostText_ = text;
+            ghostLine_ = line;
+            ghostCol_ = col;
+        }
+
+        void clearGhostText()
+        {
+            ghostText_.clear();
+            ghostLine_ = -1;
+            ghostCol_ = -1;
+        }
+
+        bool hasGhostText() const { return !ghostText_.empty() && ghostLine_ >= 0; }
+        const std::string &ghostText() const { return ghostText_; }
+        int ghostLine() const { return ghostLine_; }
+        int ghostCol() const { return ghostCol_; }
+
+        // ── Active snippet tab stop highlighting ────────────────────
+
+        void setActiveTabStop(int line, int col, int length)
+        {
+            tabStopLine_ = line;
+            tabStopCol_ = col;
+            tabStopLen_ = length;
+        }
+
+        void clearActiveTabStop()
+        {
+            tabStopLine_ = -1;
+            tabStopCol_ = -1;
+            tabStopLen_ = 0;
+        }
+
         // ── Mouse → buffer position mapping ─────────────────────────────
 
         BufferPos screenToBuffer(int screenRow, int screenCol) const
@@ -780,6 +843,16 @@ namespace xterm
 
         // Inline diagnostics: line → severity (0=error, 1=warning)
         std::unordered_map<int, int> diagnosticLines_;
+
+        // Ghost text (autocomplete suggestion)
+        std::string ghostText_;
+        int ghostLine_ = -1;
+        int ghostCol_ = -1;
+
+        // Active snippet tab stop highlight
+        int tabStopLine_ = -1;
+        int tabStopCol_ = -1;
+        int tabStopLen_ = 0;
 
         // Theme colors
         Color bgColor_ = Color::default_bg();

@@ -40,6 +40,7 @@
 #include "git_panel.hpp"
 #include "visual_effects.hpp"
 #include "config_manager.hpp"
+#include "autocomplete.hpp"
 
 namespace xterm
 {
@@ -63,7 +64,8 @@ namespace xterm
               editor_(theme),
               fileTree_(theme),
               replPanel_(theme),
-              gitPanel_(theme)
+              gitPanel_(theme),
+              acPopup_(theme)
         {
             loadColors();
 
@@ -78,6 +80,19 @@ namespace xterm
             // Load config (applies defaults if no file exists)
             configManager_.load();
             configManager_.applyToEffects(effects_);
+
+            // Load autocomplete data (language_data.json + snippets)
+            {
+                std::string langPath = resolveAssetPath("language_data.json");
+                std::string snipPath = resolveAssetPath("xell_snippets.json");
+                std::cerr << "[autocomplete] language_data: " << langPath << "\n";
+                std::cerr << "[autocomplete] snippets:      " << snipPath << "\n";
+                acDB_.loadFromJSON(langPath);
+                snippetEngine_.loadSnippets(snipPath);
+                acDB_.loadSnippets(snippetEngine_);
+                std::cerr << "[autocomplete] loaded " << snippetEngine_.snippets().size()
+                          << " snippets\n";
+            }
         }
 
         // ── Initialization ──────────────────────────────────────────
@@ -142,6 +157,22 @@ namespace xterm
 
             // Poll for async code execution results
             replPanel_.pollAsyncResult();
+
+            // Autocomplete debounce: auto-show popup after typing delay
+            if (acPendingShow_ && focus_ == FocusRegion::Editor)
+            {
+                auto msSinceKey = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                      now - acLastKeyTime_)
+                                      .count();
+                if (msSinceKey >= AC_DEBOUNCE_MS)
+                {
+                    acPendingShow_ = false;
+                    if (!acModuleName_.empty() || (int)acPrefix_.size() >= AC_MIN_PREFIX)
+                    {
+                        showAutocomplete();
+                    }
+                }
+            }
         }
 
         // Call this when the editor buffer changes (key input, paste, etc.)
@@ -150,6 +181,51 @@ namespace xterm
             lastEditTime_ = Clock::now();
             lintDirty_ = true;
             autoSavePending_ = true;
+
+            // Update autocomplete prefix and trigger debounce
+            if (focus_ == FocusRegion::Editor)
+            {
+                updateAcPrefix();
+                acLastKeyTime_ = Clock::now();
+
+                if (acPopup_.isVisible())
+                {
+                    // Already showing — update filter immediately
+                    if (acPrefix_.empty() && acModuleName_.empty())
+                        dismissAutocomplete();
+                    else if (!acModuleName_.empty() && acDB_.hasModuleMembers(acModuleName_))
+                    {
+                        std::vector<CompletionItem> members;
+                        if (acModuleName_ == "__any__")
+                            members = acDB_.matchAnyMembers(acPrefix_);
+                        else
+                            members = acDB_.matchModuleMembers(acModuleName_, acPrefix_);
+                        acPopup_.updateFilterItems(acPrefix_, members);
+                        updateGhostText();
+                    }
+                    else
+                    {
+                        acPopup_.updateFilter(acPrefix_, acDB_);
+                        updateGhostText();
+                    }
+                }
+                else if (!acModuleName_.empty() && acDB_.hasModuleMembers(acModuleName_))
+                {
+                    // -> was typed — immediately show members
+                    acPendingShow_ = true;
+                    acLastKeyTime_ = Clock::now();
+                }
+                else if ((int)acPrefix_.size() >= AC_MIN_PREFIX)
+                {
+                    // Start debounce for auto-show
+                    acPendingShow_ = true;
+                }
+                else
+                {
+                    // Too short — dismiss ghost
+                    editor_.clearGhostText();
+                }
+            }
         }
 
         // ── Focus management ────────────────────────────────────────
@@ -160,6 +236,14 @@ namespace xterm
         {
             focus_ = region;
             fileTree_.setFocused(region == FocusRegion::Sidebar);
+            // Dismiss autocomplete when leaving editor
+            if (region != FocusRegion::Editor)
+            {
+                if (acPopup_.isVisible())
+                    dismissAutocomplete();
+                if (activeSnippet_.active)
+                    commitSnippet();
+            }
         }
 
         void cycleFocus()
@@ -355,6 +439,83 @@ namespace xterm
                 // so dialog buttons and input fields can be clicked
             }
 
+            // ── Autocomplete popup intercept ─────────────────────────
+            if (focus_ == FocusRegion::Editor && (acPopup_.isVisible() || activeSnippet_.active))
+            {
+                if (event.type == SDL_KEYDOWN)
+                {
+                    auto key = event.key.keysym;
+                    bool ctrl = (key.mod & KMOD_CTRL) != 0;
+                    bool shift = (key.mod & KMOD_SHIFT) != 0;
+
+                    if (acPopup_.isVisible())
+                    {
+                        switch (key.sym)
+                        {
+                        case SDLK_UP:
+                            acPopup_.moveUp();
+                            updateGhostText();
+                            return LayoutAction::HANDLED;
+                        case SDLK_DOWN:
+                            acPopup_.moveDown();
+                            updateGhostText();
+                            return LayoutAction::HANDLED;
+                        case SDLK_RETURN:
+                        case SDLK_KP_ENTER:
+                            acceptCompletion();
+                            return LayoutAction::HANDLED;
+                        case SDLK_TAB:
+                            if (!shift)
+                            {
+                                acceptCompletion();
+                                return LayoutAction::HANDLED;
+                            }
+                            break;
+                        case SDLK_ESCAPE:
+                            dismissAutocomplete();
+                            return LayoutAction::HANDLED;
+                        default:
+                            break;
+                        }
+                    }
+                    else if (activeSnippet_.active)
+                    {
+                        // Tab navigation within active snippet
+                        if (key.sym == SDLK_TAB && !ctrl)
+                        {
+                            if (shift)
+                                snippetPrevStop();
+                            else
+                                snippetNextStop();
+                            return LayoutAction::HANDLED;
+                        }
+                        if (key.sym == SDLK_ESCAPE)
+                        {
+                            commitSnippet();
+                            return LayoutAction::HANDLED;
+                        }
+                    }
+                }
+                // Let text input fall through (for typing while popup is visible)
+            }
+
+            // ── Ghost text Tab accept (no popup, no snippet, just ghost) ─
+            if (focus_ == FocusRegion::Editor && !acPopup_.isVisible() && !activeSnippet_.active)
+            {
+                if (event.type == SDL_KEYDOWN)
+                {
+                    auto key = event.key.keysym;
+                    bool shift = (key.mod & KMOD_SHIFT) != 0;
+
+                    // Tab accepts ghost text when visible
+                    if (key.sym == SDLK_TAB && !shift && editor_.hasGhostText())
+                    {
+                        acceptGhostText();
+                        return LayoutAction::HANDLED;
+                    }
+                }
+            }
+
             if (event.type == SDL_KEYDOWN)
             {
                 auto key = event.key.keysym;
@@ -366,6 +527,16 @@ namespace xterm
                 {
                     switch (key.sym)
                     {
+                    case SDLK_SPACE:
+                        if (!shift)
+                        {
+                            // Ctrl+Space — Force autocomplete
+                            acManualTrigger_ = true;
+                            updateAcPrefix();
+                            showAutocomplete();
+                            return LayoutAction::HANDLED;
+                        }
+                        break;
                     case SDLK_b:
                         if (!shift)
                         {
@@ -628,6 +799,11 @@ namespace xterm
                         clickRow < editorRect_.y + editorRect_.h)
                     {
                         setFocus(FocusRegion::Editor);
+                        // Dismiss autocomplete on mouse click
+                        if (acPopup_.isVisible())
+                            dismissAutocomplete();
+                        if (activeSnippet_.active)
+                            commitSnippet();
                         // Convert to editor-local cell coords
                         int editorRow = clickRow - editorRect_.y;
                         int editorCol = clickCol - editorRect_.x;
@@ -998,6 +1174,35 @@ namespace xterm
                 renderFindReplaceDialog(out.cells);
             }
 
+            // ── Autocomplete popup overlay ───────────────────────────
+            if (acPopup_.isVisible())
+            {
+                auto popup = acPopup_.render();
+                if (popup.h > 0 && popup.w > 0)
+                {
+                    // Adjust popup position relative to editor rect
+                    int popX = editorRect_.x + popup.x;
+                    int popY = editorRect_.y + popup.y;
+
+                    // Ensure popup doesn't go off screen
+                    if (popY + popup.h > totalRows_)
+                        popY = editorRect_.y + popup.y - popup.h - 1; // above cursor
+                    if (popX + popup.w > totalCols_)
+                        popX = totalCols_ - popup.w;
+                    popX = std::max(0, popX);
+                    popY = std::max(0, popY);
+
+                    for (int r = 0; r < popup.h && popY + r < totalRows_; r++)
+                    {
+                        for (int c = 0; c < popup.w && popX + c < totalCols_; c++)
+                        {
+                            if (popY + r >= 0 && popX + c >= 0)
+                                out.cells[popY + r][popX + c] = popup.cells[r][c];
+                        }
+                    }
+                }
+            }
+
             return out;
         }
 
@@ -1076,11 +1281,21 @@ namespace xterm
                 return;
             lastLintedContent_ = fullContent;
 
-            // Pipe buffer content directly to xell --check via stdin (no temp files)
+            // Pipe buffer content to xell --check-symbols via stdin
+            // stdout = JSON symbols, stderr = diagnostics
             std::string xellBin = findXellBinary();
             int exitCode = 0;
-            std::string output = captureCommandWithStdin(
-                xellBin + " --check", fullContent, exitCode);
+            std::string symbolsJson, diagnosticOutput;
+            captureCommandSplitOutput(
+                xellBin + " --check-symbols", fullContent, exitCode,
+                symbolsJson, diagnosticOutput);
+
+            // Feed AST symbols to autocomplete DB
+            if (!symbolsJson.empty())
+                acDB_.loadASTSymbols(symbolsJson);
+
+            // Parse diagnostics into display lines
+            std::string &output = diagnosticOutput;
 
             // Parse output into diagnostic lines
             std::vector<std::string> lines;
@@ -1403,6 +1618,19 @@ namespace xterm
         int hoverRow_ = -1;
         int hoverCol_ = -1;
 
+        // ── Autocomplete state ──────────────────────────────────────
+        CompletionDB acDB_;
+        AutocompletePopup acPopup_;
+        SnippetEngine snippetEngine_;
+        ActiveSnippet activeSnippet_; // currently expanding snippet
+        std::string acPrefix_;        // current word being typed
+        std::string acModuleName_;    // module name for -> member access (empty = normal mode)
+        Clock::time_point acLastKeyTime_ = Clock::now();
+        bool acPendingShow_ = false;               // debounce: show popup after delay
+        bool acManualTrigger_ = false;             // Ctrl+Space forced popup
+        static constexpr int AC_DEBOUNCE_MS = 200; // auto-show delay
+        static constexpr int AC_MIN_PREFIX = 1;    // min chars for auto-show
+
         // Theme colors
         Color bgColor_ = {18, 18, 18};
         Color fgColor_ = {204, 204, 204};
@@ -1413,6 +1641,51 @@ namespace xterm
             bgColor_ = getUIColor(theme_, "editor_bg", bgColor_);
             fgColor_ = getUIColor(theme_, "editor_fg", fgColor_);
             borderColor_ = getUIColor(theme_, "panel_border", borderColor_);
+        }
+
+        // ── Asset path resolution (mirrors theme_loader / font resolution) ──
+
+        static std::string resolveAssetPath(const std::string &filename)
+        {
+            namespace fs = std::filesystem;
+            std::vector<std::string> candidates;
+
+            // 1. Relative to executable: <exe_dir>/assets/<filename>
+            char *base = SDL_GetBasePath();
+            if (base)
+            {
+                candidates.push_back(std::string(base) + "assets/" + filename);
+                candidates.push_back(std::string(base) + "../share/xell-terminal/" + filename);
+                SDL_free(base);
+            }
+
+            // 2. Relative to CWD
+            candidates.push_back("assets/" + filename);
+
+            // 3. Home directory (local install)
+            const char *home = std::getenv("HOME");
+            if (home)
+            {
+                candidates.push_back(std::string(home) + "/.local/share/xell-terminal/" + filename);
+                candidates.push_back(std::string(home) + "/.config/xell/" + filename);
+            }
+
+            // 4. Common system install prefixes
+            candidates.push_back("/usr/local/share/xell-terminal/" + filename);
+            candidates.push_back("/usr/share/xell-terminal/" + filename);
+
+            for (auto &path : candidates)
+            {
+                if (fs::exists(path))
+                {
+                    std::cerr << "[autocomplete] resolved " << filename << " -> " << path << "\n";
+                    return path;
+                }
+            }
+
+            // Fallback — return CWD relative path
+            std::cerr << "[autocomplete] WARNING: could not find " << filename << "\n";
+            return "assets/" + filename;
         }
 
         // ── Context menu definitions ────────────────────────────────
@@ -1630,6 +1903,322 @@ namespace xterm
 
             editorRect_ = {contentStartCol, 0, contentWidth, editorHeight};
             editor_.resize(contentWidth, editorHeight);
+        }
+
+        // ── Autocomplete helper methods ─────────────────────────────
+
+        // Extract the word being typed at the cursor position
+        void updateAcPrefix()
+        {
+            const auto *buf = editor_.activeBuffer();
+            if (!buf)
+            {
+                acPrefix_.clear();
+                return;
+            }
+
+            auto info = editor_.getStatusInfo();
+            int row = info.cursorRow - 1; // getStatusInfo returns 1-based
+            int col = info.cursorCol - 1;
+            if (row < 0 || row >= buf->lineCount())
+            {
+                acPrefix_.clear();
+                return;
+            }
+
+            const std::string &line = buf->getLine(row);
+            if (col < 0 || col > (int)line.size())
+                col = (int)line.size();
+
+            // Walk backwards to find start of identifier
+            int start = col;
+            while (start > 0 && (std::isalnum(line[start - 1]) || line[start - 1] == '_'))
+                start--;
+
+            acPrefix_ = line.substr(start, col - start);
+
+            // Check for -> member access pattern
+            acModuleName_.clear();
+            if (start >= 2 && line[start - 1] == '>' && line[start - 2] == '-')
+            {
+                int arrowPos = start - 2; // position of '-' in '->'
+
+                // Determine what precedes the -> operator
+                // Walk back from '-' to identify the expression type
+                int mEnd = arrowPos;
+
+                // Skip whitespace before ->
+                int p = mEnd - 1;
+                while (p >= 0 && line[p] == ' ')
+                    p--;
+
+                if (p >= 0 && line[p] == '"')
+                {
+                    // String literal: "hello"->  → __string__
+                    acModuleName_ = "__string__";
+                }
+                else if (p >= 0 && line[p] == ']')
+                {
+                    // List literal: [1,2]->  → __list__
+                    acModuleName_ = "__list__";
+                }
+                else if (p >= 0 && line[p] == '}')
+                {
+                    // Map literal: {a: 1}->  → __map__
+                    acModuleName_ = "__map__";
+                }
+                else if (p >= 0 && line[p] == ')')
+                {
+                    // Function call result: fn()->  → unknown type, use fallback
+                    acModuleName_ = "__any__";
+                }
+                else if (p >= 0 && (std::isalnum(line[p]) || line[p] == '_'))
+                {
+                    // Identifier: module-> or variable->
+                    int mStart = p;
+                    while (mStart > 0 && (std::isalnum(line[mStart - 1]) || line[mStart - 1] == '_'))
+                        mStart--;
+                    std::string name = line.substr(mStart, p - mStart + 1);
+
+                    if (acDB_.hasModuleMembers(name))
+                    {
+                        // Known module/class/struct — use exact members
+                        acModuleName_ = name;
+                    }
+                    else
+                    {
+                        // Unknown variable — use fallback (all common methods)
+                        acModuleName_ = "__any__";
+                    }
+                }
+            }
+        }
+
+        void showAutocomplete()
+        {
+            if (acPrefix_.empty() && !acManualTrigger_ && acModuleName_.empty())
+                return;
+
+            // AST symbols are loaded during lint (--check-symbols).
+            // As fallback, regex-scan the buffer if no AST symbols available yet.
+            if (acDB_.userSymbolCount() == 0)
+            {
+                const auto *buf = editor_.activeBuffer();
+                if (buf)
+                    acDB_.scanBuffer(buf->lines());
+            }
+
+            // Get cursor screen position from editor info
+            auto info = editor_.getStatusInfo();
+            // These are 1-based — convert to 0-based screen coords
+            // The editor widget has a tab bar (row 0), so cursor screen row
+            // needs to account for scroll offset. Use getStatusInfo row - scrollTopLine.
+            // Simpler: just use the row/col from getStatusInfo as approximate popup position
+            int screenRow = info.cursorRow; // roughly maps to screen (tab bar offset handled by overlay)
+            int screenCol = info.cursorCol;
+
+            // Show with current prefix (or empty for manual trigger)
+            std::string prefix = acManualTrigger_ && acPrefix_.empty() ? "" : acPrefix_;
+
+            // If in -> member access mode, show only module/type members
+            if (!acModuleName_.empty() && acDB_.hasModuleMembers(acModuleName_))
+            {
+                std::vector<CompletionItem> members;
+                if (acModuleName_ == "__any__")
+                    members = acDB_.matchAnyMembers(prefix);
+                else
+                    members = acDB_.matchModuleMembers(acModuleName_, prefix);
+
+                if (!members.empty())
+                    acPopup_.showItems(screenRow, screenCol - (int)acPrefix_.size(), acPrefix_, members);
+                else
+                    acPopup_.hide();
+            }
+            else
+            {
+                acPopup_.show(screenRow, screenCol - (int)acPrefix_.size(), acPrefix_, acDB_);
+            }
+
+            acManualTrigger_ = false;
+            updateGhostText();
+        }
+
+        void dismissAutocomplete()
+        {
+            acPopup_.hide();
+            acPrefix_.clear();
+            acModuleName_.clear();
+            acPendingShow_ = false;
+            acManualTrigger_ = false;
+            editor_.clearGhostText();
+        }
+
+        void acceptCompletion()
+        {
+            const CompletionItem *item = acPopup_.accept();
+            if (!item)
+            {
+                dismissAutocomplete();
+                return;
+            }
+
+            // Store label and kind before hiding popup
+            std::string label = item->label;
+            CompletionKind kind = item->kind;
+
+            acPopup_.hide();
+            editor_.clearGhostText();
+
+            // Delete the prefix we've already typed, then insert the completion
+            if (!acPrefix_.empty())
+            {
+                auto *buf = editor_.activeBufferMut();
+                if (buf)
+                {
+                    auto info = editor_.getStatusInfo();
+                    int row = info.cursorRow - 1;
+                    int col = info.cursorCol - 1;
+                    int prefixLen = (int)acPrefix_.size();
+
+                    BufferPos from = {row, col - prefixLen};
+                    BufferPos to = {row, col};
+                    buf->deleteRange(from, to);
+                    editor_.setCursorPosition(row, col - prefixLen);
+                }
+            }
+
+            // If it's a snippet, expand it
+            if (kind == CompletionKind::Snippet)
+            {
+                const SnippetDef *def = snippetEngine_.findByPrefix(label);
+                if (def)
+                {
+                    expandSnippet(*def);
+                    acPrefix_.clear();
+                    return;
+                }
+            }
+
+            // Regular completion — insert the label
+            editor_.insertTextAtCursor(label);
+            acPrefix_.clear();
+        }
+
+        void expandSnippet(const SnippetDef &def)
+        {
+            auto info = editor_.getStatusInfo();
+            int row = info.cursorRow - 1;
+            int col = info.cursorCol - 1;
+
+            activeSnippet_ = snippetEngine_.expand(def, row, col);
+
+            // Insert the full snippet text
+            std::string text = SnippetEngine::buildInsertText(activeSnippet_);
+            editor_.insertTextAtCursor(text);
+
+            // Navigate to first tab stop
+            if (!activeSnippet_.tabStops.empty())
+            {
+                const TabStop &ts = activeSnippet_.tabStops[0];
+                int absRow = row + ts.line;
+                int absCol = ts.col;
+                editor_.setCursorPosition(absRow, absCol);
+                editor_.setActiveTabStop(absRow, absCol, ts.length);
+
+                // Select the placeholder text
+                if (ts.length > 0)
+                {
+                    editor_.setSelection(absRow, absCol, absRow, absCol + ts.length);
+                }
+            }
+        }
+
+        void snippetNextStop()
+        {
+            if (!activeSnippet_.active)
+                return;
+
+            if (!activeSnippet_.nextStop())
+            {
+                commitSnippet();
+                return;
+            }
+
+            const TabStop *ts = activeSnippet_.current();
+            if (ts)
+            {
+                int absRow = activeSnippet_.startLine + ts->line;
+                int absCol = ts->col;
+                editor_.setCursorPosition(absRow, absCol);
+                editor_.setActiveTabStop(absRow, absCol, ts->length);
+                if (ts->length > 0)
+                    editor_.setSelection(absRow, absCol, absRow, absCol + ts->length);
+            }
+        }
+
+        void snippetPrevStop()
+        {
+            if (!activeSnippet_.active)
+                return;
+
+            if (!activeSnippet_.prevStop())
+                return;
+
+            const TabStop *ts = activeSnippet_.current();
+            if (ts)
+            {
+                int absRow = activeSnippet_.startLine + ts->line;
+                int absCol = ts->col;
+                editor_.setCursorPosition(absRow, absCol);
+                editor_.setActiveTabStop(absRow, absCol, ts->length);
+                if (ts->length > 0)
+                    editor_.setSelection(absRow, absCol, absRow, absCol + ts->length);
+            }
+        }
+
+        void commitSnippet()
+        {
+            activeSnippet_.active = false;
+            editor_.clearActiveTabStop();
+            editor_.clearSelection();
+        }
+
+        void updateGhostText()
+        {
+            const CompletionItem *item = acPopup_.accept();
+            if (!item || acPrefix_.empty())
+            {
+                editor_.clearGhostText();
+                return;
+            }
+
+            // Show the remaining portion of the top completion as ghost text
+            std::string label = item->label;
+            if (label.size() > acPrefix_.size() &&
+                label.substr(0, acPrefix_.size()) == acPrefix_)
+            {
+                std::string ghost = label.substr(acPrefix_.size());
+                auto info = editor_.getStatusInfo();
+                int row = info.cursorRow - 1;
+                int col = info.cursorCol - 1;
+                editor_.setGhostText(ghost, row, col);
+            }
+            else
+            {
+                editor_.clearGhostText();
+            }
+        }
+
+        void acceptGhostText()
+        {
+            // Insert the ghost text at cursor position
+            if (!editor_.hasGhostText())
+                return;
+
+            std::string ghost = editor_.getGhostText();
+            editor_.clearGhostText();
+            editor_.insertTextAtCursor(ghost);
+            acPrefix_.clear();
         }
 
         LayoutAction mapEditorAction(EditorAction action)

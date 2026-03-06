@@ -1,0 +1,5 @@
+
+bring farewell of string_utils as fr
+    print(fr("hi"))
+    
+    

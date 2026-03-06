@@ -98,6 +98,26 @@ add_custom_command(TARGET xell-terminal POST_BUILD
     COMMENT "Copying terminal_colors.json to build directory"
 )
 
+# ---- Copy language_data.json to build directory (autocomplete data) ----------
+
+set(LANGDATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../Extensions/xell-vscode/src/server/language_data.json")
+set(LANGDATA_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/language_data.json")
+
+add_custom_command(TARGET xell-terminal POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LANGDATA_SRC}" "${LANGDATA_DST}"
+    COMMENT "Copying language_data.json to build directory"
+)
+
+# ---- Copy xell snippets to build directory (snippet templates) ---------------
+
+set(SNIPPETS_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../Extensions/xell-vscode/snippets/xell.json")
+set(SNIPPETS_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/xell_snippets.json")
+
+add_custom_command(TARGET xell-terminal POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SNIPPETS_SRC}" "${SNIPPETS_DST}"
+    COMMENT "Copying xell_snippets.json to build directory"
+)
+
 # ---- Install -----------------------------------------------------------------
 
 install(TARGETS xell-terminal DESTINATION bin)

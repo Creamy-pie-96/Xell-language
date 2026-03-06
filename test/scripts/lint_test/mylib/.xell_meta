@@ -1,0 +1,24 @@
+{
+  "xell_meta_version": 1,
+  "directory": ".",
+  "modules": {
+    "math_lib": {
+      "file": "math_lib.xel",
+      "hash": "0427329a523c6008d27ec291ee215be2263b4749b786bde5a565e106faf8caf6",
+      "exports": ["add", "multiply", "power", "clamp_value", "sum_all", "PI", "E"],
+      "submodules": {}
+    },
+    "str_lib": {
+      "file": "str_lib.xel",
+      "hash": "23fcea39232317182526ed489c3396845b5e4ba39716e7076baf74b637d3ea6d",
+      "exports": ["greet", "farewell", "repeat_str", "format_name", "VERSION", "AUTHOR"],
+      "submodules": {}
+    },
+    "shapes": {
+      "file": "shapes.xel",
+      "hash": "345765c9629d30008ecf74163e791bf1c4fa7ce6596a3deff4873ad44c858ba4",
+      "exports": ["Circle", "Box", "make_circle", "MAX_SIDES"],
+      "submodules": {}
+    }
+  }
+}

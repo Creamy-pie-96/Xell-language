@@ -372,6 +372,20 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: \
  /usr/include/c++/13/bits/atomic_lockfree_defines.h \
  /usr/include/c++/13/backward/auto_ptr.h \
  /usr/include/c++/13/pstl/glue_memory_defs.h /usr/include/c++/13/chrono \
+ /usr/include/c++/13/regex /usr/include/c++/13/bitset \
+ /usr/include/c++/13/stack /usr/include/c++/13/bits/stl_stack.h \
+ /usr/include/c++/13/bits/stl_tree.h /usr/include/c++/13/bits/stl_map.h \
+ /usr/include/c++/13/bits/regex_constants.h \
+ /usr/include/c++/13/bits/regex_error.h \
+ /usr/include/c++/13/bits/regex_automaton.h \
+ /usr/include/c++/13/bits/regex_automaton.tcc \
+ /usr/include/c++/13/bits/regex_scanner.h \
+ /usr/include/c++/13/bits/regex_scanner.tcc \
+ /usr/include/c++/13/bits/regex_compiler.h \
+ /usr/include/c++/13/bits/regex_compiler.tcc \
+ /usr/include/c++/13/bits/regex.h /usr/include/c++/13/bits/regex.tcc \
+ /usr/include/c++/13/bits/regex_executor.h \
+ /usr/include/c++/13/bits/regex_executor.tcc \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/../editor/editor_view.hpp \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/../editor/text_buffer.hpp \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/../editor/../highlight/highlighter.hpp \
@@ -382,11 +396,12 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/../editor/../ui/file_tree.hpp \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/../editor/../ui/panel.hpp \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/repl_panel.hpp \
- /home/DATA/CODE/code/Xell/xell-terminal/src/ui/embedded_terminal.hpp \
- /usr/include/c++/13/thread /usr/include/c++/13/bits/std_thread.h \
+ /usr/include/c++/13/atomic /usr/include/c++/13/thread \
+ /usr/include/c++/13/bits/std_thread.h \
  /usr/include/c++/13/bits/this_thread_sleep.h /usr/include/c++/13/mutex \
  /usr/include/c++/13/bits/std_mutex.h \
- /usr/include/c++/13/bits/unique_lock.h /usr/include/c++/13/atomic \
+ /usr/include/c++/13/bits/unique_lock.h \
+ /home/DATA/CODE/code/Xell/xell-terminal/src/ui/embedded_terminal.hpp \
  /usr/include/unistd.h /usr/include/x86_64-linux-gnu/bits/posix_opt.h \
  /usr/include/x86_64-linux-gnu/bits/environments.h \
  /usr/include/x86_64-linux-gnu/bits/confname.h \
@@ -421,8 +436,11 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: \
  /usr/include/x86_64-linux-gnu/bits/types/idtype_t.h \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/git_panel.hpp \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/visual_effects.hpp \
- /usr/include/c++/13/stack /usr/include/c++/13/bits/stl_stack.h \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/config_manager.hpp \
+ /home/DATA/CODE/code/Xell/xell-terminal/src/ui/autocomplete.hpp \
+ /usr/include/c++/13/unordered_set \
+ /usr/include/c++/13/bits/unordered_set.h \
+ /home/DATA/CODE/code/Xell/xell-terminal/src/ui/snippet_engine.hpp \
  /usr/include/c++/13/cstring /usr/include/x86_64-linux-gnu/sys/stat.h \
  /usr/include/x86_64-linux-gnu/bits/stat.h \
  /usr/include/x86_64-linux-gnu/bits/struct_stat.h \

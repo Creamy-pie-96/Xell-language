@@ -274,6 +274,12 @@ if [ -d "$TERMINAL_SRC" ]; then
                 COLORS_SRC="$SCRIPT_DIR/Extensions/xell-vscode/color_customizer/terminal_colors.json"
                 [ -f "$COLORS_SRC" ] && cp "$COLORS_SRC" "$TMP_TERM/terminal_colors.json"
 
+                # Copy autocomplete data (language_data.json + snippets)
+                LANG_DATA_SRC="$TERMINAL_BUILD/assets/language_data.json"
+                SNIPPETS_SRC="$TERMINAL_BUILD/assets/xell_snippets.json"
+                [ -f "$LANG_DATA_SRC" ] && cp "$LANG_DATA_SRC" "$TMP_TERM/language_data.json"
+                [ -f "$SNIPPETS_SRC" ] && cp "$SNIPPETS_SRC" "$TMP_TERM/xell_snippets.json"
+
                 # Install binary
                 $SUDO mkdir -p "$BIN_DIR"
                 $SUDO mv "$TMP_TERM/xell-terminal" "$BIN_DIR/xell-terminal"
@@ -286,6 +292,12 @@ if [ -d "$TERMINAL_SRC" ]; then
                 # Install theme data
                 [ -f "$TMP_TERM/terminal_colors.json" ] && \
                     $SUDO cp "$TMP_TERM/terminal_colors.json" "$TERM_SHARE_DIR/"
+
+                # Install autocomplete data
+                [ -f "$TMP_TERM/language_data.json" ] && \
+                    $SUDO cp "$TMP_TERM/language_data.json" "$TERM_SHARE_DIR/"
+                [ -f "$TMP_TERM/xell_snippets.json" ] && \
+                    $SUDO cp "$TMP_TERM/xell_snippets.json" "$TERM_SHARE_DIR/"
 
                 rm -rf "$TMP_TERM"
 
@@ -304,6 +316,12 @@ if [ -d "$TERMINAL_SRC" ]; then
                 # Install theme data
                 COLORS_SRC="$SCRIPT_DIR/Extensions/xell-vscode/color_customizer/terminal_colors.json"
                 [ -f "$COLORS_SRC" ] && cp "$COLORS_SRC" "$TERM_SHARE_DIR/"
+
+                # Install autocomplete data
+                LANG_DATA_SRC="$TERMINAL_BUILD/assets/language_data.json"
+                SNIPPETS_SRC="$TERMINAL_BUILD/assets/xell_snippets.json"
+                [ -f "$LANG_DATA_SRC" ] && cp "$LANG_DATA_SRC" "$TERM_SHARE_DIR/"
+                [ -f "$SNIPPETS_SRC" ] && cp "$SNIPPETS_SRC" "$TERM_SHARE_DIR/"
             fi
             ok "Terminal installed: $BIN_DIR/xell-terminal"
             ok "Fonts installed: $TERM_SHARE_DIR/fonts/"
