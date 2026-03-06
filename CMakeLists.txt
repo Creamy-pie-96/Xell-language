@@ -152,3 +152,7 @@ add_test(NAME let_be_test COMMAND let_be_test)
 add_executable(expr_loop_test test/expr_loop_test.cpp)
 target_link_libraries(expr_loop_test xell_lib)
 add_test(NAME expr_loop_test COMMAND expr_loop_test)
+
+add_executable(debug_test test/debug_test.cpp)
+target_link_libraries(debug_test xell_lib)
+add_test(NAME debug_test COMMAND debug_test)

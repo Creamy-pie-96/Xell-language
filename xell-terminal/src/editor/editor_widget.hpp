@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <algorithm>
 #include <filesystem>
 #include "text_buffer.hpp"
 #include "editor_view.hpp"
@@ -279,16 +280,20 @@ namespace xterm
                 return EditorAction::HANDLED;
             }
 
-            // Check if click is on the scrollbar column (rightmost)
+            // Check if click is on the scrollbar column (rightmost) — vertical scrollbar
             auto view = activeView();
             if (view && view->getRect().w > 0)
             {
                 int editorW = view->getRect().w;
+                int visibleH = view->codeAreaHeight();
+                int gutterW = view->gutterWidth();
+                int codeW = view->codeAreaWidth();
+
+                // Vertical scrollbar (rightmost column)
                 if (cellCol >= editorW - 1)
                 {
                     // Scrollbar click — jump to proportional position
                     int codeRow = cellRow - 1; // subtract tab bar row
-                    int visibleH = view->codeAreaHeight();
                     int totalLines = tabs_[activeTab_].buffer->lineCount();
                     if (totalLines > visibleH && visibleH > 0)
                     {
@@ -298,6 +303,30 @@ namespace xterm
                     }
                     return EditorAction::HANDLED;
                 }
+
+                // Horizontal scrollbar (bottom row of code area)
+                int hBarRow = visibleH; // +1 for tab bar = visibleH in cellRow coords
+                if (cellRow == hBarRow && cellCol >= gutterW && cellCol < gutterW + codeW - 1)
+                {
+                    int maxWidth = view->maxLineWidth();
+                    if (maxWidth > codeW)
+                    {
+                        int trackWidth = codeW - 1;
+                        float ratio = (float)(cellCol - gutterW) / (float)trackWidth;
+                        int targetCol = (int)(ratio * maxWidth) - codeW / 2;
+                        view->scrollHorizontalTo(std::max(0, targetCol));
+                        return EditorAction::HANDLED;
+                    }
+                }
+            }
+
+            // Don't move cursor if clicking past the last line of the file
+            if (view)
+            {
+                int codeRow = cellRow - 1; // subtract tab bar
+                int bufRow = view->scrollTopLine() + codeRow;
+                if (bufRow >= tabs_[activeTab_].buffer->lineCount())
+                    return EditorAction::HANDLED; // consume click but don't move cursor
             }
 
             // Subtract 1 for tab bar
@@ -314,10 +343,14 @@ namespace xterm
             if (view && view->getRect().w > 0)
             {
                 int editorW = view->getRect().w;
+                int visibleH = view->codeAreaHeight();
+                int gutterW = view->gutterWidth();
+                int codeW = view->codeAreaWidth();
+
+                // Vertical scrollbar drag
                 if (cellCol >= editorW - 1)
                 {
                     int codeRow = cellRow - 1;
-                    int visibleH = view->codeAreaHeight();
                     int totalLines = tabs_[activeTab_].buffer->lineCount();
                     if (totalLines > visibleH && visibleH > 0)
                     {
@@ -326,6 +359,21 @@ namespace xterm
                         view->scrollTo(targetLine);
                     }
                     return EditorAction::HANDLED;
+                }
+
+                // Horizontal scrollbar drag
+                int hBarRow = visibleH;
+                if (cellRow == hBarRow && cellCol >= gutterW && cellCol < gutterW + codeW - 1)
+                {
+                    int maxWidth = view->maxLineWidth();
+                    if (maxWidth > codeW)
+                    {
+                        int trackWidth = codeW - 1;
+                        float ratio = (float)(cellCol - gutterW) / (float)trackWidth;
+                        int targetCol = (int)(ratio * maxWidth) - codeW / 2;
+                        view->scrollHorizontalTo(std::max(0, targetCol));
+                        return EditorAction::HANDLED;
+                    }
                 }
             }
 
@@ -337,6 +385,20 @@ namespace xterm
             if (!input_)
                 return EditorAction::NONE;
             return input_->handleMouseWheel(delta);
+        }
+
+        // Horizontal scroll (for 2-finger swipe and Shift+scroll)
+        EditorAction handleLocalHScroll(int delta)
+        {
+            auto view = activeView();
+            if (!view)
+                return EditorAction::NONE;
+            int maxW = view->maxLineWidth();
+            int codeW = view->codeAreaWidth();
+            int maxScroll = std::max(0, maxW - codeW);
+            int newCol = std::clamp(view->scrollLeftCol() + delta, 0, maxScroll);
+            view->scrollHorizontalTo(newCol);
+            return EditorAction::HANDLED;
         }
 
         // ── Clipboard operations ────────────────────────────────────

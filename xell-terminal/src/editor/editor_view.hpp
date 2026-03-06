@@ -739,6 +739,39 @@ namespace xterm
                 }
             }
 
+            // ── Horizontal scrollbar (bottom row of code area) ──────────
+            if (showScrollbar_ && visibleLines > 1 && rect_.w > 0)
+            {
+                int maxWidth = maxLineWidth();
+                int codeW2 = codeAreaWidth();
+                if (maxWidth > codeW2)
+                {
+                    int hBarRow = visibleLines - 1; // last row of code area
+                    int trackWidth = codeW2 - 1;    // leave rightmost col for vscrollbar
+                    if (trackWidth > 2)
+                    {
+                        int thumbWidth = std::max(2, trackWidth * codeW2 / maxWidth);
+                        int maxScrollLeft = maxWidth - codeW2;
+                        int thumbStart = (maxScrollLeft > 0)
+                                             ? scrollLeftCol_ * (trackWidth - thumbWidth) / maxScrollLeft
+                                             : 0;
+
+                        Color trackColor = {35, 35, 35};
+                        Color thumbColor = {100, 100, 100};
+
+                        for (int c = 0; c < trackWidth; c++)
+                        {
+                            auto &cell = out.cells[hBarRow][gutterW + c];
+                            bool isThumb = (c >= thumbStart && c < thumbStart + thumbWidth);
+                            cell.ch = isThumb ? U'\u2501' : U'\u2500'; // ━ (thumb) / ─ (track)
+                            cell.fg = isThumb ? thumbColor : trackColor;
+                            cell.bg = bgColor_;
+                            cell.dirty = true;
+                        }
+                    }
+                }
+            }
+
             return out;
         }
 
@@ -760,6 +793,31 @@ namespace xterm
 
         int codeAreaWidth() const { return rect_.w - gutterWidth(); }
         int codeAreaHeight() const { return rect_.h; }
+
+        // Max line width in the visible window (for horizontal scrollbar sizing)
+        int maxLineWidth() const
+        {
+            int maxW = 0;
+            int lineCount = buffer_.lineCount();
+            for (int i = 0; i < lineCount; i++)
+            {
+                int len = buffer_.lineLength(i);
+                if (len > maxW)
+                    maxW = len;
+            }
+            return maxW;
+        }
+
+        int scrollLeftCol() const { return scrollLeftCol_; }
+
+        void scrollHorizontalTo(int col)
+        {
+            int maxW = maxLineWidth();
+            int codeW = codeAreaWidth();
+            int maxScroll = std::max(0, maxW - codeW + 1);
+            scrollLeftCol_ = std::clamp(col, 0, maxScroll);
+            clampScroll();
+        }
 
         // ── Settings ────────────────────────────────────────────────────
 

@@ -18,6 +18,7 @@
 #include "environment.hpp"
 #include "xobject.hpp"
 #include "shell_state.hpp"
+#include "trace_collector.hpp"
 #include "../builtins/builtin_registry.hpp"
 #include "../builtins/module_registry.hpp"
 #include "../module/module_resolver.hpp"
@@ -101,6 +102,12 @@ namespace xell
         /// Access to module registry (for testing / introspection)
         const ModuleRegistry &moduleRegistry() const { return moduleRegistry_; }
 
+        /// Set the trace collector (shared across modules for cross-module debug)
+        void setTraceCollector(TraceCollector *tc) { trace_ = tc; }
+
+        /// Get the trace collector (may be nullptr when debug is off)
+        TraceCollector *traceCollector() const { return trace_; }
+
         /// Programmatically load a built-in module (same as `bring * from "mod"`)
         /// Useful for C++ tests and embedding — avoids modifying Xell source strings.
         void loadModule(const std::string &moduleName);
@@ -126,6 +133,10 @@ namespace xell
         std::unordered_set<std::string> importedFiles_; // circular-import guard
         std::vector<std::string> cliArgs_;              // CLI arguments (for __args__ dunder)
         bool isMainFile_ = true;                        // true when running the entry-point file
+
+        // ---- Debug / Trace ----
+        TraceCollector *trace_ = nullptr;    // Non-owning. Null when debug is off.
+        std::vector<std::string> callStack_; // Live call stack (function names)
 
         // Module system: tracks names that have been export-declared in current scope.
         // Used by execModuleDef to collect exports when building an XModule.

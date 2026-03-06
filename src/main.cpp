@@ -717,6 +717,51 @@ static int genXesy(const std::string &outputPath = "")
     return 0;
 }
 
+// ---- Trace variables for a file (run with TraceCollector, output JSON) ------
+
+static int traceFile(const std::string &path)
+{
+    std::string source = readFile(path);
+    source = applyConvertIfNeeded(source, path);
+
+    xell::Interpreter interpreter;
+    xell::TraceCollector tracer;
+    tracer.enabled = true;
+    interpreter.setTraceCollector(&tracer);
+
+    try
+    {
+        xell::Lexer lexer(source);
+        auto tokens = lexer.tokenize();
+        xell::Parser parser(tokens);
+        auto program = parser.parse();
+        interpreter.setSourceFile(path);
+        interpreter.setIsMainFile(true);
+        interpreter.run(program);
+    }
+    catch (const xell::XellError &e)
+    {
+        std::cerr << e.what() << "\n";
+        // Still output whatever trace we collected before the error
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Fatal error: " << e.what() << "\n";
+    }
+
+    // Output trace entries as JSON array to stdout
+    const auto &entries = tracer.entries();
+    std::cout << "[";
+    for (size_t i = 0; i < entries.size(); i++)
+    {
+        if (i > 0)
+            std::cout << ",";
+        std::cout << entries[i].toJSON();
+    }
+    std::cout << "]\n";
+    return 0;
+}
+
 // ---- Execute a file ---------------------------------------------------------
 
 static int executeFile(const std::string &path, const std::vector<std::string> &cliArgs = {})
@@ -836,14 +881,21 @@ static int lintSource(const std::string &source, const std::string &sourceDir = 
         // Inject module exports discovered by the static analyzer
         // (these come from resolved imports, not the current file's AST)
         auto &modExports = analyzer.getModuleExports();
+        auto &modFiles = analyzer.getModuleFileMap();
         for (auto &[modName, members] : modExports)
         {
+            // Look up the source file for this module
+            std::string srcFile;
+            auto fIt = modFiles.find(modName);
+            if (fIt != modFiles.end())
+                srcFile = fIt->second;
+
             for (auto &member : members)
             {
                 // Only add if not already present from the local AST
                 bool found = false;
                 for (auto &s : symbols)
-                    if (s.name == member && s.parentScope == modName)
+                    if (s.name == member.name && s.parentScope == modName)
                     {
                         found = true;
                         break;
@@ -851,11 +903,27 @@ static int lintSource(const std::string &source, const std::string &sourceDir = 
                 if (!found)
                 {
                     xell::SymbolInfo sym;
-                    sym.name = member;
-                    sym.kind = xell::SymbolKind::Method; // generic — could be fn or var
-                    sym.line = 0;
-                    sym.detail = modName + "->" + member;
+                    sym.name = member.name;
+                    // Map kind string to SymbolKind
+                    if (member.kind == "function")
+                        sym.kind = xell::SymbolKind::Method;
+                    else if (member.kind == "class")
+                        sym.kind = xell::SymbolKind::Class;
+                    else if (member.kind == "struct")
+                        sym.kind = xell::SymbolKind::Struct;
+                    else if (member.kind == "enum")
+                        sym.kind = xell::SymbolKind::Enum;
+                    else if (member.kind == "interface")
+                        sym.kind = xell::SymbolKind::Interface;
+                    else if (member.kind == "module")
+                        sym.kind = xell::SymbolKind::Module;
+                    else
+                        sym.kind = xell::SymbolKind::Variable;
+                    sym.line = member.line;
+                    sym.detail = modName + "->" + member.name;
                     sym.parentScope = modName;
+                    // Prefer per-export sourceFile (for nested modules), fall back to module-level
+                    sym.sourceFile = !member.sourceFile.empty() ? member.sourceFile : srcFile;
                     symbols.push_back(sym);
                 }
             }
@@ -1607,6 +1675,18 @@ int main(int argc, char *argv[])
             return checkFile(argv[2]);
         // No file argument → read from stdin
         return checkStdin();
+    }
+
+    // --trace-vars — run file with tracing, output variable lifecycle as JSON
+    // Used by the IDE LIFECYCLE tab for lazy variable lifecycle inspection
+    if (arg1 == "--trace-vars")
+    {
+        if (argc < 3)
+        {
+            std::cerr << "Usage: xell --trace-vars <file.xel>\n";
+            return 1;
+        }
+        return traceFile(argv[2]);
     }
 
     // --check-symbols — lint + output symbol map as JSON on stdout

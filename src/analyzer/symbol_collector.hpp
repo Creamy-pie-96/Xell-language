@@ -41,11 +41,18 @@ namespace xell
         std::string name;
         SymbolKind kind;
         int line = 0;
+        int lineEnd = 0;                     // end line of scope (computed from body)
         std::string detail;                  // e.g. "fn greet(name, age)"
         std::string parentScope;             // e.g. "MyClass" for methods
+        std::string scopeType;               // "global", "function", "class", "module", etc.
         std::vector<std::string> params;     // for functions/methods
         std::vector<std::string> paramTypes; // type annotations
         std::string returnType;
+        std::string inferredType; // static type inference: "int", "str", "list", etc.
+        std::string sourceFile;   // originating file for imported symbols (empty = current file)
+        bool isExported = false;
+        bool isImmutable = false;
+        std::vector<std::string> children; // names of child symbols (methods, exports)
     };
 
     static inline const char *symbolKindStr(SymbolKind k)
@@ -125,6 +132,37 @@ namespace xell
                 if (!s.returnType.empty())
                     out << ",\"returnType\":\"" << escapeJSON(s.returnType) << "\"";
 
+                // Extended fields
+                if (s.lineEnd > 0 && s.lineEnd != s.line)
+                    out << ",\"lineEnd\":" << s.lineEnd;
+
+                if (!s.scopeType.empty())
+                    out << ",\"scopeType\":\"" << escapeJSON(s.scopeType) << "\"";
+
+                if (!s.inferredType.empty())
+                    out << ",\"inferredType\":\"" << escapeJSON(s.inferredType) << "\"";
+
+                if (s.isExported)
+                    out << ",\"isExported\":true";
+
+                if (s.isImmutable)
+                    out << ",\"isImmutable\":true";
+
+                if (!s.sourceFile.empty())
+                    out << ",\"sourceFile\":\"" << escapeJSON(s.sourceFile) << "\"";
+
+                if (!s.children.empty())
+                {
+                    out << ",\"children\":[";
+                    for (size_t j = 0; j < s.children.size(); j++)
+                    {
+                        if (j > 0)
+                            out << ",";
+                        out << "\"" << escapeJSON(s.children[j]) << "\"";
+                    }
+                    out << "]";
+                }
+
                 out << "}";
             }
             out << "]";
@@ -139,7 +177,11 @@ namespace xell
                        const std::string &detail = "", const std::string &scope = "",
                        const std::vector<std::string> &params = {},
                        const std::vector<std::string> &paramTypes = {},
-                       const std::string &returnType = "")
+                       const std::string &returnType = "",
+                       int lineEnd = 0, const std::string &scopeType = "",
+                       const std::string &inferredType = "",
+                       bool isExported = false, bool isImmutable = false,
+                       const std::string &sourceFile = "")
         {
             // Avoid duplicate top-level names (same name + same scope)
             std::string key = name + "::" + scope;
@@ -151,12 +193,161 @@ namespace xell
             sym.name = name;
             sym.kind = kind;
             sym.line = line;
+            sym.lineEnd = (lineEnd > 0) ? lineEnd : line;
             sym.detail = detail;
             sym.parentScope = scope;
+            sym.scopeType = scopeType.empty() ? (scope.empty() ? "global" : "scoped") : scopeType;
             sym.params = params;
             sym.paramTypes = paramTypes;
             sym.returnType = returnType;
+            sym.inferredType = inferredType;
+            sym.isExported = isExported;
+            sym.isImmutable = isImmutable;
+            sym.sourceFile = sourceFile;
             symbols_.push_back(sym);
+        }
+
+        // Add a child name to an already-registered parent symbol
+        void addChild(const std::string &parentName, const std::string &parentScope,
+                      const std::string &childName)
+        {
+            std::string key = parentName + "::" + parentScope;
+            for (auto &sym : symbols_)
+            {
+                std::string sk = sym.name + "::" + sym.parentScope;
+                if (sk == key)
+                {
+                    sym.children.push_back(childName);
+                    return;
+                }
+            }
+        }
+
+        // Compute end line from a vector of statements
+        static int computeEndLine(const std::vector<StmtPtr> &body, int startLine)
+        {
+            int maxLine = startLine;
+            for (auto &s : body)
+            {
+                if (s && s->line > maxLine)
+                    maxLine = s->line;
+                // Recurse into nested blocks for accurate end line
+                if (auto *fn = dynamic_cast<const FnDef *>(s.get()))
+                {
+                    int e = computeEndLine(fn->body, fn->line);
+                    if (e > maxLine)
+                        maxLine = e;
+                }
+                else if (auto *ifS = dynamic_cast<const IfStmt *>(s.get()))
+                {
+                    int e = computeEndLine(ifS->body, ifS->line);
+                    if (e > maxLine)
+                        maxLine = e;
+                    for (auto &elif : ifS->elifs)
+                    {
+                        int ee = computeEndLine(elif.body, elif.line);
+                        if (ee > maxLine)
+                            maxLine = ee;
+                    }
+                    int ee = computeEndLine(ifS->elseBody, ifS->line);
+                    if (ee > maxLine)
+                        maxLine = ee;
+                }
+                else if (auto *forS = dynamic_cast<const ForStmt *>(s.get()))
+                {
+                    int e = computeEndLine(forS->body, forS->line);
+                    if (e > maxLine)
+                        maxLine = e;
+                }
+                else if (auto *whS = dynamic_cast<const WhileStmt *>(s.get()))
+                {
+                    int e = computeEndLine(whS->body, whS->line);
+                    if (e > maxLine)
+                        maxLine = e;
+                }
+                else if (auto *loS = dynamic_cast<const LoopStmt *>(s.get()))
+                {
+                    int e = computeEndLine(loS->body, loS->line);
+                    if (e > maxLine)
+                        maxLine = e;
+                }
+                else if (auto *tryS = dynamic_cast<const TryCatchStmt *>(s.get()))
+                {
+                    int e = computeEndLine(tryS->tryBody, tryS->line);
+                    if (e > maxLine)
+                        maxLine = e;
+                    e = computeEndLine(tryS->catchBody, tryS->line);
+                    if (e > maxLine)
+                        maxLine = e;
+                    e = computeEndLine(tryS->finallyBody, tryS->line);
+                    if (e > maxLine)
+                        maxLine = e;
+                }
+            }
+            return maxLine;
+        }
+
+        // Compute end line for a class from its fields and methods
+        static int computeClassEndLine(const ClassDef *cls)
+        {
+            int maxLine = cls->line;
+            for (auto &f : cls->fields)
+                if (f.line > maxLine)
+                    maxLine = f.line;
+            for (auto &m : cls->methods)
+            {
+                int e = computeEndLine(m->body, m->line);
+                if (e > maxLine)
+                    maxLine = e;
+            }
+            for (auto &p : cls->properties)
+                if (p.line > maxLine)
+                    maxLine = p.line;
+            return maxLine;
+        }
+
+        // Compute end line for a struct
+        static int computeStructEndLine(const StructDef *st)
+        {
+            int maxLine = st->line;
+            for (auto &f : st->fields)
+                if (f.line > maxLine)
+                    maxLine = f.line;
+            for (auto &m : st->methods)
+            {
+                int e = computeEndLine(m->body, m->line);
+                if (e > maxLine)
+                    maxLine = e;
+            }
+            return maxLine;
+        }
+
+        // Infer type from an expression (static, no execution)
+        static std::string inferTypeFromExpr(const Expr *expr)
+        {
+            if (!expr)
+                return "";
+            if (dynamic_cast<const IntLiteral *>(expr))
+                return "int";
+            if (dynamic_cast<const FloatLiteral *>(expr))
+                return "float";
+            if (dynamic_cast<const NumberLiteral *>(expr))
+                return "float";
+            if (dynamic_cast<const StringLiteral *>(expr))
+                return "str";
+            if (dynamic_cast<const BoolLiteral *>(expr))
+                return "bool";
+            if (dynamic_cast<const NoneLiteral *>(expr))
+                return "none";
+            if (dynamic_cast<const ListLiteral *>(expr))
+                return "list";
+            if (dynamic_cast<const TupleLiteral *>(expr))
+                return "tuple";
+            if (dynamic_cast<const SetLiteral *>(expr))
+                return "set";
+            if (dynamic_cast<const MapLiteral *>(expr))
+                return "map";
+            return ""; // unknown / can't infer statically
         }
 
         void visitStmt(const Stmt *stmt, const std::string &scope)
@@ -166,13 +357,17 @@ namespace xell
 
             if (auto *a = dynamic_cast<const Assignment *>(stmt))
             {
+                std::string itype = inferTypeFromExpr(a->value.get());
                 addSymbol(a->name, SymbolKind::Variable, a->line,
-                          a->name + " = ...", scope);
+                          a->name + " = ...", scope, {}, {}, "",
+                          0, "", itype, false, false);
             }
             else if (auto *imm = dynamic_cast<const ImmutableBinding *>(stmt))
             {
+                std::string itype = inferTypeFromExpr(imm->value.get());
                 addSymbol(imm->name, SymbolKind::Variable, imm->line,
-                          "be " + imm->name + " = ...", scope);
+                          "be " + imm->name + " = ...", scope, {}, {}, "",
+                          0, "", itype, false, true);
             }
             else if (auto *fn = dynamic_cast<const FnDef *>(stmt))
             {
@@ -201,14 +396,37 @@ namespace xell
             }
             else if (auto *mod = dynamic_cast<const ModuleDef *>(stmt))
             {
+                int endLine = computeEndLine(mod->body, mod->line);
                 addSymbol(mod->name, SymbolKind::Module, mod->line,
-                          "module " + mod->name, scope);
+                          "module " + mod->name, scope, {}, {}, "",
+                          endLine, "module", "", mod->isExported, false);
                 for (auto &s : mod->body)
+                {
                     visitStmt(s.get(), mod->name);
+                    // Track children names
+                    if (auto *childFn = dynamic_cast<const FnDef *>(s.get()))
+                        addChild(mod->name, scope, childFn->name);
+                    else if (auto *childA = dynamic_cast<const Assignment *>(s.get()))
+                        addChild(mod->name, scope, childA->name);
+                    else if (auto *childExp = dynamic_cast<const ExportDecl *>(s.get()))
+                    {
+                        if (auto *ef = dynamic_cast<const FnDef *>(childExp->declaration.get()))
+                            addChild(mod->name, scope, ef->name);
+                        else if (auto *ea = dynamic_cast<const Assignment *>(childExp->declaration.get()))
+                            addChild(mod->name, scope, ea->name);
+                        else if (auto *em = dynamic_cast<const ModuleDef *>(childExp->declaration.get()))
+                            addChild(mod->name, scope, em->name);
+                    }
+                }
             }
             else if (auto *exp = dynamic_cast<const ExportDecl *>(stmt))
             {
+                // Visit the inner declaration, then mark it exported
+                size_t before = symbols_.size();
                 visitStmt(exp->declaration.get(), scope);
+                // Mark any newly added symbols as exported
+                for (size_t idx = before; idx < symbols_.size(); idx++)
+                    symbols_[idx].isExported = true;
             }
             else if (auto *decFn = dynamic_cast<const DecoratedFnDef *>(stmt))
             {
@@ -220,12 +438,17 @@ namespace xell
             }
             else if (auto *bring = dynamic_cast<const BringStmt *>(stmt))
             {
-                // Record imported names
+                // Record imported names, carrying source file path when available
                 if (!bring->aliases.empty())
                 {
+                    // For aliased imports, try to derive source file from parts
+                    std::string srcFile;
+                    if (!bring->parts.empty())
+                        srcFile = bring->parts[0].filePath; // from "file.xel"
                     for (auto &alias : bring->aliases)
                         addSymbol(alias, SymbolKind::Import, bring->line,
-                                  "import " + alias, scope);
+                                  "import " + alias, scope,
+                                  {}, {}, "", 0, "", "", false, false, srcFile);
                 }
                 else
                 {
@@ -233,18 +456,22 @@ namespace xell
                     {
                         for (auto &item : part.items)
                             addSymbol(item, SymbolKind::Import, bring->line,
-                                      "import " + item, scope);
+                                      "import " + item, scope,
+                                      {}, {}, "", 0, "", "", false, false, part.filePath);
                     }
                 }
             }
             else if (auto *forStmt = dynamic_cast<const ForStmt *>(stmt))
             {
+                int forEnd = computeEndLine(forStmt->body, forStmt->line);
                 for (auto &vn : forStmt->varNames)
                     addSymbol(vn, SymbolKind::Variable, forStmt->line,
-                              "for " + vn + " in ...", scope);
+                              "for " + vn + " in ...", scope,
+                              {}, {}, "", forEnd, "for");
                 if (forStmt->hasRest)
                     addSymbol(forStmt->restName, SymbolKind::Variable, forStmt->line,
-                              "for ..." + forStmt->restName, scope);
+                              "for ..." + forStmt->restName, scope,
+                              {}, {}, "", forEnd, "for");
                 // Also visit body for inner definitions
                 for (auto &s : forStmt->body)
                     visitStmt(s.get(), scope);
@@ -329,9 +556,11 @@ namespace xell
             if (!fn->returnType.empty())
                 detail += " -> " + fn->returnType;
 
+            int endLine = computeEndLine(fn->body, fn->line);
             SymbolKind kind = scope.empty() ? SymbolKind::Function : SymbolKind::Method;
             addSymbol(fn->name, kind, fn->line, detail, scope,
-                      fn->params, fn->paramTypes, fn->returnType);
+                      fn->params, fn->paramTypes, fn->returnType,
+                      endLine, "function", "fn");
 
             // Register parameters as symbols too
             for (auto &p : fn->params)
@@ -342,8 +571,9 @@ namespace xell
                           "variadic param of " + fn->name, fn->name);
 
             // Visit body for inner definitions
+            std::string innerScope = scope.empty() ? fn->name : scope;
             for (auto &s : fn->body)
-                visitStmt(s.get(), scope.empty() ? fn->name : scope);
+                visitStmt(s.get(), innerScope);
         }
 
         void visitClassDef(const ClassDef *cls, const std::string &scope)
@@ -360,34 +590,53 @@ namespace xell
                 }
             }
 
-            addSymbol(cls->name, SymbolKind::Class, cls->line, detail, scope);
+            int endLine = computeClassEndLine(cls);
+            addSymbol(cls->name, SymbolKind::Class, cls->line, detail, scope,
+                      {}, {}, "", endLine, "class");
 
             // Fields
             for (auto &f : cls->fields)
+            {
                 addSymbol(f.name, SymbolKind::Field, f.line,
                           cls->name + "." + f.name, cls->name);
+                addChild(cls->name, scope, f.name);
+            }
 
             // Methods
             for (auto &m : cls->methods)
+            {
                 visitFnDef(m.get(), cls->name);
+                addChild(cls->name, scope, m->name);
+            }
 
             // Properties
             for (auto &p : cls->properties)
+            {
                 addSymbol(p.name, SymbolKind::Property, p.line,
                           "property " + cls->name + "." + p.name, cls->name);
+                addChild(cls->name, scope, p.name);
+            }
         }
 
         void visitStructDef(const StructDef *st, const std::string &scope)
         {
             std::string detail = "struct " + st->name;
-            addSymbol(st->name, SymbolKind::Struct, st->line, detail, scope);
+            int endLine = computeStructEndLine(st);
+            addSymbol(st->name, SymbolKind::Struct, st->line, detail, scope,
+                      {}, {}, "", endLine, "struct");
 
             for (auto &f : st->fields)
+            {
                 addSymbol(f.name, SymbolKind::Field, f.line,
                           st->name + "." + f.name, st->name);
+                addChild(st->name, scope, f.name);
+            }
 
             for (auto &m : st->methods)
+            {
                 visitFnDef(m.get(), st->name);
+                addChild(st->name, scope, m->name);
+            }
         }
 
         // JSON string escaping

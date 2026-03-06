@@ -202,10 +202,25 @@ namespace xell
             sourceDir_ = dir;
         }
 
-        // Expose module exports for IDE autocomplete (module name → set of exported member names)
-        const std::unordered_map<std::string, std::unordered_set<std::string>> &getModuleExports() const
+        // ─── Module export info (name + line + kind + sourceFile) ───
+        struct ModuleExportInfo
+        {
+            std::string name;
+            int line = 0;
+            std::string kind;       // "function", "class", "variable", "struct", "enum", "interface", "module"
+            std::string sourceFile; // resolved file path this export comes from
+        };
+
+        // Expose module exports for IDE (module name → list of exports with line/kind info)
+        const std::unordered_map<std::string, std::vector<ModuleExportInfo>> &getModuleExports() const
         {
             return moduleExportsMap_;
+        }
+
+        // Expose module name → resolved file path mapping
+        const std::unordered_map<std::string, std::string> &getModuleFileMap() const
+        {
+            return moduleFileMap_;
         }
 
     private:
@@ -228,11 +243,23 @@ namespace xell
         // Function name → arity info (for argument count validation)
         std::unordered_map<std::string, FnArity> fnArityMap_;
 
-        // Module name → set of exported member names
-        std::unordered_map<std::string, std::unordered_set<std::string>> moduleExportsMap_;
+        // Module name → exported members with line/kind info
+        std::unordered_map<std::string, std::vector<ModuleExportInfo>> moduleExportsMap_;
+
+        // Module name → resolved source file path
+        std::unordered_map<std::string, std::string> moduleFileMap_;
 
         // "module.member" → arity info for module-exported functions
         std::unordered_map<std::string, FnArity> moduleExportArityMap_;
+
+        // Helper: check if a module exports a given name
+        bool hasModuleExport(const std::vector<ModuleExportInfo> &exports, const std::string &name) const
+        {
+            for (auto &e : exports)
+                if (e.name == name)
+                    return true;
+            return false;
+        }
 
         void pushScope() { scopes_.push_back({}); }
         void popScope()
@@ -269,11 +296,23 @@ namespace xell
         }
 
         // Register a function as a module export with arity info
-        void defineModuleExportFn(const std::string &moduleName, const FnDef *fn)
+        void defineModuleExportFn(const std::string &moduleName, const FnDef *fn,
+                                  const std::string &srcFile = "")
         {
             if (!fn || fn->name.empty())
                 return;
-            moduleExportsMap_[moduleName].insert(fn->name);
+            // Store export info with line number and kind
+            auto &exports = moduleExportsMap_[moduleName];
+            // Avoid duplicates
+            bool exists = false;
+            for (auto &e : exports)
+                if (e.name == fn->name)
+                {
+                    exists = true;
+                    break;
+                }
+            if (!exists)
+                exports.push_back({fn->name, fn->line, "function", srcFile});
             FnArity arity;
             arity.maxParams = (int)fn->params.size();
             arity.isVariadic = fn->isVariadic;
@@ -289,9 +328,21 @@ namespace xell
         }
 
         // Register a non-function module export (variable, class, etc.)
-        void defineModuleExport(const std::string &moduleName, const std::string &memberName)
+        void defineModuleExport(const std::string &moduleName, const std::string &memberName,
+                                int memberLine = 0, const std::string &memberKind = "variable",
+                                const std::string &srcFile = "")
         {
-            moduleExportsMap_[moduleName].insert(memberName);
+            auto &exports = moduleExportsMap_[moduleName];
+            // Avoid duplicates
+            bool exists = false;
+            for (auto &e : exports)
+                if (e.name == memberName)
+                {
+                    exists = true;
+                    break;
+                }
+            if (!exists)
+                exports.push_back({memberName, memberLine, memberKind, srcFile});
         }
 
         bool isDefined(const std::string &name) const
@@ -764,18 +815,18 @@ namespace xell
                             {
                                 // We know this module's exports
                                 const auto &exports = exportIt->second;
-                                if (exports.find(call->callee) == exports.end())
+                                if (!hasModuleExport(exports, call->callee))
                                 {
                                     // Find closest export name for suggestion
                                     std::string closest;
                                     int bestDist = 3;
                                     for (const auto &exp : exports)
                                     {
-                                        int d = editDistance(call->callee, exp);
+                                        int d = editDistance(call->callee, exp.name);
                                         if (d < bestDist)
                                         {
                                             bestDist = d;
-                                            closest = exp;
+                                            closest = exp.name;
                                         }
                                     }
                                     if (!closest.empty())
@@ -871,17 +922,17 @@ namespace xell
                     if (exportIt != moduleExportsMap_.end())
                     {
                         const auto &exports = exportIt->second;
-                        if (exports.find(mapAcc->member) == exports.end())
+                        if (!hasModuleExport(exports, mapAcc->member))
                         {
                             std::string closest;
                             int bestDist = 3;
                             for (const auto &exp : exports)
                             {
-                                int d = editDistance(mapAcc->member, exp);
+                                int d = editDistance(mapAcc->member, exp.name);
                                 if (d < bestDist)
                                 {
                                     bestDist = d;
-                                    closest = exp;
+                                    closest = exp.name;
                                 }
                             }
                             if (!closest.empty())
@@ -1210,6 +1261,10 @@ namespace xell
                 return;
             resolvedImports_.insert(resolvedPath);
 
+            // Store the resolved path so IDE can open the source file
+            if (!resolvedPath.empty())
+                moduleFileMap_[moduleName] = resolvedPath;
+
             std::ifstream file(resolvedPath);
             if (!file.is_open())
                 return;
@@ -1231,12 +1286,12 @@ namespace xell
                     if (auto *mod = dynamic_cast<const ModuleDef *>(stmt.get()))
                     {
                         // Register exports under the module name used in the bring
-                        collectModuleExportsFromImported(moduleName, mod);
+                        collectModuleExportsFromImported(moduleName, mod, resolvedPath);
                     }
                     else if (auto *exp = dynamic_cast<const ExportDecl *>(stmt.get()))
                     {
                         if (auto *mod2 = dynamic_cast<const ModuleDef *>(exp->declaration.get()))
-                            collectModuleExportsFromImported(moduleName, mod2);
+                            collectModuleExportsFromImported(moduleName, mod2, resolvedPath);
                     }
                 }
             }
@@ -1246,7 +1301,8 @@ namespace xell
         }
 
         // Collect exports from an imported module definition
-        void collectModuleExportsFromImported(const std::string &bindName, const ModuleDef *mod)
+        void collectModuleExportsFromImported(const std::string &bindName, const ModuleDef *mod,
+                                              const std::string &srcFile = "")
         {
             if (!mod)
                 return;
@@ -1255,29 +1311,32 @@ namespace xell
                 if (auto *exp = dynamic_cast<const ExportDecl *>(s.get()))
                 {
                     if (auto *fn = dynamic_cast<const FnDef *>(exp->declaration.get()))
-                        defineModuleExportFn(bindName, fn);
+                        defineModuleExportFn(bindName, fn, srcFile);
                     else if (auto *decFn = dynamic_cast<const DecoratedFnDef *>(exp->declaration.get()))
                     {
                         if (auto *fn2 = dynamic_cast<const FnDef *>(decFn->fnDef.get()))
-                            defineModuleExportFn(bindName, fn2);
+                            defineModuleExportFn(bindName, fn2, srcFile);
                     }
                     else if (auto *a = dynamic_cast<const Assignment *>(exp->declaration.get()))
-                        defineModuleExport(bindName, a->name);
+                        defineModuleExport(bindName, a->name, a->line, "variable", srcFile);
                     else if (auto *imm = dynamic_cast<const ImmutableBinding *>(exp->declaration.get()))
-                        defineModuleExport(bindName, imm->name);
+                        defineModuleExport(bindName, imm->name, imm->line, "variable", srcFile);
                     else if (auto *cls = dynamic_cast<const ClassDef *>(exp->declaration.get()))
-                        defineModuleExport(bindName, cls->name);
+                        defineModuleExport(bindName, cls->name, cls->line, "class", srcFile);
                     else if (auto *st = dynamic_cast<const StructDef *>(exp->declaration.get()))
-                        defineModuleExport(bindName, st->name);
+                        defineModuleExport(bindName, st->name, st->line, "struct", srcFile);
                     else if (auto *en = dynamic_cast<const EnumDef *>(exp->declaration.get()))
-                        defineModuleExport(bindName, en->name);
+                        defineModuleExport(bindName, en->name, en->line, "enum", srcFile);
                     else if (auto *iface = dynamic_cast<const InterfaceDef *>(exp->declaration.get()))
-                        defineModuleExport(bindName, iface->name);
+                        defineModuleExport(bindName, iface->name, iface->line, "interface", srcFile);
                     else if (auto *nestedMod = dynamic_cast<const ModuleDef *>(exp->declaration.get()))
                     {
-                        defineModuleExport(bindName, nestedMod->name);
+                        defineModuleExport(bindName, nestedMod->name, nestedMod->line, "module", srcFile);
+                        // Also map the nested module name to the same source file
+                        if (!srcFile.empty())
+                            moduleFileMap_[nestedMod->name] = srcFile;
                         // Recurse: populate the nested module's own export map
-                        collectModuleExportsFromImported(nestedMod->name, nestedMod);
+                        collectModuleExportsFromImported(nestedMod->name, nestedMod, srcFile);
                     }
                 }
             }
@@ -1340,7 +1399,7 @@ namespace xell
                 // Find exported functions matching the imported items
                 std::unordered_set<std::string> itemSet(items.begin(), items.end());
                 for (auto &stmt : program.statements)
-                    collectArityFromImported(stmt.get(), itemSet);
+                    collectArityFromImported(stmt.get(), itemSet, resolvedPath);
             }
             catch (...)
             {
@@ -1402,7 +1461,7 @@ namespace xell
 
                 std::unordered_set<std::string> itemSet(items.begin(), items.end());
                 for (auto &stmt : program.statements)
-                    collectArityFromImported(stmt.get(), itemSet);
+                    collectArityFromImported(stmt.get(), itemSet, resolvedPath);
             }
             catch (...)
             {
@@ -1410,7 +1469,8 @@ namespace xell
         }
 
         // Collect arity info for specific imported names from an imported file
-        void collectArityFromImported(const Stmt *stmt, const std::unordered_set<std::string> &items)
+        void collectArityFromImported(const Stmt *stmt, const std::unordered_set<std::string> &items,
+                                      const std::string &srcFile = "")
         {
             if (!stmt)
                 return;
@@ -1420,18 +1480,18 @@ namespace xell
                     defineFn(fn); // re-registers with arity info
             }
             else if (auto *exp = dynamic_cast<const ExportDecl *>(stmt))
-                collectArityFromImported(exp->declaration.get(), items);
+                collectArityFromImported(exp->declaration.get(), items, srcFile);
             else if (auto *decFn = dynamic_cast<const DecoratedFnDef *>(stmt))
-                collectArityFromImported(decFn->fnDef.get(), items);
+                collectArityFromImported(decFn->fnDef.get(), items, srcFile);
             else if (auto *mod = dynamic_cast<const ModuleDef *>(stmt))
             {
                 // If the module name is in the imported items, collect its exports
                 // so member access validation works (e.g., bring mod from "file.xel" → mod->fn())
                 if (items.count(mod->name))
-                    collectModuleExportsFromImported(mod->name, mod);
+                    collectModuleExportsFromImported(mod->name, mod, srcFile);
                 // Also look inside module body for exported functions
                 for (auto &s : mod->body)
-                    collectArityFromImported(s.get(), items);
+                    collectArityFromImported(s.get(), items, srcFile);
             }
         }
 

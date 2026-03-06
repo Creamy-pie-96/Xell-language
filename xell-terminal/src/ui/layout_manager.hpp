@@ -41,6 +41,7 @@
 #include "visual_effects.hpp"
 #include "config_manager.hpp"
 #include "autocomplete.hpp"
+#include "dashboard_panel.hpp"
 
 namespace xterm
 {
@@ -52,6 +53,7 @@ namespace xterm
         Sidebar,
         Editor,
         BottomPanel,
+        Dashboard,
     };
 
     // ─── Layout Manager ──────────────────────────────────────────────────
@@ -64,6 +66,7 @@ namespace xterm
               editor_(theme),
               fileTree_(theme),
               replPanel_(theme),
+              dashboardPanel_(theme),
               gitPanel_(theme),
               acPopup_(theme)
         {
@@ -77,6 +80,37 @@ namespace xterm
             // Wire git engine to git panel
             gitPanel_.setEngine(&gitEngine_);
 
+            // Wire dashboard panel to jump to line in editor
+            dashboardPanel_.setOnJumpToLine([this](int line)
+                                            { editor_.goToLine(line - 1); // symbols are 1-based, goToLine is 0-based
+                                              setFocus(FocusRegion::Editor); });
+
+            // Wire dashboard panel to open imported file at a specific line
+            dashboardPanel_.setOnOpenFileAtLine([this](const std::string &filePath, int line)
+                                                { editor_.openFile(filePath);
+                                                  editor_.goToLine(line > 0 ? line - 1 : 0);
+                                                  setFocus(FocusRegion::Editor); });
+
+            // Wire variables tab click to jump to variable definition
+            replPanel_.setOnJumpToLine([this](int line)
+                                       { editor_.goToLine(line - 1); // lines from symbols are 1-based
+                                         setFocus(FocusRegion::Editor); });
+
+            // Wire variables/objects tab to open cross-file symbols
+            replPanel_.setOnOpenFileAtLine([this](const std::string &filePath, int line)
+                                           { editor_.openFile(filePath);
+                                             editor_.goToLine(line > 0 ? line - 1 : 0);
+                                             setFocus(FocusRegion::Editor); });
+
+            // Wire lifecycle provider: lazy lookup from trace cache
+            replPanel_.setLifecycleProvider([this](const std::string &varName)
+                                                -> std::vector<std::string>
+                                            { return lifecycleLookup(varName); });
+
+            // Wire dashboard lifecycle provider too
+            dashboardPanel_.setLifecycleProvider([this](const std::string &varName)
+                                                     -> std::vector<std::string>
+                                                 { return lifecycleLookup(varName); });
             // Load config (applies defaults if no file exists)
             configManager_.load();
             configManager_.applyToEffects(effects_);
@@ -254,6 +288,14 @@ namespace xterm
                 setFocus(FocusRegion::Editor);
                 break;
             case FocusRegion::Editor:
+                if (showDashboard_)
+                    setFocus(FocusRegion::Dashboard);
+                else if (showBottomPanel_)
+                    setFocus(FocusRegion::BottomPanel);
+                else
+                    setFocus(FocusRegion::Sidebar);
+                break;
+            case FocusRegion::Dashboard:
                 if (showBottomPanel_)
                     setFocus(FocusRegion::BottomPanel);
                 else
@@ -279,8 +321,15 @@ namespace xterm
             recalcLayout();
         }
 
+        void toggleDashboard()
+        {
+            showDashboard_ = !showDashboard_;
+            recalcLayout();
+        }
+
         bool sidebarVisible() const { return showSidebar_; }
         bool bottomPanelVisible() const { return showBottomPanel_; }
+        bool dashboardVisible() const { return showDashboard_; }
 
         // ── Event routing ───────────────────────────────────────────
 
@@ -576,6 +625,12 @@ namespace xterm
                             // Ctrl+D — Git diff
                             return LayoutAction::GIT_DIFF;
                         }
+                        else
+                        {
+                            // Ctrl+Shift+D — Toggle dashboard panel
+                            toggleDashboard();
+                            return LayoutAction::HANDLED;
+                        }
                         break;
                     case SDLK_n:
                         if (!shift)
@@ -794,6 +849,29 @@ namespace xterm
                         return LayoutAction::HANDLED;
                     }
 
+                    // Check dashboard resize border (the border column left of dashboard)
+                    if (showDashboard_ && clickCol == dashboardRect_.x - 1)
+                    {
+                        if (event.button.clicks >= 2)
+                        {
+                            // Double-click: toggle dashboard
+                            toggleDashboard();
+                            return LayoutAction::HANDLED;
+                        }
+                        resizingDashboard_ = true;
+                        return LayoutAction::HANDLED;
+                    }
+
+                    // Route to dashboard panel (right side)
+                    if (showDashboard_ && clickCol >= dashboardRect_.x && clickRow < dashboardRect_.y + dashboardRect_.h)
+                    {
+                        setFocus(FocusRegion::Dashboard);
+                        int localRow = clickRow - dashboardRect_.y;
+                        int localCol = clickCol - dashboardRect_.x;
+                        dashboardPanel_.handleMouseClick(localRow, localCol, false);
+                        return LayoutAction::HANDLED;
+                    }
+
                     // Route to editor region
                     if (clickCol >= editorRect_.x && clickRow >= editorRect_.y &&
                         clickRow < editorRect_.y + editorRect_.h)
@@ -913,14 +991,32 @@ namespace xterm
                     editor_.setHoverCol(-1);
                 }
 
-                // Update bottom tab hover
-                if (showBottomPanel_ && motionRow == bottomRect_.y && motionCol >= bottomRect_.x)
+                // Update bottom panel hover (tab bar + content area)
+                if (showBottomPanel_ && motionRow >= bottomRect_.y &&
+                    motionRow < bottomRect_.y + bottomRect_.h &&
+                    motionCol >= bottomRect_.x)
                 {
-                    replPanel_.setHoverCol(motionCol - bottomRect_.x);
+                    int localRow = motionRow - bottomRect_.y;
+                    int localCol = motionCol - bottomRect_.x;
+                    replPanel_.setHoverCol(localCol);
+                    replPanel_.setHoverRow(localRow);
                 }
                 else
                 {
                     replPanel_.setHoverCol(-1);
+                    replPanel_.setHoverRow(-1);
+                }
+
+                // Update dashboard hover
+                if (showDashboard_ && motionCol >= dashboardRect_.x && motionRow >= dashboardRect_.y &&
+                    motionRow < dashboardRect_.y + dashboardRect_.h)
+                {
+                    int localRow = motionRow - dashboardRect_.y;
+                    dashboardPanel_.setHoverRow(localRow);
+                }
+                else
+                {
+                    dashboardPanel_.setHoverRow(-1);
                 }
 
                 if (resizingSidebar_)
@@ -934,6 +1030,14 @@ namespace xterm
                 {
                     int newBottomHeight = totalRows_ - motionRow - 1;
                     bottomPanelHeight_ = std::clamp(newBottomHeight, 4, totalRows_ * 2 / 3);
+                    recalcLayout();
+                    return LayoutAction::HANDLED;
+                }
+
+                if (resizingDashboard_)
+                {
+                    int newWidth = totalCols_ - motionCol;
+                    dashboardWidth_ = std::clamp(newWidth, 16, totalCols_ / 2);
                     recalcLayout();
                     return LayoutAction::HANDLED;
                 }
@@ -967,6 +1071,7 @@ namespace xterm
             {
                 resizingSidebar_ = false;
                 resizingBottom_ = false;
+                resizingDashboard_ = false;
             }
 
             // --- Mouse wheel: route based on mouse position, not focus ---
@@ -983,6 +1088,11 @@ namespace xterm
                     replPanel_.handleMouseWheel(event.wheel.y);
                     return LayoutAction::HANDLED;
                 }
+                else if (showDashboard_ && mouseCol >= dashboardRect_.x)
+                {
+                    dashboardPanel_.handleMouseWheel(event.wheel.y);
+                    return LayoutAction::HANDLED;
+                }
                 else if (showSidebar_ && mouseCol < sidebarWidth_)
                 {
                     fileTree_.handleMouseWheel(event.wheel.y);
@@ -990,7 +1100,16 @@ namespace xterm
                 }
                 else
                 {
-                    editor_.handleLocalWheel(event.wheel.y);
+                    // Vertical scroll
+                    if (event.wheel.y != 0)
+                        editor_.handleLocalWheel(event.wheel.y);
+                    // Horizontal scroll (2-finger swipe or Shift+scroll)
+                    bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
+                    int hDelta = event.wheel.x;
+                    if (hDelta == 0 && shiftHeld && event.wheel.y != 0)
+                        hDelta = event.wheel.y; // Shift+vertical wheel → horizontal scroll
+                    if (hDelta != 0)
+                        editor_.handleLocalHScroll(hDelta * 3);
                     return LayoutAction::HANDLED;
                 }
             }
@@ -1074,6 +1193,14 @@ namespace xterm
                     return LayoutAction::HANDLED;
                 }
                 break;
+
+            case FocusRegion::Dashboard:
+                if (event.type == SDL_KEYDOWN)
+                {
+                    if (dashboardPanel_.handleKeyDown(event))
+                        return LayoutAction::HANDLED;
+                }
+                break;
             }
 
             return LayoutAction::NONE;
@@ -1154,6 +1281,27 @@ namespace xterm
                 replPanel_.setRect(bottomRect_);
                 auto panelCells = replPanel_.render();
                 blitPanel(out.cells, panelCells, bottomRect_);
+            }
+
+            // ── Dashboard panel (right side) ─────────────────────────
+            if (showDashboard_)
+            {
+                // Draw vertical border on the left edge of dashboard
+                int borderCol = dashboardRect_.x - 1;
+                if (borderCol >= 0 && borderCol < totalCols_)
+                {
+                    for (int r = 0; r < totalRows_; r++)
+                    {
+                        out.cells[r][borderCol].ch = U'│';
+                        out.cells[r][borderCol].fg = borderColor_;
+                        out.cells[r][borderCol].bg = bgColor_;
+                        out.cells[r][borderCol].dirty = true;
+                    }
+                }
+
+                dashboardPanel_.setRect(dashboardRect_);
+                auto dbCells = dashboardPanel_.render();
+                blitPanel(out.cells, dbCells, dashboardRect_);
             }
 
             // ── File context menu overlay ────────────────────────────
@@ -1239,6 +1387,8 @@ namespace xterm
                 {" OUTPUT ", BottomTab::OUTPUT},
                 {" DIAGNOSTICS ", BottomTab::DIAGNOSTICS},
                 {" VARIABLES ", BottomTab::VARIABLES},
+                {" OBJECTS ", BottomTab::OBJECTS},
+                {" LIFECYCLE ", BottomTab::LIFECYCLE},
                 {" HELP ", BottomTab::HELP},
             };
 
@@ -1292,7 +1442,13 @@ namespace xterm
 
             // Feed AST symbols to autocomplete DB
             if (!symbolsJson.empty())
+            {
                 acDB_.loadASTSymbols(symbolsJson);
+                // Also feed to Variables tab for static symbol display
+                replPanel_.loadStaticSymbols(symbolsJson);
+                // Also feed to Dashboard panel for code structure view
+                dashboardPanel_.loadSymbols(symbolsJson, filePath);
+            }
 
             // Parse diagnostics into display lines
             std::string &output = diagnosticOutput;
@@ -1538,6 +1694,7 @@ namespace xterm
         EditorWidget editor_;
         FileTreePanel fileTree_;
         REPLPanel replPanel_;
+        DashboardPanel dashboardPanel_;
         GitPanel gitPanel_;
         GitEngine gitEngine_;
         VisualEffects effects_;
@@ -1552,17 +1709,21 @@ namespace xterm
 
         bool showSidebar_ = true;
         bool showBottomPanel_ = true;
+        bool showDashboard_ = true;
         int sidebarWidth_ = 28;
         int bottomPanelHeight_ = 10;
+        int dashboardWidth_ = 24;
 
         // Computed rects
         Rect sidebarRect_ = {0, 0, 28, 24};
         Rect editorRect_ = {29, 0, 51, 24};
         Rect bottomRect_ = {29, 14, 51, 10};
+        Rect dashboardRect_ = {0, 0, 0, 0};
 
         // Resize drag state
         bool resizingSidebar_ = false;
         bool resizingBottom_ = false;
+        bool resizingDashboard_ = false;
 
         // Goto-line dialog state
         bool showGotoLine_ = false;
@@ -1607,6 +1768,10 @@ namespace xterm
         std::string lastLintedContent_; // to avoid re-linting same content
         static constexpr int LINT_DELAY_MS = 500;
         static constexpr int AUTOSAVE_DELAY_MS = 2000;
+
+        // Trace / lifecycle cache (lazy: populated after Ctrl+R run)
+        std::string lastTracedFile_;
+        std::string traceJsonCache_; // raw JSON from --trace-vars
 
         // File context menu state
         bool showFileContextMenu_ = false;
@@ -1891,6 +2056,15 @@ namespace xterm
                 fileTree_.setRect(sidebarRect_);
                 contentStartCol = sidebarWidth_ + 1; // +1 for border
                 contentWidth = totalCols_ - contentStartCol;
+            }
+
+            // Right-side dashboard panel
+            if (showDashboard_)
+            {
+                int dbW = std::min(dashboardWidth_, contentWidth / 3);
+                dashboardRect_ = {contentStartCol + contentWidth - dbW, 0, dbW, totalRows_};
+                dashboardPanel_.setRect(dashboardRect_);
+                contentWidth -= (dbW + 1); // +1 for border
             }
 
             int editorHeight = totalRows_;
@@ -2345,6 +2519,117 @@ namespace xterm
 
             // Run the file using its full path
             replPanel_.runFile(fullPath);
+
+            // Lazy trace collection: run --trace-vars in background after execution
+            // Cache raw JSON for lifecycle lookups
+            lastTracedFile_ = fullPath;
+            collectTraceForFile(fullPath);
+        }
+
+        // Collect trace data lazily after file execution
+        void collectTraceForFile(const std::string &filePath)
+        {
+            std::string xellBin = findXellBinary();
+            int exitCode = 0;
+            traceJsonCache_ = captureCommand(
+                xellBin + " --trace-vars \"" + filePath + "\"", exitCode);
+        }
+
+        // Lifecycle lookup: given a variable name, extract lifecycle events from trace cache
+        std::vector<std::string> lifecycleLookup(const std::string &varName) const
+        {
+            std::vector<std::string> result;
+            if (traceJsonCache_.empty() || traceJsonCache_[0] != '[')
+                return result;
+
+            // Simple scan of the JSON trace array for entries matching this variable
+            // Each entry: {"event":"VAR_BORN","line":5,"name":"x","type":"int","value":"10",...}
+            size_t pos = 0;
+            while (pos < traceJsonCache_.size())
+            {
+                pos = traceJsonCache_.find('{', pos);
+                if (pos == std::string::npos)
+                    break;
+                size_t objEnd = traceJsonCache_.find('}', pos);
+                if (objEnd == std::string::npos)
+                    break;
+                std::string obj = traceJsonCache_.substr(pos, objEnd - pos + 1);
+                pos = objEnd + 1;
+
+                // Quick check: does this entry's "name" match?
+                size_t nameKey = obj.find("\"name\":\"");
+                if (nameKey == std::string::npos)
+                    continue;
+                size_t nameStart = nameKey + 8;
+                size_t nameEnd = obj.find('"', nameStart);
+                if (nameEnd == std::string::npos)
+                    continue;
+                std::string entryName = obj.substr(nameStart, nameEnd - nameStart);
+                if (entryName != varName)
+                    continue;
+
+                // Extract event, line, type, value, byWhom
+                auto extractField = [&](const std::string &key) -> std::string
+                {
+                    std::string search = "\"" + key + "\":\"";
+                    size_t k = obj.find(search);
+                    if (k == std::string::npos)
+                        return "";
+                    size_t vs = k + search.size();
+                    size_t ve = obj.find('"', vs);
+                    if (ve == std::string::npos)
+                        return "";
+                    return obj.substr(vs, ve - vs);
+                };
+                auto extractInt = [&](const std::string &key) -> std::string
+                {
+                    std::string search = "\"" + key + "\":";
+                    size_t k = obj.find(search);
+                    if (k == std::string::npos)
+                        return "";
+                    size_t vs = k + search.size();
+                    size_t ve = vs;
+                    while (ve < obj.size() && (isdigit(obj[ve]) || obj[ve] == '-'))
+                        ve++;
+                    return obj.substr(vs, ve - vs);
+                };
+
+                std::string event = extractField("event");
+                std::string line = extractInt("line");
+                std::string type = extractField("type");
+                std::string value = extractField("value");
+                std::string byWhom = extractField("byWhom");
+
+                // Format: "  5   BORN      str   \"hello\"   direct assignment"
+                // Pad fields for alignment
+                std::string lineStr = line;
+                while (lineStr.size() < 5)
+                    lineStr = " " + lineStr;
+
+                std::string eventStr = event;
+                // Shorten event names
+                if (eventStr == "VAR_BORN")
+                    eventStr = "BORN";
+                if (eventStr == "VAR_CHANGED")
+                    eventStr = "CHANGED";
+                if (eventStr == "VAR_DIED")
+                    eventStr = "DIED";
+                while (eventStr.size() < 9)
+                    eventStr += " ";
+
+                std::string typeStr = type;
+                while (typeStr.size() < 8)
+                    typeStr += " ";
+
+                std::string valStr = value;
+                if (valStr.size() > 16)
+                    valStr = valStr.substr(0, 13) + "...";
+                while (valStr.size() < 16)
+                    valStr += " ";
+
+                result.push_back(lineStr + "  " + eventStr + typeStr + valStr + byWhom);
+            }
+            return result;
         }
 
         void handleInlineEval()

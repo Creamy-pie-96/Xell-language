@@ -70,8 +70,13 @@ namespace xterm
     {
         std::string name;
         std::string type;
-        std::string value; // preview string
+        std::string value;      // preview string (runtime)
+        std::string scope;      // "global", "fn:greet", "class:Dog", etc.
+        std::string lines;      // "5" or "5-12" (line range)
+        std::string kind;       // "variable", "function", "class", "module", etc.
+        std::string sourceFile; // originating file for imported symbols (empty = current file)
         bool expanded = false;
+        std::vector<std::string> lifecycleCache; // cached lifecycle events for this variable
     };
 
     // ─── Active bottom tab ───────────────────────────────────────────────
@@ -82,6 +87,8 @@ namespace xterm
         OUTPUT,
         DIAGNOSTICS,
         VARIABLES,
+        OBJECTS,
+        LIFECYCLE,
         HELP,
     };
 
@@ -689,10 +696,11 @@ namespace xterm
         BottomTab activeTab() const { return activeTab_; }
         void setActiveTab(BottomTab tab) { activeTab_ = tab; }
         void setHoverCol(int col) { hoverCol_ = col; }
+        void setHoverRow(int row) { hoverRow_ = row; }
         void cycleTab()
         {
             int t = static_cast<int>(activeTab_);
-            t = (t + 1) % 5;
+            t = (t + 1) % 7;
             activeTab_ = static_cast<BottomTab>(t);
         }
 
@@ -861,6 +869,7 @@ namespace xterm
             fileOutputLog_.push_back(footer);
 
             variables_ = result.variables;
+            mergeStaticInfo(); // Enrich runtime vars with static scope/lines info
 
             // Auto-scroll to bottom
             fileScrollOffset_ = std::max(0, (int)fileOutputLog_.size() - contentHeight());
@@ -958,6 +967,58 @@ namespace xterm
             // Fallback for non-terminal tabs (OUTPUT, DIAGNOSTICS, VARIABLES) — do nothing
         }
 
+        // ── Jump-to-line callback (wired by LayoutManager) ─────────
+
+        void setOnJumpToLine(std::function<void(int)> cb) { onJumpToLine_ = cb; }
+        void setOnOpenFileAtLine(std::function<void(const std::string &, int)> cb) { onOpenFileAtLine_ = cb; }
+
+        // Set lifecycle provider: given a variable name, returns lifecycle events as strings
+        void setLifecycleProvider(std::function<std::vector<std::string>(const std::string &)> fn)
+        {
+            lifecycleProvider_ = fn;
+        }
+
+        // Switch to LIFECYCLE tab and show lifecycle for a given variable
+        void showLifecycleFor(const std::string &varName)
+        {
+            lifecycleVarName_ = varName;
+            lifecycleEvents_.clear();
+            lifecycleScrollOffset_ = 0;
+
+            // Lazy fetch: only call provider if we have one
+            if (lifecycleProvider_)
+                lifecycleEvents_ = lifecycleProvider_(varName);
+
+            activeTab_ = BottomTab::LIFECYCLE;
+        }
+
+        // Jump to a symbol: if sourceFile is set, open that file; otherwise jump in current file
+        void jumpToSymbol(const std::string &lines, const std::string &sourceFile)
+        {
+            int lineNum = 0;
+            if (!lines.empty())
+            {
+                try
+                {
+                    lineNum = std::stoi(lines);
+                }
+                catch (...)
+                {
+                }
+            }
+
+            if (!sourceFile.empty() && onOpenFileAtLine_)
+            {
+                // Cross-file: open the source file at the line
+                onOpenFileAtLine_(sourceFile, lineNum > 0 ? lineNum : 1);
+            }
+            else if (lineNum > 0 && onJumpToLine_)
+            {
+                // Same file: just jump to the line
+                onJumpToLine_(lineNum);
+            }
+        }
+
         // ── Mouse handling ───────────────────────────────────────────
 
         bool handleMouseClick(int row, int col, bool /*shift*/) override
@@ -965,6 +1026,84 @@ namespace xterm
             // Row 0 = tab bar — handled by LayoutManager's handleBottomTabClick
             if (row == 0)
                 return false; // let parent handle tab bar
+
+            int w = rect_.w;
+
+            // VARIABLES tab: column-aware click handling
+            if (activeTab_ == BottomTab::VARIABLES && row >= 2)
+            {
+                // Compute column boundaries (same as renderVariables)
+                int colName = 1;
+                int nameW = std::max(6, w * 20 / 100);
+                int colType = colName + nameW;
+                int typeW = std::max(5, w * 12 / 100);
+                int colValue = colType + typeW;
+                int valueW = std::max(8, w * 38 / 100);
+                int colScope = colValue + valueW;
+                int scopeW = std::max(6, w * 18 / 100);
+
+                int idx = varScrollOffset_ + (row - 2);
+                if (idx >= 0 && idx < (int)variables_.size())
+                {
+                    auto &v = variables_[idx];
+
+                    // Click on NAME column → lifecycle tab + jump to definition
+                    if (col >= colName && col < colName + nameW)
+                    {
+                        showLifecycleFor(v.name);
+                        jumpToSymbol(v.lines, v.sourceFile);
+                        return true;
+                    }
+
+                    // Click on SCOPE column → navigate to scope (cross-file if needed)
+                    if (col >= colScope && col < colScope + scopeW)
+                    {
+                        jumpToSymbol(v.lines, v.sourceFile);
+                        return true;
+                    }
+
+                    // Click on other columns — do nothing (allow scrollbar, etc.)
+                }
+                return false;
+            }
+
+            // OBJECTS tab: column-aware click handling
+            if (activeTab_ == BottomTab::OBJECTS && row >= 2)
+            {
+                // Compute column boundaries (same as renderObjects)
+                int colIcon = 1;
+                int iconNameW = std::max(8, w * 30 / 100);
+                int colKind = colIcon + iconNameW;
+                int kindW = std::max(6, w * 12 / 100);
+                int colType = colKind + kindW;
+                int typeW = std::max(5, w * 14 / 100);
+                int colScope = colType + typeW;
+                int scopeW = std::max(6, w * 22 / 100);
+
+                int idx = objScrollOffset_ + (row - 2);
+                if (idx >= 0 && idx < (int)staticSymbols_.size())
+                {
+                    const auto &s = staticSymbols_[idx];
+
+                    // Click on NAME column → lifecycle tab + jump to definition
+                    if (col >= colIcon && col < colIcon + iconNameW)
+                    {
+                        showLifecycleFor(s.name);
+                        jumpToSymbol(s.lines, s.sourceFile);
+                        return true;
+                    }
+
+                    // Click on SCOPE column → navigate to scope (cross-file if needed)
+                    if (col >= colScope && col < colScope + scopeW)
+                    {
+                        jumpToSymbol(s.lines, s.sourceFile);
+                        return true;
+                    }
+
+                    // Click on other columns — do nothing
+                }
+                return false;
+            }
 
             // Terminal tab scrollbar click (last column)
             if (activeTab_ == BottomTab::TERMINAL && col == rect_.w - 1 && row > 0 && embeddedTerm_)
@@ -1179,6 +1318,12 @@ namespace xterm
             case BottomTab::VARIABLES:
                 renderVariables(cells, w, h);
                 break;
+            case BottomTab::OBJECTS:
+                renderObjects(cells, w, h);
+                break;
+            case BottomTab::LIFECYCLE:
+                renderLifecycle(cells, w, h);
+                break;
             case BottomTab::HELP:
                 renderHelp(cells, w, h);
                 break;
@@ -1203,15 +1348,243 @@ namespace xterm
 
         REPLSession &session() { return session_; }
 
+        // ── Static symbol loading (from --check-symbols JSON) ────────
+
+        void loadStaticSymbols(const std::string &json)
+        {
+            staticSymbols_.clear();
+            if (json.empty() || json[0] != '[')
+                return;
+
+            // Lightweight JSON array-of-objects parser
+            size_t pos = 1; // skip '['
+            while (pos < json.size())
+            {
+                // Find next '{'
+                pos = json.find('{', pos);
+                if (pos == std::string::npos)
+                    break;
+                pos++; // skip '{'
+
+                VarEntry entry;
+                std::string lineEnd;
+                std::string parentScope;  // raw parentScope from JSON
+                std::string scopeTypeRaw; // raw scopeType from JSON
+
+                // Parse key-value pairs until '}'
+                while (pos < json.size() && json[pos] != '}')
+                {
+                    // Skip whitespace and commas
+                    while (pos < json.size() && (json[pos] == ' ' || json[pos] == ',' || json[pos] == '\n' || json[pos] == '\r' || json[pos] == '\t'))
+                        pos++;
+                    if (pos >= json.size() || json[pos] == '}')
+                        break;
+
+                    // Parse key
+                    std::string key = parseJsonString(json, pos);
+                    // Skip ':'
+                    while (pos < json.size() && json[pos] != ':')
+                        pos++;
+                    if (pos < json.size())
+                        pos++; // skip ':'
+                    while (pos < json.size() && json[pos] == ' ')
+                        pos++;
+
+                    // Parse value
+                    if (pos < json.size() && json[pos] == '"')
+                    {
+                        std::string val = parseJsonString(json, pos);
+                        if (key == "name")
+                            entry.name = val;
+                        else if (key == "kind")
+                            entry.kind = val;
+                        else if (key == "detail")
+                            entry.value = val;
+                        else if (key == "scope")
+                            parentScope = val;
+                        else if (key == "scopeType")
+                            scopeTypeRaw = val;
+                        else if (key == "inferredType")
+                            entry.type = val;
+                        else if (key == "returnType" && entry.type.empty())
+                            entry.type = val;
+                        else if (key == "sourceFile")
+                            entry.sourceFile = val;
+                    }
+                    else if (pos < json.size() && json[pos] == '[')
+                    {
+                        // Skip arrays (params, children, etc.)
+                        int depth = 1;
+                        pos++;
+                        while (pos < json.size() && depth > 0)
+                        {
+                            if (json[pos] == '[')
+                                depth++;
+                            else if (json[pos] == ']')
+                                depth--;
+                            pos++;
+                        }
+                    }
+                    else if (pos < json.size() && (json[pos] == 't' || json[pos] == 'f'))
+                    {
+                        // boolean
+                        if (json.substr(pos, 4) == "true")
+                            pos += 4;
+                        else if (json.substr(pos, 5) == "false")
+                            pos += 5;
+                    }
+                    else if (pos < json.size() && (isdigit(json[pos]) || json[pos] == '-'))
+                    {
+                        // number — extract for line/lineEnd
+                        size_t numStart = pos;
+                        while (pos < json.size() && (isdigit(json[pos]) || json[pos] == '-' || json[pos] == '.'))
+                            pos++;
+                        std::string numStr = json.substr(numStart, pos - numStart);
+                        if (key == "line")
+                            entry.lines = numStr;
+                        else if (key == "lineEnd")
+                            lineEnd = numStr;
+                    }
+                }
+                if (pos < json.size())
+                    pos++; // skip '}'
+
+                // Build lines string "N" or "N-M"
+                if (!lineEnd.empty() && lineEnd != entry.lines)
+                    entry.lines = entry.lines + "-" + lineEnd;
+
+                // Set type from kind if not inferred
+                if (entry.type.empty())
+                    entry.type = entry.kind;
+
+                // Build display scope label from scopeType + parentScope
+                if (!parentScope.empty())
+                {
+                    // Variable inside a named scope → label as fn:name or class:name
+                    if (scopeTypeRaw == "function" || scopeTypeRaw == "scoped")
+                        entry.scope = "fn:" + parentScope;
+                    else if (scopeTypeRaw == "class")
+                        entry.scope = "class:" + parentScope;
+                    else if (scopeTypeRaw == "module")
+                        entry.scope = "mod:" + parentScope;
+                    else
+                        entry.scope = parentScope;
+                }
+                else if (scopeTypeRaw == "for")
+                    entry.scope = "for-loop";
+                else if (scopeTypeRaw == "function")
+                    entry.scope = "fn-def";
+                else if (scopeTypeRaw == "class")
+                    entry.scope = "class-def";
+                else if (scopeTypeRaw == "module")
+                    entry.scope = "module-def";
+                else
+                    entry.scope = "global";
+
+                if (!entry.name.empty())
+                    staticSymbols_.push_back(entry);
+            }
+
+            // If no runtime variables exist, show only actual variables from static symbols
+            if (variables_.empty())
+            {
+                for (const auto &s : staticSymbols_)
+                {
+                    if (s.kind == "variable" || s.kind == "field")
+                        variables_.push_back(s);
+                }
+            }
+        }
+
+        // Merge static info (type, scope, lines) into runtime variables
+        void mergeStaticInfo()
+        {
+            if (staticSymbols_.empty())
+                return;
+
+            for (auto &v : variables_)
+            {
+                // Find best matching static symbol: prefer exact name match
+                const VarEntry *best = nullptr;
+                for (const auto &s : staticSymbols_)
+                {
+                    if (s.name == v.name)
+                    {
+                        best = &s;
+                        break; // first match by name (order preserved from JSON)
+                    }
+                }
+                if (best)
+                {
+                    if (v.type.empty() || v.type == "?")
+                        v.type = best->type;
+                    if (v.scope.empty())
+                        v.scope = best->scope;
+                    if (v.lines.empty())
+                        v.lines = best->lines;
+                    if (v.kind.empty())
+                        v.kind = best->kind;
+                }
+                // Defaults
+                if (v.scope.empty())
+                    v.scope = "global";
+                if (v.type.empty())
+                    v.type = "?";
+            }
+        }
+
     private:
         const ThemeData &theme_;
         mutable REPLSession session_;
+
+        // JSON string parser helper
+        static std::string parseJsonString(const std::string &json, size_t &pos)
+        {
+            if (pos >= json.size() || json[pos] != '"')
+                return "";
+            pos++; // skip opening quote
+            std::string result;
+            while (pos < json.size() && json[pos] != '"')
+            {
+                if (json[pos] == '\\' && pos + 1 < json.size())
+                {
+                    pos++;
+                    switch (json[pos])
+                    {
+                    case '"':
+                        result += '"';
+                        break;
+                    case '\\':
+                        result += '\\';
+                        break;
+                    case 'n':
+                        result += '\n';
+                        break;
+                    case 't':
+                        result += '\t';
+                        break;
+                    default:
+                        result += json[pos];
+                        break;
+                    }
+                }
+                else
+                {
+                    result += json[pos];
+                }
+                pos++;
+            }
+            if (pos < json.size())
+                pos++; // skip closing quote
+            return result;
+        }
 
         mutable BottomTab activeTab_ = BottomTab::TERMINAL;
 
         // Embedded PTY terminal for the TERMINAL tab
         mutable std::unique_ptr<EmbeddedTerminal> embeddedTerm_;
         mutable int hoverCol_ = -1;
+        mutable int hoverRow_ = -1; // hover row relative to panel (0=tab bar, 1=header, 2+=content)
 
         void ensureTerminalStarted() const
         {
@@ -1236,8 +1609,18 @@ namespace xterm
         mutable int fileScrollOffset_ = 0;
 
         // Variable inspector
+        std::function<void(int)> onJumpToLine_;
+        std::function<void(const std::string &, int)> onOpenFileAtLine_;
+        std::function<std::vector<std::string>(const std::string &)> lifecycleProvider_;
         mutable std::vector<VarEntry> variables_;
+        mutable std::vector<VarEntry> staticSymbols_; // from --check-symbols (edit-time)
         mutable int varScrollOffset_ = 0;
+        mutable int objScrollOffset_ = 0;
+
+        // Lifecycle tab state
+        mutable std::string lifecycleVarName_;             // currently inspected variable
+        mutable std::vector<std::string> lifecycleEvents_; // cached lifecycle events
+        mutable int lifecycleScrollOffset_ = 0;
 
         // Async execution state
         mutable std::thread execThread_;
@@ -1271,7 +1654,34 @@ namespace xterm
         Color varNameColor_ = {156, 220, 254};  // light blue
         Color varTypeColor_ = {78, 201, 176};   // teal
         Color varValueColor_ = {206, 145, 120}; // orange
+        Color varScopeColor_ = {181, 137, 214}; // purple
+        Color varLinesColor_ = {128, 128, 128}; // dim gray
+        Color dimColor_ = {100, 100, 100};      // dim for expand arrows
         Color borderColor_ = {51, 51, 51};
+
+        // Color by type — returns a specific color for each inferred type
+        Color colorForType(const std::string &type) const
+        {
+            if (type == "int" || type == "float" || type == "complex")
+                return {181, 206, 168}; // light green (numeric)
+            if (type == "str")
+                return {206, 145, 120}; // orange (string)
+            if (type == "bool")
+                return {86, 156, 214}; // blue
+            if (type == "list" || type == "tuple" || type == "set")
+                return {220, 220, 170}; // yellow (collections)
+            if (type == "map")
+                return {220, 220, 170}; // yellow
+            if (type == "fn" || type == "function" || type == "method")
+                return {220, 220, 170}; // yellow (functions)
+            if (type == "class")
+                return {78, 201, 176}; // teal (classes)
+            if (type == "module")
+                return {156, 220, 254}; // light blue (modules)
+            if (type == "none")
+                return {128, 128, 128}; // gray
+            return varTypeColor_;
+        }
 
         void loadColors()
         {
@@ -1296,6 +1706,10 @@ namespace xterm
                 return diagScrollOffset_;
             case BottomTab::VARIABLES:
                 return varScrollOffset_;
+            case BottomTab::OBJECTS:
+                return objScrollOffset_;
+            case BottomTab::LIFECYCLE:
+                return lifecycleScrollOffset_;
             case BottomTab::HELP:
                 return helpScrollOffset_;
             default:
@@ -1313,6 +1727,10 @@ namespace xterm
                 return (int)diagnosticLines_.size();
             case BottomTab::VARIABLES:
                 return variables_.empty() ? 2 : (int)variables_.size() + 1; // +1 for header
+            case BottomTab::OBJECTS:
+                return staticSymbols_.empty() ? 2 : (int)staticSymbols_.size() + 1;
+            case BottomTab::LIFECYCLE:
+                return lifecycleEvents_.empty() ? 3 : (int)lifecycleEvents_.size() + 4; // header + separator + data
             case BottomTab::HELP:
                 return 30; // approximate help lines
             default:
@@ -1360,6 +1778,8 @@ namespace xterm
                 {"OUTPUT", BottomTab::OUTPUT},
                 {"DIAGNOSTICS", BottomTab::DIAGNOSTICS},
                 {"VARIABLES", BottomTab::VARIABLES},
+                {"OBJECTS", BottomTab::OBJECTS},
+                {"LIFECYCLE", BottomTab::LIFECYCLE},
                 {"HELP", BottomTab::HELP},
             };
 
@@ -1544,78 +1964,531 @@ namespace xterm
                 return;
             }
 
-            // Header
+            // Proportional column widths: Name(20%), Type(12%), Value(38%), Scope(18%), Lines(12%)
+            int colName = 1;
+            int nameW = std::max(6, w * 20 / 100);
+            int colType = colName + nameW;
+            int typeW = std::max(5, w * 12 / 100);
+            int colValue = colType + typeW;
+            int valueW = std::max(8, w * 38 / 100);
+            int colScope = colValue + valueW;
+            int scopeW = std::max(6, w * 18 / 100);
+            int colLines = colScope + scopeW;
+            int linesW = std::max(5, w - colLines);
+
+            // Header row
+            auto writeHdr = [&](int startCol, int maxW, const std::string &text)
             {
-                std::string hdr = " NAME              TYPE       VALUE";
+                size_t si = 0;
+                int c = startCol;
+                int count = 0;
+                while (si < text.size() && c < w && count < maxW)
+                {
+                    cells[1][c].ch = utf8Decode(text, si);
+                    cells[1][c].fg = tabInactiveFg_;
+                    cells[1][c].bold = true;
+                    cells[1][c].dirty = true;
+                    c++;
+                    count++;
+                }
+            };
+            writeHdr(colName, nameW, "NAME");
+            writeHdr(colType, typeW, "TYPE");
+            writeHdr(colValue, valueW, "VALUE");
+            writeHdr(colScope, scopeW, "SCOPE");
+            writeHdr(colLines, linesW, "LINES");
+
+            // Build flat display rows: variable rows + lifecycle sub-rows when expanded
+            struct DisplayRow
+            {
+                const VarEntry *var;
+                int lifecycleIdx; // -1 = variable row, >=0 = lifecycle event index
+            };
+            std::vector<DisplayRow> displayRows;
+            for (auto &v : variables_)
+            {
+                displayRows.push_back({&v, -1});
+                if (v.expanded && !v.lifecycleCache.empty())
+                {
+                    for (int li = 0; li < (int)v.lifecycleCache.size(); li++)
+                        displayRows.push_back({&v, li});
+                }
+            }
+
+            // Data rows
+            int varStart = varScrollOffset_;
+            Color lifecycleBg = {30, 30, 30};
+            Color lifecycleFg = {160, 160, 160};
+            Color lifecycleIcon = {86, 156, 214}; // blue
+
+            for (int r = 0; r < (int)displayRows.size() - varStart && r + 2 < contentH; r++)
+            {
+                const auto &dr = displayRows[varStart + r];
+                int row = r + 2;
+
+                if (dr.lifecycleIdx >= 0)
+                {
+                    // Lifecycle sub-row: indented event description
+                    for (int c = 0; c < w; c++)
+                    {
+                        cells[row][c].bg = lifecycleBg;
+                        cells[row][c].dirty = true;
+                    }
+                    // Arrow icon + event text
+                    int col = colName + 2;
+                    std::string arrow = "\xE2\x94\x94\xE2\x94\x80 "; // └─
+                    col = utf8Write(cells[row], col, arrow, lifecycleIcon, lifecycleBg, false);
+                    std::string evtText = dr.var->lifecycleCache[dr.lifecycleIdx];
+                    size_t si = 0;
+                    int c = col, count = 0;
+                    while (si < evtText.size() && c < w - 1 && count < w - col - 2)
+                    {
+                        cells[row][c].ch = utf8Decode(evtText, si);
+                        cells[row][c].fg = lifecycleFg;
+                        cells[row][c].bg = lifecycleBg;
+                        cells[row][c].dirty = true;
+                        c++;
+                        count++;
+                    }
+                    continue;
+                }
+
+                const auto &v = *dr.var;
+                Color typeColor = colorForType(v.type);
+
+                // Hover detection for clickable columns (name / scope)
+                bool hoverOnName = (hoverRow_ == row &&
+                                    hoverCol_ >= colName && hoverCol_ < colName + nameW);
+                bool hoverOnScope = (hoverRow_ == row &&
+                                     hoverCol_ >= colScope && hoverCol_ < colScope + scopeW);
+                Color hoverBg = {50, 50, 60}; // subtle highlight for clickable hover
+
+                // Expand indicator for variables with lifecycle
+                std::string expandIcon = v.expanded ? "\xE2\x96\xBC " : "\xE2\x96\xB6 "; // ▼ or ▶
+                bool showExpand = !v.lifecycleCache.empty() || lifecycleProvider_;
+
+                // Name column (with expand indicator) — clickable
+                {
+                    size_t si = 0;
+                    int c = colName, count = 0;
+                    Color nameBg = hoverOnName ? hoverBg : contentBg_;
+                    if (showExpand)
+                    {
+                        c = utf8Write(cells[row], c, expandIcon, dimColor_, nameBg, false);
+                        count += 2;
+                    }
+                    while (si < v.name.size() && c < w && count < nameW - 1)
+                    {
+                        cells[row][c].ch = utf8Decode(v.name, si);
+                        cells[row][c].fg = varNameColor_;
+                        cells[row][c].bg = nameBg;
+                        cells[row][c].underline = hoverOnName;
+                        cells[row][c].dirty = true;
+                        c++;
+                        count++;
+                    }
+                    // Fill rest of name column with hover bg
+                    if (hoverOnName)
+                        for (; c < colName + nameW && c < w; c++)
+                        {
+                            cells[row][c].bg = nameBg;
+                            cells[row][c].dirty = true;
+                        }
+                }
+
+                // Type column (color by type)
+                {
+                    size_t si = 0;
+                    int c = colType, count = 0;
+                    while (si < v.type.size() && c < w && count < typeW - 1)
+                    {
+                        cells[row][c].ch = utf8Decode(v.type, si);
+                        cells[row][c].fg = typeColor;
+                        cells[row][c].dirty = true;
+                        c++;
+                        count++;
+                    }
+                }
+
+                // Value column
+                {
+                    size_t si = 0;
+                    int c = colValue, count = 0;
+                    while (si < v.value.size() && c < w && count < valueW - 1)
+                    {
+                        cells[row][c].ch = utf8Decode(v.value, si);
+                        cells[row][c].fg = varValueColor_;
+                        cells[row][c].dirty = true;
+                        c++;
+                        count++;
+                    }
+                }
+
+                // Scope column — clickable
+                {
+                    size_t si = 0;
+                    int c = colScope, count = 0;
+                    Color scopeBg = hoverOnScope ? hoverBg : contentBg_;
+                    while (si < v.scope.size() && c < w && count < scopeW - 1)
+                    {
+                        cells[row][c].ch = utf8Decode(v.scope, si);
+                        cells[row][c].fg = varScopeColor_;
+                        cells[row][c].bg = scopeBg;
+                        cells[row][c].underline = hoverOnScope;
+                        cells[row][c].dirty = true;
+                        c++;
+                        count++;
+                    }
+                    // Fill rest of scope column with hover bg
+                    if (hoverOnScope)
+                        for (; c < colScope + scopeW && c < w; c++)
+                        {
+                            cells[row][c].bg = scopeBg;
+                            cells[row][c].dirty = true;
+                        }
+                }
+
+                // Lines column
+                {
+                    size_t si = 0;
+                    int c = colLines, count = 0;
+                    while (si < v.lines.size() && c < w && count < linesW - 1)
+                    {
+                        cells[row][c].ch = utf8Decode(v.lines, si);
+                        cells[row][c].fg = varLinesColor_;
+                        cells[row][c].dirty = true;
+                        c++;
+                        count++;
+                    }
+                }
+            }
+        }
+
+        // ── Objects content (all static symbols) ─────────────────────
+
+        void renderObjects(std::vector<std::vector<Cell>> &cells, int w, int h) const
+        {
+            int contentH = h - 1;
+
+            if (staticSymbols_.empty())
+            {
+                std::string msg1 = "No symbols detected.";
+                std::string msg2 = "Open a .xel file to see code symbols.";
                 {
                     size_t si = 0;
                     int c = 0;
-                    while (si < hdr.size() && c < w)
+                    while (si < msg1.size() && c < w)
                     {
-                        cells[1][c].ch = utf8Decode(hdr, si);
-                        cells[1][c].fg = tabInactiveFg_;
-                        cells[1][c].bold = true;
+                        cells[1][c].ch = utf8Decode(msg1, si);
+                        cells[1][c].fg = infoColor_;
                         cells[1][c].dirty = true;
                         c++;
                     }
                 }
+                if (contentH > 1)
+                {
+                    size_t si = 0;
+                    int c = 0;
+                    while (si < msg2.size() && c < w)
+                    {
+                        cells[2][c].ch = utf8Decode(msg2, si);
+                        cells[2][c].fg = tabInactiveFg_;
+                        cells[2][c].dirty = true;
+                        c++;
+                    }
+                }
+                return;
             }
 
-            // Variables
-            int varStart = varScrollOffset_;
-            for (int r = 0; r < (int)variables_.size() - varStart && r + 2 < contentH; r++)
+            // Column layout: Icon+Name(30%), Kind(12%), Type(14%), Scope(22%), Lines(12%), Detail(rest)
+            int colIcon = 1;
+            int iconNameW = std::max(8, w * 30 / 100);
+            int colKind = colIcon + iconNameW;
+            int kindW = std::max(6, w * 12 / 100);
+            int colType = colKind + kindW;
+            int typeW = std::max(5, w * 14 / 100);
+            int colScope = colType + typeW;
+            int scopeW = std::max(6, w * 22 / 100);
+            int colLines = colScope + scopeW;
+            int linesW = std::max(5, w - colLines);
+
+            // Header row
+            auto writeHdr = [&](int startCol, int maxW, const std::string &text)
             {
-                const auto &v = variables_[varStart + r];
-                int col = 1;
+                size_t si = 0;
+                int c = startCol;
+                int count = 0;
+                while (si < text.size() && c < w && count < maxW)
+                {
+                    cells[1][c].ch = utf8Decode(text, si);
+                    cells[1][c].fg = tabInactiveFg_;
+                    cells[1][c].bold = true;
+                    cells[1][c].dirty = true;
+                    c++;
+                    count++;
+                }
+            };
+            writeHdr(colIcon, iconNameW, "NAME");
+            writeHdr(colKind, kindW, "KIND");
+            writeHdr(colType, typeW, "TYPE");
+            writeHdr(colScope, scopeW, "SCOPE");
+            writeHdr(colLines, linesW, "LINES");
 
-                // Name (18 chars)
+            // Icon for kind
+            auto iconForKind = [](const std::string &kind) -> std::string
+            {
+                if (kind == "function" || kind == "method")
+                    return "\xC6\x92 "; // ƒ
+                if (kind == "class")
+                    return "\xE2\x97\x86 "; // ◆
+                if (kind == "module")
+                    return "\xE2\x97\x87 "; // ◇
+                if (kind == "struct")
+                    return "\xE2\x97\x8A "; // ◊
+                if (kind == "import")
+                    return "\xE2\x86\x90 "; // ←
+                if (kind == "parameter")
+                    return "\xCE\xB1 "; // α
+                return "\xE2\x80\xA2 "; // •
+            };
+
+            auto colorForKind = [&](const std::string &kind) -> Color
+            {
+                if (kind == "function" || kind == "method")
+                    return {220, 220, 170}; // yellow
+                if (kind == "class")
+                    return {78, 201, 176}; // teal
+                if (kind == "module")
+                    return {156, 220, 254}; // light blue
+                if (kind == "struct")
+                    return {206, 145, 120}; // orange
+                if (kind == "import")
+                    return {197, 134, 192}; // purple
+                if (kind == "parameter")
+                    return {128, 128, 128}; // gray
+                return {181, 206, 168};     // green (variable)
+            };
+
+            // Data rows
+            int objStart = objScrollOffset_;
+            Color hoverBg = {50, 50, 60}; // subtle highlight for clickable hover
+            for (int r = 0; r < (int)staticSymbols_.size() - objStart && r + 2 < contentH; r++)
+            {
+                const auto &s = staticSymbols_[objStart + r];
+                int row = r + 2;
+
+                // Hover detection for clickable columns (name / scope)
+                bool hoverOnName = (hoverRow_ == row &&
+                                    hoverCol_ >= colIcon && hoverCol_ < colIcon + iconNameW);
+                bool hoverOnScope = (hoverRow_ == row &&
+                                     hoverCol_ >= colScope && hoverCol_ < colScope + scopeW);
+
+                // Icon + Name column — clickable
+                {
+                    std::string icon = iconForKind(s.kind);
+                    Color iconC = colorForKind(s.kind);
+                    Color nameBg = hoverOnName ? hoverBg : contentBg_;
+                    int c = colIcon;
+                    c = utf8Write(cells[row], c, icon, iconC, nameBg, false);
+                    size_t si = 0;
+                    int count = c - colIcon;
+                    while (si < s.name.size() && c < w && count < iconNameW - 1)
+                    {
+                        cells[row][c].ch = utf8Decode(s.name, si);
+                        cells[row][c].fg = varNameColor_;
+                        cells[row][c].bg = nameBg;
+                        cells[row][c].underline = hoverOnName;
+                        cells[row][c].dirty = true;
+                        c++;
+                        count++;
+                    }
+                    if (hoverOnName)
+                        for (; c < colIcon + iconNameW && c < w; c++)
+                        {
+                            cells[row][c].bg = nameBg;
+                            cells[row][c].dirty = true;
+                        }
+                }
+
+                // Kind column
                 {
                     size_t si = 0;
-                    int count = 0;
-                    while (si < v.name.size() && col < w && count < 18)
+                    int c = colKind, count = 0;
+                    while (si < s.kind.size() && c < w && count < kindW - 1)
                     {
-                        cells[r + 2][col].ch = utf8Decode(v.name, si);
-                        cells[r + 2][col].fg = varNameColor_;
-                        cells[r + 2][col].dirty = true;
-                        col++;
+                        cells[row][c].ch = utf8Decode(s.kind, si);
+                        cells[row][c].fg = colorForKind(s.kind);
+                        cells[row][c].dirty = true;
+                        c++;
                         count++;
                     }
                 }
-                while (col < 19 && col < w)
-                {
-                    cells[r + 2][col].dirty = true;
-                    col++;
-                }
 
-                // Type (10 chars)
+                // Type column
                 {
                     size_t si = 0;
-                    int count = 0;
-                    while (si < v.type.size() && col < w && count < 10)
+                    int c = colType, count = 0;
+                    while (si < s.type.size() && c < w && count < typeW - 1)
                     {
-                        cells[r + 2][col].ch = utf8Decode(v.type, si);
-                        cells[r + 2][col].fg = varTypeColor_;
-                        cells[r + 2][col].dirty = true;
-                        col++;
+                        cells[row][c].ch = utf8Decode(s.type, si);
+                        cells[row][c].fg = colorForType(s.type);
+                        cells[row][c].dirty = true;
+                        c++;
                         count++;
                     }
                 }
-                while (col < 30 && col < w)
-                {
-                    cells[r + 2][col].dirty = true;
-                    col++;
-                }
 
-                // Value
+                // Scope column — clickable
                 {
                     size_t si = 0;
-                    while (si < v.value.size() && col < w)
+                    int c = colScope, count = 0;
+                    Color scopeBg = hoverOnScope ? hoverBg : contentBg_;
+                    while (si < s.scope.size() && c < w && count < scopeW - 1)
                     {
-                        cells[r + 2][col].ch = utf8Decode(v.value, si);
-                        cells[r + 2][col].fg = varValueColor_;
-                        cells[r + 2][col].dirty = true;
-                        col++;
+                        cells[row][c].ch = utf8Decode(s.scope, si);
+                        cells[row][c].fg = varScopeColor_;
+                        cells[row][c].bg = scopeBg;
+                        cells[row][c].underline = hoverOnScope;
+                        cells[row][c].dirty = true;
+                        c++;
+                        count++;
                     }
+                    if (hoverOnScope)
+                        for (; c < colScope + scopeW && c < w; c++)
+                        {
+                            cells[row][c].bg = scopeBg;
+                            cells[row][c].dirty = true;
+                        }
+                }
+
+                // Lines column
+                {
+                    size_t si = 0;
+                    int c = colLines, count = 0;
+                    while (si < s.lines.size() && c < w && count < linesW - 1)
+                    {
+                        cells[row][c].ch = utf8Decode(s.lines, si);
+                        cells[row][c].fg = varLinesColor_;
+                        cells[row][c].dirty = true;
+                        c++;
+                        count++;
+                    }
+                }
+            }
+        }
+
+        // ── Lifecycle content ────────────────────────────────────────
+
+        void renderLifecycle(std::vector<std::vector<Cell>> &cells, int w, int h) const
+        {
+            int contentH = h - 1;
+            Color bornClr = {78, 201, 176};    // teal
+            Color changeClr = {220, 220, 170}; // yellow
+            Color diedClr = {244, 71, 71};     // red
+            Color hdrFg = {128, 128, 128};
+
+            if (lifecycleVarName_.empty())
+            {
+                std::string msg = "Click a variable in VARIABLES or OBJECTS to see its lifecycle.";
+                size_t si = 0;
+                int c = 1;
+                while (si < msg.size() && c < w)
+                {
+                    cells[1][c].ch = utf8Decode(msg, si);
+                    cells[1][c].fg = infoColor_;
+                    cells[1][c].dirty = true;
+                    c++;
+                }
+                return;
+            }
+
+            // Row 1: title
+            {
+                std::string title = " Lifecycle: '" + lifecycleVarName_ + "'";
+                size_t si = 0;
+                int c = 0;
+                while (si < title.size() && c < w)
+                {
+                    cells[1][c].ch = utf8Decode(title, si);
+                    cells[1][c].fg = {86, 156, 214};
+                    cells[1][c].bold = true;
+                    cells[1][c].dirty = true;
+                    c++;
+                }
+            }
+
+            if (lifecycleEvents_.empty())
+            {
+                std::string msg = "No lifecycle data. Run the code first (Ctrl+R).";
+                if (contentH > 2)
+                {
+                    size_t si = 0;
+                    int c = 1;
+                    while (si < msg.size() && c < w)
+                    {
+                        cells[2][c].ch = utf8Decode(msg, si);
+                        cells[2][c].fg = tabInactiveFg_;
+                        cells[2][c].dirty = true;
+                        c++;
+                    }
+                }
+                return;
+            }
+
+            // Row 2: column headers
+            if (contentH > 2)
+            {
+                auto writeHdr = [&](int startCol, int maxW, const std::string &text)
+                {
+                    size_t si = 0;
+                    int c = startCol, count = 0;
+                    while (si < text.size() && c < w && count < maxW)
+                    {
+                        cells[2][c].ch = utf8Decode(text, si);
+                        cells[2][c].fg = hdrFg;
+                        cells[2][c].bold = true;
+                        cells[2][c].dirty = true;
+                        c++;
+                        count++;
+                    }
+                };
+                writeHdr(1, 6, "LINE");
+                writeHdr(8, 10, "EVENT");
+                writeHdr(19, 8, "TYPE");
+                writeHdr(28, 12, "VALUE");
+                writeHdr(41, 12, "BY WHOM");
+            }
+
+            // Row 3: separator
+            if (contentH > 3)
+            {
+                for (int cc = 0; cc < w; cc++)
+                {
+                    cells[3][cc].ch = U'\u2500'; // ─
+                    cells[3][cc].fg = {51, 51, 51};
+                    cells[3][cc].dirty = true;
+                }
+            }
+
+            // Data rows
+            int startRow = 4;
+            int startIdx = lifecycleScrollOffset_;
+            for (int i = startIdx; i < (int)lifecycleEvents_.size() && startRow + (i - startIdx) < h; i++)
+            {
+                const auto &evt = lifecycleEvents_[i];
+                int row = startRow + (i - startIdx);
+                Color fg = (evt.find("BORN") != std::string::npos) ? bornClr : (evt.find("CHANGED") != std::string::npos) ? changeClr
+                                                                           : (evt.find("DIED") != std::string::npos)      ? diedClr
+                                                                                                                          : contentFg_;
+
+                size_t si = 0;
+                int c = 1;
+                while (si < evt.size() && c < w)
+                {
+                    cells[row][c].ch = utf8Decode(evt, si);
+                    cells[row][c].fg = fg;
+                    cells[row][c].dirty = true;
+                    c++;
                 }
             }
         }
@@ -1632,6 +2505,8 @@ namespace xterm
                 {"Ctrl+N", "New file"},
                 {"Ctrl+W", "Close current tab"},
                 {"Ctrl+B", "Toggle sidebar"},
+                {"Ctrl+Shift+D", "Toggle dashboard (right panel)"},
+                {"Ctrl+`", "Toggle bottom panel"},
                 {"Ctrl+T", "Switch to terminal mode"},
                 {"Ctrl+F", "Find (regex)"},
                 {"Ctrl+H", "Find & Replace (regex)"},

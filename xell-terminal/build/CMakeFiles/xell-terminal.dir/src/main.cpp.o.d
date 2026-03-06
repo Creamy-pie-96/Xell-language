@@ -441,6 +441,7 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: \
  /usr/include/c++/13/unordered_set \
  /usr/include/c++/13/bits/unordered_set.h \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/snippet_engine.hpp \
+ /home/DATA/CODE/code/Xell/xell-terminal/src/ui/dashboard_panel.hpp \
  /usr/include/c++/13/cstring /usr/include/x86_64-linux-gnu/sys/stat.h \
  /usr/include/x86_64-linux-gnu/bits/stat.h \
  /usr/include/x86_64-linux-gnu/bits/struct_stat.h \

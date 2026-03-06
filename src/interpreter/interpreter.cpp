@@ -170,6 +170,9 @@ namespace xell
         callDepth_ = 0;
         importedFiles_.clear();
         importedModules_.clear();
+        callStack_.clear();
+        // Note: trace_ is a non-owning pointer; don't delete it here.
+        // The owner (main/IDE) manages TraceCollector lifetime.
         registerBuiltins();
     }
 
@@ -511,6 +514,10 @@ namespace xell
         if (auto *p = dynamic_cast<const ImmutableBinding *>(stmt))
         {
             XObject value = eval(p->value.get());
+            if (trace_ && trace_->enabled)
+                trace_->emitVar(TraceEvent::VAR_BORN, p->line, p->name,
+                                std::string(xtype_name(value.type())), value.toString(),
+                                "be", p->line);
             currentEnv_->defineImmutable(p->name, std::move(value));
             return;
         }
@@ -542,13 +549,29 @@ namespace xell
     void Interpreter::execAssignment(const Assignment *node)
     {
         XObject value = eval(node->value.get());
+
+        // Trace: variable birth or change
+        if (trace_ && trace_->enabled)
+        {
+            bool exists = currentEnv_->has(node->name);
+            TraceEvent ev = exists ? TraceEvent::VAR_CHANGED : TraceEvent::VAR_BORN;
+            trace_->emitVar(ev, node->line, node->name,
+                            std::string(xtype_name(value.type())), value.toString(),
+                            "assignment", node->line);
+        }
+
         currentEnv_->set(node->name, std::move(value), node->line);
     }
 
     void Interpreter::execIf(const IfStmt *node)
     {
         // Check main if condition
-        if (eval(node->condition.get()).truthy())
+        bool mainCond = eval(node->condition.get()).truthy();
+        if (trace_ && trace_->enabled)
+            trace_->emit(mainCond ? TraceEvent::BRANCH_IF : TraceEvent::BRANCH_SKIPPED,
+                         node->line, "if", "", "", mainCond ? "taken" : "skipped",
+                         "if", node->line);
+        if (mainCond)
         {
             Environment blockEnv(currentEnv_);
             execBlock(node->body, blockEnv);
@@ -558,7 +581,12 @@ namespace xell
         // Check elif clauses
         for (const auto &elif : node->elifs)
         {
-            if (eval(elif.condition.get()).truthy())
+            bool elifCond = eval(elif.condition.get()).truthy();
+            if (trace_ && trace_->enabled)
+                trace_->emit(elifCond ? TraceEvent::BRANCH_ELIF : TraceEvent::BRANCH_SKIPPED,
+                             elif.line, "elif", "", "", elifCond ? "taken" : "skipped",
+                             "elif", elif.line);
+            if (elifCond)
             {
                 Environment blockEnv(currentEnv_);
                 execBlock(elif.body, blockEnv);
@@ -569,6 +597,9 @@ namespace xell
         // Else clause
         if (!node->elseBody.empty())
         {
+            if (trace_ && trace_->enabled)
+                trace_->emit(TraceEvent::BRANCH_ELSE, node->line, "else",
+                             "", "", "taken", "else", node->line);
             Environment blockEnv(currentEnv_);
             execBlock(node->elseBody, blockEnv);
         }
@@ -703,10 +734,35 @@ namespace xell
         auto *savedEnv = currentEnv_;
         currentEnv_ = &loopEnv;
 
+        // Trace: for-loop start
+        if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
+        {
+            std::string varList;
+            for (size_t v = 0; v < node->varNames.size(); ++v)
+            {
+                if (v > 0)
+                    varList += ",";
+                varList += node->varNames[v];
+            }
+            trace_->emit(TraceEvent::LOOP_STARTED, node->line, "for:" + varList,
+                         "", std::to_string(iterCount),
+                         std::to_string(iterCount) + " iterations",
+                         "for", node->line);
+        }
+
+        int forIterIndex = 0;
         try
         {
             for (size_t i = 0; i < iterCount; i++)
             {
+                // Trace: each iteration
+                if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
+                    trace_->emit(TraceEvent::LOOP_ITERATION, node->line,
+                                 "for", "int", std::to_string(i),
+                                 "iteration " + std::to_string(i) + "/" + std::to_string(iterCount),
+                                 "for", node->line);
+                forIterIndex++;
+
                 if (numSources == 1 && numTargets == 1 && !node->hasRest)
                 {
                     // ---- Simple case: for x in list ----
@@ -781,6 +837,12 @@ namespace xell
                         throw RuntimeError("Cannot use 'break VALUE' in a statement-mode for loop; "
                                            "use expression-mode (x = for ...) to capture values",
                                            node->line);
+                    // Trace: loop broke
+                    if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
+                        trace_->emit(TraceEvent::LOOP_BROKE, node->line, "for",
+                                     "", std::to_string(forIterIndex),
+                                     "break at iteration " + std::to_string(forIterIndex),
+                                     "break", node->line);
                     break;
                 }
                 catch (const ContinueSignal &)
@@ -795,6 +857,13 @@ namespace xell
             throw;
         }
 
+        // Trace: for-loop completed
+        if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
+            trace_->emit(TraceEvent::LOOP_COMPLETED, node->line, "for",
+                         "", std::to_string(forIterIndex),
+                         std::to_string(forIterIndex) + " iterations completed",
+                         "for", node->line);
+
         currentEnv_ = savedEnv;
     }
 
@@ -804,10 +873,24 @@ namespace xell
         auto *savedEnv = currentEnv_;
         currentEnv_ = &loopEnv;
 
+        // Trace: while-loop start
+        if (trace_ && trace_->enabled && trace_->filter().trackLoopWhile)
+            trace_->emit(TraceEvent::LOOP_STARTED, node->line, "while",
+                         "", "", "while loop", "while", node->line);
+
+        int whileIterIndex = 0;
         try
         {
             while (eval(node->condition.get()).truthy())
             {
+                // Trace: each iteration
+                if (trace_ && trace_->enabled && trace_->filter().trackLoopWhile)
+                    trace_->emit(TraceEvent::LOOP_ITERATION, node->line,
+                                 "while", "int", std::to_string(whileIterIndex),
+                                 "iteration " + std::to_string(whileIterIndex),
+                                 "while", node->line);
+                whileIterIndex++;
+
                 try
                 {
                     for (const auto &stmt : node->body)
@@ -821,6 +904,12 @@ namespace xell
                         throw RuntimeError("Cannot use 'break VALUE' in a statement-mode while loop; "
                                            "use expression-mode (x = while ...) to capture values",
                                            node->line);
+                    // Trace: loop broke
+                    if (trace_ && trace_->enabled && trace_->filter().trackLoopWhile)
+                        trace_->emit(TraceEvent::LOOP_BROKE, node->line, "while",
+                                     "", std::to_string(whileIterIndex),
+                                     "break at iteration " + std::to_string(whileIterIndex),
+                                     "break", node->line);
                     break;
                 }
                 catch (const ContinueSignal &)
@@ -834,6 +923,13 @@ namespace xell
             currentEnv_ = savedEnv;
             throw;
         }
+
+        // Trace: while-loop completed
+        if (trace_ && trace_->enabled && trace_->filter().trackLoopWhile)
+            trace_->emit(TraceEvent::LOOP_COMPLETED, node->line, "while",
+                         "", std::to_string(whileIterIndex),
+                         std::to_string(whileIterIndex) + " iterations completed",
+                         "while", node->line);
 
         currentEnv_ = savedEnv;
     }
@@ -1355,6 +1451,11 @@ namespace xell
             }
         }
 
+        // Trace: function defined
+        if (trace_ && trace_->enabled)
+            trace_->emitVar(TraceEvent::VAR_BORN, node->line, node->name,
+                            "fn", "fn:" + node->name, "fn_def", node->line);
+
         currentEnv_->set(node->name, std::move(fn));
     }
 
@@ -1375,6 +1476,23 @@ namespace xell
 
     void Interpreter::execBring(const BringStmt *node)
     {
+        // Trace: module import start
+        if (trace_ && trace_->enabled && trace_->filter().trackImports)
+        {
+            std::string modName = node->fromDir.empty() ? "" : node->fromDir;
+            for (const auto &part : node->parts)
+            {
+                for (const auto &seg : part.modulePath)
+                {
+                    if (!modName.empty())
+                        modName += ".";
+                    modName += seg;
+                }
+            }
+            trace_->emit(TraceEvent::MODULE_LOADED, node->line, modName,
+                         "module", "", "bring", "bring", node->line);
+        }
+
         // Helper: resolve a module path to an XModule
         auto resolveModulePath = [&](const std::vector<std::string> &path, int line) -> std::shared_ptr<XModule>
         {
@@ -2881,7 +2999,32 @@ namespace xell
         auto bit = builtins_.find(node->callee);
         if (bit != builtins_.end())
         {
-            return bit->second(args, node->line);
+            auto result = bit->second(args, node->line);
+
+            // Trace: emit VAR_CHANGED for mutating builtins (push, pop, etc.)
+            if (trace_ && trace_->enabled && !args.empty())
+            {
+                static const std::unordered_set<std::string> mutatingBuiltins = {
+                    "push", "pop", "shift", "unshift", "insert", "remove_val",
+                    "sort", "sort_desc", "add", "remove", "delete_key", "merge"};
+                if (mutatingBuiltins.count(node->callee) && !node->args.empty())
+                {
+                    // Extract the variable name from the first argument AST node
+                    if (auto *id = dynamic_cast<const Identifier *>(node->args[0].get()))
+                    {
+                        // Re-read the variable's current value after mutation
+                        if (currentEnv_->has(id->name))
+                        {
+                            XObject val = currentEnv_->get(id->name, node->line);
+                            trace_->emitVar(TraceEvent::VAR_CHANGED, node->line, id->name,
+                                            std::string(xtype_name(val.type())), val.toString(),
+                                            node->callee + "()", node->line);
+                        }
+                    }
+                }
+            }
+
+            return result;
         }
 
         // ---- Frozen struct/class construction: ~Name(args...) ----
@@ -3338,6 +3481,15 @@ namespace xell
         auto *savedEnv = currentEnv_;
         currentEnv_ = &fnEnv;
 
+        // Trace: function called
+        if (trace_ && trace_->enabled)
+        {
+            trace_->emitFn(TraceEvent::FN_CALLED, line, fn.name,
+                           std::to_string(args.size()) + " args", "",
+                           "call", line);
+            trace_->pushCallStack(fn.name);
+        }
+
         XObject result = XObject::makeNone();
         try
         {
@@ -3357,6 +3509,15 @@ namespace xell
         catch (GiveSignal &sig)
         {
             result = std::move(sig.value);
+        }
+
+        // Trace: function returned
+        if (trace_ && trace_->enabled)
+        {
+            trace_->emitFn(TraceEvent::FN_RETURNED, line, fn.name,
+                           "", result.toString(),
+                           "return", line);
+            trace_->popCallStack();
         }
 
         currentEnv_ = savedEnv;
@@ -4565,6 +4726,11 @@ namespace xell
         }
         catch (const XellError &e)
         {
+            // Trace: error caught
+            if (trace_ && trace_->enabled)
+                trace_->emit(TraceEvent::ERROR_CAUGHT, e.line(), node->catchVarName,
+                             e.category(), e.detail(), "catch", "try", node->line);
+
             if (!node->catchBody.empty())
             {
                 Environment catchEnv(currentEnv_);
@@ -4781,9 +4947,29 @@ namespace xell
         for (size_t i = 0; i < node->names.size(); i++)
         {
             if (i < list.size())
+            {
+                // Trace: destructuring variable
+                if (trace_ && trace_->enabled)
+                {
+                    bool exists = currentEnv_->has(node->names[i]);
+                    trace_->emitVar(exists ? TraceEvent::VAR_CHANGED : TraceEvent::VAR_BORN,
+                                    node->line, node->names[i],
+                                    std::string(xtype_name(list[i].type())), list[i].toString(),
+                                    "destructuring", node->line);
+                }
                 currentEnv_->set(node->names[i], list[i]);
+            }
             else
+            {
+                if (trace_ && trace_->enabled)
+                {
+                    bool exists = currentEnv_->has(node->names[i]);
+                    trace_->emitVar(exists ? TraceEvent::VAR_CHANGED : TraceEvent::VAR_BORN,
+                                    node->line, node->names[i],
+                                    "none", "none", "destructuring", node->line);
+                }
                 currentEnv_->set(node->names[i], XObject::makeNone());
+            }
         }
     }
 
