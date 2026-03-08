@@ -197,6 +197,11 @@ namespace xterm
         }
     }
 
+    int PTY::childPid() const
+    {
+        return child_pid_;
+    }
+
 } // namespace xterm
 
 #endif // !_WIN32

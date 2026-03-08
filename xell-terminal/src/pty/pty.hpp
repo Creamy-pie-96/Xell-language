@@ -48,6 +48,9 @@ namespace xterm
         /// Kill the child process.
         void kill();
 
+        /// Get the child process PID (for /proc queries). Returns -1 if not spawned.
+        int childPid() const;
+
     private:
         // Platform-specific handles — defined in the .cpp files
 #ifdef _WIN32

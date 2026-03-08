@@ -592,12 +592,7 @@ namespace xterm
                             toggleSidebar();
                             return LayoutAction::TOGGLE_SIDEBAR;
                         }
-                        else
-                        {
-                            // Ctrl+Shift+B — Run file
-                            handleRunFile();
-                            return LayoutAction::RUN_FILE;
-                        }
+                        break;
                     case SDLK_BACKQUOTE:
                         toggleBottomPanel();
                         return LayoutAction::TOGGLE_BOTTOM;
@@ -622,8 +617,9 @@ namespace xterm
                     case SDLK_d:
                         if (!shift)
                         {
-                            // Ctrl+D — Git diff
-                            return LayoutAction::GIT_DIFF;
+                            // Ctrl+D — Debug Run (selection/cursor with full lifecycle+debug)
+                            handleDebugRun();
+                            return LayoutAction::RUN_SELECTION;
                         }
                         else
                         {
@@ -1115,6 +1111,26 @@ namespace xterm
             }
 
             // Route to focused region
+            //
+            // SPECIAL CASE: When a child process is running and waiting for stdin,
+            // route keyboard events to the bottom panel's stdin input handler
+            // regardless of which region has focus. This lets users type input
+            // even when the editor has focus.
+            if (replPanel_.isWaitingForInput())
+            {
+                if (event.type == SDL_KEYDOWN)
+                {
+                    if (replPanel_.handleKeyDown(event))
+                        return LayoutAction::HANDLED;
+                }
+                if (event.type == SDL_TEXTINPUT)
+                {
+                    std::string text = event.text.text;
+                    replPanel_.handleTextInput(text);
+                    return LayoutAction::HANDLED;
+                }
+            }
+
             switch (focus_)
             {
             case FocusRegion::Sidebar:
@@ -1445,7 +1461,7 @@ namespace xterm
             {
                 acDB_.loadASTSymbols(symbolsJson);
                 // Also feed to Variables tab for static symbol display
-                replPanel_.loadStaticSymbols(symbolsJson);
+                replPanel_.loadStaticSymbols(symbolsJson, filePath);
                 // Also feed to Dashboard panel for code structure view
                 dashboardPanel_.loadSymbols(symbolsJson, filePath);
             }
@@ -2498,6 +2514,57 @@ namespace xterm
             replPanel_.runCode(code);
         }
 
+        // ── Debug Run (Ctrl+Shift+D) — run selection/cursor with full lifecycle + debug ──
+        void handleDebugRun()
+        {
+            if (editor_.activeTabIndex() < 0)
+                return;
+
+            // Same logic as Ctrl+Enter: selection → run selected, else line 1 to cursor
+            std::string code;
+            if (editor_.hasSelection())
+            {
+                code = editor_.getSelectedText();
+            }
+            else
+            {
+                code = editor_.getTextToCursorLine();
+            }
+
+            if (code.empty())
+                return;
+
+            // Show bottom panel if hidden
+            if (!showBottomPanel_)
+            {
+                showBottomPanel_ = true;
+                recalcLayout();
+            }
+
+            // Switch to LIFECYCLE tab so user sees debug output
+            replPanel_.setActiveTab(BottomTab::LIFECYCLE);
+
+            // Run the code for output
+            replPanel_.runCode(code);
+
+            // Write code to a temp file for trace collection
+            std::string tmpDir = "/tmp/xell";
+            std::filesystem::create_directories(tmpDir);
+            std::string tmpFile = tmpDir + "/xell_debug_run.xel";
+            {
+                FILE *f = fopen(tmpFile.c_str(), "w");
+                if (f)
+                {
+                    fprintf(f, "%s\n", code.c_str());
+                    fclose(f);
+
+                    // Collect trace (lifecycle events) from the temp file
+                    lastTracedFile_ = tmpFile;
+                    collectTraceForFile(tmpFile);
+                }
+            }
+        }
+
         void handleRunFile()
         {
             if (editor_.activeTabIndex() < 0)
@@ -2517,13 +2584,8 @@ namespace xterm
                 recalcLayout();
             }
 
-            // Run the file using its full path
+            // Run the file using its full path (no lifecycle trace — use Ctrl+Shift+D for that)
             replPanel_.runFile(fullPath);
-
-            // Lazy trace collection: run --trace-vars in background after execution
-            // Cache raw JSON for lifecycle lookups
-            lastTracedFile_ = fullPath;
-            collectTraceForFile(fullPath);
         }
 
         // Collect trace data lazily after file execution

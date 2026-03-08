@@ -30,6 +30,29 @@ Six decorator keywords let you control debugging directly from your code:
 
 ---
 
+## IDE Run Modes
+
+The Xell IDE has three execution modes. Debug decorators (`@debug`, `@breakpoint`, `@watch`, etc.)
+are only active in **Debug Run** mode.
+
+| Shortcut       | Mode       | What runs                     | Variables | Objects | Dashboard | Lifecycle | Debug decorators |
+| -------------- | ---------- | ----------------------------- | :-------: | :-----: | :-------: | :-------: | :--------------: |
+| **Ctrl+Enter** | Quick Run  | Selection, or line 1 → cursor |    ✅     |   ✅    |    ✅     |    ❌     |        ❌        |
+| **Ctrl+R**     | Normal Run | Entire current file           |    ✅     |   ✅    |    ✅     |    ❌     |        ❌        |
+| **Ctrl+D**     | Debug Run  | Selection, or line 1 → cursor |    ✅     |   ✅    |    ✅     |    ✅     |        ✅        |
+
+**Quick Run / Normal Run** — Fast execution. Variables, Objects, and Dashboard tabs
+are always populated via static analysis. No lifecycle tracking, no runtime debug overhead.
+
+**Debug Run** — Full debugging. Same code selection as Ctrl+Enter, but also runs
+`--trace-vars` to collect lifecycle events (VAR_BORN, VAR_CHANGED, FUNCTION_CALLED, etc.).
+Debug decorators (`@breakpoint`, `@watch`, `@checkpoint`, `@track`, `@notrack`) are active.
+
+> **Tip:** Use Ctrl+Enter for rapid iteration, and Ctrl+D when you need
+> to investigate a bug with lifecycle tracking or debug decorators.
+
+---
+
 ## Quick Start
 
 ```xell

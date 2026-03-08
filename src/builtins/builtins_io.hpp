@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 #include <iostream>
-#include <cstdlib>
 
 namespace xell
 {
@@ -17,6 +16,11 @@ namespace xell
     /// @param output  Reference to the interpreter's captured output vector.
     inline void registerIOBuiltins(BuiltinTable &t, std::vector<std::string> &output)
     {
+        // Note: The interpreter overrides print() in registerBuiltins() to add
+        // __print__/__str__ magic method support + streamOutput_ flag.
+        // This version is only used by child interpreters (bring) which don't
+        // need streaming.
+
         t["print"] = [&output](std::vector<XObject> &args, int /*line*/) -> XObject
         {
             std::string line;

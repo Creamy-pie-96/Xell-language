@@ -68,6 +68,19 @@ namespace xell
             const char *xt = std::getenv("XELL_TERMINAL");
             isTerminalMode_ = (xt && std::string(xt) == "1");
             editor_.setTerminalMode(isTerminalMode_);
+
+            // Hook input() so it temporarily restores canonical terminal mode.
+            // The REPL runs in raw mode (no echo, CR-only Enter).  When
+            // user code calls input(), we need real echo + line buffering.
+            interpreter_.setInputHook([this](const std::string &prompt) -> std::string
+                                      {
+                if (!prompt.empty())
+                    std::cout << prompt << std::flush;
+                terminal_.disableRawMode();
+                std::string line;
+                std::getline(std::cin, line);
+                terminal_.enableRawMode();
+                return line; });
         }
 
         void run()
@@ -135,6 +148,20 @@ namespace xell
         bool isTerminalMode_ = false;
         std::string historyPath_;
         std::unordered_map<std::string, bool> executableCache_; // PATH lookup cache
+
+        /// Run a shell command with canonical terminal mode restored.
+        /// The REPL operates in raw mode (no echo, no line buffering,
+        /// CR-only for Enter).  Child processes that use std::getline
+        /// expect canonical mode (echo, line buffering, NL for Enter).
+        /// This helper temporarily restores the original termios for the
+        /// duration of the child, then re-enables raw mode.
+        int shellRun(const std::string &cmd)
+        {
+            terminal_.disableRawMode();
+            int code = os::run(cmd);
+            terminal_.enableRawMode();
+            return code;
+        }
 
         // ---- Shell-style prompt helpers (for terminal mode) -----------------
 
@@ -503,7 +530,7 @@ namespace xell
                 (line[3] == ' ' || line[3] == '|' || line[3] == '&'))
             {
                 // pwd with piping/chaining — delegate to OS shell
-                int code = os::run(line);
+                int code = shellRun(line);
                 if (code != 0)
                     Terminal::write(std::string(color::RED) + "[exit " +
                                     std::to_string(code) + "]" + color::RESET + "\r\n");
@@ -515,7 +542,7 @@ namespace xell
                 (line.size() > 2 && line.substr(0, 2) == "ls" && (line[2] == '|' || line[2] == '&')))
             {
                 // Run ls directly as a shell command
-                int code = os::run(line);
+                int code = shellRun(line);
                 if (code != 0)
                     Terminal::write(std::string(color::RED) + "[exit " +
                                     std::to_string(code) + "]" + color::RESET + "\r\n");
@@ -574,7 +601,7 @@ namespace xell
                     return handleCommand(cmd); // delegate to the cd handler above
                 }
 
-                int code = os::run(cmd);
+                int code = shellRun(cmd);
                 if (code != 0)
                 {
                     Terminal::write(std::string(color::RED) + "[exit " +
@@ -599,7 +626,7 @@ namespace xell
                     // Check if it's an executable on PATH or an explicit path
                     if (isExecutableOnPath(cmd) || isExplicitPath(cmd))
                     {
-                        int code = os::run(line);
+                        int code = shellRun(line);
                         if (code != 0)
                             Terminal::write(std::string(color::RED) + "[exit " +
                                             std::to_string(code) + "]" + color::RESET + "\r\n");

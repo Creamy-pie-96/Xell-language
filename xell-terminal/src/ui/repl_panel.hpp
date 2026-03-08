@@ -44,6 +44,7 @@
 #include <sys/select.h>
 #include <unistd.h>
 #include <signal.h>
+#include <fcntl.h>
 #endif
 
 namespace xterm
@@ -98,15 +99,27 @@ namespace xterm
     // Used by killRunningProcess() to send SIGKILL for emergency stop.
     static inline std::atomic<pid_t> runningChildPid_{0};
 
+    // Stdin write fd for the running child process (for interactive input).
+    // -1 when no process is running. Set during captureCommand, used by sendInput().
+    static inline std::atomic<int> childStdinFd_{-1};
+
     static inline std::string captureCommand(const std::string &cmd, int &exitCode)
     {
         std::string result;
         // Use fork/exec so we can track PID for emergency kill
         int pipeOut[2];
+        int pipeIn[2]; // stdin pipe: parent writes, child reads
         if (pipe(pipeOut) != 0)
         {
             exitCode = -1;
             return "[failed to create pipe]";
+        }
+        if (pipe(pipeIn) != 0)
+        {
+            close(pipeOut[0]);
+            close(pipeOut[1]);
+            exitCode = -1;
+            return "[failed to create stdin pipe]";
         }
         pid_t pid = fork();
         if (pid < 0)
@@ -119,15 +132,20 @@ namespace xterm
             // Child — create new process group so we can kill all descendants
             setsid();
             close(pipeOut[0]);
+            close(pipeIn[1]);              // close write end of stdin pipe
+            dup2(pipeIn[0], STDIN_FILENO); // child reads from stdin pipe
             dup2(pipeOut[1], STDOUT_FILENO);
             dup2(pipeOut[1], STDERR_FILENO);
+            close(pipeIn[0]);
             close(pipeOut[1]);
             execl("/bin/sh", "sh", "-c", cmd.c_str(), nullptr);
             _exit(127);
         }
         // Parent
         close(pipeOut[1]);
+        close(pipeIn[0]); // close read end of stdin pipe
         runningChildPid_.store(pid);
+        childStdinFd_.store(pipeIn[1]); // expose write end for interactive input
 
         char buf[4096];
         ssize_t n;
@@ -138,12 +156,28 @@ namespace xterm
         int status = 0;
         waitpid(pid, &status, 0);
         runningChildPid_.store(0);
+        // Close stdin pipe write end
+        int stdinFd = childStdinFd_.exchange(-1);
+        if (stdinFd >= 0)
+            close(stdinFd);
         exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 
         // Strip trailing newline
         while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
             result.pop_back();
         return result;
+    }
+
+    /// Send input to the running child process's stdin.
+    /// Returns true if input was sent, false if no process is running.
+    static inline bool sendInput(const std::string &input)
+    {
+        int fd = childStdinFd_.load();
+        if (fd < 0)
+            return false;
+        std::string data = input + "\n";
+        ssize_t written = write(fd, data.c_str(), data.size());
+        return written > 0;
     }
 
     /// Kill the running child process (emergency stop)
@@ -661,7 +695,24 @@ namespace xterm
             history_.clear();
         }
 
+        // Inspect variables from a specific file (for streaming execution path)
+        std::vector<VarEntry> inspectVariablesFromFile(const std::string &filePath)
+        {
+            // Load the file as history and call inspectVariables
+            history_.clear();
+            std::ifstream fin(filePath);
+            if (fin.is_open())
+            {
+                std::string line;
+                while (std::getline(fin, line))
+                    history_.push_back(line);
+            }
+            return inspectVariables();
+        }
+
         const std::vector<std::string> &history() const { return history_; }
+
+        const std::string &getXellBin() const { return xellBin_; }
 
     private:
         std::string xellBin_;
@@ -711,6 +762,193 @@ namespace xterm
             fileScrollOffset_ = 0;
         }
 
+        // ── Streaming command execution ─────────────────────────────────
+        // Forks a child, streams stdout/stderr into fileOutputLog_ line-by-line
+        // in real time, and keeps childStdinFd_ open for interactive input.
+        // Called from the execution thread (runCode/runFile).
+        void runCommandStreaming(const std::string &cmd, int &exitCode)
+        {
+            int pipeOut[2]; // child stdout/stderr → parent reads
+            int pipeIn[2];  // parent writes → child stdin
+            if (pipe(pipeOut) != 0)
+            {
+                exitCode = -1;
+                return;
+            }
+            if (pipe(pipeIn) != 0)
+            {
+                close(pipeOut[0]);
+                close(pipeOut[1]);
+                exitCode = -1;
+                return;
+            }
+
+            pid_t pid = fork();
+            if (pid < 0)
+            {
+                close(pipeOut[0]);
+                close(pipeOut[1]);
+                close(pipeIn[0]);
+                close(pipeIn[1]);
+                exitCode = -1;
+                return;
+            }
+
+            if (pid == 0)
+            {
+                // Child
+                setsid();
+                close(pipeOut[0]);
+                close(pipeIn[1]);
+                dup2(pipeIn[0], STDIN_FILENO);
+                dup2(pipeOut[1], STDOUT_FILENO);
+                dup2(pipeOut[1], STDERR_FILENO);
+                close(pipeIn[0]);
+                close(pipeOut[1]);
+                execl("/bin/sh", "sh", "-c", cmd.c_str(), nullptr);
+                _exit(127);
+            }
+
+            // Parent
+            close(pipeOut[1]);
+            close(pipeIn[0]);
+            runningChildPid_.store(pid);
+            childStdinFd_.store(pipeIn[1]);
+
+            // Make stdout pipe non-blocking so we can poll
+            int flags = fcntl(pipeOut[0], F_GETFL, 0);
+            fcntl(pipeOut[0], F_SETFL, flags | O_NONBLOCK);
+
+            // Helper: flush lineBuffer as a partial line (e.g. input prompt)
+            std::string lineBuffer;
+            char buf[4096];
+            bool childDone = false;
+
+            auto flushLineBuffer = [&]()
+            {
+                if (!lineBuffer.empty())
+                {
+                    REPLLine line;
+                    line.text = lineBuffer;
+                    line.kind = REPLLine::OUTPUT;
+                    {
+                        std::lock_guard<std::mutex> lock(outputMutex_);
+                        fileOutputLog_.push_back(line);
+                        fileScrollOffset_ = std::max(0,
+                                                     (int)fileOutputLog_.size() - contentHeight());
+                    }
+                    lineBuffer.clear();
+                }
+            };
+
+            while (!childDone)
+            {
+                // Use select() with timeout to detect when child is blocked (waiting for input)
+                fd_set readfds;
+                FD_ZERO(&readfds);
+                FD_SET(pipeOut[0], &readfds);
+                struct timeval tv;
+                tv.tv_sec = 0;
+                tv.tv_usec = 50000; // 50ms timeout
+
+                int sel = select(pipeOut[0] + 1, &readfds, nullptr, nullptr, &tv);
+
+                // Check if child exited (non-blocking)
+                int status = 0;
+                pid_t w = waitpid(pid, &status, WNOHANG);
+                if (w > 0)
+                {
+                    childDone = true;
+                    exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+                }
+
+                if (sel > 0)
+                {
+                    // Data available — read it
+                    ssize_t n;
+                    while ((n = read(pipeOut[0], buf, sizeof(buf))) > 0)
+                    {
+                        for (ssize_t i = 0; i < n; i++)
+                        {
+                            if (buf[i] == '\n')
+                            {
+                                REPLLine line;
+                                line.text = lineBuffer;
+                                line.kind = REPLLine::OUTPUT;
+                                {
+                                    std::lock_guard<std::mutex> lock(outputMutex_);
+                                    fileOutputLog_.push_back(line);
+                                    fileScrollOffset_ = std::max(0,
+                                                                 (int)fileOutputLog_.size() - contentHeight());
+                                }
+                                lineBuffer.clear();
+                            }
+                            else if (buf[i] != '\r')
+                            {
+                                lineBuffer += buf[i];
+                            }
+                        }
+                    }
+                }
+                else if (sel == 0)
+                {
+                    // Timeout — no data for 50ms. If there's a partial line in the buffer,
+                    // flush it (it's likely an input() prompt waiting for user input).
+                    flushLineBuffer();
+                }
+            }
+
+            // Final drain — read any remaining data after child exit
+            {
+                ssize_t n;
+                while ((n = read(pipeOut[0], buf, sizeof(buf))) > 0)
+                {
+                    for (ssize_t i = 0; i < n; i++)
+                    {
+                        if (buf[i] == '\n')
+                        {
+                            REPLLine line;
+                            line.text = lineBuffer;
+                            line.kind = REPLLine::OUTPUT;
+                            {
+                                std::lock_guard<std::mutex> lock(outputMutex_);
+                                fileOutputLog_.push_back(line);
+                            }
+                            lineBuffer.clear();
+                        }
+                        else if (buf[i] != '\r')
+                        {
+                            lineBuffer += buf[i];
+                        }
+                    }
+                }
+            }
+
+            // Flush any remaining partial line
+            flushLineBuffer();
+
+            close(pipeOut[0]);
+            runningChildPid_.store(0);
+            int stdinFd = childStdinFd_.exchange(-1);
+            if (stdinFd >= 0)
+                close(stdinFd);
+
+            // If we haven't reaped yet (shouldn't happen but just in case)
+            if (!childDone)
+            {
+                int status = 0;
+                waitpid(pid, &status, 0);
+                exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+            }
+
+            // Update scroll to end
+            {
+                std::lock_guard<std::mutex> lock(outputMutex_);
+                fileScrollOffset_ = std::max(0,
+                                             (int)fileOutputLog_.size() - contentHeight());
+            }
+        }
+
         // ── Run selection in REPL (Ctrl+Enter) — async ────────────────
 
         void runCode(const std::string &code)
@@ -720,6 +958,8 @@ namespace xterm
 
             // Clear previous output for a fresh run
             fileOutputLog_.clear();
+            stdinInputBuffer_.clear();
+            stdinCursor_ = 0;
 
             // Show what we're running (first line as header)
             REPLLine header;
@@ -752,17 +992,31 @@ namespace xterm
 
             execThread_ = std::thread([this, code]()
                                       {
-                session_.clearHistory();
-                auto result = session_.executeCode(code);
+                // Write code to temp file
+                std::string tmpDir = "/tmp/xell";
+                std::filesystem::create_directories(tmpDir);
+                std::string tmpFile = tmpDir + "/xell_run_" + std::to_string(getpid()) + ".xel";
+                {
+                    FILE *f = fopen(tmpFile.c_str(), "w");
+                    if (f) { fprintf(f, "%s\n", code.c_str()); fclose(f); }
+                }
+                std::string xellBin = session_.getXellBin();
+                std::string cmd = xellBin + " \"" + tmpFile + "\"";
+                int exitCode = 0;
+                runCommandStreaming(cmd, exitCode);
+                // Build result for polling
                 {
                     std::lock_guard<std::mutex> lock(execMutex_);
-                    pendingResult_ = result;
+                    pendingResult_.exitCode = exitCode;
+                    pendingResult_.output.clear();
+                    pendingResult_.errors.clear();
+                    pendingResult_.variables = session_.inspectVariablesFromFile(tmpFile);
                     resultReady_.store(true);
                 }
                 isExecuting_.store(false); });
         }
 
-        // ── Run file (Ctrl+Shift+B) — async ─────────────────────────
+        // ── Run file — async ─────────────────────────
 
         void runFile(const std::string &filePath)
         {
@@ -770,6 +1024,8 @@ namespace xterm
                 return;
 
             fileOutputLog_.clear();
+            stdinInputBuffer_.clear();
+            stdinCursor_ = 0;
 
             REPLLine header;
             header.text = "⏳ [Running: " + std::filesystem::path(filePath).filename().string() + "]";
@@ -787,10 +1043,18 @@ namespace xterm
 
             execThread_ = std::thread([this, filePath]()
                                       {
-                auto result = session_.runFile(filePath);
+                std::string xellBin = session_.getXellBin();
+                std::string cmd = xellBin + " \"" + filePath + "\"";
+                int exitCode = 0;
+                runCommandStreaming(cmd, exitCode);
+                // Build result for polling
                 {
                     std::lock_guard<std::mutex> lock(execMutex_);
-                    pendingResult_ = result;
+                    pendingResult_.exitCode = exitCode;
+                    pendingResult_.output.clear();
+                    pendingResult_.errors.clear();
+                    // Inspect variables from the file
+                    pendingResult_.variables = session_.inspectVariablesFromFile(filePath);
                     resultReady_.store(true);
                 }
                 isExecuting_.store(false); });
@@ -798,6 +1062,12 @@ namespace xterm
 
         // Check if code is currently executing
         bool isExecuting() const { return isExecuting_.load(); }
+
+        // Check if a child process is running and has stdin open (waiting for input)
+        bool isWaitingForInput() const
+        {
+            return isExecuting_.load() && childStdinFd_.load() >= 0;
+        }
 
         // Poll for async execution results (called from tick or render)
         void pollAsyncResult()
@@ -812,67 +1082,73 @@ namespace xterm
                 resultReady_.store(false);
             }
 
-            // Update header to remove spinner
-            if (!fileOutputLog_.empty() && fileOutputLog_[0].kind == REPLLine::INFO)
             {
-                auto &hdr = fileOutputLog_[0].text;
-                // ⏳ is 3 bytes in UTF-8: e2 8f b3
-                if (hdr.size() > 3 && hdr.substr(0, 3) == "\xe2\x8f\xb3")
-                {
-                    std::string rest = hdr.substr(3); // " [Running ...]"
-                    if (result.exitCode == 0)
-                        hdr = "\xe2\x9c\x93" + rest; // ✓
-                    else
-                        hdr = "\xe2\x9c\x97" + rest; // ✗
-                }
-            }
+                std::lock_guard<std::mutex> lock(outputMutex_);
 
-            if (!result.output.empty())
-            {
-                std::string line;
-                for (char c : result.output)
+                // Update header to remove spinner
+                if (!fileOutputLog_.empty() && fileOutputLog_[0].kind == REPLLine::INFO)
                 {
-                    if (c == '\n')
+                    auto &hdr = fileOutputLog_[0].text;
+                    // ⏳ is 3 bytes in UTF-8: e2 8f b3
+                    if (hdr.size() > 3 && hdr.substr(0, 3) == "\xe2\x8f\xb3")
+                    {
+                        std::string rest = hdr.substr(3); // " [Running ...]"
+                        if (result.exitCode == 0)
+                            hdr = "\xe2\x9c\x93" + rest; // ✓
+                        else
+                            hdr = "\xe2\x9c\x97" + rest; // ✗
+                    }
+                }
+
+                // Output lines are already streamed by runCommandStreaming —
+                // only add any residual output/errors from the result if present.
+                if (!result.output.empty())
+                {
+                    std::string line;
+                    for (char c : result.output)
+                    {
+                        if (c == '\n')
+                        {
+                            REPLLine out;
+                            out.text = line;
+                            out.kind = REPLLine::OUTPUT;
+                            fileOutputLog_.push_back(out);
+                            line.clear();
+                        }
+                        else
+                        {
+                            line += c;
+                        }
+                    }
+                    if (!line.empty())
                     {
                         REPLLine out;
                         out.text = line;
                         out.kind = REPLLine::OUTPUT;
                         fileOutputLog_.push_back(out);
-                        line.clear();
-                    }
-                    else
-                    {
-                        line += c;
                     }
                 }
-                if (!line.empty())
+
+                if (!result.errors.empty())
                 {
-                    REPLLine out;
-                    out.text = line;
-                    out.kind = REPLLine::OUTPUT;
-                    fileOutputLog_.push_back(out);
+                    REPLLine err;
+                    err.text = result.errors;
+                    err.kind = REPLLine::ERROR;
+                    fileOutputLog_.push_back(err);
                 }
-            }
 
-            if (!result.errors.empty())
-            {
-                REPLLine err;
-                err.text = result.errors;
-                err.kind = REPLLine::ERROR;
-                fileOutputLog_.push_back(err);
-            }
+                // Exit code footer
+                REPLLine footer;
+                footer.text = "[Exit code: " + std::to_string(result.exitCode) + "]";
+                footer.kind = (result.exitCode == 0) ? REPLLine::INFO : REPLLine::ERROR;
+                fileOutputLog_.push_back(footer);
 
-            // Exit code footer
-            REPLLine footer;
-            footer.text = "[Exit code: " + std::to_string(result.exitCode) + "]";
-            footer.kind = (result.exitCode == 0) ? REPLLine::INFO : REPLLine::ERROR;
-            fileOutputLog_.push_back(footer);
+                // Auto-scroll to bottom
+                fileScrollOffset_ = std::max(0, (int)fileOutputLog_.size() - contentHeight());
+            }
 
             variables_ = result.variables;
             mergeStaticInfo(); // Enrich runtime vars with static scope/lines info
-
-            // Auto-scroll to bottom
-            fileScrollOffset_ = std::max(0, (int)fileOutputLog_.size() - contentHeight());
         }
 
         // ── Inline evaluation (Ctrl+Shift+E) ────────────────────────
@@ -964,7 +1240,13 @@ namespace xterm
                     return;
                 }
             }
-            // Fallback for non-terminal tabs (OUTPUT, DIAGNOSTICS, VARIABLES) — do nothing
+            // Interactive stdin input when a process is running and waiting for input
+            if (isExecuting_.load() && childStdinFd_.load() >= 0)
+            {
+                stdinInputBuffer_.insert(stdinCursor_, text);
+                stdinCursor_ += (int)text.size();
+                return;
+            }
         }
 
         // ── Jump-to-line callback (wired by LayoutManager) ─────────
@@ -1007,10 +1289,13 @@ namespace xterm
                 }
             }
 
-            if (!sourceFile.empty() && onOpenFileAtLine_)
+            // Resolve target file: explicit sourceFile, or fall back to origin file
+            std::string targetFile = !sourceFile.empty() ? sourceFile : originFile_;
+
+            if (!targetFile.empty() && onOpenFileAtLine_)
             {
-                // Cross-file: open the source file at the line
-                onOpenFileAtLine_(sourceFile, lineNum > 0 ? lineNum : 1);
+                // Cross-file or back-to-origin: open the target file at the line
+                onOpenFileAtLine_(targetFile, lineNum > 0 ? lineNum : 1);
             }
             else if (lineNum > 0 && onJumpToLine_)
             {
@@ -1251,6 +1536,62 @@ namespace xterm
                 }
             }
 
+            // Interactive stdin input when a process is running and waiting for input.
+            // Switch to OUTPUT tab and intercept keys regardless of current tab.
+            if (isExecuting_.load() && childStdinFd_.load() >= 0)
+            {
+                activeTab_ = BottomTab::OUTPUT; // ensure user sees the output
+                if (key.sym == SDLK_RETURN || key.sym == SDLK_KP_ENTER)
+                {
+                    // Send input to child process
+                    if (sendInput(stdinInputBuffer_))
+                    {
+                        // Echo input to output log
+                        REPLLine echo;
+                        echo.text = "> " + stdinInputBuffer_;
+                        echo.kind = REPLLine::INFO;
+                        {
+                            std::lock_guard<std::mutex> lock(outputMutex_);
+                            fileOutputLog_.push_back(echo);
+                        }
+                    }
+                    stdinInputBuffer_.clear();
+                    stdinCursor_ = 0;
+                    return true;
+                }
+                else if (key.sym == SDLK_BACKSPACE)
+                {
+                    if (stdinCursor_ > 0 && !stdinInputBuffer_.empty())
+                    {
+                        stdinInputBuffer_.erase(stdinCursor_ - 1, 1);
+                        stdinCursor_--;
+                    }
+                    return true;
+                }
+                else if (key.sym == SDLK_LEFT)
+                {
+                    if (stdinCursor_ > 0)
+                        stdinCursor_--;
+                    return true;
+                }
+                else if (key.sym == SDLK_RIGHT)
+                {
+                    if (stdinCursor_ < (int)stdinInputBuffer_.size())
+                        stdinCursor_++;
+                    return true;
+                }
+                // Let scroll keys fall through
+                else if (key.sym != SDLK_UP && key.sym != SDLK_DOWN &&
+                         key.sym != SDLK_PAGEUP && key.sym != SDLK_PAGEDOWN &&
+                         key.sym != SDLK_TAB)
+                {
+                    // Regular printable keys: consume the KEYDOWN so it doesn't
+                    // fall through to the editor. The actual text arrives via
+                    // SDL_TEXTINPUT which is handled in handleTextInput().
+                    return true;
+                }
+            }
+
             switch (key.sym)
             {
             case SDLK_TAB:
@@ -1350,9 +1691,10 @@ namespace xterm
 
         // ── Static symbol loading (from --check-symbols JSON) ────────
 
-        void loadStaticSymbols(const std::string &json)
+        void loadStaticSymbols(const std::string &json, const std::string &originFile = "")
         {
             staticSymbols_.clear();
+            originFile_ = originFile; // Store origin file for bidirectional navigation
             if (json.empty() || json[0] != '[')
                 return;
 
@@ -1536,6 +1878,7 @@ namespace xterm
     private:
         const ThemeData &theme_;
         mutable REPLSession session_;
+        std::string originFile_; // The file whose symbols are being displayed (for bidirectional nav)
 
         // JSON string parser helper
         static std::string parseJsonString(const std::string &json, size_t &pos)
@@ -1625,9 +1968,14 @@ namespace xterm
         // Async execution state
         mutable std::thread execThread_;
         mutable std::mutex execMutex_;
+        mutable std::mutex outputMutex_; // protects fileOutputLog_ during streaming
         mutable std::atomic<bool> isExecuting_{false};
         mutable std::atomic<bool> resultReady_{false};
         mutable REPLSession::ExecResult pendingResult_;
+
+        // Interactive stdin input buffer (for ask()/input() in OUTPUT tab)
+        mutable std::string stdinInputBuffer_;
+        mutable int stdinCursor_ = 0;
 
         // Diagnostics
         mutable std::vector<std::string> diagnosticLines_;
@@ -1852,11 +2200,22 @@ namespace xterm
         void renderOutput(std::vector<std::vector<Cell>> &cells, int w, int h) const
         {
             int contentH = h - 1; // row 0 = tabs
-            int startLine = fileScrollOffset_;
+            bool showInputBar = isExecuting_.load() && childStdinFd_.load() >= 0;
+            int outputH = showInputBar ? contentH - 1 : contentH; // reserve last row for input
 
-            for (int r = 0; r < contentH && startLine + r < (int)fileOutputLog_.size(); r++)
+            // Take a snapshot under lock to avoid races with streaming thread
+            std::vector<REPLLine> snapshot;
+            int scrollOff;
             {
-                const auto &line = fileOutputLog_[startLine + r];
+                std::lock_guard<std::mutex> lock(outputMutex_);
+                snapshot = fileOutputLog_;
+                scrollOff = fileScrollOffset_;
+            }
+            int startLine = scrollOff;
+
+            for (int r = 0; r < outputH && startLine + r < (int)snapshot.size(); r++)
+            {
+                const auto &line = snapshot[startLine + r];
                 Color fg = outputColor_;
                 if (line.kind == REPLLine::ERROR)
                     fg = errorColor_;
@@ -1875,6 +2234,55 @@ namespace xterm
                         cells[r + 1][c].dirty = true;
                         c++;
                     }
+                }
+            }
+
+            // Render input bar at bottom when process is waiting for stdin
+            if (showInputBar && contentH > 0)
+            {
+                int inputRow = h - 1; // last row
+                Color barBg = {45, 45, 50};
+                Color promptFg = {86, 156, 214}; // blue
+                Color inputFg = {220, 220, 220};
+                Color cursorBg = {200, 200, 200};
+
+                // Fill bar background
+                for (int c = 0; c < w; c++)
+                {
+                    cells[inputRow][c].bg = barBg;
+                    cells[inputRow][c].ch = U' ';
+                    cells[inputRow][c].dirty = true;
+                }
+
+                // Prompt: "input> "
+                std::string prompt = "input> ";
+                int col = 0;
+                for (size_t i = 0; i < prompt.size() && col < w; i++, col++)
+                {
+                    cells[inputRow][col].ch = prompt[i];
+                    cells[inputRow][col].fg = promptFg;
+                    cells[inputRow][col].bg = barBg;
+                    cells[inputRow][col].bold = true;
+                    cells[inputRow][col].dirty = true;
+                }
+
+                // Input text
+                int promptLen = col;
+                for (size_t i = 0; i < stdinInputBuffer_.size() && col < w; i++, col++)
+                {
+                    cells[inputRow][col].ch = stdinInputBuffer_[i];
+                    cells[inputRow][col].fg = inputFg;
+                    cells[inputRow][col].bg = barBg;
+                    cells[inputRow][col].dirty = true;
+                }
+
+                // Cursor
+                int cursorCol = promptLen + stdinCursor_;
+                if (cursorCol < w)
+                {
+                    cells[inputRow][cursorCol].bg = cursorBg;
+                    cells[inputRow][cursorCol].fg = {30, 30, 30};
+                    cells[inputRow][cursorCol].dirty = true;
                 }
             }
         }
@@ -2498,8 +2906,14 @@ namespace xterm
         void renderHelp(std::vector<std::vector<Cell>> &cells, int w, int h) const
         {
             static const std::vector<std::pair<std::string, std::string>> helpItems = {
-                {"Ctrl+Enter", "Run selection, or top-to-cursor if none"},
-                {"Ctrl+R", "Run the current file"},
+                {"", "── Execution Modes ──────────────────────"},
+                {"Ctrl+Enter", "Quick Run: selection or top-to-cursor"},
+                {"Ctrl+R", "Normal Run: run the current file"},
+                {"Ctrl+D", "Debug Run: like Ctrl+Enter + lifecycle"},
+                {"", "  Quick/Normal: Vars, Objects, Dashboard"},
+                {"", "  Debug: + Lifecycle, @breakpoint, @watch"},
+                {"", ""},
+                {"", "── General ─────────────────────────────"},
                 {"Ctrl+Shift+K/Q", "Emergency stop running program"},
                 {"Ctrl+S", "Save current file"},
                 {"Ctrl+N", "New file"},
@@ -2523,6 +2937,7 @@ namespace xterm
                 {"Double-click border", "Toggle panel size"},
                 {"Right-click", "Context menu"},
                 {"", ""},
+                {"", "── Commands ────────────────────────────"},
                 {":ide", "Switch to IDE mode"},
                 {":terminal", "Switch to terminal mode"},
                 {":help", "Show help in terminal mode"},

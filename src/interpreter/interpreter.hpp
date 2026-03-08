@@ -112,6 +112,21 @@ namespace xell
         /// Useful for C++ tests and embedding — avoids modifying Xell source strings.
         void loadModule(const std::string &moduleName);
 
+        /// Enable streaming output: print() writes to stdout immediately.
+        /// Essential when running as a subprocess so output appears in real time
+        /// (e.g. print() before input() prompts).
+        void setStreamOutput(bool val) { streamOutput_ = val; }
+        bool streamOutput() const { return streamOutput_; }
+
+        /// Set a custom input reader.  When set, the input() builtin calls
+        /// this instead of std::getline.  The REPL uses this to temporarily
+        /// restore canonical terminal mode around the actual read so that
+        /// echo and line-editing work even though the REPL itself runs in
+        /// raw mode.
+        using InputHook = std::function<std::string(const std::string & /*prompt*/)>;
+        void setInputHook(InputHook hook) { inputHook_ = std::move(hook); }
+        const InputHook &inputHook() const { return inputHook_; }
+
         /// Check if a function is available in the active builtin table
         bool hasActiveBuiltin(const std::string &name) const { return builtins_.count(name) > 0; }
 
@@ -133,6 +148,8 @@ namespace xell
         std::unordered_set<std::string> importedFiles_; // circular-import guard
         std::vector<std::string> cliArgs_;              // CLI arguments (for __args__ dunder)
         bool isMainFile_ = true;                        // true when running the entry-point file
+        bool streamOutput_ = false;                     // when true, print() writes to stdout immediately
+        InputHook inputHook_;                           // custom stdin reader (used by REPL)
 
         // ---- Debug / Trace ----
         TraceCollector *trace_ = nullptr;    // Non-owning. Null when debug is off.

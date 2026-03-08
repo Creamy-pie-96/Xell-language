@@ -772,6 +772,14 @@ static int executeFile(const std::string &path, const std::vector<std::string> &
     source = applyConvertIfNeeded(source, path);
 
     xell::Interpreter interpreter;
+    // Enable streaming output: print() writes to stdout immediately
+    // so output appears in real time, interleaved with input() prompts.
+    interpreter.setStreamOutput(true);
+
+    // Attach a TraceCollector so @debug/@breakpoint/@watch etc. can activate
+    // (enabled defaults to false — @debug on in user code will flip it)
+    xell::TraceCollector tracer;
+    interpreter.setTraceCollector(&tracer);
 
     try
     {
@@ -784,24 +792,18 @@ static int executeFile(const std::string &path, const std::vector<std::string> &
         interpreter.setCliArgs(cliArgs);
         interpreter.run(program);
 
-        // Print captured output (from print() calls)
-        for (auto &line : interpreter.output())
-            std::cout << line << "\n";
+        // print() already wrote to stdout in real time, no drain needed.
 
         return 0;
     }
     catch (const xell::XellError &e)
     {
-        // Flush any output that was generated before the error
-        for (auto &line : interpreter.output())
-            std::cout << line << "\n";
+        // print() already flushed its output to stdout in real time
         std::cerr << e.what() << "\n";
         return 1;
     }
     catch (const std::exception &e)
     {
-        for (auto &line : interpreter.output())
-            std::cout << line << "\n";
         std::cerr << "Fatal error: " << e.what() << "\n";
         return 2;
     }
@@ -1218,6 +1220,7 @@ static int runKernel()
                 auto tokens = lexer.tokenize();
                 xell::Parser parser(tokens);
                 auto program = parser.parse();
+
                 interpreter.run(program);
 
                 // Collect output from print() calls

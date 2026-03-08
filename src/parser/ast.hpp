@@ -688,6 +688,24 @@ namespace xell
         TrackStmt(int ln = 0) { line = ln; }
     };
 
+    // @profile fn myFunc — measure function execution time
+    // @profile — profile the next statement
+    struct ProfileStmt : Stmt
+    {
+        std::string targetFn; // function name (empty = profile next stmt)
+        ProfileStmt(std::string fn, int ln = 0) : targetFn(std::move(fn)) { line = ln; }
+    };
+
+    // @log "message {var}" — always print
+    // @log when EXPR "message {var}" — conditional log
+    struct LogStmt : Stmt
+    {
+        std::string message; // raw message with {interpolation} placeholders
+        ExprPtr condition;   // non-null for @log when EXPR
+        LogStmt(std::string msg, ExprPtr cond, int ln = 0)
+            : message(std::move(msg)), condition(std::move(cond)) { line = ln; }
+    };
+
     // export fn/class/struct/var/module — wraps any declaration
     struct ExportDecl : Stmt
     {

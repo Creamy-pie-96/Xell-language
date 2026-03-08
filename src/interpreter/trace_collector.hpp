@@ -84,6 +84,8 @@ namespace xell
         BREAKPOINT_HIT,   // @breakpoint snapshot taken
         WATCH_TRIGGERED,  // @watch expression became true
         CHECKPOINT_SAVED, // @checkpoint saved state
+        PROFILE_RESULT,   // @profile fn — execution time measured
+        LOG_MESSAGE,      // @log — user-defined log message
 
         // Sampling
         SAMPLE_GAP, // Skipped iterations marker (sampling mode)
@@ -148,6 +150,10 @@ namespace xell
             return "WATCH_TRIGGERED";
         case TraceEvent::CHECKPOINT_SAVED:
             return "CHECKPOINT_SAVED";
+        case TraceEvent::PROFILE_RESULT:
+            return "PROFILE_RESULT";
+        case TraceEvent::LOG_MESSAGE:
+            return "LOG_MESSAGE";
         case TraceEvent::SAMPLE_GAP:
             return "SAMPLE_GAP";
         default:
@@ -713,6 +719,20 @@ namespace xell
         }
 
         // ------------------------------------------------------------------
+        // Profile tracking (@profile fn myFunc)
+        // ------------------------------------------------------------------
+
+        void enableProfiling(const std::string &fnName)
+        {
+            profiledFunctions_.insert(fnName);
+        }
+
+        bool isFunctionProfiled(const std::string &fnName) const
+        {
+            return profiledFunctions_.count(fnName) > 0;
+        }
+
+        // ------------------------------------------------------------------
         // Call stack management (value-copy, not pointer)
         // ------------------------------------------------------------------
 
@@ -741,6 +761,7 @@ namespace xell
             snapshots_.clear();
             watches_.clear();
             debugFunctions_.clear();
+            profiledFunctions_.clear();
             callStack_.clear();
             nextSequence_ = 0;
             depth_ = 0;
@@ -786,6 +807,7 @@ namespace xell
         std::vector<Snapshot> snapshots_;
         std::vector<WatchExpr> watches_;
         std::unordered_set<std::string> debugFunctions_;
+        std::unordered_set<std::string> profiledFunctions_;
         std::vector<std::string> callStack_;
 
         TrackFilter filter_;

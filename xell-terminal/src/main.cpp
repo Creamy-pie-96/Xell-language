@@ -482,18 +482,51 @@ int main(int argc, char *argv[])
             layout = std::make_unique<xterm::LayoutManager>(ideTheme);
             layout->setCellSize(cell_w, cell_h);
             layout->resize(term_cols, term_rows);
-            // Try to set project root from CWD or known paths
-            char *cwd = getcwd(nullptr, 0);
-            if (cwd)
+            // Resolve CWD from the PTY child shell (not the parent process)
+            std::string projectDir;
+            int pid = pty.childPid();
+            if (pid > 0)
             {
-                layout->setProjectRoot(cwd);
-                free(cwd);
+                // Read /proc/<pid>/cwd symlink to get child shell's working directory
+                char buf[4096] = {};
+                std::string procPath = "/proc/" + std::to_string(pid) + "/cwd";
+                ssize_t len = readlink(procPath.c_str(), buf, sizeof(buf) - 1);
+                if (len > 0)
+                {
+                    buf[len] = '\0';
+                    projectDir = buf;
+                }
             }
+            if (projectDir.empty())
+            {
+                // Fallback to parent process CWD
+                char *cwd = getcwd(nullptr, 0);
+                if (cwd)
+                {
+                    projectDir = cwd;
+                    free(cwd);
+                }
+            }
+            if (!projectDir.empty())
+                layout->setProjectRoot(projectDir);
         }
         else
         {
             layout->setCellSize(cell_w, cell_h);
             layout->resize(term_cols, term_rows);
+            // Refresh project root from child shell CWD (may have changed)
+            int pid = pty.childPid();
+            if (pid > 0)
+            {
+                char buf[4096] = {};
+                std::string procPath = "/proc/" + std::to_string(pid) + "/cwd";
+                ssize_t len = readlink(procPath.c_str(), buf, sizeof(buf) - 1);
+                if (len > 0)
+                {
+                    buf[len] = '\0';
+                    layout->setProjectRoot(std::string(buf));
+                }
+            }
         }
         {
             std::lock_guard<std::mutex> lock(title_mutex);

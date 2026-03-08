@@ -478,9 +478,45 @@ namespace xell
                 lineStr += args[i].toString();
             }
             output_.push_back(lineStr);
+            if (streamOutput_)
+            {
+                std::cout << lineStr << "\n"
+                          << std::flush;
+            }
             return XObject::makeInt(0);
         };
         allBuiltins_["print"] = builtins_["print"];
+
+        // ---- Override input to support inputHook (REPL raw-mode workaround) ----
+        builtins_["input"] = [this](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() > 1)
+                throw ArityError("input", 1, (int)args.size(), line);
+
+            std::string prompt;
+            if (args.size() == 1)
+            {
+                if (!args[0].isString())
+                    throw TypeError("input() prompt must be a string", line);
+                prompt = args[0].asString();
+            }
+
+            // If an inputHook is set (e.g. REPL disabling raw mode around read),
+            // delegate to it.  Otherwise fall back to plain std::getline.
+            if (inputHook_)
+            {
+                return XObject::makeString(inputHook_(prompt));
+            }
+
+            if (!prompt.empty())
+                std::cout << prompt << std::flush;
+
+            std::string input_line;
+            if (std::getline(std::cin, input_line))
+                return XObject::makeString(input_line);
+            return XObject::makeString("");
+        };
+        allBuiltins_["input"] = builtins_["input"];
 
         // ---- Override len to support __len__ magic method ----
         builtins_["len"] = [this](std::vector<XObject> &args, int line) -> XObject
@@ -736,6 +772,60 @@ namespace xell
                             filter.trackRecursion = true;
                     }
                 }
+            }
+            return;
+        }
+        // @profile fn myFunc — register function for profiling
+        if (auto *p = dynamic_cast<const ProfileStmt *>(stmt))
+        {
+            if (trace_)
+            {
+                if (!p->targetFn.empty())
+                {
+                    trace_->enableProfiling(p->targetFn);
+                }
+                // else: profile next statement (handled inline below)
+            }
+            return;
+        }
+        // @log "message" / @log when EXPR "message" — conditional logging
+        if (auto *p = dynamic_cast<const LogStmt *>(stmt))
+        {
+            // Check condition (if any)
+            if (p->condition)
+            {
+                XObject condVal = eval(p->condition.get());
+                if (!condVal.truthy())
+                    return; // condition not met, skip log
+            }
+            // Interpolate {varName} placeholders in message
+            std::string msg = p->message;
+            size_t pos = 0;
+            while ((pos = msg.find('{', pos)) != std::string::npos)
+            {
+                size_t end = msg.find('}', pos);
+                if (end == std::string::npos)
+                    break;
+                std::string varName = msg.substr(pos + 1, end - pos - 1);
+                std::string replacement;
+                try
+                {
+                    XObject val = currentEnv_->get(varName, p->line);
+                    replacement = val.toString();
+                }
+                catch (...)
+                {
+                    replacement = "<undefined>";
+                }
+                msg.replace(pos, end - pos + 1, replacement);
+                pos += replacement.size();
+            }
+            // Print the log message
+            std::cout << "[LOG] " << msg << std::endl;
+            // Also emit trace event if tracing is on
+            if (trace_ && trace_->enabled)
+            {
+                trace_->emit(TraceEvent::LOG_MESSAGE, p->line, "log", "", msg);
             }
             return;
         }
@@ -3769,6 +3859,11 @@ namespace xell
             trace_->pushCallStack(fn.name);
         }
 
+        // @profile fn: start timing if this function is profiled
+        bool isProfiling = trace_ && trace_->isFunctionProfiled(fn.name);
+        auto profileStart = isProfiling ? std::chrono::high_resolution_clock::now()
+                                        : std::chrono::high_resolution_clock::time_point{};
+
         XObject result = XObject::makeNone();
         try
         {
@@ -3788,6 +3883,27 @@ namespace xell
         catch (GiveSignal &sig)
         {
             result = std::move(sig.value);
+        }
+
+        // @profile fn: emit profile result with execution time
+        if (isProfiling)
+        {
+            auto profileEnd = std::chrono::high_resolution_clock::now();
+            auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(profileEnd - profileStart).count();
+            std::string timeStr;
+            if (durationUs < 1000)
+                timeStr = std::to_string(durationUs) + "µs";
+            else if (durationUs < 1000000)
+                timeStr = std::to_string(durationUs / 1000) + "." + std::to_string((durationUs % 1000) / 100) + "ms";
+            else
+                timeStr = std::to_string(durationUs / 1000000) + "." + std::to_string((durationUs % 1000000) / 100000) + "s";
+            // Print profile result
+            std::cout << "[PROFILE] " << fn.name << ": " << timeStr << std::endl;
+            // Emit trace event
+            if (trace_->enabled)
+            {
+                trace_->emit(TraceEvent::PROFILE_RESULT, line, fn.name, "", timeStr);
+            }
         }
 
         // Trace: function returned

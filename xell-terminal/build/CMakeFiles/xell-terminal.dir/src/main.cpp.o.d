@@ -433,7 +433,13 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: \
  /usr/include/x86_64-linux-gnu/bits/types/struct_sigstack.h \
  /usr/include/x86_64-linux-gnu/bits/sigthread.h \
  /usr/include/x86_64-linux-gnu/bits/signal_ext.h \
- /usr/include/x86_64-linux-gnu/bits/types/idtype_t.h \
+ /usr/include/x86_64-linux-gnu/bits/types/idtype_t.h /usr/include/fcntl.h \
+ /usr/include/x86_64-linux-gnu/bits/fcntl.h \
+ /usr/include/x86_64-linux-gnu/bits/fcntl-linux.h \
+ /usr/include/x86_64-linux-gnu/bits/types/struct_iovec.h \
+ /usr/include/linux/falloc.h /usr/include/x86_64-linux-gnu/bits/stat.h \
+ /usr/include/x86_64-linux-gnu/bits/struct_stat.h \
+ /usr/include/x86_64-linux-gnu/bits/fcntl2.h \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/git_panel.hpp \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/visual_effects.hpp \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/config_manager.hpp \
@@ -443,8 +449,6 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/snippet_engine.hpp \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/dashboard_panel.hpp \
  /usr/include/c++/13/cstring /usr/include/x86_64-linux-gnu/sys/stat.h \
- /usr/include/x86_64-linux-gnu/bits/stat.h \
- /usr/include/x86_64-linux-gnu/bits/struct_stat.h \
  /usr/include/x86_64-linux-gnu/bits/statx.h /usr/include/linux/stat.h \
  /usr/include/linux/types.h /usr/include/x86_64-linux-gnu/asm/types.h \
  /usr/include/asm-generic/types.h /usr/include/asm-generic/int-ll64.h \

@@ -1728,6 +1728,53 @@ namespace xell
                 }
                 return track;
             }
+
+            // @profile fn myFunc — measure function execution time
+            // @profile — profile next statement
+            if (lastDec == "profile" && decorators.size() == 1)
+            {
+                std::string targetFn;
+                skipNewlines();
+                if (check(TokenType::FN))
+                {
+                    advance(); // consume 'fn'
+                    if (check(TokenType::IDENTIFIER))
+                    {
+                        targetFn = current().value;
+                        advance();
+                    }
+                    else
+                    {
+                        throw ParseError("Expected function name after @profile fn", current().line);
+                    }
+                }
+                return std::make_unique<ProfileStmt>(std::move(targetFn), ln);
+            }
+
+            // @log "message" — always log
+            // @log when EXPR "message" — conditional log
+            if (lastDec == "log" && decorators.size() == 1)
+            {
+                skipNewlines();
+                ExprPtr condition;
+                // Check for "when" keyword
+                if (check(TokenType::IDENTIFIER) && current().value == "when")
+                {
+                    advance(); // consume 'when'
+                    skipNewlines();
+                    // Parse condition expression up to the string literal
+                    // We'll collect tokens until we see a STRING
+                    condition = parseExpression();
+                }
+                skipNewlines();
+                // Now expect a string literal for the message
+                if (!check(TokenType::STRING))
+                    throw ParseError("Expected string message after @log", current().line);
+                std::string msg = current().value;
+                advance();
+                return std::make_unique<LogStmt>(std::move(msg), std::move(condition), ln);
+            }
+
             // ── End debug/trace decorators ──────────────────────
 
             skipNewlines();
