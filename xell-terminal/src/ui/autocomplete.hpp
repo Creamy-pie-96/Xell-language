@@ -43,10 +43,11 @@ namespace xterm
 
     struct CompletionItem
     {
-        std::string label;     // main text
-        std::string detail;    // short description
-        std::string signature; // function signature
-        std::string category;  // builtin category
+        std::string label;      // main text
+        std::string detail;     // short description
+        std::string signature;  // function signature
+        std::string category;   // builtin category
+        std::string insertText; // text to insert (may differ from label, e.g. snippet placeholders)
         CompletionKind kind = CompletionKind::Keyword;
         int score = 0; // fuzzy match score
     };
@@ -545,6 +546,15 @@ namespace xterm
                 if (arrStart != std::string::npos)
                     parseBuiltinArray(json, arrStart);
             }
+
+            // Parse debug decorators
+            size_t ddPos = json.find("\"debugDecorators\"");
+            if (ddPos != std::string::npos)
+            {
+                size_t arrStart = json.find('[', ddPos);
+                if (arrStart != std::string::npos)
+                    parseDecoratorArray(json, arrStart);
+            }
         }
 
         void parseKeywordArray(const std::string &json, size_t pos)
@@ -617,6 +627,46 @@ namespace xterm
                 size_t sigPos = json.find("\"sig\"", namePos);
                 if (sigPos != std::string::npos && sigPos < namePos + 500)
                     item.signature = extractString(json, sigPos);
+
+                allItems_.push_back(item);
+                pos = namePos + name.size() + 8;
+            }
+        }
+
+        void parseDecoratorArray(const std::string &json, size_t pos)
+        {
+            // Parse debug decorator completions: [{"name":"@debug on","detail":"...","insertText":"..."}, ...]
+            while (pos < json.size())
+            {
+                size_t namePos = json.find("\"name\"", pos);
+                if (namePos == std::string::npos)
+                    break;
+
+                // Check if we've left the array
+                size_t arrEnd = json.find(']', pos);
+                if (arrEnd != std::string::npos && namePos > arrEnd)
+                    break;
+
+                std::string name = extractString(json, namePos);
+                if (name.empty())
+                {
+                    pos = namePos + 6;
+                    continue;
+                }
+
+                CompletionItem item;
+                item.label = name;
+                item.kind = CompletionKind::Keyword;
+
+                // Extract detail
+                size_t detailPos = json.find("\"detail\"", namePos);
+                if (detailPos != std::string::npos && detailPos < namePos + 500)
+                    item.detail = extractString(json, detailPos);
+
+                // Extract insertText for snippet expansion
+                size_t insPos = json.find("\"insertText\"", namePos);
+                if (insPos != std::string::npos && insPos < namePos + 500)
+                    item.insertText = extractString(json, insPos);
 
                 allItems_.push_back(item);
                 pos = namePos + name.size() + 8;
@@ -732,6 +782,7 @@ namespace xterm
             }
             visible_ = true;
             selectedIdx_ = 0;
+            scrollOffset_ = 0;
             anchorRow_ = screenRow;
             anchorCol_ = screenCol;
         }
@@ -749,6 +800,7 @@ namespace xterm
             }
             visible_ = true;
             selectedIdx_ = 0;
+            scrollOffset_ = 0;
             anchorRow_ = screenRow;
             anchorCol_ = screenCol;
         }
@@ -757,6 +809,7 @@ namespace xterm
         {
             visible_ = false;
             items_.clear();
+            scrollOffset_ = 0;
         }
 
         bool isVisible() const { return visible_; }
@@ -792,13 +845,24 @@ namespace xterm
         void moveUp()
         {
             if (selectedIdx_ > 0)
+            {
                 selectedIdx_--;
+                // Scroll up if selection is above visible window
+                if (selectedIdx_ < scrollOffset_)
+                    scrollOffset_ = selectedIdx_;
+            }
         }
 
         void moveDown()
         {
             if (selectedIdx_ < (int)items_.size() - 1)
+            {
                 selectedIdx_++;
+                // Scroll down if selection is below visible window
+                int maxVisible = std::min((int)items_.size(), maxVisibleItems_);
+                if (selectedIdx_ >= scrollOffset_ + maxVisible)
+                    scrollOffset_ = selectedIdx_ - maxVisible + 1;
+            }
         }
 
         // Accept the selected item
@@ -846,8 +910,12 @@ namespace xterm
             out.cells.resize(maxVisible);
             for (int i = 0; i < maxVisible; i++)
             {
+                int itemIdx = i + scrollOffset_;
+                if (itemIdx >= (int)items_.size())
+                    break;
+
                 out.cells[i].resize(totalWidth);
-                bool selected = (i == selectedIdx_);
+                bool selected = (itemIdx == selectedIdx_);
                 Color bg = selected ? selectedBg_ : popupBg_;
                 Color fg = selected ? selectedFg_ : popupFg_;
 
@@ -859,7 +927,7 @@ namespace xterm
                     c.dirty = true;
                 }
 
-                auto &item = items_[i];
+                auto &item = items_[itemIdx];
 
                 // Kind icon
                 char icon = kindIcon(item.kind);
@@ -896,6 +964,31 @@ namespace xterm
                 }
             }
 
+            // Draw scrollbar indicator on right edge if there are more items than visible
+            int totalItems = (int)items_.size();
+            if (totalItems > maxVisible && totalWidth > 1)
+            {
+                // Calculate scrollbar thumb position and size
+                int thumbSize = std::max(1, maxVisible * maxVisible / totalItems);
+                int maxScroll = totalItems - maxVisible; // maximum scrollOffset_
+                int trackRange = maxVisible - thumbSize; // range the thumb can travel
+                int thumbPos = 0;
+                if (maxScroll > 0)
+                    thumbPos = scrollOffset_ * trackRange / maxScroll;
+                thumbPos = std::clamp(thumbPos, 0, trackRange);
+
+                Color scrollTrack = {60, 60, 60};
+                Color scrollThumb = {120, 120, 120};
+
+                int lastCol = totalWidth - 1;
+                for (int i = 0; i < maxVisible; i++)
+                {
+                    bool isThumb = (i >= thumbPos && i < thumbPos + thumbSize);
+                    out.cells[i][lastCol].ch = isThumb ? U'█' : U'░';
+                    out.cells[i][lastCol].fg = isThumb ? scrollThumb : scrollTrack;
+                }
+            }
+
             return out;
         }
 
@@ -904,6 +997,7 @@ namespace xterm
         std::vector<CompletionItem> items_;
         std::string prefix_;
         int selectedIdx_ = 0;
+        int scrollOffset_ = 0; // first visible item index for scrolling
         int anchorRow_ = 0;
         int anchorCol_ = 0;
         bool visible_ = false;

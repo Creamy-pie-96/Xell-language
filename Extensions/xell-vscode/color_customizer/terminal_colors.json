@@ -508,6 +508,7 @@
     "TRY": "keyword.control.trycatch.xell",
     "CATCH": "keyword.control.trycatch.xell",
     "FINALLY": "keyword.control.trycatch.xell",
+    "THROW": "keyword.control.trycatch.xell",
     "INCASE": "keyword.control.conditional.xell",
     "LET": "keyword.other.binding.xell",
     "BE": "keyword.other.binding.xell",

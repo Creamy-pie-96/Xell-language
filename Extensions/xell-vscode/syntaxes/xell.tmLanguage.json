@@ -21,6 +21,9 @@
       "include": "#convert-decorator"
     },
     {
+      "include": "#debug-decorators"
+    },
+    {
       "include": "#function-definition"
     },
     {
@@ -266,6 +269,53 @@
         }
       ]
     },
+    "debug-decorators": {
+      "comment": "Debug system decorators \u2014 @debug on/off, @breakpoint, @watch, etc.",
+      "patterns": [
+        {
+          "comment": "@debug on/off/sample N",
+          "match": "(@debug)\\s+(on|off|sample)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.other.decorator.debug.xell"
+            },
+            "2": {
+              "name": "constant.language.xell"
+            }
+          }
+        },
+        {
+          "comment": "@breakpoint pause [N] / @breakpoint(\"name\") [when EXPR]",
+          "match": "(@breakpoint)\\b",
+          "name": "keyword.other.decorator.debug.xell"
+        },
+        {
+          "comment": "@watch(\"expression\")",
+          "match": "(@watch)\\b",
+          "name": "keyword.other.decorator.debug.xell"
+        },
+        {
+          "comment": "@checkpoint(\"name\")",
+          "match": "(@checkpoint)\\b",
+          "name": "keyword.other.decorator.debug.xell"
+        },
+        {
+          "comment": "@track / @notrack \u2014 selective tracing",
+          "match": "(@(?:no)?track)\\b",
+          "name": "keyword.other.decorator.debug.xell"
+        },
+        {
+          "comment": "@profile fn name",
+          "match": "(@profile)\\b",
+          "name": "keyword.other.decorator.debug.xell"
+        },
+        {
+          "comment": "@log [when EXPR] \"message\"",
+          "match": "(@log)\\b",
+          "name": "keyword.other.decorator.debug.xell"
+        }
+      ]
+    },
     "function-definition": {
       "comment": "fn name(param1, param2):",
       "patterns": [
@@ -402,11 +452,11 @@
       ]
     },
     "error-keywords": {
-      "comment": "Error handling: catch, finally, try",
+      "comment": "Error handling: catch, finally, throw, try",
       "patterns": [
         {
           "name": "keyword.control.trycatch.xell",
-          "match": "\\b(finally|catch|try)\\b"
+          "match": "\\b(finally|catch|throw|try)\\b"
         }
       ]
     },

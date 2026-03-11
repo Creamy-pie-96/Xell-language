@@ -38,6 +38,7 @@ namespace xell
         static TokenType lookupKeyword(const std::string &word);
         static bool isAlpha(char c);
         static bool isDigit(char c);
+        static bool isHexDigit(char c);
         static bool isAlphaNumeric(char c);
     };
 

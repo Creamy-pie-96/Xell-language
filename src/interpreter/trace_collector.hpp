@@ -31,8 +31,9 @@
 namespace xell
 {
 
-    // Forward declaration for watch expression AST
+    // Forward declarations
     struct Expr;
+    class DebugServer;
 
     // =========================================================================
     // TraceEvent — every observable event in the interpreter
@@ -467,6 +468,25 @@ namespace xell
         bool stepping = false;
         bool stepInto = false;
         int stepOutDepth = -1;
+        int stepOverDepth = -1;
+
+        // Debug IPC channel (non-owning pointer, set by main/IDE)
+        DebugServer *debugIPC = nullptr;
+
+        // IDE-set breakpoints (line → type: "snapshot" or "pause")
+        std::unordered_map<int, std::string> ideBreakpoints;
+
+        // Check if a line has an IDE-set breakpoint
+        bool hasBreakpoint(int line) const
+        {
+            return ideBreakpoints.count(line) > 0;
+        }
+
+        std::string breakpointType(int line) const
+        {
+            auto it = ideBreakpoints.find(line);
+            return it != ideBreakpoints.end() ? it->second : "";
+        }
 
         // Access the filter for selective tracking
         TrackFilter &filter() { return filter_; }
@@ -773,6 +793,7 @@ namespace xell
             stepping = false;
             stepInto = false;
             stepOutDepth = -1;
+            stepOverDepth = -1;
         }
 
         // ------------------------------------------------------------------

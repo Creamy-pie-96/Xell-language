@@ -1,0 +1,6 @@
+@debug on
+x = 10
+@checkpoint("before")
+x = 99
+@checkpoint("after")
+print(x)

@@ -90,6 +90,8 @@ namespace xterm
         VARIABLES,
         OBJECTS,
         LIFECYCLE,
+        TIMELINE,
+        CALLSTACK,
         HELP,
     };
 
@@ -951,7 +953,7 @@ namespace xterm
 
         // ── Run selection in REPL (Ctrl+Enter) — async ────────────────
 
-        void runCode(const std::string &code)
+        void runCode(const std::string &code, const std::string &sourceDir = "")
         {
             if (isExecuting_.load())
                 return; // Already running
@@ -990,7 +992,7 @@ namespace xterm
             if (execThread_.joinable())
                 execThread_.join();
 
-            execThread_ = std::thread([this, code]()
+            execThread_ = std::thread([this, code, sourceDir]()
                                       {
                 // Write code to temp file
                 std::string tmpDir = "/tmp/xell";
@@ -1002,6 +1004,8 @@ namespace xterm
                 }
                 std::string xellBin = session_.getXellBin();
                 std::string cmd = xellBin + " \"" + tmpFile + "\"";
+                if (!sourceDir.empty())
+                    cmd += " --source-dir \"" + sourceDir + "\"";
                 int exitCode = 0;
                 runCommandStreaming(cmd, exitCode);
                 // Build result for polling
@@ -1273,6 +1277,43 @@ namespace xterm
 
             activeTab_ = BottomTab::LIFECYCLE;
         }
+
+        // ── Timeline tab API ─────────────────────────────────────────
+
+        void setTimelineEvents(const std::vector<std::string> &events)
+        {
+            timelineEvents_ = events;
+            timelineScrollOffset_ = 0;
+        }
+
+        void appendTimelineEvent(const std::string &event)
+        {
+            timelineEvents_.push_back(event);
+        }
+
+        void clearTimeline()
+        {
+            timelineEvents_.clear();
+            timelineScrollOffset_ = 0;
+        }
+
+        // ── Call Stack tab API ───────────────────────────────────────
+
+        void setCallStack(const std::vector<std::string> &frames)
+        {
+            callstackFrames_ = frames;
+            callstackScrollOffset_ = 0;
+            callstackSelectedFrame_ = 0;
+        }
+
+        void clearCallStack()
+        {
+            callstackFrames_.clear();
+            callstackScrollOffset_ = 0;
+            callstackSelectedFrame_ = 0;
+        }
+
+        int selectedCallStackFrame() const { return callstackSelectedFrame_; }
 
         // Jump to a symbol: if sourceFile is set, open that file; otherwise jump in current file
         void jumpToSymbol(const std::string &lines, const std::string &sourceFile)
@@ -1665,6 +1706,12 @@ namespace xterm
             case BottomTab::LIFECYCLE:
                 renderLifecycle(cells, w, h);
                 break;
+            case BottomTab::TIMELINE:
+                renderTimeline(cells, w, h);
+                break;
+            case BottomTab::CALLSTACK:
+                renderCallStack(cells, w, h);
+                break;
             case BottomTab::HELP:
                 renderHelp(cells, w, h);
                 break;
@@ -1965,6 +2012,15 @@ namespace xterm
         mutable std::vector<std::string> lifecycleEvents_; // cached lifecycle events
         mutable int lifecycleScrollOffset_ = 0;
 
+        // Timeline tab state (debug events from IPC)
+        mutable std::vector<std::string> timelineEvents_; // JSON event strings
+        mutable int timelineScrollOffset_ = 0;
+
+        // Call stack tab state
+        mutable std::vector<std::string> callstackFrames_; // "funcName:lineNo" entries
+        mutable int callstackScrollOffset_ = 0;
+        mutable int callstackSelectedFrame_ = 0;
+
         // Async execution state
         mutable std::thread execThread_;
         mutable std::mutex execMutex_;
@@ -2058,6 +2114,10 @@ namespace xterm
                 return objScrollOffset_;
             case BottomTab::LIFECYCLE:
                 return lifecycleScrollOffset_;
+            case BottomTab::TIMELINE:
+                return timelineScrollOffset_;
+            case BottomTab::CALLSTACK:
+                return callstackScrollOffset_;
             case BottomTab::HELP:
                 return helpScrollOffset_;
             default:
@@ -2079,6 +2139,10 @@ namespace xterm
                 return staticSymbols_.empty() ? 2 : (int)staticSymbols_.size() + 1;
             case BottomTab::LIFECYCLE:
                 return lifecycleEvents_.empty() ? 3 : (int)lifecycleEvents_.size() + 4; // header + separator + data
+            case BottomTab::TIMELINE:
+                return timelineEvents_.empty() ? 2 : (int)timelineEvents_.size() + 1;
+            case BottomTab::CALLSTACK:
+                return callstackFrames_.empty() ? 2 : (int)callstackFrames_.size() + 1;
             case BottomTab::HELP:
                 return 30; // approximate help lines
             default:
@@ -2128,6 +2192,8 @@ namespace xterm
                 {"VARIABLES", BottomTab::VARIABLES},
                 {"OBJECTS", BottomTab::OBJECTS},
                 {"LIFECYCLE", BottomTab::LIFECYCLE},
+                {"TIMELINE", BottomTab::TIMELINE},
+                {"CALLSTACK", BottomTab::CALLSTACK},
                 {"HELP", BottomTab::HELP},
             };
 
@@ -2901,6 +2967,146 @@ namespace xterm
             }
         }
 
+        // ── Timeline panel ───────────────────────────────────────────
+
+        void renderTimeline(std::vector<std::vector<Cell>> &cells, int w, int h) const
+        {
+            int contentH = h; // all rows available
+
+            // Row 0: header
+            {
+                std::string hdr = " TIMELINE ";
+                if (!timelineEvents_.empty())
+                    hdr += "(" + std::to_string(timelineEvents_.size()) + " events)";
+                Color hdrFg = {86, 156, 214};
+                int c = 0;
+                for (auto ch : hdr)
+                {
+                    if (c >= w)
+                        break;
+                    cells[0][c].ch = static_cast<char32_t>(static_cast<unsigned char>(ch));
+                    cells[0][c].fg = hdrFg;
+                    cells[0][c].bold = true;
+                    cells[0][c].dirty = true;
+                    c++;
+                }
+            }
+
+            if (timelineEvents_.empty())
+            {
+                // Empty state
+                std::string msg = "  No timeline events. Use F5 to start a debug session.";
+                if (contentH > 1)
+                {
+                    int c = 0;
+                    for (auto ch : msg)
+                    {
+                        if (c >= w)
+                            break;
+                        cells[1][c].ch = static_cast<char32_t>(static_cast<unsigned char>(ch));
+                        cells[1][c].fg = {128, 128, 128};
+                        cells[1][c].dirty = true;
+                        c++;
+                    }
+                }
+                return;
+            }
+
+            // Data rows
+            int startRow = 1;
+            int startIdx = timelineScrollOffset_;
+            for (int i = startIdx; i < (int)timelineEvents_.size() && startRow + (i - startIdx) < h; i++)
+            {
+                const auto &evt = timelineEvents_[i];
+                int row = startRow + (i - startIdx);
+
+                Color fg = contentFg_;
+                if (evt.find("paused") != std::string::npos)
+                    fg = {255, 200, 60}; // yellow for pause events
+                else if (evt.find("step") != std::string::npos)
+                    fg = {86, 156, 214}; // blue for step events
+                else if (evt.find("breakpoint") != std::string::npos)
+                    fg = {255, 80, 80}; // red for breakpoint hits
+
+                size_t si = 0;
+                int c = 1;
+                while (si < evt.size() && c < w)
+                {
+                    cells[row][c].ch = utf8Decode(evt, si);
+                    cells[row][c].fg = fg;
+                    cells[row][c].dirty = true;
+                    c++;
+                }
+            }
+        }
+
+        // ── Call Stack panel ─────────────────────────────────────────
+
+        void renderCallStack(std::vector<std::vector<Cell>> &cells, int w, int h) const
+        {
+            // Row 0: header
+            {
+                std::string hdr = " CALL STACK";
+                Color hdrFg = {86, 156, 214};
+                int c = 0;
+                for (auto ch : hdr)
+                {
+                    if (c >= w)
+                        break;
+                    cells[0][c].ch = static_cast<char32_t>(static_cast<unsigned char>(ch));
+                    cells[0][c].fg = hdrFg;
+                    cells[0][c].bold = true;
+                    cells[0][c].dirty = true;
+                    c++;
+                }
+            }
+
+            if (callstackFrames_.empty())
+            {
+                std::string msg = "  No call stack. Start a debug session with F5.";
+                if (h > 1)
+                {
+                    int c = 0;
+                    for (auto ch : msg)
+                    {
+                        if (c >= w)
+                            break;
+                        cells[1][c].ch = static_cast<char32_t>(static_cast<unsigned char>(ch));
+                        cells[1][c].fg = {128, 128, 128};
+                        cells[1][c].dirty = true;
+                        c++;
+                    }
+                }
+                return;
+            }
+
+            // Frame rows
+            int startRow = 1;
+            int startIdx = callstackScrollOffset_;
+            for (int i = startIdx; i < (int)callstackFrames_.size() && startRow + (i - startIdx) < h; i++)
+            {
+                int row = startRow + (i - startIdx);
+                bool isSelected = (i == callstackSelectedFrame_);
+
+                // Compose display: "▶ funcName:lineNo" or "  funcName:lineNo"
+                std::string prefix = isSelected ? "▶ " : "  ";
+                std::string display = prefix + callstackFrames_[i];
+
+                Color fg = isSelected ? Color{255, 200, 60} : contentFg_;
+                Color bg = isSelected ? Color{40, 40, 60} : contentBg_;
+
+                int c = 0;
+                for (size_t si = 0; si < display.size() && c < w; c++)
+                {
+                    cells[row][c].ch = utf8Decode(display, si);
+                    cells[row][c].fg = fg;
+                    cells[row][c].bg = bg;
+                    cells[row][c].bold = isSelected;
+                    cells[row][c].dirty = true;
+                }
+            }
+        }
+
         // ── Help content ─────────────────────────────────────────────
 
         void renderHelp(std::vector<std::vector<Cell>> &cells, int w, int h) const
@@ -2912,6 +3118,14 @@ namespace xterm
                 {"Ctrl+D", "Debug Run: like Ctrl+Enter + lifecycle"},
                 {"", "  Quick/Normal: Vars, Objects, Dashboard"},
                 {"", "  Debug: + Lifecycle, @breakpoint, @watch"},
+                {"", ""},
+                {"", "── Live Debugging ──────────────────────"},
+                {"F5", "Start debug / Continue execution"},
+                {"F9", "Toggle breakpoint on current line"},
+                {"F10", "Step Over"},
+                {"F11", "Step Into"},
+                {"Shift+F11", "Step Out"},
+                {"F12", "Stop debug session"},
                 {"", ""},
                 {"", "── General ─────────────────────────────"},
                 {"Ctrl+Shift+K/Q", "Emergency stop running program"},

@@ -1,0 +1,6 @@
+@debug on
+@watch("x > 5")
+x = 1
+x = 3
+x = 6
+x = 10

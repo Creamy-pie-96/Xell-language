@@ -4,6 +4,66 @@
     "body": "@convert \"${1:dialect.xesy}\"",
     "description": "Declare a dialect mapping file. Place at the top of a .xel file."
   },
+  "Debug On": {
+    "prefix": "@debug",
+    "body": "@debug ${1|on,off|}",
+    "description": "Enable or disable the debug trace system"
+  },
+  "Debug Sample": {
+    "prefix": "@debug sample",
+    "body": "@debug sample ${1:10}",
+    "description": "Only trace every Nth event (sampling mode)"
+  },
+  "Breakpoint Snapshot": {
+    "prefix": "@breakpoint",
+    "body": "@breakpoint(\"${1:name}\")",
+    "description": "Take a named variable snapshot (non-blocking)"
+  },
+  "Breakpoint Pause": {
+    "prefix": "@breakpoint pause",
+    "body": "@breakpoint pause",
+    "description": "Pause execution until Enter is pressed"
+  },
+  "Breakpoint Conditional": {
+    "prefix": "@breakpoint when",
+    "body": "@breakpoint(\"${1:name}\") when ${2:condition}",
+    "description": "Conditional breakpoint \u2014 snapshot only when expression is truthy"
+  },
+  "Watch Expression": {
+    "prefix": "@watch",
+    "body": "@watch(\"${1:expression}\")",
+    "description": "Alert when an expression becomes true"
+  },
+  "Checkpoint": {
+    "prefix": "@checkpoint",
+    "body": "@checkpoint(\"${1:name}\")",
+    "description": "Save full state for time-travel debugging"
+  },
+  "Track": {
+    "prefix": "@track",
+    "body": "@track ${1:var(x) fn(y) loop}",
+    "description": "Selectively track variables, functions, classes, or categories"
+  },
+  "Notrack": {
+    "prefix": "@notrack",
+    "body": "@notrack ${1:var(x)}",
+    "description": "Exclude specific items from tracking"
+  },
+  "Profile Function": {
+    "prefix": "@profile",
+    "body": "@profile fn ${1:functionName}",
+    "description": "Measure function execution time"
+  },
+  "Log Message": {
+    "prefix": "@log",
+    "body": "@log \"${1:message {var}}\"",
+    "description": "Print a log message with {var} interpolation"
+  },
+  "Log Conditional": {
+    "prefix": "@log when",
+    "body": "@log when ${1:condition} \"${2:message}\"",
+    "description": "Conditional log \u2014 only print when expression is true"
+  },
   "Function Definition": {
     "prefix": "fn",
     "body": [

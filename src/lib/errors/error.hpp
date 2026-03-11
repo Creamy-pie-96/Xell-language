@@ -262,6 +262,16 @@ namespace xell
             : XellError("HashError", message, line) {}
     };
 
+    // ---- 3m2. Value errors --------------------------------------------------
+
+    /// A value is of the right type but is inappropriate (e.g. step == 0).
+    class ValueError : public XellError
+    {
+    public:
+        ValueError(const std::string &message, int line)
+            : XellError("ValueError", message, line) {}
+    };
+
     // ---- 3n. Immutability errors --------------------------------------------
 
     /// Attempt to mutate an immutable object (e.g. tuple).

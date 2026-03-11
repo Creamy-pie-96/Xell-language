@@ -1,0 +1,7 @@
+@debug on
+@breakpoint("snap1")
+x = 10
+@breakpoint("snap2")
+y = 20
+z = x + y
+print(z)

@@ -152,9 +152,33 @@ namespace xell
         InputHook inputHook_;                           // custom stdin reader (used by REPL)
 
         // ---- Debug / Trace ----
-        TraceCollector *trace_ = nullptr;    // Non-owning. Null when debug is off.
-        std::vector<std::string> callStack_; // Live call stack (function names)
+        TraceCollector *trace_ = nullptr; // Non-owning. Null when debug is off.
 
+        // ---- Call stack for error tracebacks ----
+        struct CallFrame
+        {
+            std::string functionName; // e.g. "validate", "<module>", "MyClass.__init__"
+            int callLine;             // line where the function was called from
+        };
+        std::vector<CallFrame> callStack_;     // Live call stack (function frames)
+        std::vector<CallFrame> lastTraceback_; // Snapshot at point of error (before unwind)
+        bool tracebackCaptured_ = false;       // True once snapshot taken for current error
+
+    public:
+        /// Get a formatted traceback string from the last captured traceback.
+        /// Used by the REPL / main to display Python-style tracebacks.
+        std::string formatTraceback(int errorLine) const;
+
+        /// Get the raw call stack (for testing / introspection)
+        const std::vector<CallFrame> &callFrames() const { return callStack_; }
+
+        /// Get the last captured traceback (for testing)
+        const std::vector<CallFrame> &lastTraceback() const { return lastTraceback_; }
+
+        /// Access the current environment (used by comprehension helpers)
+        Environment *currentEnv() const { return currentEnv_; }
+
+    private:
         // Module system: tracks names that have been export-declared in current scope.
         // Used by execModuleDef to collect exports when building an XModule.
         std::unordered_set<std::string> exportedNames_;
@@ -174,6 +198,12 @@ namespace xell
 
         void registerBuiltins();
 
+        // Built-in Error class hierarchy (Gap 1.8)
+        // Maps C++ error category names (e.g. "TypeError", "IndexError")
+        // to their XStructDef so caught errors become proper instances.
+        std::unordered_map<std::string, std::shared_ptr<XStructDef>> errorClasses_;
+        void registerErrorClasses();
+
         // ---- Statement execution -------------------------------------------
 
         void exec(const Stmt *stmt);
@@ -186,10 +216,21 @@ namespace xell
         void execFnDef(const FnDef *node);
         void execGive(const GiveStmt *node);
         void execExprStmt(const ExprStmt *node);
+
+        /// Convert any iterable source to a materialized vector of XObjects.
+        /// Handles lists, tuples, maps, sets, strings, instances with __iter__.
+        /// Does NOT handle generators — callers should check isGenerator() first
+        /// and consume lazily with nextGeneratorValue().
+        std::vector<XObject> materializeIterable(XObject &src, int line);
+
+        /// Pull the next value from a generator. Returns {false, value} on yield,
+        /// {true, none} when the generator is exhausted.
+        std::pair<bool, XObject> nextGeneratorValue(XObject &gen, int line);
         void execBring(const BringStmt *node);
         void execModuleDef(const ModuleDef *node);
         void execExportDecl(const ExportDecl *node);
         void execTryCatch(const TryCatchStmt *node);
+        void execThrow(const ThrowStmt *node);
         void execInCase(const InCaseStmt *node);
         void execLet(const LetStmt *node);
         void execDestructuring(const DestructuringAssignment *node);
@@ -202,6 +243,11 @@ namespace xell
         void execMemberAssignment(const MemberAssignment *node);
         void execIndexAssignment(const IndexAssignment *node);
 
+        /// Apply a binary arithmetic/string operation to two values.
+        /// Used by augmented assignment (+=, -=, etc.) to avoid duplicating
+        /// the full evalBinary() logic.
+        XObject applyBinaryOp(const std::string &op, XObject left, XObject right, int line);
+
         /// Execute a .xell file and return all module objects defined within.
         /// Used by ModuleResolver for file-based module resolution.
         std::unordered_map<std::string, std::shared_ptr<XModule>>
@@ -211,16 +257,23 @@ namespace xell
 
         XObject eval(const Expr *expr);
         XObject evalBinary(const BinaryExpr *node);
+        XObject evalChainedComparison(const ChainedComparisonExpr *node);
         XObject evalUnary(const UnaryExpr *node);
         XObject evalPostfix(const PostfixExpr *node);
         XObject evalCall(const CallExpr *node);
         XObject evalIndex(const IndexAccess *node);
+        XObject evalSlice(const SliceExpr *node);
         XObject evalMember(const MemberAccess *node);
         XObject evalList(const ListLiteral *node);
         XObject evalTuple(const TupleLiteral *node);
         XObject evalSet(const SetLiteral *node);
         XObject evalFrozenSet(const FrozenSetLiteral *node);
         XObject evalMap(const MapLiteral *node);
+        XObject evalListComprehension(const ListComprehension *node);
+        XObject evalSetComprehension(const SetComprehension *node);
+        XObject evalMapComprehension(const MapComprehension *node);
+        void runCompClauses(const std::vector<CompClause> &clauses,
+                            size_t idx, const std::function<void()> &emitFn);
         XObject evalTernary(const TernaryExpr *node);
         XObject evalIfExpr(const IfExpr *node);
         XObject evalForExpr(const ForExpr *node);
@@ -239,6 +292,10 @@ namespace xell
                            const std::vector<std::pair<std::string, XObject>> *namedArgs = nullptr);
         XObject createGenerator(const XFunction &fn, std::vector<XObject> &args, int line);
         std::string interpolate(const std::string &raw, int line);
+
+        // Debug serialization helpers (Phase 9 — step-through execution)
+        std::string serializeVisibleVars() const;
+        std::string serializeCallStack() const;
 
         // Call a magic method (__dunder__) on an instance if it exists.
         // Returns true and sets result if the method was found and called.

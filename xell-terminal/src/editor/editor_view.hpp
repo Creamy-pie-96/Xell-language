@@ -636,10 +636,14 @@ namespace xterm
                             cell.fg = fgColor_;
                         }
 
-                        // Background: selection, current line, or default
+                        // Background: selection, current line, debug line, or default
                         if (selection_.active && selection_.contains({bufferRow, bufCol}))
                         {
                             cell.bg = selectionBg_;
+                        }
+                        else if (bufferRow == debugLine_)
+                        {
+                            cell.bg = {60, 50, 20}; // yellow-tinted background for debug line
                         }
                         else if (isCurrentLine)
                         {
@@ -834,6 +838,36 @@ namespace xterm
 
         void clearDiagnostics() { diagnosticLines_.clear(); }
 
+        // ── Debug state ─────────────────────────────────────────────────
+
+        // Set the line where execution is paused (0-based), or -1 to clear
+        void setDebugLine(int line) { debugLine_ = line; }
+        int debugLine() const { return debugLine_; }
+
+        // Breakpoints: line (0-based) → type ("pause" or "snapshot")
+        void toggleBreakpoint(int line, const std::string &type = "pause")
+        {
+            auto it = breakpoints_.find(line);
+            if (it != breakpoints_.end())
+                breakpoints_.erase(it);
+            else
+                breakpoints_[line] = type;
+        }
+
+        void addBreakpoint(int line, const std::string &type = "pause")
+        {
+            breakpoints_[line] = type;
+        }
+
+        void removeBreakpoint(int line)
+        {
+            breakpoints_.erase(line);
+        }
+
+        void clearBreakpoints() { breakpoints_.clear(); }
+
+        const std::unordered_map<int, std::string> &breakpoints() const { return breakpoints_; }
+
         // ── Ghost text (autocomplete inline suggestion) ─────────────
 
         void setGhostText(const std::string &text, int line, int col)
@@ -901,6 +935,10 @@ namespace xterm
 
         // Inline diagnostics: line → severity (0=error, 1=warning)
         std::unordered_map<int, int> diagnosticLines_;
+
+        // Debug state: current paused line, breakpoints
+        int debugLine_ = -1;                               // -1 = not debugging, else 0-based line
+        std::unordered_map<int, std::string> breakpoints_; // line → type ("pause","snapshot")
 
         // Ghost text (autocomplete suggestion)
         std::string ghostText_;
@@ -994,19 +1032,44 @@ namespace xterm
                                     : (hasDiag && diagIt->second == 1) ? Color{229, 192, 123} // warning yellow
                                                                        : Color{255, 80, 80};
 
+            // Check for breakpoint on this line
+            auto bpIt = breakpoints_.find(bufferRow);
+            bool hasBP = (bpIt != breakpoints_.end());
+            bool isDebugLine = (debugLine_ == bufferRow);
+
             int numStart = gutterW - 2 - (int)numStr.size(); // right-aligned before separator
 
             for (int col = 0; col < gutterW; col++)
             {
                 auto &cell = row[col];
-                cell.bg = gutterBg_;
+                cell.bg = isDebugLine ? Color{60, 50, 20} : gutterBg_; // yellow-tinted bg for debug line
                 cell.dirty = true;
 
-                if (col == 0 && hasDiag)
+                if (col == 0)
                 {
-                    // Diagnostic marker in first gutter column
-                    cell.ch = U'●';
-                    cell.fg = diagMarkerColor;
+                    // Priority: debug line arrow > breakpoint > diagnostic
+                    if (isDebugLine)
+                    {
+                        cell.ch = U'▶';           // debug execution pointer
+                        cell.fg = {255, 200, 60}; // yellow arrow
+                        cell.bold = true;
+                    }
+                    else if (hasBP)
+                    {
+                        bool isPause = (bpIt->second == "pause");
+                        cell.ch = U'●';
+                        cell.fg = isPause ? Color{160, 80, 255} : Color{80, 160, 255}; // purple=pause, blue=snapshot
+                    }
+                    else if (hasDiag)
+                    {
+                        cell.ch = U'●';
+                        cell.fg = diagMarkerColor;
+                    }
+                    else
+                    {
+                        cell.ch = U' ';
+                        cell.fg = gutterFg_;
+                    }
                 }
                 else if (col == gutterW - 1)
                 {
@@ -1018,8 +1081,8 @@ namespace xterm
                 {
                     // numStr is ASCII digits, safe single-byte decode
                     cell.ch = static_cast<char32_t>(static_cast<unsigned char>(numStr[col - numStart]));
-                    cell.fg = isCurrentLine ? gutterActiveFg_ : gutterFg_;
-                    cell.bold = isCurrentLine;
+                    cell.fg = isCurrentLine ? gutterActiveFg_ : (isDebugLine ? Color{255, 200, 60} : gutterFg_);
+                    cell.bold = isCurrentLine || isDebugLine;
                 }
                 else
                 {

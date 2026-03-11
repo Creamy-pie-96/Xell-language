@@ -442,6 +442,11 @@
       }
     },
     {
+      "name": "throw",
+      "kind": "Keyword",
+      "detail": "throw keyword"
+    },
+    {
       "name": "true",
       "kind": "Constant",
       "detail": "Boolean true",
@@ -2967,6 +2972,7 @@
     "requires",
     "static",
     "struct",
+    "throw",
     "true",
     "try",
     "while",
@@ -3026,6 +3032,7 @@
       "requires",
       "static",
       "struct",
+      "throw",
       "true",
       "try",
       "while",
@@ -3402,5 +3409,79 @@
       "zip_archive",
       "zip_longest"
     ]
-  }
+  },
+  "debugDecorators": [
+    {
+      "name": "@debug on",
+      "kind": "Keyword",
+      "detail": "Enable the debug trace system",
+      "insertText": "@debug on"
+    },
+    {
+      "name": "@debug off",
+      "kind": "Keyword",
+      "detail": "Disable the debug trace system",
+      "insertText": "@debug off"
+    },
+    {
+      "name": "@debug sample",
+      "kind": "Keyword",
+      "detail": "Only trace every Nth event (sampling mode)",
+      "insertText": "@debug sample ${1:10}"
+    },
+    {
+      "name": "@breakpoint",
+      "kind": "Keyword",
+      "detail": "Take a variable snapshot (non-blocking)",
+      "insertText": "@breakpoint(\"${1:name}\")"
+    },
+    {
+      "name": "@breakpoint pause",
+      "kind": "Keyword",
+      "detail": "Pause execution until Enter is pressed",
+      "insertText": "@breakpoint pause"
+    },
+    {
+      "name": "@watch",
+      "kind": "Keyword",
+      "detail": "Alert when an expression becomes true",
+      "insertText": "@watch(\"${1:expression}\")"
+    },
+    {
+      "name": "@checkpoint",
+      "kind": "Keyword",
+      "detail": "Save full state for time-travel debugging",
+      "insertText": "@checkpoint(\"${1:name}\")"
+    },
+    {
+      "name": "@track",
+      "kind": "Keyword",
+      "detail": "Selectively track variables, functions, or categories",
+      "insertText": "@track ${1:var(x) fn(y) loop}"
+    },
+    {
+      "name": "@notrack",
+      "kind": "Keyword",
+      "detail": "Exclude items from tracking",
+      "insertText": "@notrack ${1:var(x)}"
+    },
+    {
+      "name": "@profile",
+      "kind": "Keyword",
+      "detail": "Measure function execution time",
+      "insertText": "@profile fn ${1:functionName}"
+    },
+    {
+      "name": "@log",
+      "kind": "Keyword",
+      "detail": "Print a log message with {var} interpolation",
+      "insertText": "@log \"${1:message {var}}\""
+    },
+    {
+      "name": "@log when",
+      "kind": "Keyword",
+      "detail": "Conditional log: only print when expression is true",
+      "insertText": "@log when ${1:condition} \"${2:message}\""
+    }
+  ]
 }

@@ -59,6 +59,7 @@ namespace xell
         StmtPtr parseModuleDef();
         StmtPtr parseExportDecl();
         StmtPtr parseTryCatchStmt();
+        StmtPtr parseThrowStmt();
         StmtPtr parseInCaseStmt();
         StmtPtr parseEnumDef();
         StmtPtr parseStructDef();
@@ -73,11 +74,15 @@ namespace xell
         ExprPtr parseExpression();
         ExprPtr parseShellOr();  // ||
         ExprPtr parseShellAnd(); // &&
-        ExprPtr parsePipe();     // |
+        ExprPtr parsePipe();     // |>
         ExprPtr parseLogicalOr();
         ExprPtr parseLogicalAnd();
+        ExprPtr parseBitwiseOr();  // |
+        ExprPtr parseBitwiseXor(); // ^
+        ExprPtr parseBitwiseAnd(); // &
         ExprPtr parseEquality();
         ExprPtr parseComparison();
+        ExprPtr parseShift(); // << >>
         ExprPtr parseAddition();
         ExprPtr parseMultiplication();
         ExprPtr parseUnary();
@@ -91,6 +96,9 @@ namespace xell
         ExprPtr parseSetEntries(int ln);
         ExprPtr parseFrozenSetLiteral(); // <expr, expr, ...>
         std::vector<ExprPtr> parseArgList();
+
+        // Comprehension helpers
+        std::vector<CompClause> parseCompClauses();
     };
 
 } // namespace xell

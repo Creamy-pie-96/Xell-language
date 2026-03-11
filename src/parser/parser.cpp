@@ -252,6 +252,8 @@ namespace xell
             return parseExportDecl();
         if (type == TokenType::TRY)
             return parseTryCatchStmt();
+        if (type == TokenType::THROW)
+            return parseThrowStmt();
         if (type == TokenType::INCASE)
             return parseInCaseStmt();
         if (type == TokenType::LET)
@@ -304,7 +306,12 @@ namespace xell
              peekToken(1).type == TokenType::MINUS_EQUAL ||
              peekToken(1).type == TokenType::STAR_EQUAL ||
              peekToken(1).type == TokenType::SLASH_EQUAL ||
-             peekToken(1).type == TokenType::PERCENT_EQUAL))
+             peekToken(1).type == TokenType::PERCENT_EQUAL ||
+             peekToken(1).type == TokenType::AMP_EQUAL ||
+             peekToken(1).type == TokenType::PIPE_EQUAL ||
+             peekToken(1).type == TokenType::CARET_EQUAL ||
+             peekToken(1).type == TokenType::LSHIFT_EQUAL ||
+             peekToken(1).type == TokenType::RSHIFT_EQUAL))
         {
             std::string name = current().value;
             int ln = current().line;
@@ -328,6 +335,21 @@ namespace xell
                 break;
             case TokenType::PERCENT_EQUAL:
                 op = "%";
+                break;
+            case TokenType::AMP_EQUAL:
+                op = "&";
+                break;
+            case TokenType::PIPE_EQUAL:
+                op = "|";
+                break;
+            case TokenType::CARET_EQUAL:
+                op = "^";
+                break;
+            case TokenType::LSHIFT_EQUAL:
+                op = "<<";
+                break;
+            case TokenType::RSHIFT_EQUAL:
+                op = ">>";
                 break;
             default:
                 op = "+";
@@ -439,9 +461,13 @@ namespace xell
                 return std::make_unique<MemberAssignment>(std::move(object), member, std::move(value), ln);
             }
             // Augmented member assignment: expr->field += value  etc.
+            // Store the op in the AST node; the interpreter does read-modify-write.
             if (check(TokenType::PLUS_EQUAL) || check(TokenType::MINUS_EQUAL) ||
                 check(TokenType::STAR_EQUAL) || check(TokenType::SLASH_EQUAL) ||
-                check(TokenType::PERCENT_EQUAL))
+                check(TokenType::PERCENT_EQUAL) ||
+                check(TokenType::AMP_EQUAL) || check(TokenType::PIPE_EQUAL) ||
+                check(TokenType::CARET_EQUAL) || check(TokenType::LSHIFT_EQUAL) ||
+                check(TokenType::RSHIFT_EQUAL))
             {
                 std::string op;
                 switch (current().type)
@@ -461,6 +487,21 @@ namespace xell
                 case TokenType::PERCENT_EQUAL:
                     op = "%";
                     break;
+                case TokenType::AMP_EQUAL:
+                    op = "&";
+                    break;
+                case TokenType::PIPE_EQUAL:
+                    op = "|";
+                    break;
+                case TokenType::CARET_EQUAL:
+                    op = "^";
+                    break;
+                case TokenType::LSHIFT_EQUAL:
+                    op = "<<";
+                    break;
+                case TokenType::RSHIFT_EQUAL:
+                    op = ">>";
+                    break;
                 default:
                     op = "+";
                     break;
@@ -468,48 +509,9 @@ namespace xell
                 advance(); // consume +=
                 ExprPtr rhs = parseExpression();
                 std::string member = mem->member;
-                // Clone the object expression for reading (LHS of the augmented assignment)
-                // Desugar: obj->field += expr → obj->field = obj->field + expr
-                // We rebuild the MemberAccess for reading
-                ExprPtr objForRead = std::move(mem->object);
-                // We need the object twice: once for read, once for write
-                // Since we moved it, parse a fresh read from the original source
-                // Actually, let's be smarter: store the result in a temp
-                // For now, use a simpler approach: wrap as MemberAccess read + BinaryExpr
-                // But we already consumed the object... We need to duplicate it.
-                // Since expressions are unique_ptr, we can't copy. Instead, create
-                // the full RHS from scratch by evaluating at runtime.
-                // The MemberAssignment node will handle this: obj->field = obj->field op rhs
-                // We need the object expression for both read and write.
-                // Let's store the original member access result + op + rhs in the value.
-                // Actually, simplest: just store a BinaryExpr where left = MemberAccess
-                // and rebuild the MemberAccess for reading.
-                // Problem: we moved objForRead. Let's not overcomplicate.
-                // Since we have the name, use the approach: store value as BinaryExpr with
-                // a placeholder read. The interpreter can handle augmented member assignment.
-                // Let's use a special value: BinaryExpr(MemberAccess(null, member), op, rhs)
-                // No — let's just make MemberAssignment store an optional augmented op.
-                // Simplest: just create MemberAssignment with value = BinaryExpr
-                // where the left is a reconstructed MemberAccess. But we need the object.
-                // Since we only have one copy, we'll reconstruct using Identifier if possible.
-                // Actually: let's just handle this in the interpreter using a flag.
-                // For MVP, don't support augmented member assignment yet. KISS.
-                // Reset and let it fall through as an error or expression.
-                // Actually, the simplest correct solution: reconstruct.
-                // If the object was an Identifier (e.g., "self"), we can recreate it.
-                auto *idObj = dynamic_cast<Identifier *>(objForRead.get());
-                if (idObj)
-                {
-                    std::string objName = idObj->name;
-                    int objLn = idObj->line;
-                    ExprPtr readObj = std::make_unique<Identifier>(objName, objLn);
-                    ExprPtr readMember = std::make_unique<MemberAccess>(std::move(readObj), member, ln);
-                    ExprPtr combined = std::make_unique<BinaryExpr>(std::move(readMember), op, std::move(rhs), ln);
-                    consumeStatementEnd();
-                    return std::make_unique<MemberAssignment>(std::move(objForRead), member, std::move(combined), ln);
-                }
-                // Fallback: not supported for complex object expressions
-                throw ParseError("Augmented member assignment only supported on simple identifiers", ln);
+                ExprPtr object = std::move(mem->object);
+                consumeStatementEnd();
+                return std::make_unique<MemberAssignment>(std::move(object), member, std::move(rhs), ln, op);
             }
         }
 
@@ -524,6 +526,58 @@ namespace xell
                 ExprPtr index = std::move(idx->index);
                 consumeStatementEnd();
                 return std::make_unique<IndexAssignment>(std::move(object), std::move(index), std::move(value), ln);
+            }
+            // Augmented index assignment: expr[idx] += value  etc.
+            if (check(TokenType::PLUS_EQUAL) || check(TokenType::MINUS_EQUAL) ||
+                check(TokenType::STAR_EQUAL) || check(TokenType::SLASH_EQUAL) ||
+                check(TokenType::PERCENT_EQUAL) ||
+                check(TokenType::AMP_EQUAL) || check(TokenType::PIPE_EQUAL) ||
+                check(TokenType::CARET_EQUAL) || check(TokenType::LSHIFT_EQUAL) ||
+                check(TokenType::RSHIFT_EQUAL))
+            {
+                std::string op;
+                switch (current().type)
+                {
+                case TokenType::PLUS_EQUAL:
+                    op = "+";
+                    break;
+                case TokenType::MINUS_EQUAL:
+                    op = "-";
+                    break;
+                case TokenType::STAR_EQUAL:
+                    op = "*";
+                    break;
+                case TokenType::SLASH_EQUAL:
+                    op = "/";
+                    break;
+                case TokenType::PERCENT_EQUAL:
+                    op = "%";
+                    break;
+                case TokenType::AMP_EQUAL:
+                    op = "&";
+                    break;
+                case TokenType::PIPE_EQUAL:
+                    op = "|";
+                    break;
+                case TokenType::CARET_EQUAL:
+                    op = "^";
+                    break;
+                case TokenType::LSHIFT_EQUAL:
+                    op = "<<";
+                    break;
+                case TokenType::RSHIFT_EQUAL:
+                    op = ">>";
+                    break;
+                default:
+                    op = "+";
+                    break;
+                }
+                advance(); // consume +=
+                ExprPtr rhs = parseExpression();
+                ExprPtr object = std::move(idx->object);
+                ExprPtr index = std::move(idx->index);
+                consumeStatementEnd();
+                return std::make_unique<IndexAssignment>(std::move(object), std::move(index), std::move(rhs), ln, op);
             }
         }
 
@@ -1001,6 +1055,27 @@ namespace xell
         return std::make_unique<TryCatchStmt>(
             std::move(tryBody), std::move(catchVar),
             std::move(catchBody), std::move(finallyBody), ln);
+    }
+
+    // ============================================================
+    // Throw statement
+    // ============================================================
+
+    StmtPtr Parser::parseThrowStmt()
+    {
+        int ln = current().line;
+        advance(); // consume THROW
+
+        // Bare throw (re-throw) — no expression follows
+        ExprPtr value = nullptr;
+        skipNewlines();
+        if (!check(TokenType::NEWLINE) && !check(TokenType::SEMICOLON) &&
+            !check(TokenType::EOF_TOKEN) && canStartPrimary(current().type))
+        {
+            value = parseExpression();
+        }
+        consumeStatementEnd();
+        return std::make_unique<ThrowStmt>(std::move(value), ln);
     }
 
     // ============================================================
@@ -2208,7 +2283,7 @@ namespace xell
         return left;
     }
 
-    // ---- Pipe: expr | expr  (highest new level) ----
+    // ---- Pipe: expr |> expr  ----
 
     ExprPtr Parser::parsePipe()
     {
@@ -2218,7 +2293,7 @@ namespace xell
             int ln = current().line;
             advance();
             auto right = parseLogicalOr();
-            left = std::make_unique<BinaryExpr>(std::move(left), "|", std::move(right), ln);
+            left = std::make_unique<BinaryExpr>(std::move(left), "|>", std::move(right), ln);
         }
         return left;
     }
@@ -2238,13 +2313,52 @@ namespace xell
 
     ExprPtr Parser::parseLogicalAnd()
     {
-        auto left = parseEquality();
+        auto left = parseBitwiseOr();
         while (check(TokenType::AND))
         {
             int ln = current().line;
             advance();
-            auto right = parseEquality();
+            auto right = parseBitwiseOr();
             left = std::make_unique<BinaryExpr>(std::move(left), "and", std::move(right), ln);
+        }
+        return left;
+    }
+
+    ExprPtr Parser::parseBitwiseOr()
+    {
+        auto left = parseBitwiseXor();
+        while (check(TokenType::BAR))
+        {
+            int ln = current().line;
+            advance();
+            auto right = parseBitwiseXor();
+            left = std::make_unique<BinaryExpr>(std::move(left), "|", std::move(right), ln);
+        }
+        return left;
+    }
+
+    ExprPtr Parser::parseBitwiseXor()
+    {
+        auto left = parseBitwiseAnd();
+        while (check(TokenType::CARET))
+        {
+            int ln = current().line;
+            advance();
+            auto right = parseBitwiseAnd();
+            left = std::make_unique<BinaryExpr>(std::move(left), "^", std::move(right), ln);
+        }
+        return left;
+    }
+
+    ExprPtr Parser::parseBitwiseAnd()
+    {
+        auto left = parseEquality();
+        while (check(TokenType::AMP))
+        {
+            int ln = current().line;
+            advance();
+            auto right = parseEquality();
+            left = std::make_unique<BinaryExpr>(std::move(left), "&", std::move(right), ln);
         }
         return left;
     }
@@ -2252,8 +2366,17 @@ namespace xell
     ExprPtr Parser::parseEquality()
     {
         auto left = parseComparison();
+
+        // Helper: check for "not in" (two-token lookahead)
+        auto isNotIn = [this]()
+        {
+            return (check(TokenType::NOT) || check(TokenType::BANG)) &&
+                   peekToken(1).type == TokenType::IN;
+        };
+
         while (check(TokenType::EQUAL_EQUAL) || check(TokenType::BANG_EQUAL) ||
-               check(TokenType::IS) || check(TokenType::EQ) || check(TokenType::NE))
+               check(TokenType::IS) || check(TokenType::EQ) || check(TokenType::NE) ||
+               check(TokenType::IN) || isNotIn())
         {
             int ln = current().line;
             TokenType opType = current().type;
@@ -2262,6 +2385,13 @@ namespace xell
             std::string op;
             if (opType == TokenType::IS)
                 op = "is"; // instance-of check: obj is ClassName
+            else if (opType == TokenType::IN)
+                op = "in"; // containment check: x in collection
+            else if ((opType == TokenType::NOT || opType == TokenType::BANG) && check(TokenType::IN))
+            {
+                advance(); // consume the IN token
+                op = "not in";
+            }
             else if (opType == TokenType::EQUAL_EQUAL || opType == TokenType::EQ)
                 op = "==";
             else
@@ -2275,7 +2405,7 @@ namespace xell
 
     ExprPtr Parser::parseComparison()
     {
-        auto left = parseAddition();
+        auto left = parseShift();
 
         auto isCompOp = [this]()
         {
@@ -2304,27 +2434,44 @@ namespace xell
         // First comparison
         int ln = current().line;
         std::string op = readOp();
-        auto right = parseAddition();
-        auto result = std::make_unique<BinaryExpr>(std::move(left), op, std::move(right), ln);
+        auto right = parseShift();
 
-        // Chained comparisons: a < b < c → (a < b) and (b < c)
-        // For each additional comparison, we reparse the chain.
-        // Since we can't clone AST nodes, we don't truly chain.
-        // Instead, each comparison is independent: a < b, then b < c.
-        // This means the middle expression is evaluated twice at runtime.
-        // For correctness we just chain as: (a < b) and (b < c).
-        // We track the last right-side expression's line for re-parsing.
-        // But we already consumed it. So for now, single comparisons only.
-        // Multiple comparison operators without chaining just left-associate.
-        while (isCompOp())
+        // Check if this is a single comparison or a chain
+        if (!isCompOp())
         {
-            ln = current().line;
-            op = readOp();
-            right = parseAddition();
-            result = std::make_unique<BinaryExpr>(std::move(result), op, std::move(right), ln);
+            // Single comparison — emit plain BinaryExpr
+            return std::make_unique<BinaryExpr>(std::move(left), op, std::move(right), ln);
         }
 
-        return result;
+        // Chained comparisons: a < b < c >= d → ChainedComparisonExpr
+        std::vector<ExprPtr> operands;
+        std::vector<std::string> ops;
+
+        operands.push_back(std::move(left));
+        ops.push_back(op);
+        operands.push_back(std::move(right));
+
+        while (isCompOp())
+        {
+            ops.push_back(readOp());
+            operands.push_back(parseShift());
+        }
+
+        return std::make_unique<ChainedComparisonExpr>(std::move(operands), std::move(ops), ln);
+    }
+
+    ExprPtr Parser::parseShift()
+    {
+        auto left = parseAddition();
+        while (check(TokenType::LSHIFT) || check(TokenType::RSHIFT))
+        {
+            int ln = current().line;
+            std::string op = (current().type == TokenType::LSHIFT) ? "<<" : ">>";
+            advance();
+            auto right = parseAddition();
+            left = std::make_unique<BinaryExpr>(std::move(left), op, std::move(right), ln);
+        }
+        return left;
     }
 
     ExprPtr Parser::parseAddition()
@@ -2416,6 +2563,21 @@ namespace xell
             return std::make_unique<AwaitExpr>(std::move(operand), ln);
         }
 
+        // ~ — bitwise NOT (integer) or smart-cast prefix (~type(args))
+        if (check(TokenType::TILDE))
+        {
+            int ln = current().line;
+            // Lookahead: ~identifier( → smart-cast; anything else → bitwise NOT
+            if (peekToken(1).type == TokenType::IDENTIFIER && peekToken(2).type == TokenType::LPAREN)
+            {
+                // Smart-cast: handled in parsePrimary
+                return parsePrimary();
+            }
+            advance(); // consume ~
+            auto operand = parseUnary();
+            return std::make_unique<UnaryExpr>("~", std::move(operand), ln);
+        }
+
         return parsePrimary();
     }
 
@@ -2437,10 +2599,22 @@ namespace xell
                 // Has decimal point → float
                 return parsePostfix(std::make_unique<FloatLiteral>(std::stod(val), ln));
             }
+            else if (val.size() > 2 && val[0] == '0' && (val[1] == 'b' || val[1] == 'B'))
+            {
+                // Binary literal: 0b1010
+                return parsePostfix(std::make_unique<IntLiteral>(
+                    std::stoll(val.substr(2), nullptr, 2), ln));
+            }
+            else if (val.size() > 2 && val[0] == '0' && (val[1] == 'o' || val[1] == 'O'))
+            {
+                // Octal literal: 0o77
+                return parsePostfix(std::make_unique<IntLiteral>(
+                    std::stoll(val.substr(2), nullptr, 8), ln));
+            }
             else
             {
-                // No decimal point → int
-                return parsePostfix(std::make_unique<IntLiteral>(std::stoll(val), ln));
+                // Decimal or hex (0x prefix auto-detected by stoll base 0)
+                return parsePostfix(std::make_unique<IntLiteral>(std::stoll(val, nullptr, 0), ln));
             }
         }
 
@@ -2865,13 +3039,61 @@ namespace xell
         {
             int ln = current().line;
 
-            // Index access: expr[index]
+            // Index access or slice: expr[index] or expr[start:end:step]
             if (check(TokenType::LBRACKET))
             {
                 advance();
-                auto index = parseExpression();
-                consume(TokenType::RBRACKET, "Expected ']' after index");
-                expr = std::make_unique<IndexAccess>(std::move(expr), std::move(index), ln);
+
+                // Check for slice syntax: [:...], [start:...], etc.
+                ExprPtr start = nullptr;
+                ExprPtr end = nullptr;
+                ExprPtr step = nullptr;
+
+                // If first token is ':', start is omitted
+                if (check(TokenType::COLON))
+                {
+                    // Slice with omitted start: [:end] or [:end:step] or [:]
+                    advance(); // consume ':'
+                    if (!check(TokenType::RBRACKET) && !check(TokenType::COLON))
+                        end = parseExpression();
+                    if (check(TokenType::COLON))
+                    {
+                        advance();
+                        if (!check(TokenType::RBRACKET))
+                            step = parseExpression();
+                    }
+                    consume(TokenType::RBRACKET, "Expected ']' after slice");
+                    expr = std::make_unique<SliceExpr>(std::move(expr), std::move(start),
+                                                       std::move(end), std::move(step), ln);
+                    continue;
+                }
+
+                // Parse first expression (could be index or start of slice)
+                auto first = parseExpression();
+
+                if (check(TokenType::COLON))
+                {
+                    // It's a slice: [start:end] or [start:end:step]
+                    advance(); // consume ':'
+                    start = std::move(first);
+                    if (!check(TokenType::RBRACKET) && !check(TokenType::COLON))
+                        end = parseExpression();
+                    if (check(TokenType::COLON))
+                    {
+                        advance();
+                        if (!check(TokenType::RBRACKET))
+                            step = parseExpression();
+                    }
+                    consume(TokenType::RBRACKET, "Expected ']' after slice");
+                    expr = std::make_unique<SliceExpr>(std::move(expr), std::move(start),
+                                                       std::move(end), std::move(step), ln);
+                }
+                else
+                {
+                    // Plain index access: expr[index]
+                    consume(TokenType::RBRACKET, "Expected ']' after index");
+                    expr = std::make_unique<IndexAccess>(std::move(expr), std::move(first), ln);
+                }
                 continue;
             }
 
@@ -2958,6 +3180,19 @@ namespace xell
             {
                 elements.push_back(parseExpression());
             }
+
+            // ---- Comprehension: [expr for x in iterable ...] ----
+            skipNewlines();
+            if (check(TokenType::FOR))
+            {
+                // First element is the value expression
+                auto valueExpr = std::move(elements[0]);
+                auto clauses = parseCompClauses();
+                skipNewlines();
+                consume(TokenType::RBRACKET, "Expected ']' to close list comprehension");
+                return std::make_unique<ListComprehension>(std::move(valueExpr), std::move(clauses), ln);
+            }
+
             while (check(TokenType::COMMA))
             {
                 advance();
@@ -2996,7 +3231,7 @@ namespace xell
                 std::vector<std::pair<std::string, ExprPtr>>{}, ln);
         }
 
-        // Lookahead: if (IDENTIFIER|STRING|RAW_STRING) followed by COLON → map
+        // Lookahead: if (IDENTIFIER|STRING|RAW_STRING) followed by COLON → map or map comprehension
         bool isMapPattern = false;
         if (check(TokenType::IDENTIFIER) || check(TokenType::STRING) || check(TokenType::RAW_STRING))
         {
@@ -3036,6 +3271,29 @@ namespace xell
         consume(TokenType::COLON, "Expected ':' after map key");
         skipNewlines();
         ExprPtr value = parseExpression();
+
+        // ---- Map comprehension: {key: value for k in iterable ...} ----
+        skipNewlines();
+        if (check(TokenType::FOR))
+        {
+            // The key was parsed as a string from identifier/string token.
+            // In comprehension context, an identifier key should be a variable reference.
+            ExprPtr keyExpr;
+            // Check if the key looks like a valid variable name (was an identifier token)
+            // We need to distinguish {name: expr for ...} where name is a variable
+            // vs {"literal": expr for ...} where it's a string constant.
+            // Since parseKey consumed the token, we wrap as Identifier to allow
+            // variable resolution. For string literal keys, wrap as StringLiteral.
+            // Heuristic: if the key could be a variable in scope, treat as Identifier.
+            // For simplicity, always treat as Identifier — user can quote for string keys.
+            keyExpr = std::make_unique<Identifier>(key, ln);
+            auto clauses = parseCompClauses();
+            skipNewlines();
+            consume(TokenType::RBRACE, "Expected '}' to close map comprehension");
+            return std::make_unique<MapComprehension>(
+                std::move(keyExpr), std::move(value), std::move(clauses), ln);
+        }
+
         entries.emplace_back(key, std::move(value));
 
         while (check(TokenType::COMMA))
@@ -3062,6 +3320,17 @@ namespace xell
         skipNewlines();
 
         elements.push_back(parseExpression());
+
+        // ---- Set comprehension: {expr for x in iterable ...} ----
+        skipNewlines();
+        if (check(TokenType::FOR))
+        {
+            auto valueExpr = std::move(elements[0]);
+            auto clauses = parseCompClauses();
+            skipNewlines();
+            consume(TokenType::RBRACE, "Expected '}' to close set comprehension");
+            return std::make_unique<SetComprehension>(std::move(valueExpr), std::move(clauses), ln);
+        }
 
         while (check(TokenType::COMMA))
         {
@@ -3206,6 +3475,70 @@ namespace xell
         consume(TokenType::SEMICOLON, "Expected ';' to close let ... be block");
 
         return std::make_unique<LetStmt>(std::move(bindings), std::move(body), ln);
+    }
+
+    // ---- Comprehension clause parser ----
+    // Parses: for x in iterable [if cond] [for y in iter2 [if cond2]] ...
+    // Must be called when current token is FOR.
+    // Uses parseShellOr() instead of parseExpression() for iterables and
+    // conditions to avoid consuming 'if' as ternary syntax.
+    std::vector<CompClause> Parser::parseCompClauses()
+    {
+        std::vector<CompClause> clauses;
+
+        while (check(TokenType::FOR))
+        {
+            advance(); // consume 'for'
+            skipNewlines();
+
+            // Parse variable names (support destructuring: for k, v in ...)
+            std::vector<std::string> vars;
+            if (!check(TokenType::IDENTIFIER))
+                throw ParseError("Expected variable name after 'for' in comprehension", current().line);
+            vars.push_back(advance().value);
+            while (check(TokenType::COMMA))
+            {
+                advance(); // consume ','
+                skipNewlines();
+                if (!check(TokenType::IDENTIFIER))
+                    throw ParseError("Expected variable name after ',' in comprehension", current().line);
+                vars.push_back(advance().value);
+            }
+
+            skipNewlines();
+            consume(TokenType::IN, "Expected 'in' after variable name in comprehension");
+            skipNewlines();
+
+            // Use parseShellOr to avoid consuming 'if' as ternary
+            auto iterable = parseShellOr();
+
+            CompClause forClause;
+            forClause.isFor = true;
+            forClause.vars = std::move(vars);
+            forClause.iterable = std::move(iterable);
+            clauses.push_back(std::move(forClause));
+
+            // Optional if-clause(s)
+            skipNewlines();
+            while (check(TokenType::IF))
+            {
+                advance(); // consume 'if'
+                skipNewlines();
+                // Use parseShellOr to avoid consuming nested 'if' as ternary
+                auto cond = parseShellOr();
+
+                CompClause ifClause;
+                ifClause.isFor = false;
+                ifClause.condition = std::move(cond);
+                clauses.push_back(std::move(ifClause));
+                skipNewlines();
+            }
+        }
+
+        if (clauses.empty())
+            throw ParseError("Expected at least one 'for' clause in comprehension", current().line);
+
+        return clauses;
     }
 
 } // namespace xell

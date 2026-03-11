@@ -1,0 +1,10 @@
+fn inner(n) :
+    result = n * 2
+    give result
+;
+fn outer(n) :
+    val = inner(n)
+    give val + 1
+;
+answer = outer(5)
+print(answer)

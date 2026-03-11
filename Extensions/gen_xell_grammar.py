@@ -190,7 +190,7 @@ def classify_keywords(token_src):
     CONTROL_FLOW_WORDS = {"break", "continue"}
     FN_DECL_WORDS = {"fn"}
     RETURN_WORDS = {"give"}
-    ERROR_WORDS = {"try", "catch", "finally"}
+    ERROR_WORDS = {"try", "catch", "finally", "throw"}
     BINDING_WORDS = {"let", "be", "immutable"}
     IMPORT_WORDS = {"bring", "from", "as"}
     MODULE_WORDS = {"module", "export", "requires"}
@@ -301,7 +301,7 @@ def build_tmlanguage(kw_classes, builtin_cats):
 
     includes = [
         "#block-comment", "#line-comment", "#strings",
-        "#convert-decorator",
+        "#convert-decorator", "#debug-decorators",
         "#function-definition", "#for-loop", "#for-in-loop", "#bring-statement",
         "#fn-declaration-keywords", "#return-keywords",
         "#conditional-keywords", "#loop-keywords", "#control-flow-keywords",
@@ -369,6 +369,52 @@ def build_tmlanguage(kw_classes, builtin_cats):
                 "2": {"name": "string.quoted.double.xell"},
             }
         }]
+    }
+
+    # Debug/trace decorators: @debug, @breakpoint, @watch, @checkpoint,
+    # @track, @notrack, @profile, @log (Phase 5 of the debug system)
+    repo["debug-decorators"] = {
+        "comment": "Debug system decorators — @debug on/off, @breakpoint, @watch, etc.",
+        "patterns": [
+            {
+                "comment": "@debug on/off/sample N",
+                "match": "(@debug)\\s+(on|off|sample)\\b",
+                "captures": {
+                    "1": {"name": "keyword.other.decorator.debug.xell"},
+                    "2": {"name": "constant.language.xell"},
+                }
+            },
+            {
+                "comment": "@breakpoint pause [N] / @breakpoint(\"name\") [when EXPR]",
+                "match": "(@breakpoint)\\b",
+                "name": "keyword.other.decorator.debug.xell",
+            },
+            {
+                "comment": "@watch(\"expression\")",
+                "match": "(@watch)\\b",
+                "name": "keyword.other.decorator.debug.xell",
+            },
+            {
+                "comment": "@checkpoint(\"name\")",
+                "match": "(@checkpoint)\\b",
+                "name": "keyword.other.decorator.debug.xell",
+            },
+            {
+                "comment": "@track / @notrack — selective tracing",
+                "match": "(@(?:no)?track)\\b",
+                "name": "keyword.other.decorator.debug.xell",
+            },
+            {
+                "comment": "@profile fn name",
+                "match": "(@profile)\\b",
+                "name": "keyword.other.decorator.debug.xell",
+            },
+            {
+                "comment": "@log [when EXPR] \"message\"",
+                "match": "(@log)\\b",
+                "name": "keyword.other.decorator.debug.xell",
+            },
+        ]
     }
 
     # Function definition
@@ -1265,6 +1311,71 @@ def build_snippets(kw_classes, builtin_cats, tier2_modules):
         "description": "Declare a dialect mapping file. Place at the top of a .xel file.",
     }
 
+    # ── Debug decorators ────────────────────────────────────
+
+    snips["Debug On"] = {
+        "prefix": "@debug",
+        "body": "@debug ${1|on,off|}",
+        "description": "Enable or disable the debug trace system",
+    }
+    snips["Debug Sample"] = {
+        "prefix": "@debug sample",
+        "body": "@debug sample ${1:10}",
+        "description": "Only trace every Nth event (sampling mode)",
+    }
+    snips["Breakpoint Snapshot"] = {
+        "prefix": "@breakpoint",
+        "body": '@breakpoint("${1:name}")',
+        "description": "Take a named variable snapshot (non-blocking)",
+    }
+    snips["Breakpoint Pause"] = {
+        "prefix": "@breakpoint pause",
+        "body": "@breakpoint pause",
+        "description": "Pause execution until Enter is pressed",
+    }
+    snips["Breakpoint Conditional"] = {
+        "prefix": "@breakpoint when",
+        "body": '@breakpoint("${1:name}") when ${2:condition}',
+        "description": "Conditional breakpoint — snapshot only when expression is truthy",
+    }
+    snips["Watch Expression"] = {
+        "prefix": "@watch",
+        "body": '@watch("${1:expression}")',
+        "description": "Alert when an expression becomes true",
+    }
+    snips["Checkpoint"] = {
+        "prefix": "@checkpoint",
+        "body": '@checkpoint("${1:name}")',
+        "description": "Save full state for time-travel debugging",
+    }
+    snips["Track"] = {
+        "prefix": "@track",
+        "body": "@track ${1:var(x) fn(y) loop}",
+        "description": "Selectively track variables, functions, classes, or categories",
+    }
+    snips["Notrack"] = {
+        "prefix": "@notrack",
+        "body": "@notrack ${1:var(x)}",
+        "description": "Exclude specific items from tracking",
+    }
+    snips["Profile Function"] = {
+        "prefix": "@profile",
+        "body": "@profile fn ${1:functionName}",
+        "description": "Measure function execution time",
+    }
+    snips["Log Message"] = {
+        "prefix": "@log",
+        "body": '@log "${1:message {var}}"',
+        "description": "Print a log message with {var} interpolation",
+    }
+    snips["Log Conditional"] = {
+        "prefix": "@log when",
+        "body": '@log when ${1:condition} "${2:message}"',
+        "description": "Conditional log — only print when expression is true",
+    }
+
+    # ── Core language constructs ────────────────────────────
+
     snips["Function Definition"] = {
         "prefix": "fn",
         "body": ["fn ${1:name}(${2:params}) :", "    ${3:# body}", ";"],
@@ -1666,6 +1777,22 @@ def build_language_data(kw_classes, builtin_cats, keywords):
         "canonicalKeywords": sorted(keywords),
         "canonicalBuiltins": all_builtin_names,
     }
+
+    # Debug decorators — completions for @debug, @breakpoint, @watch, etc.
+    data["debugDecorators"] = [
+        {"name": "@debug on",       "kind": "Keyword", "detail": "Enable the debug trace system",                       "insertText": "@debug on"},
+        {"name": "@debug off",      "kind": "Keyword", "detail": "Disable the debug trace system",                      "insertText": "@debug off"},
+        {"name": "@debug sample",   "kind": "Keyword", "detail": "Only trace every Nth event (sampling mode)",          "insertText": "@debug sample ${1:10}"},
+        {"name": "@breakpoint",     "kind": "Keyword", "detail": "Take a variable snapshot (non-blocking)",             "insertText": "@breakpoint(\"${1:name}\")"},
+        {"name": "@breakpoint pause", "kind": "Keyword", "detail": "Pause execution until Enter is pressed",            "insertText": "@breakpoint pause"},
+        {"name": "@watch",          "kind": "Keyword", "detail": "Alert when an expression becomes true",               "insertText": "@watch(\"${1:expression}\")"},
+        {"name": "@checkpoint",     "kind": "Keyword", "detail": "Save full state for time-travel debugging",           "insertText": "@checkpoint(\"${1:name}\")"},
+        {"name": "@track",          "kind": "Keyword", "detail": "Selectively track variables, functions, or categories","insertText": "@track ${1:var(x) fn(y) loop}"},
+        {"name": "@notrack",        "kind": "Keyword", "detail": "Exclude items from tracking",                         "insertText": "@notrack ${1:var(x)}"},
+        {"name": "@profile",        "kind": "Keyword", "detail": "Measure function execution time",                     "insertText": "@profile fn ${1:functionName}"},
+        {"name": "@log",            "kind": "Keyword", "detail": "Print a log message with {var} interpolation",        "insertText": "@log \"${1:message {var}}\""},
+        {"name": "@log when",       "kind": "Keyword", "detail": "Conditional log: only print when expression is true", "insertText": "@log when ${1:condition} \"${2:message}\""},
+    ]
 
     return data
 

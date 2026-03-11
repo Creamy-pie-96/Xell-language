@@ -101,9 +101,9 @@ static bool expectError(const std::string &source)
 
 void testPipeBasic()
 {
-    // | concatenates two strings with " | "
+    // |> concatenates two strings with " | "
     auto out = runXell(R"(
-        result = "ls -la" | "grep foo"
+        result = "ls -la" |> "grep foo"
         print(result)
     )");
     XASSERT_EQ(out.size(), 1u);
@@ -114,7 +114,7 @@ void testPipeChain()
 {
     // Multiple pipes chain left-to-right
     auto out = runXell(R"(
-        result = "cat file.txt" | "sort" | "uniq" | "head -10"
+        result = "cat file.txt" |> "sort" |> "uniq" |> "head -10"
         print(result)
     )");
     XASSERT_EQ(out.size(), 1u);
@@ -126,7 +126,7 @@ void testPipeWithVariables()
     auto out = runXell(R"(
         cmd1 = "find . -name '*.cpp'"
         cmd2 = "wc -l"
-        pipeline = cmd1 | cmd2
+        pipeline = cmd1 |> cmd2
         print(pipeline)
     )");
     XASSERT_EQ(out.size(), 1u);
@@ -135,15 +135,15 @@ void testPipeWithVariables()
 
 void testPipeTypeError()
 {
-    // | on non-strings should throw TypeError
-    XASSERT(expectError<TypeError>("x = 42 | 10"));
+    // |> on non-strings should throw TypeError
+    XASSERT(expectError<TypeError>("x = 42 |> 10"));
 }
 
 void testPipeWithRunCapture()
 {
     // Build a pipeline and run it
     auto out = runXell(R"(
-        pipeline = "echo hello" | "cat"
+        pipeline = "echo hello" |> "cat"
         result = run_capture(pipeline)
         print(result["stdout"])
     )");
@@ -445,7 +445,7 @@ void testPipeBuildAndRun()
 {
     // Build a pipeline string, then execute it
     auto out = runXell(R"(
-        result = run_capture("echo hello world" | "tr 'a-z' 'A-Z'")
+        result = run_capture("echo hello world" |> "tr 'a-z' 'A-Z'")
         print(result["stdout"])
     )");
     XASSERT_EQ(out.size(), 1u);
@@ -456,7 +456,7 @@ void testPipeWithAndChain()
 {
     // Build pipeline then chain: run(pipeline) && run(next)
     auto out = runXell(R"(
-        result = run("echo hello" | "cat") && run("echo done")
+        result = run("echo hello" |> "cat") && run("echo done")
         print(result)
     )");
     XASSERT_EQ(out.size(), 1u);
@@ -534,7 +534,7 @@ void testPipeHigherThanAnd()
     // Should parse as: ("a" | "b") && ("c" | "d")
     // since | binds tighter than &&
     auto out = runXell(R"(
-        result = 0 && ("ls" | "grep foo")
+        result = 0 && ("ls" |> "grep foo")
         print(result)
     )");
     XASSERT_EQ(out.size(), 1u);
@@ -574,11 +574,11 @@ void testAllOpsPrecedence()
 
 void testLexerPipeToken()
 {
-    Lexer lexer("a | b");
+    Lexer lexer("a |> b");
     auto tokens = lexer.tokenize();
     XASSERT(tokens.size() >= 3);
     XASSERT(tokens[1].type == TokenType::PIPE);
-    XASSERT_EQ(tokens[1].value, "|");
+    XASSERT_EQ(tokens[1].value, "|>");
 }
 
 void testLexerAmpAmpToken()
@@ -599,20 +599,14 @@ void testLexerPipePipeToken()
     XASSERT_EQ(tokens[1].value, "||");
 }
 
-void testLexerSingleAmpError()
+void testLexerSingleAmpToken()
 {
-    // Single & should be a lexer error
-    bool gotError = false;
-    try
-    {
-        Lexer lexer("a & b");
-        lexer.tokenize();
-    }
-    catch (const LexerError &)
-    {
-        gotError = true;
-    }
-    XASSERT(gotError);
+    // Single & is now the bitwise AND token (AMP)
+    Lexer lexer("a & b");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 3);
+    XASSERT(tokens[1].type == TokenType::AMP);
+    XASSERT_EQ(tokens[1].value, "&");
 }
 
 // ============================================================================
@@ -685,7 +679,7 @@ int main()
     runTest("lexer: | token", testLexerPipeToken);
     runTest("lexer: && token", testLexerAmpAmpToken);
     runTest("lexer: || token", testLexerPipePipeToken);
-    runTest("lexer: single & is error", testLexerSingleAmpError);
+    runTest("lexer: single & is AMP token", testLexerSingleAmpToken);
 
     std::cout << "\n============================================\n";
     std::cout << "  Total: " << (g_passed + g_failed)

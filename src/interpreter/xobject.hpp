@@ -265,6 +265,13 @@ namespace xell
         XType type;
         void *payload; // points to the type-specific data
 
+        // ---- GC cycle-collector fields ----
+        XData *gc_next = nullptr; // intrusive doubly-linked list
+        XData *gc_prev = nullptr;
+        int32_t gc_refs = 0;        // temporary: trial-deletion ref count
+        bool gc_tracked = false;    // is this on the GC tracking list?
+        bool gc_collecting = false; // being freed by GC (skip in release())
+
         XData(XType type, void *payload)
             : refCount(1), type(type), payload(payload) {}
 
@@ -448,6 +455,17 @@ namespace xell
         static int64_t liveAllocations();
         static void resetAllocationCounter();
 
+        /// Called by the cycle collector to free a payload without going through
+        /// the normal release() path. Public so gc.cpp can use it.
+        static void freePayload(XType type, void *payload);
+
+        /// Called by the cycle collector after deleting an XData to keep the
+        /// global allocation counter accurate.
+        static void notifyGCFreed(size_t count);
+
+        /// Raw access to underlying XData (for GC traversal only).
+        XData *rawData() const { return data_; }
+
     private:
         XData *data_;
 
@@ -459,9 +477,6 @@ namespace xell
 
         /// Decrement ref count, free if zero
         void release();
-
-        /// Free the payload based on type
-        static void freePayload(XType type, void *payload);
     };
 
     // ========================================================================

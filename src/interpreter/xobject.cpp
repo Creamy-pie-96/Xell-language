@@ -1,6 +1,7 @@
 #include "xobject.hpp"
 #include "../module/xmodule.hpp"
 #include "../lib/errors/error.hpp"
+#include "../xobject/gc.hpp"
 #include <sstream>
 #include <cmath>
 #include <cstring>
@@ -18,6 +19,11 @@ namespace xell
 
     int64_t XObject::liveAllocations() { return g_liveAllocs.load(std::memory_order_relaxed); }
     void XObject::resetAllocationCounter() { g_liveAllocs.store(0, std::memory_order_relaxed); }
+
+    void XObject::notifyGCFreed(size_t count)
+    {
+        g_liveAllocs.fetch_sub(static_cast<int64_t>(count), std::memory_order_relaxed);
+    }
 
     // ========================================================================
     // xtype_name — human-readable type tag
@@ -122,7 +128,10 @@ namespace xell
     static XData *allocData(XType type, void *payload)
     {
         g_liveAllocs.fetch_add(1, std::memory_order_relaxed);
-        return new XData(type, payload);
+        XData *data = new XData(type, payload);
+        if (isGCContainerType(static_cast<uint8_t>(type)))
+            GCHeap::instance().track(data);
+        return data;
     }
 
     // GeneratorState destructor — defined here because XObject is now complete
@@ -402,9 +411,19 @@ namespace xell
         if (!data_)
             return;
 
+        // If this object is being freed by the cycle collector,
+        // just null our handle and return — the GC owns the deallocation.
+        if (data_->gc_collecting)
+        {
+            data_ = nullptr;
+            return;
+        }
+
         if (data_->refCount.fetch_sub(1, std::memory_order_acq_rel) == 1)
         {
             // Old value was 1 → now 0, we own the last reference
+            if (data_->gc_tracked)
+                GCHeap::instance().untrack(data_);
             freePayload(data_->type, data_->payload);
             delete data_;
             g_liveAllocs.fetch_sub(1, std::memory_order_relaxed);

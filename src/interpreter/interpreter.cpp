@@ -1,4 +1,5 @@
 #include "interpreter.hpp"
+#include "debug_ipc.hpp"
 #include "../builtins/register_all.hpp"
 #include "../module/xmodule.hpp"
 #include "../lexer/lexer.hpp"
@@ -70,6 +71,13 @@ namespace xell
             return true;
         if (auto *p = dynamic_cast<const BinaryExpr *>(expr))
             return containsYieldExpr(p->left.get()) || containsYieldExpr(p->right.get());
+        if (auto *p = dynamic_cast<const ChainedComparisonExpr *>(expr))
+        {
+            for (const auto &operand : p->operands)
+                if (containsYieldExpr(operand.get()))
+                    return true;
+            return false;
+        }
         if (auto *p = dynamic_cast<const UnaryExpr *>(expr))
             return containsYieldExpr(p->operand.get());
         if (auto *p = dynamic_cast<const CallExpr *>(expr))
@@ -81,6 +89,11 @@ namespace xell
         }
         if (auto *p = dynamic_cast<const TernaryExpr *>(expr))
             return containsYieldExpr(p->value.get()) || containsYieldExpr(p->condition.get()) || containsYieldExpr(p->alternative.get());
+        if (auto *p = dynamic_cast<const SliceExpr *>(expr))
+            return containsYieldExpr(p->object.get()) ||
+                   (p->start && containsYieldExpr(p->start.get())) ||
+                   (p->end && containsYieldExpr(p->end.get())) ||
+                   (p->step && containsYieldExpr(p->step.get()));
         return false;
     }
 
@@ -114,6 +127,13 @@ namespace xell
             return false;
         }
         if (auto *p = dynamic_cast<const WhileStmt *>(stmt))
+        {
+            for (const auto &s : p->body)
+                if (containsYieldStmt(s.get()))
+                    return true;
+            return false;
+        }
+        if (auto *p = dynamic_cast<const LoopStmt *>(stmt))
         {
             for (const auto &s : p->body)
                 if (containsYieldStmt(s.get()))
@@ -164,6 +184,12 @@ namespace xell
             collectExprDeps(p->right.get(), deps);
             return;
         }
+        if (auto *p = dynamic_cast<const ChainedComparisonExpr *>(expr))
+        {
+            for (const auto &operand : p->operands)
+                collectExprDeps(operand.get(), deps);
+            return;
+        }
         if (auto *p = dynamic_cast<const UnaryExpr *>(expr))
         {
             collectExprDeps(p->operand.get(), deps);
@@ -184,6 +210,17 @@ namespace xell
         {
             collectExprDeps(p->object.get(), deps);
             collectExprDeps(p->index.get(), deps);
+            return;
+        }
+        if (auto *p = dynamic_cast<const SliceExpr *>(expr))
+        {
+            collectExprDeps(p->object.get(), deps);
+            if (p->start)
+                collectExprDeps(p->start.get(), deps);
+            if (p->end)
+                collectExprDeps(p->end.get(), deps);
+            if (p->step)
+                collectExprDeps(p->step.get(), deps);
             return;
         }
         if (auto *p = dynamic_cast<const MemberAccess *>(expr))
@@ -213,6 +250,268 @@ namespace xell
     }
 
     // ========================================================================
+    // AST helper: collect free variables of a function body
+    // ========================================================================
+    // Collects all Identifier names referenced in a statement list, without
+    // descending into nested FnDef or LambdaExpr nodes (they capture their
+    // own closures). The caller subtracts the function's own parameters to
+    // get the true set of free variables that need to be captured.
+
+    static void collectRefsStmt(const Stmt *stmt, std::unordered_set<std::string> &refs);
+
+    static void collectRefsBlock(const std::vector<std::unique_ptr<Stmt>> &body,
+                                 std::unordered_set<std::string> &refs)
+    {
+        for (const auto &s : body)
+            collectRefsStmt(s.get(), refs);
+    }
+
+    static void collectRefsExpr(const Expr *expr, std::unordered_set<std::string> &refs)
+    {
+        if (!expr)
+            return;
+        if (auto *p = dynamic_cast<const Identifier *>(expr))
+        {
+            refs.insert(p->name);
+            return;
+        }
+        if (auto *p = dynamic_cast<const BinaryExpr *>(expr))
+        {
+            collectRefsExpr(p->left.get(), refs);
+            collectRefsExpr(p->right.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const ChainedComparisonExpr *>(expr))
+        {
+            for (const auto &o : p->operands)
+                collectRefsExpr(o.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const UnaryExpr *>(expr))
+        {
+            collectRefsExpr(p->operand.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const PostfixExpr *>(expr))
+        {
+            collectRefsExpr(p->operand.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const CallExpr *>(expr))
+        {
+            for (const auto &a : p->args)
+                collectRefsExpr(a.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const IndexAccess *>(expr))
+        {
+            collectRefsExpr(p->object.get(), refs);
+            collectRefsExpr(p->index.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const SliceExpr *>(expr))
+        {
+            collectRefsExpr(p->object.get(), refs);
+            if (p->start)
+                collectRefsExpr(p->start.get(), refs);
+            if (p->end)
+                collectRefsExpr(p->end.get(), refs);
+            if (p->step)
+                collectRefsExpr(p->step.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const MemberAccess *>(expr))
+        {
+            collectRefsExpr(p->object.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const TernaryExpr *>(expr))
+        {
+            collectRefsExpr(p->value.get(), refs);
+            collectRefsExpr(p->condition.get(), refs);
+            collectRefsExpr(p->alternative.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const ListLiteral *>(expr))
+        {
+            for (const auto &e : p->elements)
+                collectRefsExpr(e.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const TupleLiteral *>(expr))
+        {
+            for (const auto &e : p->elements)
+                collectRefsExpr(e.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const SetLiteral *>(expr))
+        {
+            for (const auto &e : p->elements)
+                collectRefsExpr(e.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const MapLiteral *>(expr))
+        {
+            for (const auto &e : p->entries)
+            {
+                collectRefsExpr(e.second.get(), refs);
+            }
+            return;
+        }
+        if (auto *p = dynamic_cast<const SpreadExpr *>(expr))
+        {
+            collectRefsExpr(p->operand.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const ListComprehension *>(expr))
+        {
+            collectRefsExpr(p->valueExpr.get(), refs);
+            for (const auto &c : p->clauses)
+            {
+                if (c.isFor)
+                    collectRefsExpr(c.iterable.get(), refs);
+                else
+                    collectRefsExpr(c.condition.get(), refs);
+            }
+            return;
+        }
+        if (auto *p = dynamic_cast<const SetComprehension *>(expr))
+        {
+            collectRefsExpr(p->valueExpr.get(), refs);
+            for (const auto &c : p->clauses)
+            {
+                if (c.isFor)
+                    collectRefsExpr(c.iterable.get(), refs);
+                else
+                    collectRefsExpr(c.condition.get(), refs);
+            }
+            return;
+        }
+        if (auto *p = dynamic_cast<const MapComprehension *>(expr))
+        {
+            collectRefsExpr(p->keyExpr.get(), refs);
+            collectRefsExpr(p->valueExpr.get(), refs);
+            for (const auto &c : p->clauses)
+            {
+                if (c.isFor)
+                    collectRefsExpr(c.iterable.get(), refs);
+                else
+                    collectRefsExpr(c.condition.get(), refs);
+            }
+            return;
+        }
+        if (auto *p = dynamic_cast<const LambdaExpr *>(expr))
+        {
+            if (p->singleExpr)
+                collectRefsExpr(p->singleExpr.get(), refs);
+            else
+                collectRefsBlock(p->body, refs);
+            return;
+        }
+        // Literals, YieldExpr, etc. — nothing to collect
+    }
+
+    static void collectRefsStmt(const Stmt *stmt, std::unordered_set<std::string> &refs)
+    {
+        if (!stmt)
+            return;
+        if (auto *p = dynamic_cast<const ExprStmt *>(stmt))
+        {
+            collectRefsExpr(p->expr.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const Assignment *>(stmt))
+        {
+            refs.insert(p->name);
+            collectRefsExpr(p->value.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const GiveStmt *>(stmt))
+        {
+            if (p->value)
+                collectRefsExpr(p->value.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const ThrowStmt *>(stmt))
+        {
+            if (p->value)
+                collectRefsExpr(p->value.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const IfStmt *>(stmt))
+        {
+            collectRefsExpr(p->condition.get(), refs);
+            collectRefsBlock(p->body, refs);
+            for (const auto &elif : p->elifs)
+            {
+                collectRefsExpr(elif.condition.get(), refs);
+                collectRefsBlock(elif.body, refs);
+            }
+            collectRefsBlock(p->elseBody, refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const ForStmt *>(stmt))
+        {
+            for (const auto &it : p->iterables)
+                collectRefsExpr(it.get(), refs);
+            collectRefsBlock(p->body, refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const WhileStmt *>(stmt))
+        {
+            collectRefsExpr(p->condition.get(), refs);
+            collectRefsBlock(p->body, refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const TryCatchStmt *>(stmt))
+        {
+            collectRefsBlock(p->tryBody, refs);
+            collectRefsBlock(p->catchBody, refs);
+            collectRefsBlock(p->finallyBody, refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const FnDef *>(stmt))
+        {
+            collectRefsBlock(p->body, refs);
+            return;
+        } // descend: enclosing fn must capture what nested fns need
+        if (auto *p = dynamic_cast<const MemberAssignment *>(stmt))
+        {
+            collectRefsExpr(p->object.get(), refs);
+            collectRefsExpr(p->value.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const IndexAssignment *>(stmt))
+        {
+            collectRefsExpr(p->object.get(), refs);
+            collectRefsExpr(p->index.get(), refs);
+            collectRefsExpr(p->value.get(), refs);
+            return;
+        }
+        // BreakStmt, ContinueStmt, etc. — nothing to collect
+    }
+
+    /// Collect free variables of a function body (names referenced but not
+    /// defined as parameters). The function's own name is included if it
+    /// self-recurses.
+    static std::unordered_set<std::string> collectFreeVars(
+        const std::vector<std::unique_ptr<Stmt>> &body,
+        const std::vector<std::string> &params,
+        const Expr *singleExpr = nullptr)
+    {
+        std::unordered_set<std::string> refs;
+        if (singleExpr)
+            collectRefsExpr(singleExpr, refs);
+        else
+            collectRefsBlock(body, refs);
+
+        // Subtract parameters — they are not free variables
+        for (const auto &p : params)
+            refs.erase(p);
+        return refs;
+    }
+
+    // ========================================================================
     // Constructor / reset
     // ========================================================================
 
@@ -222,6 +521,7 @@ namespace xell
         currentInterpreter_ = this;
         setInstanceHashCallback(&Interpreter::instanceHashCallback);
         registerBuiltins();
+        registerErrorClasses();
 
         // Set up file executor for file-based module resolution
         moduleResolver_.setFileExecutor(
@@ -243,6 +543,7 @@ namespace xell
         // Note: trace_ is a non-owning pointer; don't delete it here.
         // The owner (main/IDE) manages TraceCollector lifetime.
         registerBuiltins();
+        registerErrorClasses();
     }
 
     void Interpreter::loadModule(const std::string &moduleName)
@@ -591,11 +892,224 @@ namespace xell
     }
 
     // ========================================================================
+    // Error class hierarchy — built-in Error types as proper XStructDefs
+    // ========================================================================
+
+    void Interpreter::registerErrorClasses()
+    {
+        // Build a class hierarchy that mirrors the C++ error hierarchy:
+        //   Error (base)
+        //     ├── TypeError
+        //     ├── IndexError
+        //     ├── KeyError
+        //     ├── ValueError
+        //     ├── RuntimeError
+        //     ├── DivisionByZero
+        //     ├── OverflowError
+        //     ├── ArityError
+        //     ├── IOError
+        //     ├── FileNotFound
+        //     ├── ConversionError
+        //     ├── AttributeError
+        //     ├── ImmutabilityError
+        //     ├── IterationError
+        //     ├── HashError
+        //     ├── ParseError
+        //     ├── LexerError
+        //     ├── RecursionError
+        //     ├── AccessError
+        //     └── NotImplementedError
+
+        // Helper: create a simple error class with message, type, line, traceback fields
+        auto makeErrorClass = [](const std::string &name,
+                                 std::shared_ptr<XStructDef> parent = nullptr) -> std::shared_ptr<XStructDef>
+        {
+            auto def = std::make_shared<XStructDef>(name);
+            def->isClass = true;
+
+            // Fields: message (string), type (string), line (int), traceback (list)
+            def->fields.push_back({"message", XObject::makeString(""), AccessLevel::PUBLIC});
+            def->fields.push_back({"type", XObject::makeString(name), AccessLevel::PUBLIC});
+            def->fields.push_back({"line", XObject::makeInt(0), AccessLevel::PUBLIC});
+            def->fields.push_back({"traceback", XObject::makeList(), AccessLevel::PUBLIC});
+
+            if (parent)
+                def->parents.push_back(parent);
+
+            return def;
+        };
+
+        // Base Error class
+        auto errorBase = makeErrorClass("Error");
+        errorClasses_["Error"] = errorBase;
+
+        // Register all known error categories as subclasses of Error
+        const std::vector<std::string> errorTypes = {
+            "TypeError", "IndexError", "KeyError", "ValueError",
+            "RuntimeError", "DivisionByZero", "OverflowError", "ArityError",
+            "IOError", "FileNotFound", "ConversionError", "AttributeError",
+            "ImmutabilityError", "IterationError", "HashError", "ParseError",
+            "LexerError", "RecursionError", "AccessError", "NotImplementedError",
+            "AssertionError", "BringError", "ModuleError", "RequireError",
+            "EnvError", "ProcessError", "CommandFailed"};
+
+        for (const auto &typeName : errorTypes)
+        {
+            errorClasses_[typeName] = makeErrorClass(typeName, errorBase);
+        }
+
+        // Expose Error and subclasses as global names for isinstance/type checks
+        for (const auto &[name, def] : errorClasses_)
+        {
+            globalEnv_.define(name, XObject::makeStructDef(def));
+        }
+    }
+
+    // ========================================================================
     // Statement execution
     // ========================================================================
 
     void Interpreter::exec(const Stmt *stmt)
     {
+        // ── Step-through debug check (Phase 9) ──────────────────
+        if (trace_ && trace_->debugIPC && trace_->enabled)
+        {
+            bool shouldPause = false;
+            int stmtLine = stmt->line;
+            int currentDepth = (int)trace_->callStack().size();
+
+            // Check IDE-set breakpoints
+            if (trace_->hasBreakpoint(stmtLine))
+            {
+                shouldPause = true;
+                std::string bpType = trace_->breakpointType(stmtLine);
+                if (bpType == "snapshot")
+                {
+                    trace_->takeSnapshot("ide_bp_" + std::to_string(stmtLine),
+                                         stmtLine, currentEnv_, trace_->callStack());
+                }
+            }
+
+            // Check stepping state
+            if (trace_->stepping)
+            {
+                if (trace_->stepOutDepth >= 0)
+                {
+                    // Step out: only pause when call depth <= target
+                    if (currentDepth <= trace_->stepOutDepth)
+                    {
+                        shouldPause = true;
+                        trace_->stepOutDepth = -1;
+                        trace_->stepOverDepth = -1;
+                    }
+                }
+                else if (trace_->stepOverDepth >= 0)
+                {
+                    // Step over: only pause when call depth <= the depth at step-over time
+                    if (currentDepth <= trace_->stepOverDepth)
+                    {
+                        shouldPause = true;
+                        trace_->stepOverDepth = -1;
+                    }
+                }
+                else
+                {
+                    // Step into (or initial pause): always pause
+                    shouldPause = true;
+                }
+            }
+
+            if (shouldPause)
+            {
+                trace_->stepping = true;
+
+                // Build state JSON and send to IDE
+                std::string varsJSON = serializeVisibleVars();
+                std::string stackJSON = serializeCallStack();
+                std::string stateMsg = DebugIPC::buildStateJSON(
+                    "paused", stmtLine, trace_->currentSequence(),
+                    currentDepth, varsJSON, stackJSON);
+                trace_->debugIPC->send(stateMsg);
+
+                // Block until IDE sends an execution command (continue/step/stop).
+                // Non-execution commands (add/remove breakpoint, watch) are handled
+                // in a loop so the interpreter stays paused.
+                bool gotExecCmd = false;
+                while (!gotExecCmd)
+                {
+                    std::string response = trace_->debugIPC->recv();
+                    if (response.empty())
+                        break; // connection lost
+                    auto msg = DebugIPC::parseCommand(response);
+                    switch (msg.cmd)
+                    {
+                    case DebugCmd::Continue:
+                        trace_->stepping = false;
+                        trace_->stepInto = false;
+                        trace_->stepOverDepth = -1;
+                        trace_->stepOutDepth = -1;
+                        gotExecCmd = true;
+                        break;
+                    case DebugCmd::StepOver:
+                        trace_->stepping = true;
+                        trace_->stepInto = false;
+                        trace_->stepOverDepth = currentDepth; // pause at same or shallower depth
+                        trace_->stepOutDepth = -1;
+                        gotExecCmd = true;
+                        break;
+                    case DebugCmd::StepInto:
+                        trace_->stepping = true;
+                        trace_->stepInto = true;
+                        trace_->stepOverDepth = -1; // no depth restriction
+                        trace_->stepOutDepth = -1;
+                        gotExecCmd = true;
+                        break;
+                    case DebugCmd::StepOut:
+                        trace_->stepping = true;
+                        trace_->stepInto = false;
+                        trace_->stepOverDepth = -1;
+                        trace_->stepOutDepth = currentDepth - 1; // pause when we return to caller
+                        gotExecCmd = true;
+                        break;
+                    case DebugCmd::Stop:
+                        throw RuntimeError("Debug session stopped by user", stmtLine);
+                    case DebugCmd::AddBreakpoint:
+                        trace_->ideBreakpoints[msg.line] = msg.type.empty() ? "pause" : msg.type;
+                        // Stay paused — loop for the next command
+                        break;
+                    case DebugCmd::RemoveBreakpoint:
+                        trace_->ideBreakpoints.erase(msg.line);
+                        // Stay paused — loop for the next command
+                        break;
+                    case DebugCmd::AddWatch:
+                    case DebugCmd::RemoveWatch:
+                        // TODO: handle watch add/remove
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+
+            // Process any pending non-blocking IPC commands (breakpoint add/remove while running)
+            if (!trace_->stepping && trace_->debugIPC->isConnected())
+            {
+                while (trace_->debugIPC->poll(0))
+                {
+                    std::string cmd = trace_->debugIPC->recv();
+                    if (cmd.empty())
+                        break;
+                    auto msg = DebugIPC::parseCommand(cmd);
+                    if (msg.cmd == DebugCmd::AddBreakpoint)
+                        trace_->ideBreakpoints[msg.line] = msg.type.empty() ? "pause" : msg.type;
+                    else if (msg.cmd == DebugCmd::RemoveBreakpoint)
+                        trace_->ideBreakpoints.erase(msg.line);
+                    else if (msg.cmd == DebugCmd::Stop)
+                        throw RuntimeError("Debug session stopped by user", stmt->line);
+                }
+            }
+        }
+
         if (auto *p = dynamic_cast<const Assignment *>(stmt))
             return execAssignment(p);
         if (auto *p = dynamic_cast<const IfStmt *>(stmt))
@@ -629,6 +1143,8 @@ namespace xell
             return execExportDecl(p);
         if (auto *p = dynamic_cast<const TryCatchStmt *>(stmt))
             return execTryCatch(p);
+        if (auto *p = dynamic_cast<const ThrowStmt *>(stmt))
+            return execThrow(p);
         if (auto *p = dynamic_cast<const InCaseStmt *>(stmt))
             return execInCase(p);
         if (auto *p = dynamic_cast<const LetStmt *>(stmt))
@@ -671,8 +1187,8 @@ namespace xell
                 // Take a snapshot of all visible variables
                 trace_->takeSnapshot(
                     p->name.empty() ? ("bp_line_" + std::to_string(p->line)) : p->name,
-                    p->line, currentEnv_, callStack_);
-                // Pause mode: block execution (Tab/F5 to resume via IPC, Phase 7+9)
+                    p->line, currentEnv_, trace_->callStack());
+                // Pause mode: block execution
                 if (p->isPause)
                 {
                     trace_->emit(TraceEvent::BREAKPOINT_HIT, p->line,
@@ -683,10 +1199,14 @@ namespace xell
                         // Timed pause: sleep for N seconds
                         std::this_thread::sleep_for(std::chrono::seconds(p->pauseSeconds));
                     }
+                    else if (trace_->debugIPC && trace_->debugIPC->isConnected())
+                    {
+                        // IPC pause: activate stepping, exec() loop handles resume
+                        trace_->stepping = true;
+                    }
                     else
                     {
-                        // Interactive pause: wait for input on stdin
-                        // (will be replaced by IPC in Phase 7)
+                        // Fallback: wait for input on stdin
                         std::string dummy;
                         std::getline(std::cin, dummy);
                     }
@@ -710,7 +1230,7 @@ namespace xell
         {
             if (trace_ && trace_->enabled)
             {
-                trace_->takeSnapshot(p->name, p->line, currentEnv_, callStack_);
+                trace_->takeSnapshot(p->name, p->line, currentEnv_, trace_->callStack());
                 trace_->emit(TraceEvent::CHECKPOINT_SAVED, p->line, p->name);
             }
             return;
@@ -964,6 +1484,129 @@ namespace xell
         }
     }
 
+    // ---- Shared helpers for for-loop iteration ----------------------------
+
+    std::vector<XObject> Interpreter::materializeIterable(XObject &src, int line)
+    {
+        if (src.isList())
+            return src.asList();
+        if (src.isTuple())
+        {
+            auto &tup = src.asTuple();
+            return std::vector<XObject>(tup.begin(), tup.end());
+        }
+        if (src.isMap())
+        {
+            std::vector<XObject> items;
+            for (auto it = src.asMap().begin(); it.valid(); it.next())
+            {
+                std::vector<XObject> pair;
+                pair.push_back(it.key().clone());
+                pair.push_back(it.value().clone());
+                items.push_back(XObject::makeList(std::move(pair)));
+            }
+            return items;
+        }
+        if (src.isSet())
+            return src.asSet().elements();
+        if (src.isString())
+        {
+            std::vector<XObject> chars;
+            for (char c : src.asString())
+                chars.push_back(XObject::makeString(std::string(1, c)));
+            return chars;
+        }
+        if (src.isGenerator())
+        {
+            // Fallback: eagerly drain (used when generator is mixed with other sources)
+            std::vector<XObject> items;
+            while (true)
+            {
+                auto [done, val] = nextGeneratorValue(src, line);
+                if (done)
+                    break;
+                items.push_back(std::move(val));
+            }
+            return items;
+        }
+        if (src.isInstance())
+        {
+            XObject iterResult;
+            std::vector<XObject> iterArgs;
+            if (callMagicMethod(src, "__iter__", iterArgs, line, iterResult))
+            {
+                if (iterResult.isList())
+                    return iterResult.asList();
+                if (iterResult.isTuple())
+                {
+                    auto &tup = iterResult.asTuple();
+                    return std::vector<XObject>(tup.begin(), tup.end());
+                }
+                if (iterResult.isGenerator())
+                {
+                    // __iter__ returned a generator — drain it
+                    std::vector<XObject> items;
+                    while (true)
+                    {
+                        auto [done, val] = nextGeneratorValue(iterResult, line);
+                        if (done)
+                            break;
+                        items.push_back(std::move(val));
+                    }
+                    return items;
+                }
+                throw TypeError("__iter__ must return a list, tuple, or generator, got " +
+                                    std::string(xtype_name(iterResult.type())),
+                                line);
+            }
+            throw IterationError("'" + src.asInstance().typeName +
+                                     "' is not iterable (no __iter__ method defined)",
+                                 line);
+        }
+        throw TypeError("for..in requires a list, tuple, map, set, string, generator, or iterable instance, got " +
+                            std::string(xtype_name(src.type())),
+                        line);
+    }
+
+    std::pair<bool, XObject> Interpreter::nextGeneratorValue(XObject &src, int line)
+    {
+        auto &gen = src.asGeneratorMut();
+        auto &state = gen.state;
+        std::unique_lock<std::mutex> lock(state->mtx);
+
+        if (state->phase == GeneratorState::Phase::DONE)
+            return {true, XObject::makeNone()};
+
+        if (!state->started)
+        {
+            state->started = true;
+            state->phase = GeneratorState::Phase::RUNNING;
+            lock.unlock();
+            state->cv.notify_all();
+            lock.lock();
+        }
+        else
+        {
+            state->phase = GeneratorState::Phase::RUNNING;
+            lock.unlock();
+            state->cv.notify_all();
+            lock.lock();
+        }
+
+        state->cv.wait(lock, [&]
+                       { return state->phase == GeneratorState::Phase::YIELDED ||
+                                state->phase == GeneratorState::Phase::DONE; });
+
+        if (state->error)
+            std::rethrow_exception(state->error);
+
+        if (state->phase == GeneratorState::Phase::DONE)
+            return {true, XObject::makeNone()};
+
+        XObject val = state->yieldedValue ? state->yieldedValue->clone() : XObject::makeNone();
+        return {false, std::move(val)};
+    }
+
     void Interpreter::execFor(const ForStmt *node)
     {
         // ---- Evaluate all source iterables ----
@@ -971,113 +1614,179 @@ namespace xell
         for (const auto &iterExpr : node->iterables)
             sources.push_back(eval(iterExpr.get()));
 
-        // ---- Collect iteration items per source ----
-        // Convert each source to a vector of XObjects to iterate over.
-        // Support lists, tuples, and generators.
-        auto toIterable = [&](XObject &src, int line) -> std::vector<XObject>
+        const size_t numTargets = node->varNames.size();
+        const size_t numSources = sources.size();
+
+        Environment loopEnv(currentEnv_);
+        auto *savedEnv = currentEnv_;
+        currentEnv_ = &loopEnv;
+
+        int forIterIndex = 0;
+
+        // ================================================================
+        // FAST PATH: single generator source → lazy iteration
+        // Generators are consumed one value at a time, enabling infinite
+        // sequences, memory-efficient streaming, and proper break semantics.
+        // ================================================================
+        bool singleGenerator = (numSources == 1 && sources[0].isGenerator());
+
+        // Also check for parallel generators (all sources are generators)
+        bool allGenerators = true;
+        for (auto &s : sources)
+            if (!s.isGenerator())
+            {
+                allGenerators = false;
+                break;
+            }
+
+        if (singleGenerator || (numSources > 1 && allGenerators))
         {
-            if (src.isList())
-                return src.asList();
-            if (src.isTuple())
+            // Trace: for-loop start (unknown length)
+            if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
             {
-                auto &tup = src.asTuple();
-                return std::vector<XObject>(tup.begin(), tup.end());
-            }
-            if (src.isMap())
-            {
-                // Iterate over map → each element is a [key, value] list
-                std::vector<XObject> items;
-                for (auto it = src.asMap().begin(); it.valid(); it.next())
+                std::string varList;
+                for (size_t v = 0; v < node->varNames.size(); ++v)
                 {
-                    std::vector<XObject> pair;
-                    pair.push_back(it.key().clone());
-                    pair.push_back(it.value().clone());
-                    items.push_back(XObject::makeList(std::move(pair)));
+                    if (v > 0)
+                        varList += ",";
+                    varList += node->varNames[v];
                 }
-                return items;
+                trace_->emit(TraceEvent::LOOP_STARTED, node->line, "for:" + varList,
+                             "", "?", "generator iteration", "for", node->line);
             }
-            if (src.isSet())
+
+            try
             {
-                // Iterate over set → each element
-                return src.asSet().elements();
-            }
-            if (src.isString())
-            {
-                // Iterate over string → each character as a string
-                std::vector<XObject> chars;
-                for (char c : src.asString())
-                    chars.push_back(XObject::makeString(std::string(1, c)));
-                return chars;
-            }
-            if (src.isGenerator())
-            {
-                // Eagerly collect generator values
-                std::vector<XObject> items;
-                auto &gen = src.asGeneratorMut();
-                auto &state = gen.state;
                 while (true)
                 {
-                    std::unique_lock<std::mutex> lock(state->mtx);
-                    if (state->phase == GeneratorState::Phase::DONE)
-                        break;
-                    if (!state->started)
+                    if (singleGenerator && numTargets == 1 && !node->hasRest)
                     {
-                        state->started = true;
-                        state->phase = GeneratorState::Phase::RUNNING;
-                        lock.unlock();
-                        state->cv.notify_all(); // wake worker thread
-                        lock.lock();
+                        // Simple: for x in gen
+                        auto [done, val] = nextGeneratorValue(sources[0], node->line);
+                        if (done)
+                            break;
+                        loopEnv.define(node->varNames[0], std::move(val));
+                    }
+                    else if (singleGenerator)
+                    {
+                        // Destructuring: for a, b in gen (each yield is a list/tuple)
+                        auto [done, elem] = nextGeneratorValue(sources[0], node->line);
+                        if (done)
+                            break;
+                        std::vector<XObject> inner;
+                        if (elem.isList())
+                            inner = elem.asList();
+                        else if (elem.isTuple())
+                        {
+                            auto &tup = elem.asTuple();
+                            inner = std::vector<XObject>(tup.begin(), tup.end());
+                        }
+                        else
+                        {
+                            throw TypeError("Cannot destructure " + std::string(xtype_name(elem.type())) +
+                                                " in for loop; expected list or tuple",
+                                            node->line);
+                        }
+                        for (size_t t = 0; t < numTargets && t < inner.size(); t++)
+                            loopEnv.define(node->varNames[t], inner[t]);
+                        for (size_t t = inner.size(); t < numTargets; t++)
+                            loopEnv.define(node->varNames[t], XObject::makeNone());
+                        if (node->hasRest)
+                        {
+                            std::vector<XObject> rest;
+                            for (size_t t = numTargets; t < inner.size(); t++)
+                                rest.push_back(inner[t]);
+                            loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+                        }
                     }
                     else
                     {
-                        state->phase = GeneratorState::Phase::RUNNING;
-                        lock.unlock();
-                        state->cv.notify_all();
-                        lock.lock();
+                        // Parallel generators: for a, b in gen1, gen2
+                        bool anyDone = false;
+                        std::vector<XObject> vals;
+                        for (size_t s = 0; s < numSources; s++)
+                        {
+                            auto [done, val] = nextGeneratorValue(sources[s], node->line);
+                            if (done)
+                            {
+                                anyDone = true;
+                                break;
+                            }
+                            vals.push_back(std::move(val));
+                        }
+                        if (anyDone)
+                            break;
+                        for (size_t t = 0; t < numTargets && t < vals.size(); t++)
+                            loopEnv.define(node->varNames[t], vals[t]);
+                        if (node->hasRest && vals.size() > numTargets)
+                        {
+                            std::vector<XObject> rest;
+                            for (size_t t = numTargets; t < vals.size(); t++)
+                                rest.push_back(vals[t]);
+                            loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+                        }
+                        else if (node->hasRest)
+                            loopEnv.define(node->restName, XObject::makeList({}));
                     }
-                    state->cv.wait(lock, [&]
-                                   { return state->phase == GeneratorState::Phase::YIELDED ||
-                                            state->phase == GeneratorState::Phase::DONE; });
-                    if (state->error)
-                        std::rethrow_exception(state->error);
-                    if (state->phase == GeneratorState::Phase::DONE)
-                        break;
-                    items.push_back(state->yieldedValue ? state->yieldedValue->clone() : XObject::makeNone());
-                }
-                return items;
-            }
-            if (src.isInstance())
-            {
-                // Check for __iter__ magic method → should return a list
-                XObject iterResult;
-                std::vector<XObject> iterArgs;
-                if (callMagicMethod(src, "__iter__", iterArgs, line, iterResult))
-                {
-                    if (iterResult.isList())
-                        return iterResult.asList();
-                    if (iterResult.isTuple())
-                    {
-                        auto &tup = iterResult.asTuple();
-                        return std::vector<XObject>(tup.begin(), tup.end());
-                    }
-                    throw TypeError("__iter__ must return a list or tuple, got " +
-                                        std::string(xtype_name(iterResult.type())),
-                                    line);
-                }
-                throw IterationError("'" + src.asInstance().typeName +
-                                         "' is not iterable (no __iter__ method defined)",
-                                     line);
-            }
-            throw TypeError("for..in requires a list, tuple, map, set, string, generator, or iterable instance, got " +
-                                std::string(xtype_name(src.type())),
-                            line);
-        };
 
+                    // Trace: each iteration
+                    if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
+                        trace_->emit(TraceEvent::LOOP_ITERATION, node->line,
+                                     "for", "int", std::to_string(forIterIndex),
+                                     "iteration " + std::to_string(forIterIndex),
+                                     "for", node->line);
+                    forIterIndex++;
+
+                    try
+                    {
+                        for (const auto &stmt : node->body)
+                            exec(stmt.get());
+                    }
+                    catch (const BreakSignal &bs)
+                    {
+                        if (bs.hasValue)
+                            throw RuntimeError("Cannot use 'break VALUE' in a statement-mode for loop; "
+                                               "use expression-mode (x = for ...) to capture values",
+                                               node->line);
+                        if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
+                            trace_->emit(TraceEvent::LOOP_BROKE, node->line, "for",
+                                         "", std::to_string(forIterIndex),
+                                         "break at iteration " + std::to_string(forIterIndex),
+                                         "break", node->line);
+                        break;
+                    }
+                    catch (const ContinueSignal &)
+                    {
+                        continue;
+                    }
+                }
+            }
+            catch (...)
+            {
+                currentEnv_ = savedEnv;
+                throw;
+            }
+
+            if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
+                trace_->emit(TraceEvent::LOOP_COMPLETED, node->line, "for",
+                             "", std::to_string(forIterIndex),
+                             std::to_string(forIterIndex) + " iterations completed",
+                             "for", node->line);
+
+            currentEnv_ = savedEnv;
+            return;
+        }
+
+        // ================================================================
+        // MATERIALIZED PATH: non-generator sources (lists, tuples, etc.)
+        // Sources are converted to vectors; generators in mixed sources are
+        // drained via materializeIterable() which calls nextGeneratorValue().
+        // ================================================================
         std::vector<std::vector<XObject>> allItems;
         for (size_t i = 0; i < sources.size(); i++)
-            allItems.push_back(toIterable(sources[i], node->line));
+            allItems.push_back(materializeIterable(sources[i], node->line));
 
-        // ---- Determine iteration count (zip semantics: shortest) ----
+        // Determine iteration count (zip semantics: shortest)
         size_t iterCount = 0;
         if (!allItems.empty())
         {
@@ -1085,13 +1794,6 @@ namespace xell
             for (size_t i = 1; i < allItems.size(); i++)
                 iterCount = std::min(iterCount, allItems[i].size());
         }
-
-        const size_t numTargets = node->varNames.size();
-        const size_t numSources = allItems.size();
-
-        Environment loopEnv(currentEnv_);
-        auto *savedEnv = currentEnv_;
-        currentEnv_ = &loopEnv;
 
         // Trace: for-loop start
         if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
@@ -1109,7 +1811,6 @@ namespace xell
                          "for", node->line);
         }
 
-        int forIterIndex = 0;
         try
         {
             for (size_t i = 0; i < iterCount; i++)
@@ -1124,16 +1825,14 @@ namespace xell
 
                 if (numSources == 1 && numTargets == 1 && !node->hasRest)
                 {
-                    // ---- Simple case: for x in list ----
+                    // Simple case: for x in list
                     loopEnv.define(node->varNames[0], allItems[0][i]);
                 }
                 else if (numSources > 1)
                 {
-                    // ---- Parallel iteration: for a, b in list1, list2 ----
-                    // Each source provides one value per iteration
+                    // Parallel iteration: for a, b in list1, list2
                     for (size_t t = 0; t < numTargets && t < numSources; t++)
                         loopEnv.define(node->varNames[t], allItems[t][i]);
-                    // Rest capture gets remaining sources
                     if (node->hasRest && numSources > numTargets)
                     {
                         std::vector<XObject> rest;
@@ -1148,8 +1847,7 @@ namespace xell
                 }
                 else
                 {
-                    // ---- Single source, multiple targets: destructuring ----
-                    // Each element of the source is destructured into the target variables
+                    // Single source, multiple targets: destructuring
                     const XObject &elem = allItems[0][i];
                     std::vector<XObject> inner;
                     if (elem.isList())
@@ -1166,14 +1864,11 @@ namespace xell
                                         node->line);
                     }
 
-                    // Assign named targets
                     for (size_t t = 0; t < numTargets && t < inner.size(); t++)
                         loopEnv.define(node->varNames[t], inner[t]);
-                    // Fill missing targets with none
                     for (size_t t = inner.size(); t < numTargets; t++)
                         loopEnv.define(node->varNames[t], XObject::makeNone());
 
-                    // Rest capture
                     if (node->hasRest)
                     {
                         std::vector<XObject> rest;
@@ -1196,7 +1891,6 @@ namespace xell
                         throw RuntimeError("Cannot use 'break VALUE' in a statement-mode for loop; "
                                            "use expression-mode (x = for ...) to capture values",
                                            node->line);
-                    // Trace: loop broke
                     if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
                         trace_->emit(TraceEvent::LOOP_BROKE, node->line, "for",
                                      "", std::to_string(forIterIndex),
@@ -1425,77 +2119,12 @@ namespace xell
 
     XObject Interpreter::evalForExpr(const ForExpr *node)
     {
-        // Reuse the iterable conversion logic from execFor
         std::vector<XObject> sources;
         for (const auto &iterExpr : node->iterables)
             sources.push_back(eval(iterExpr.get()));
 
-        auto toIterable = [&](XObject &src, int line) -> std::vector<XObject>
-        {
-            if (src.isList())
-                return src.asList();
-            if (src.isTuple())
-            {
-                auto &tup = src.asTuple();
-                return std::vector<XObject>(tup.begin(), tup.end());
-            }
-            if (src.isMap())
-            {
-                std::vector<XObject> items;
-                for (auto it = src.asMap().begin(); it.valid(); it.next())
-                {
-                    std::vector<XObject> pair;
-                    pair.push_back(it.key().clone());
-                    pair.push_back(it.value().clone());
-                    items.push_back(XObject::makeList(std::move(pair)));
-                }
-                return items;
-            }
-            if (src.isSet())
-                return src.asSet().elements();
-            if (src.isString())
-            {
-                std::vector<XObject> chars;
-                for (char c : src.asString())
-                    chars.push_back(XObject::makeString(std::string(1, c)));
-                return chars;
-            }
-            if (src.isInstance())
-            {
-                XObject iterResult;
-                std::vector<XObject> iterArgs;
-                if (callMagicMethod(src, "__iter__", iterArgs, line, iterResult))
-                {
-                    if (iterResult.isList())
-                        return iterResult.asList();
-                    if (iterResult.isTuple())
-                    {
-                        auto &tup = iterResult.asTuple();
-                        return std::vector<XObject>(tup.begin(), tup.end());
-                    }
-                    throw TypeError("__iter__ must return a list or tuple", line);
-                }
-                throw IterationError("Object is not iterable (no __iter__ method)", line);
-            }
-            throw TypeError("for expression requires an iterable, got " +
-                                std::string(xtype_name(src.type())),
-                            line);
-        };
-
-        std::vector<std::vector<XObject>> allItems;
-        for (size_t i = 0; i < sources.size(); i++)
-            allItems.push_back(toIterable(sources[i], node->line));
-
-        size_t iterCount = 0;
-        if (!allItems.empty())
-        {
-            iterCount = allItems[0].size();
-            for (size_t i = 1; i < allItems.size(); i++)
-                iterCount = std::min(iterCount, allItems[i].size());
-        }
-
         const size_t numTargets = node->varNames.size();
-        const size_t numSources = allItems.size();
+        const size_t numSources = sources.size();
 
         Environment loopEnv(currentEnv_);
         auto *savedEnv = currentEnv_;
@@ -1504,73 +2133,162 @@ namespace xell
         XObject result = XObject::makeNone();
         bool gotValue = false;
 
+        // Helper lambda to bind loop variables from a single value (for destructuring)
+        auto bindDestructured = [&](XObject elem)
+        {
+            std::vector<XObject> inner;
+            if (elem.isList())
+                inner = elem.asList();
+            else if (elem.isTuple())
+            {
+                auto &tup = elem.asTuple();
+                inner = std::vector<XObject>(tup.begin(), tup.end());
+            }
+            else
+                throw TypeError("Cannot destructure in for expression", node->line);
+
+            for (size_t t = 0; t < numTargets && t < inner.size(); t++)
+                loopEnv.define(node->varNames[t], inner[t]);
+            for (size_t t = inner.size(); t < numTargets; t++)
+                loopEnv.define(node->varNames[t], XObject::makeNone());
+            if (node->hasRest)
+            {
+                std::vector<XObject> rest;
+                for (size_t t = numTargets; t < inner.size(); t++)
+                    rest.push_back(inner[t]);
+                loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+            }
+        };
+
+        // Helper lambda to execute the loop body, returns true if break was hit
+        auto runBody = [&]() -> bool
+        {
+            try
+            {
+                for (const auto &stmt : node->body)
+                    exec(stmt.get());
+            }
+            catch (const BreakSignal &bs)
+            {
+                if (bs.hasValue)
+                {
+                    result = std::move(const_cast<BreakSignal &>(bs).value);
+                    gotValue = true;
+                }
+                return true; // break
+            }
+            catch (const ContinueSignal &)
+            {
+                // continue
+            }
+            return false;
+        };
+
+        // Check for generator sources
+        bool singleGenerator = (numSources == 1 && sources[0].isGenerator());
+        bool allGenerators = true;
+        for (auto &s : sources)
+            if (!s.isGenerator())
+            {
+                allGenerators = false;
+                break;
+            }
+
         try
         {
-            for (size_t i = 0; i < iterCount; i++)
+            if (singleGenerator || (numSources > 1 && allGenerators))
             {
-                // Bind loop variables (same logic as execFor)
-                if (numSources == 1 && numTargets == 1 && !node->hasRest)
+                // Lazy generator iteration
+                while (true)
                 {
-                    loopEnv.define(node->varNames[0], allItems[0][i]);
-                }
-                else if (numSources > 1)
-                {
-                    for (size_t t = 0; t < numTargets && t < numSources; t++)
-                        loopEnv.define(node->varNames[t], allItems[t][i]);
-                    if (node->hasRest && numSources > numTargets)
+                    if (singleGenerator && numTargets == 1 && !node->hasRest)
                     {
-                        std::vector<XObject> rest;
-                        for (size_t t = numTargets; t < numSources; t++)
-                            rest.push_back(allItems[t][i]);
-                        loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+                        auto [done, val] = nextGeneratorValue(sources[0], node->line);
+                        if (done)
+                            break;
+                        loopEnv.define(node->varNames[0], std::move(val));
                     }
-                    else if (node->hasRest)
-                        loopEnv.define(node->restName, XObject::makeList({}));
-                }
-                else
-                {
-                    const XObject &elem = allItems[0][i];
-                    std::vector<XObject> inner;
-                    if (elem.isList())
-                        inner = elem.asList();
-                    else if (elem.isTuple())
+                    else if (singleGenerator)
                     {
-                        auto &tup = elem.asTuple();
-                        inner = std::vector<XObject>(tup.begin(), tup.end());
+                        auto [done, elem] = nextGeneratorValue(sources[0], node->line);
+                        if (done)
+                            break;
+                        bindDestructured(std::move(elem));
                     }
                     else
-                        throw TypeError("Cannot destructure in for expression", node->line);
-
-                    for (size_t t = 0; t < numTargets && t < inner.size(); t++)
-                        loopEnv.define(node->varNames[t], inner[t]);
-                    for (size_t t = inner.size(); t < numTargets; t++)
-                        loopEnv.define(node->varNames[t], XObject::makeNone());
-                    if (node->hasRest)
                     {
-                        std::vector<XObject> rest;
-                        for (size_t t = numTargets; t < inner.size(); t++)
-                            rest.push_back(inner[t]);
-                        loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+                        // Parallel generators
+                        bool anyDone = false;
+                        std::vector<XObject> vals;
+                        for (size_t s = 0; s < numSources; s++)
+                        {
+                            auto [done, val] = nextGeneratorValue(sources[s], node->line);
+                            if (done)
+                            {
+                                anyDone = true;
+                                break;
+                            }
+                            vals.push_back(std::move(val));
+                        }
+                        if (anyDone)
+                            break;
+                        for (size_t t = 0; t < numTargets && t < vals.size(); t++)
+                            loopEnv.define(node->varNames[t], vals[t]);
+                        if (node->hasRest && vals.size() > numTargets)
+                        {
+                            std::vector<XObject> rest;
+                            for (size_t t = numTargets; t < vals.size(); t++)
+                                rest.push_back(vals[t]);
+                            loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+                        }
+                        else if (node->hasRest)
+                            loopEnv.define(node->restName, XObject::makeList({}));
                     }
+                    if (runBody())
+                        break;
+                }
+            }
+            else
+            {
+                // Materialized iteration
+                std::vector<std::vector<XObject>> allItems;
+                for (size_t i = 0; i < sources.size(); i++)
+                    allItems.push_back(materializeIterable(sources[i], node->line));
+
+                size_t iterCount = 0;
+                if (!allItems.empty())
+                {
+                    iterCount = allItems[0].size();
+                    for (size_t i = 1; i < allItems.size(); i++)
+                        iterCount = std::min(iterCount, allItems[i].size());
                 }
 
-                try
+                for (size_t i = 0; i < iterCount; i++)
                 {
-                    for (const auto &stmt : node->body)
-                        exec(stmt.get());
-                }
-                catch (const BreakSignal &bs)
-                {
-                    if (bs.hasValue)
+                    if (numSources == 1 && numTargets == 1 && !node->hasRest)
                     {
-                        result = std::move(const_cast<BreakSignal &>(bs).value);
-                        gotValue = true;
+                        loopEnv.define(node->varNames[0], allItems[0][i]);
                     }
-                    break;
-                }
-                catch (const ContinueSignal &)
-                {
-                    continue;
+                    else if (numSources > 1)
+                    {
+                        for (size_t t = 0; t < numTargets && t < numSources; t++)
+                            loopEnv.define(node->varNames[t], allItems[t][i]);
+                        if (node->hasRest && numSources > numTargets)
+                        {
+                            std::vector<XObject> rest;
+                            for (size_t t = numTargets; t < numSources; t++)
+                                rest.push_back(allItems[t][i]);
+                            loopEnv.define(node->restName, XObject::makeList(std::move(rest)));
+                        }
+                        else if (node->hasRest)
+                            loopEnv.define(node->restName, XObject::makeList({}));
+                    }
+                    else
+                    {
+                        bindDestructured(allItems[0][i]);
+                    }
+                    if (runBody())
+                        break;
                 }
             }
         }
@@ -1695,11 +2413,46 @@ namespace xell
 
     void Interpreter::execFnDef(const FnDef *node)
     {
-        // Capture the current environment as the lexical closure scope
-        auto fn = XObject::makeFunction(node->name, node->params, &node->body, currentEnv_);
+        // Capture the current environment as the lexical closure scope.
+        // If we're inside a function call (callDepth_ > 0), the current env
+        // lives on the stack and will be destroyed when the outer function returns.
+        // To safely allow returning closures, snapshot the env onto the heap.
+        std::shared_ptr<Environment> ownedEnv;
+        Environment *closureEnv = currentEnv_;
+
+        if (callDepth_ > 0)
+        {
+            // Analyse the function body for free variables (names it references
+            // that are not its own parameters). Only those need to be captured.
+            auto freeVars = collectFreeVars(node->body, node->params);
+
+            if (!freeVars.empty())
+            {
+                // Self-contained snapshot: no parent pointer → nothing can dangle.
+                ownedEnv = std::make_shared<Environment>();
+                for (const auto &name : freeVars)
+                {
+                    if (currentEnv_->has(name))
+                    {
+                        try
+                        {
+                            ownedEnv->define(name, currentEnv_->get(name, 0));
+                        }
+                        catch (...)
+                        {
+                        }
+                    }
+                }
+                closureEnv = ownedEnv.get();
+            }
+        }
+
+        auto fn = XObject::makeFunction(node->name, node->params, &node->body, closureEnv);
 
         // Store default parameter AST pointers (non-owning) and variadic info
         XFunction &fnRef = const_cast<XFunction &>(fn.asFunction());
+        if (ownedEnv)
+            fnRef.ownedEnv = ownedEnv; // keep heap-allocated closure alive
         fnRef.defaults.clear();
         for (const auto &d : node->defaults)
         {
@@ -1929,6 +2682,23 @@ namespace xell
             mod->interp->importedFiles_ = importedFiles_;
             mod->interp->importedFiles_.insert(resolvedPath);
 
+            // Cross-module debug: share trace collector with child interpreter
+            std::string prevModule;
+            if (trace_)
+            {
+                mod->interp->setTraceCollector(trace_);
+                prevModule = trace_->currentModule();
+                // Derive module name from filename (e.g. "math" from "math.xel")
+                std::string modName = resolvedPath;
+                auto slashPos = modName.rfind('/');
+                if (slashPos != std::string::npos)
+                    modName = modName.substr(slashPos + 1);
+                auto dotPos = modName.rfind('.');
+                if (dotPos != std::string::npos)
+                    modName = modName.substr(0, dotPos);
+                trace_->setCurrentModule(modName);
+            }
+
             try
             {
                 Lexer lexer(source);
@@ -1939,7 +2709,20 @@ namespace xell
             }
             catch (const XellError &e)
             {
+                // Restore module context before re-throwing
+                if (trace_)
+                {
+                    trace_->setCurrentModule(prevModule);
+                    mod->interp->setTraceCollector(nullptr);
+                }
                 throw BringError("Error in '" + rawPath + "': " + e.what(), node->line);
+            }
+
+            // Restore parent module context and detach trace from child
+            if (trace_)
+            {
+                trace_->setCurrentModule(prevModule);
+                mod->interp->setTraceCollector(nullptr);
             }
 
             Environment &childEnv = mod->interp->globals();
@@ -2413,6 +3196,23 @@ namespace xell
         child->setIsMainFile(false);
         child->moduleResolver_.shareImportGuard(moduleResolver_.importingFiles());
 
+        // Cross-module debug: share trace collector with child interpreter
+        std::string prevModule;
+        if (trace_)
+        {
+            child->setTraceCollector(trace_);
+            prevModule = trace_->currentModule();
+            // Derive module name from filename (e.g. "math" from "math.xel")
+            std::string modName = filePath;
+            auto slashPos = modName.rfind('/');
+            if (slashPos != std::string::npos)
+                modName = modName.substr(slashPos + 1);
+            auto dotPos = modName.rfind('.');
+            if (dotPos != std::string::npos)
+                modName = modName.substr(0, dotPos);
+            trace_->setCurrentModule(modName);
+        }
+
         // The child already has the importing guard shared above.
         // Session-cached modules will be accessible through the resolver.
 
@@ -2422,6 +3222,13 @@ namespace xell
         Parser parser(tokens);
         auto program = parser.parse();
         child->run(program);
+
+        // Restore parent module context and detach trace
+        if (trace_)
+        {
+            trace_->setCurrentModule(prevModule);
+            child->setTraceCollector(nullptr);
+        }
 
         // Collect all module objects from the child's global environment
         auto allNames = child->globals().allNames();
@@ -2501,10 +3308,18 @@ namespace xell
             return evalFrozenSet(p);
         if (auto *p = dynamic_cast<const MapLiteral *>(expr))
             return evalMap(p);
+        if (auto *p = dynamic_cast<const ListComprehension *>(expr))
+            return evalListComprehension(p);
+        if (auto *p = dynamic_cast<const SetComprehension *>(expr))
+            return evalSetComprehension(p);
+        if (auto *p = dynamic_cast<const MapComprehension *>(expr))
+            return evalMapComprehension(p);
 
         // Operators
         if (auto *p = dynamic_cast<const BinaryExpr *>(expr))
             return evalBinary(p);
+        if (auto *p = dynamic_cast<const ChainedComparisonExpr *>(expr))
+            return evalChainedComparison(p);
         if (auto *p = dynamic_cast<const UnaryExpr *>(expr))
             return evalUnary(p);
         if (auto *p = dynamic_cast<const PostfixExpr *>(expr))
@@ -2515,6 +3330,8 @@ namespace xell
             return evalCall(p);
         if (auto *p = dynamic_cast<const IndexAccess *>(expr))
             return evalIndex(p);
+        if (auto *p = dynamic_cast<const SliceExpr *>(expr))
+            return evalSlice(p);
         if (auto *p = dynamic_cast<const MemberAccess *>(expr))
             return evalMember(p);
 
@@ -2552,15 +3369,25 @@ namespace xell
         const std::string &op = node->op;
 
         // ================================================================
-        // Shell pipe operator: "cmd1" | "cmd2"  →  "cmd1 | cmd2"
-        // Builds a pipeline string by concatenating with " | "
+        // Pipe operator: "|>"
+        //   Strings: shell pipe (concatenate with " | ")
+        //   Instances: __pipe__ magic method
         // ================================================================
-        if (op == "|")
+        if (op == "|>")
         {
             XObject left = eval(node->left.get());
             XObject right = eval(node->right.get());
+            // Magic method dispatch
+            if (left.isInstance())
+            {
+                XObject result;
+                std::vector<XObject> magicArgs = {std::move(right)};
+                if (callMagicMethod(left, "__pipe__", magicArgs, node->line, result))
+                    return result;
+                right = std::move(magicArgs[0]);
+            }
             if (!left.isString() || !right.isString())
-                throw TypeError("pipe operator '|' requires string operands (command strings), got " +
+                throw TypeError("pipe operator '|>' requires string operands (command strings), got " +
                                     std::string(xtype_name(left.type())) + " and " +
                                     std::string(xtype_name(right.type())),
                                 node->line);
@@ -2646,6 +3473,12 @@ namespace xell
                 {"*", "__mul__"},
                 {"/", "__div__"},
                 {"%", "__mod__"},
+                {"&", "__and__"},
+                {"|", "__or__"},
+                {"^", "__xor__"},
+                {"<<", "__lshift__"},
+                {">>", "__rshift__"},
+                {"|>", "__pipe__"},
                 {"==", "__eq__"},
                 {"!=", "__ne__"},
                 {"<", "__lt__"},
@@ -2694,6 +3527,57 @@ namespace xell
             }
             // Fallback: treat as equality for non-instance operands
             return XObject::makeBool(left.equals(right));
+        }
+
+        // Containment check: x in collection / x not in collection
+        if (op == "in" || op == "not in")
+        {
+            bool negate = (op == "not in");
+            bool found = false;
+
+            // String substring check: "sub" in "substring"
+            if (left.isString() && right.isString())
+                found = right.asString().find(left.asString()) != std::string::npos;
+
+            // List/tuple membership
+            else if (right.isList())
+            {
+                for (const auto &elem : right.asList())
+                    if (elem.equals(left))
+                    {
+                        found = true;
+                        break;
+                    }
+            }
+            else if (right.isTuple())
+            {
+                for (const auto &elem : right.asTuple())
+                    if (elem.equals(left))
+                    {
+                        found = true;
+                        break;
+                    }
+            }
+
+            // Set membership
+            else if (right.isSet())
+                found = right.asSet().has(left);
+
+            // Map key membership
+            else if (right.isMap())
+            {
+                if (!left.isString())
+                    throw TypeError("map 'in' operator requires a string key, got " +
+                                        std::string(xtype_name(left.type())),
+                                    node->line);
+                found = right.asMap().get(left.asString()) != nullptr;
+            }
+            else
+                throw TypeError("argument of type '" + std::string(xtype_name(right.type())) +
+                                    "' is not iterable or searchable",
+                                node->line);
+
+            return XObject::makeBool(negate ? !found : found);
         }
 
         // Arithmetic / string concatenation
@@ -2834,7 +3718,91 @@ namespace xell
                             node->line);
         }
 
+        // ================================================================
+        // Bitwise operators: |, &, ^, <<, >>
+        // ================================================================
+        if (op == "|" || op == "&" || op == "^" || op == "<<" || op == ">>")
+        {
+            if (!left.isInt() || !right.isInt())
+                throw TypeError("unsupported operand types for " + op + ": " +
+                                    std::string(xtype_name(left.type())) + " and " +
+                                    std::string(xtype_name(right.type())) +
+                                    " (bitwise operators require integers)",
+                                node->line);
+            int64_t l = left.asInt(), r = right.asInt();
+            if (op == "|")
+                return XObject::makeInt(l | r);
+            if (op == "&")
+                return XObject::makeInt(l & r);
+            if (op == "^")
+                return XObject::makeInt(l ^ r);
+            if (op == "<<")
+            {
+                if (r < 0)
+                    throw ValueError("negative shift count", node->line);
+                return XObject::makeInt(l << r);
+            }
+            // op == ">>"
+            if (r < 0)
+                throw ValueError("negative shift count", node->line);
+            return XObject::makeInt(l >> r);
+        }
+
         throw NotImplementedError("binary operator '" + op + "'", node->line);
+    }
+
+    // ---- Chained comparison: a < b < c → (a<b) and (b<c) ------------------
+
+    XObject Interpreter::evalChainedComparison(const ChainedComparisonExpr *node)
+    {
+        // Helper lambda: compare two XObjects with the given comparison operator
+        auto compare = [&](const XObject &left, const XObject &right,
+                           const std::string &op, int line) -> bool
+        {
+            if (left.isNumeric() && right.isNumeric())
+            {
+                if (left.isComplex() || right.isComplex())
+                    throw TypeError("comparison not supported for complex numbers", line);
+                double l = left.asNumber(), r = right.asNumber();
+                if (op == ">")
+                    return l > r;
+                if (op == "<")
+                    return l < r;
+                if (op == ">=")
+                    return l >= r;
+                return l <= r;
+            }
+            if (left.isString() && right.isString())
+            {
+                const auto &l = left.asString();
+                const auto &r = right.asString();
+                if (op == ">")
+                    return l > r;
+                if (op == "<")
+                    return l < r;
+                if (op == ">=")
+                    return l >= r;
+                return l <= r;
+            }
+            throw TypeError("unsupported operand types for " + op + ": " +
+                                std::string(xtype_name(left.type())) + " and " +
+                                std::string(xtype_name(right.type())),
+                            line);
+        };
+
+        // Evaluate first operand
+        XObject prev = eval(node->operands[0].get());
+
+        // Short-circuit: evaluate each pair, reusing the previous right-hand value
+        for (size_t i = 0; i < node->ops.size(); i++)
+        {
+            XObject curr = eval(node->operands[i + 1].get());
+            if (!compare(prev, curr, node->ops[i], node->line))
+                return XObject::makeBool(false);
+            prev = std::move(curr);
+        }
+
+        return XObject::makeBool(true);
     }
 
     // ---- Unary expressions -------------------------------------------------
@@ -2892,6 +3860,25 @@ namespace xell
             XObject result = XObject::makeFloat(newVal);
             currentEnv_->set(ident->name, XObject::makeFloat(newVal));
             return result; // prefix returns new value
+        }
+
+        // Bitwise NOT: ~x
+        if (op == "~")
+        {
+            XObject val = eval(node->operand.get());
+            // Magic method: __invert__
+            if (val.isInstance())
+            {
+                XObject result;
+                std::vector<XObject> noArgs;
+                if (callMagicMethod(val, "__invert__", noArgs, node->line, result))
+                    return result;
+            }
+            if (!val.isInt())
+                throw TypeError("unary '~' requires an integer, got " +
+                                    std::string(xtype_name(val.type())),
+                                node->line);
+            return XObject::makeInt(~val.asInt());
         }
 
         throw NotImplementedError("unary operator '" + op + "'", node->line);
@@ -3837,6 +4824,7 @@ namespace xell
 
         // Execute body, catching GiveSignal for return values
         callDepth_++;
+        callStack_.push_back({fn.name, line});
         auto *savedEnv = currentEnv_;
         currentEnv_ = &fnEnv;
 
@@ -3884,6 +4872,28 @@ namespace xell
         {
             result = std::move(sig.value);
         }
+        catch (...)
+        {
+            // Snapshot the call stack for traceback BEFORE unwinding
+            if (!tracebackCaptured_)
+            {
+                lastTraceback_ = callStack_;
+                tracebackCaptured_ = true;
+            }
+
+            // Cleanup call stack on any exception before re-throwing
+            if (!callStack_.empty())
+                callStack_.pop_back();
+            currentEnv_ = savedEnv;
+            callDepth_--;
+
+            if (trace_ && trace_->enabled)
+                trace_->popCallStack();
+            if (debugFnRestore)
+                trace_->enabled = debugFnPrevEnabled;
+
+            throw;
+        }
 
         // @profile fn: emit profile result with execution time
         if (isProfiling)
@@ -3921,6 +4931,8 @@ namespace xell
 
         currentEnv_ = savedEnv;
         callDepth_--;
+        if (!callStack_.empty())
+            callStack_.pop_back();
         return result;
     }
 
@@ -4000,6 +5012,152 @@ namespace xell
         }
 
         throw TypeError("indexing not supported on " + std::string(xtype_name(obj.type())), node->line);
+    }
+
+    // ---- Slice access: obj[start:end:step] ---------------------------------
+
+    XObject Interpreter::evalSlice(const SliceExpr *node)
+    {
+        XObject obj = eval(node->object.get());
+
+        // Helper: resolve slice indices with Python-like semantics
+        auto resolveSlice = [&](int size, bool hasStart, int rawStart,
+                                bool hasEnd, int rawEnd,
+                                int step) -> std::tuple<int, int, int>
+        {
+            if (step == 0)
+                throw ValueError("slice step cannot be zero", node->line);
+
+            int start, end;
+            if (step > 0)
+            {
+                start = hasStart ? rawStart : 0;
+                end = hasEnd ? rawEnd : size;
+            }
+            else
+            {
+                start = hasStart ? rawStart : size - 1;
+                end = hasEnd ? rawEnd : -(size + 1);
+            }
+
+            // Clamp negative indices
+            if (start < 0)
+                start += size;
+            if (end < 0)
+                end += size;
+
+            // Clamp to bounds
+            if (step > 0)
+            {
+                if (start < 0)
+                    start = 0;
+                if (start > size)
+                    start = size;
+                if (end < 0)
+                    end = 0;
+                if (end > size)
+                    end = size;
+            }
+            else
+            {
+                if (start < -1)
+                    start = -1;
+                if (start >= size)
+                    start = size - 1;
+                if (end < -1)
+                    end = -1;
+                if (end >= size)
+                    end = size - 1;
+            }
+
+            return {start, end, step};
+        };
+
+        // Evaluate optional slice components
+        bool hasStart = (node->start != nullptr);
+        bool hasEnd = (node->end != nullptr);
+        int rawStart = 0, rawEnd = 0, step = 1;
+
+        if (hasStart)
+        {
+            XObject s = eval(node->start.get());
+            if (!s.isNumber())
+                throw TypeError("slice start must be a number", node->line);
+            rawStart = (int)s.asNumber();
+        }
+        if (hasEnd)
+        {
+            XObject e = eval(node->end.get());
+            if (!e.isNumber())
+                throw TypeError("slice end must be a number", node->line);
+            rawEnd = (int)e.asNumber();
+        }
+        if (node->step)
+        {
+            XObject st = eval(node->step.get());
+            if (!st.isNumber())
+                throw TypeError("slice step must be a number", node->line);
+            step = (int)st.asNumber();
+        }
+
+        // List slicing
+        if (obj.isList())
+        {
+            const auto &list = obj.asList();
+            auto [start, end, s] = resolveSlice((int)list.size(), hasStart, rawStart, hasEnd, rawEnd, step);
+            std::vector<XObject> result;
+            if (s > 0)
+            {
+                for (int i = start; i < end; i += s)
+                    result.push_back(list[i]);
+            }
+            else
+            {
+                for (int i = start; i > end; i += s)
+                    result.push_back(list[i]);
+            }
+            return XObject::makeList(std::move(result));
+        }
+
+        // Tuple slicing
+        if (obj.isTuple())
+        {
+            const auto &tup = obj.asTuple();
+            auto [start, end, s] = resolveSlice((int)tup.size(), hasStart, rawStart, hasEnd, rawEnd, step);
+            std::vector<XObject> result;
+            if (s > 0)
+            {
+                for (int i = start; i < end; i += s)
+                    result.push_back(tup[i]);
+            }
+            else
+            {
+                for (int i = start; i > end; i += s)
+                    result.push_back(tup[i]);
+            }
+            return XObject::makeTuple(std::move(result));
+        }
+
+        // String slicing
+        if (obj.isString())
+        {
+            const auto &str = obj.asString();
+            auto [start, end, s] = resolveSlice((int)str.size(), hasStart, rawStart, hasEnd, rawEnd, step);
+            std::string result;
+            if (s > 0)
+            {
+                for (int i = start; i < end; i += s)
+                    result += str[i];
+            }
+            else
+            {
+                for (int i = start; i > end; i += s)
+                    result += str[i];
+            }
+            return XObject::makeString(std::move(result));
+        }
+
+        throw TypeError("slicing not supported on " + std::string(xtype_name(obj.type())), node->line);
     }
 
     // ---- Member access: obj->member ----------------------------------------
@@ -4266,6 +5424,123 @@ namespace xell
         return XObject::makeFrozenSet(std::move(set));
     }
 
+    // ---- Comprehension helpers (shared recursive iteration) ----------------
+
+    // Recursively iterate through comprehension clauses.
+    // For each complete combination, calls emitFn with the current environment.
+    void Interpreter::runCompClauses(
+        const std::vector<CompClause> &clauses,
+        size_t idx,
+        const std::function<void()> &emitFn)
+    {
+        if (idx >= clauses.size())
+        {
+            emitFn();
+            return;
+        }
+
+        const auto &clause = clauses[idx];
+        if (!clause.isFor)
+        {
+            // if-clause: evaluate condition, skip if falsy
+            XObject cond = eval(clause.condition.get());
+            if (cond.truthy())
+                runCompClauses(clauses, idx + 1, emitFn);
+            return;
+        }
+
+        // for-clause: iterate over the iterable
+        XObject src = eval(clause.iterable.get());
+        auto items = materializeIterable(src, 0);
+
+        for (size_t i = 0; i < items.size(); i++)
+        {
+            if (clause.vars.size() == 1)
+            {
+                currentEnv_->set(clause.vars[0], items[i]);
+            }
+            else
+            {
+                // Destructuring: items[i] must be a list/tuple
+                const auto &val = items[i];
+                if (val.type() == XType::LIST)
+                {
+                    auto &lst = val.asList();
+                    for (size_t v = 0; v < clause.vars.size(); v++)
+                        currentEnv_->set(clause.vars[v],
+                                         v < lst.size() ? lst[v] : XObject::makeNone());
+                }
+                else if (val.type() == XType::TUPLE)
+                {
+                    auto &tup = val.asTuple();
+                    for (size_t v = 0; v < clause.vars.size(); v++)
+                        currentEnv_->set(clause.vars[v],
+                                         v < tup.size() ? tup[v] : XObject::makeNone());
+                }
+                else
+                {
+                    throw TypeError("Cannot destructure non-list/tuple value in comprehension", 0);
+                }
+            }
+            runCompClauses(clauses, idx + 1, emitFn);
+        }
+    }
+
+    // ---- List comprehension: [expr for x in iterable if cond ...] ----------
+
+    XObject Interpreter::evalListComprehension(const ListComprehension *node)
+    {
+        auto compEnv = std::make_shared<Environment>(currentEnv_);
+        auto *savedEnv = currentEnv_;
+        currentEnv_ = compEnv.get();
+
+        std::vector<XObject> result;
+        runCompClauses(node->clauses, 0, [&]()
+                       { result.push_back(eval(node->valueExpr.get())); });
+
+        currentEnv_ = savedEnv;
+        return XObject::makeList(std::move(result));
+    }
+
+    // ---- Set comprehension: {expr for x in iterable if cond ...} -----------
+
+    XObject Interpreter::evalSetComprehension(const SetComprehension *node)
+    {
+        auto compEnv = std::make_shared<Environment>(currentEnv_);
+        auto *savedEnv = currentEnv_;
+        currentEnv_ = compEnv.get();
+
+        XSet set;
+        runCompClauses(node->clauses, 0, [&]()
+                       {
+            XObject val = eval(node->valueExpr.get());
+            if (!isHashable(val))
+                throw HashError("set comprehension elements must be hashable", node->line);
+            set.add(val); });
+
+        currentEnv_ = savedEnv;
+        return XObject::makeSet(std::move(set));
+    }
+
+    // ---- Map comprehension: {key: val for x in iterable if cond ...} -------
+
+    XObject Interpreter::evalMapComprehension(const MapComprehension *node)
+    {
+        auto compEnv = std::make_shared<Environment>(currentEnv_);
+        auto *savedEnv = currentEnv_;
+        currentEnv_ = compEnv.get();
+
+        XMap map;
+        runCompClauses(node->clauses, 0, [&]()
+                       {
+            XObject key = eval(node->keyExpr.get());
+            XObject val = eval(node->valueExpr.get());
+            map.set(key, val); });
+
+        currentEnv_ = savedEnv;
+        return XObject::makeMap(std::move(map));
+    }
+
     // ---- Ternary expression: value if condition else alternative -----------
 
     XObject Interpreter::evalTernary(const TernaryExpr *node)
@@ -4280,19 +5555,22 @@ namespace xell
 
     XObject Interpreter::evalLambda(const LambdaExpr *node)
     {
-        // Create a heap-allocated snapshot of the current environment
-        // so the closure survives even after the enclosing function returns.
-        auto ownedEnv = std::make_shared<Environment>(currentEnv_);
-        // Copy all visible variables into the owned environment
-        auto names = currentEnv_->allNames();
-        for (const auto &n : names)
+        // Analyse free variables — only capture what the lambda actually references.
+        auto freeVars = collectFreeVars(node->body, node->params, node->singleExpr.get());
+
+        // Self-contained snapshot (no parent pointer → no dangling).
+        auto ownedEnv = std::make_shared<Environment>();
+        for (const auto &name : freeVars)
         {
-            try
+            if (currentEnv_->has(name))
             {
-                ownedEnv->define(n, currentEnv_->get(n, 0));
-            }
-            catch (...)
-            {
+                try
+                {
+                    ownedEnv->define(name, currentEnv_->get(name, 0));
+                }
+                catch (...)
+                {
+                }
             }
         }
 
@@ -4759,13 +6037,203 @@ namespace xell
         currentEnv_->set(node->name, XObject::makeStructDef(def));
     }
 
+    // ---- Apply binary op helper (for augmented assignment) -----------------
+
+    XObject Interpreter::applyBinaryOp(const std::string &op, XObject left, XObject right, int line)
+    {
+        // Magic method dispatch for operator overloading on instances
+        if (left.isInstance())
+        {
+            static const std::unordered_map<std::string, std::string> opToMagic = {
+                {"+", "__add__"},
+                {"-", "__sub__"},
+                {"*", "__mul__"},
+                {"/", "__div__"},
+                {"%", "__mod__"},
+                {"&", "__and__"},
+                {"|", "__or__"},
+                {"^", "__xor__"},
+                {"<<", "__lshift__"},
+                {">>", "__rshift__"},
+            };
+            auto it = opToMagic.find(op);
+            if (it != opToMagic.end())
+            {
+                XObject result;
+                std::vector<XObject> magicArgs = {std::move(right)};
+                if (callMagicMethod(left, it->second, magicArgs, line, result))
+                    return result;
+                right = std::move(magicArgs[0]);
+            }
+        }
+
+        if (op == "+")
+        {
+            if (left.isNumeric() && right.isNumeric())
+            {
+                if (left.isComplex() || right.isComplex())
+                {
+                    XComplex a = left.isComplex() ? left.asComplex() : XComplex(left.asNumber(), 0.0);
+                    XComplex b = right.isComplex() ? right.asComplex() : XComplex(right.asNumber(), 0.0);
+                    return XObject::makeComplex(a + b);
+                }
+                if (left.isInt() && right.isInt())
+                    return XObject::makeInt(left.asInt() + right.asInt());
+                return XObject::makeFloat(left.asNumber() + right.asNumber());
+            }
+            if (left.isString() || right.isString())
+                return XObject::makeString(left.toString() + right.toString());
+            if (left.isList() && right.isList())
+            {
+                XList result = left.asList();
+                const auto &rhs = right.asList();
+                result.insert(result.end(), rhs.begin(), rhs.end());
+                return XObject::makeList(std::move(result));
+            }
+            throw TypeError("unsupported operand types for +: " +
+                                std::string(xtype_name(left.type())) + " and " +
+                                std::string(xtype_name(right.type())),
+                            line);
+        }
+        if (op == "-" || op == "*" || op == "/" || op == "%")
+        {
+            if (!left.isNumeric() || !right.isNumeric())
+                throw TypeError("unsupported operand types for " + op + ": " +
+                                    std::string(xtype_name(left.type())) + " and " +
+                                    std::string(xtype_name(right.type())),
+                                line);
+            if (left.isComplex() || right.isComplex())
+            {
+                XComplex a = left.isComplex() ? left.asComplex() : XComplex(left.asNumber(), 0.0);
+                XComplex b = right.isComplex() ? right.asComplex() : XComplex(right.asNumber(), 0.0);
+                if (op == "-")
+                    return XObject::makeComplex(a - b);
+                if (op == "*")
+                    return XObject::makeComplex(a * b);
+                if (op == "%")
+                    throw TypeError("modulo (%) not supported for complex numbers", line);
+                if (b.real == 0.0 && b.imag == 0.0)
+                    throw DivisionByZeroError(line);
+                return XObject::makeComplex(a / b);
+            }
+            if (left.isInt() && right.isInt())
+            {
+                int64_t l = left.asInt(), r = right.asInt();
+                if (op == "-")
+                    return XObject::makeInt(l - r);
+                if (op == "*")
+                    return XObject::makeInt(l * r);
+                if (op == "%")
+                {
+                    if (r == 0)
+                        throw DivisionByZeroError(line);
+                    return XObject::makeInt(l % r);
+                }
+                if (r == 0)
+                    throw DivisionByZeroError(line);
+                if (l % r == 0)
+                    return XObject::makeInt(l / r);
+                return XObject::makeFloat(static_cast<double>(l) / static_cast<double>(r));
+            }
+            double l = left.asNumber(), r = right.asNumber();
+            if (op == "-")
+                return XObject::makeFloat(l - r);
+            if (op == "*")
+                return XObject::makeFloat(l * r);
+            if (op == "%")
+            {
+                if (r == 0.0)
+                    throw DivisionByZeroError(line);
+                return XObject::makeFloat(std::fmod(l, r));
+            }
+            if (r == 0.0)
+                throw DivisionByZeroError(line);
+            return XObject::makeFloat(l / r);
+        }
+
+        // Bitwise operators: &, |, ^, <<, >>
+        if (op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>")
+        {
+            if (!left.isInt() || !right.isInt())
+                throw TypeError("unsupported operand types for " + op + ": " +
+                                    std::string(xtype_name(left.type())) + " and " +
+                                    std::string(xtype_name(right.type())) +
+                                    " (bitwise operators require integers)",
+                                line);
+            int64_t l = left.asInt(), r = right.asInt();
+            if (op == "&")
+                return XObject::makeInt(l & r);
+            if (op == "|")
+                return XObject::makeInt(l | r);
+            if (op == "^")
+                return XObject::makeInt(l ^ r);
+            if (op == "<<")
+            {
+                if (r < 0)
+                    throw ValueError("negative shift count", line);
+                return XObject::makeInt(l << r);
+            }
+            // op == ">>"
+            if (r < 0)
+                throw ValueError("negative shift count", line);
+            return XObject::makeInt(l >> r);
+        }
+
+        throw NotImplementedError("augmented assignment operator '" + op + "'", line);
+    }
+
     // ---- Member assignment: obj->field = value -----------------------------
 
     void Interpreter::execMemberAssignment(const MemberAssignment *node)
     {
         // Evaluate the object — ref-counted, so mutations propagate
         XObject obj = eval(node->object.get());
-        XObject value = eval(node->value.get());
+        XObject rhs = eval(node->value.get());
+
+        // For augmented assignment (+=, -=, etc.), read current value, apply op
+        XObject value;
+        if (!node->augmentedOp.empty())
+        {
+            // Read current member value
+            XObject current;
+            if (obj.isInstance())
+            {
+                const XInstance &inst = obj.asInstance();
+                auto it = inst.fields.find(node->member);
+                if (it != inst.fields.end())
+                    current = it->second;
+                else
+                    throw AttributeError("'" + inst.typeName + "' has no field '" + node->member + "'", node->line);
+            }
+            else if (obj.isMap())
+            {
+                const XObject *found = obj.asMap().get(node->member);
+                if (found)
+                    current = *found;
+                else
+                    throw KeyError("key '" + node->member + "' not found in map", node->line);
+            }
+            else if (obj.isStructDef())
+            {
+                const XStructDef &def = obj.asStructDef();
+                const XStructFieldInfo *sfi = def.findStaticField(node->member);
+                if (sfi && !sfi->defaultValue.isNone())
+                    current = sfi->defaultValue;
+                else
+                    throw AttributeError("static field '" + node->member + "' not found", node->line);
+            }
+            else
+            {
+                throw TypeError("augmented member assignment not supported on " +
+                                    std::string(xtype_name(obj.type())),
+                                node->line);
+            }
+            value = applyBinaryOp(node->augmentedOp, std::move(current), std::move(rhs), node->line);
+        }
+        else
+        {
+            value = std::move(rhs);
+        }
 
         if (obj.isInstance())
         {
@@ -4862,7 +6330,45 @@ namespace xell
     {
         XObject obj = eval(node->object.get());
         XObject idx = eval(node->index.get());
-        XObject value = eval(node->value.get());
+        XObject rhs = eval(node->value.get());
+
+        // For augmented assignment (+=, -=, etc.), read current value, apply op
+        XObject value;
+        if (!node->augmentedOp.empty())
+        {
+            XObject current;
+            if (obj.isList())
+            {
+                if (!idx.isNumber())
+                    throw TypeError("list index must be a number", node->line);
+                int index = (int)idx.asNumber();
+                const auto &list = obj.asList();
+                if (index < 0)
+                    index += (int)list.size();
+                if (index < 0 || index >= (int)list.size())
+                    throw IndexError("list index " + std::to_string(index) + " out of range", node->line);
+                current = list[index];
+            }
+            else if (obj.isMap())
+            {
+                const XObject *found = obj.asMap().get(idx);
+                if (found)
+                    current = *found;
+                else
+                    throw KeyError("key '" + idx.toString() + "' not found in map", node->line);
+            }
+            else
+            {
+                throw TypeError("augmented index assignment not supported on " +
+                                    std::string(xtype_name(obj.type())),
+                                node->line);
+            }
+            value = applyBinaryOp(node->augmentedOp, std::move(current), std::move(rhs), node->line);
+        }
+        else
+        {
+            value = std::move(rhs);
+        }
 
         // Magic method: __set__(self, key, val) for instances
         if (obj.isInstance())
@@ -5133,6 +6639,9 @@ namespace xell
         }
         catch (const XellError &e)
         {
+            // Error handled — reset traceback capture so future errors get fresh tracebacks
+            tracebackCaptured_ = false;
+
             // Trace: error caught
             if (trace_ && trace_->enabled)
                 trace_->emit(TraceEvent::ERROR_CAUGHT, e.line(), node->catchVarName,
@@ -5141,12 +6650,31 @@ namespace xell
             if (!node->catchBody.empty())
             {
                 Environment catchEnv(currentEnv_);
-                // Bind the error to the catch variable as a map
-                XMap errMap;
-                errMap.set("message", XObject::makeString(e.detail()));
-                errMap.set("type", XObject::makeString(e.category()));
-                errMap.set("line", XObject::makeInt(e.line()));
-                catchEnv.define(node->catchVarName, XObject::makeMap(std::move(errMap)));
+
+                // Build traceback as a list of maps [{name: "funcname", line: N}, ...]
+                XList tracebackList;
+                for (const auto &frame : lastTraceback_)
+                {
+                    XMap frameMap;
+                    frameMap.set("name", XObject::makeString(frame.functionName));
+                    frameMap.set("line", XObject::makeInt(frame.callLine));
+                    tracebackList.push_back(XObject::makeMap(std::move(frameMap)));
+                }
+                lastTraceback_.clear();
+
+                // Create error as a proper class instance (Gap 1.8)
+                std::string category = e.category();
+                auto it = errorClasses_.find(category);
+                if (it == errorClasses_.end())
+                    it = errorClasses_.find("Error"); // fallback to base Error
+
+                XInstance errInst(category, it->second);
+                errInst.fields["message"] = XObject::makeString(e.detail());
+                errInst.fields["type"] = XObject::makeString(category);
+                errInst.fields["line"] = XObject::makeInt(e.line());
+                errInst.fields["traceback"] = XObject::makeList(std::move(tracebackList));
+
+                catchEnv.define(node->catchVarName, XObject::makeInstance(std::move(errInst)));
 
                 try
                 {
@@ -5181,6 +6709,118 @@ namespace xell
             Environment finallyEnv(currentEnv_);
             execBlock(node->finallyBody, finallyEnv);
         }
+    }
+
+    // ---- throw — user-thrown errors ------------------------------------------
+
+    void Interpreter::execThrow(const ThrowStmt *node)
+    {
+        int ln = node->line;
+
+        // Bare throw (re-throw): not supported outside catch blocks.
+        // A future enhancement could track the active exception, but for now
+        // bare throw is a RuntimeError.
+        if (!node->value)
+        {
+            throw RuntimeError("bare 'throw' with no value", ln);
+        }
+
+        XObject val = eval(node->value.get());
+
+        // String → throw as RuntimeError with that message
+        if (val.isString())
+        {
+            throw RuntimeError(val.asString(), ln);
+        }
+
+        // Instance (error object) → extract type and message, re-throw as C++ exception
+        if (val.isInstance())
+        {
+            const auto &inst = val.asInstance();
+            std::string msg = "user error";
+            std::string type = inst.typeName;
+            auto msgIt = inst.fields.find("message");
+            if (msgIt != inst.fields.end() && msgIt->second.isString())
+                msg = msgIt->second.asString();
+            auto typeIt = inst.fields.find("type");
+            if (typeIt != inst.fields.end() && typeIt->second.isString())
+                type = typeIt->second.asString();
+
+            // Dispatch to matching C++ error class
+            if (type == "TypeError")
+                throw TypeError(msg, ln);
+            if (type == "IndexError")
+                throw IndexError(msg, ln);
+            if (type == "KeyError")
+                throw KeyError(msg, ln);
+            if (type == "ValueError")
+                throw ValueError(msg, ln);
+            if (type == "DivisionByZero")
+                throw DivisionByZeroError(ln);
+            if (type == "IOError")
+                throw IOError(msg, ln);
+            if (type == "FileNotFound")
+                throw FileNotFoundError(msg, ln);
+            if (type == "ConversionError")
+                throw ConversionError(msg, ln);
+            if (type == "AttributeError")
+                throw AttributeError(msg, ln);
+            if (type == "ImmutabilityError")
+                throw ImmutabilityError(msg, ln);
+            if (type == "OverflowError")
+                throw OverflowError(msg, ln);
+            if (type == "IterationError")
+                throw IterationError(msg, ln);
+            if (type == "HashError")
+                throw HashError(msg, ln);
+            throw RuntimeError(msg, ln);
+        }
+
+        // Map → structured error with "message" and optional "type" keys (backward compat)
+        if (val.isMap())
+        {
+            const auto &m = val.asMap();
+            std::string msg = "user error";
+            std::string type = "RuntimeError";
+            if (m.has("message"))
+                msg = m.get("message")->asString();
+            if (m.has("type"))
+                type = m.get("type")->asString();
+
+            // Dispatch to the matching C++ error class when the type matches
+            // a known category, so catch blocks see the correct type.
+            if (type == "TypeError")
+                throw TypeError(msg, ln);
+            if (type == "IndexError")
+                throw IndexError(msg, ln);
+            if (type == "KeyError")
+                throw KeyError(msg, ln);
+            if (type == "DivisionByZero")
+                throw DivisionByZeroError(ln);
+            if (type == "ArityError")
+                throw RuntimeError(msg, ln); // ArityError needs extra params
+            if (type == "IOError")
+                throw IOError(msg, ln);
+            if (type == "FileNotFound")
+                throw FileNotFoundError(msg, ln);
+            if (type == "ConversionError")
+                throw ConversionError(msg, ln);
+            if (type == "AttributeError")
+                throw AttributeError(msg, ln);
+            if (type == "ImmutabilityError")
+                throw ImmutabilityError(msg, ln);
+            if (type == "OverflowError")
+                throw OverflowError(msg, ln);
+            if (type == "IterationError")
+                throw IterationError(msg, ln);
+            if (type == "HashError")
+                throw HashError(msg, ln);
+
+            // Default: throw as RuntimeError with the user-specified type as category
+            throw RuntimeError(msg, ln);
+        }
+
+        throw TypeError(std::string("throw expects a string or map, got ") + xtype_name(val.type()), ln);
     }
 
     // ---- let ... be (RAII / Context Manager) ---------------------------------
@@ -5514,6 +7154,104 @@ namespace xell
             }
         }
         return result;
+    }
+
+    // ========================================================================
+    // Debug serialization helpers (Phase 9 — step-through)
+    // ========================================================================
+
+    std::string Interpreter::serializeVisibleVars() const
+    {
+        std::ostringstream ss;
+        ss << "{";
+        bool first = true;
+
+        // Walk the scope chain from current to global
+        const Environment *env = currentEnv_;
+        while (env)
+        {
+            auto names = env->allLocalNames();
+            for (const auto &name : names)
+            {
+                // Skip internal names
+                if (name.empty() || name[0] == '_')
+                    continue;
+                try
+                {
+                    XObject val = env->get(name, 0);
+                    if (!first)
+                        ss << ",";
+                    first = false;
+                    ss << "\"" << name << "\":{\"type\":\"" << xtype_name(val.type())
+                       << "\",\"value\":\"";
+                    // Escape the value string
+                    std::string valStr = val.toString();
+                    if (valStr.size() > 200)
+                        valStr = valStr.substr(0, 200) + "...";
+                    for (char c : valStr)
+                    {
+                        if (c == '"')
+                            ss << "\\\"";
+                        else if (c == '\\')
+                            ss << "\\\\";
+                        else if (c == '\n')
+                            ss << "\\n";
+                        else if (c == '\r')
+                            ss << "\\r";
+                        else if (c == '\t')
+                            ss << "\\t";
+                        else
+                            ss << c;
+                    }
+                    ss << "\"}";
+                }
+                catch (...)
+                {
+                }
+            }
+            env = env->parent();
+        }
+
+        ss << "}";
+        return ss.str();
+    }
+
+    std::string Interpreter::serializeCallStack() const
+    {
+        std::ostringstream ss;
+        ss << "[";
+        if (trace_)
+        {
+            auto &stack = trace_->callStack();
+            for (size_t i = 0; i < stack.size(); i++)
+            {
+                if (i > 0)
+                    ss << ",";
+                ss << "\"" << stack[i] << "\"";
+            }
+        }
+        ss << "]";
+        return ss.str();
+    }
+
+    std::string Interpreter::formatTraceback(int errorLine) const
+    {
+        if (lastTraceback_.empty())
+            return "";
+
+        std::ostringstream ss;
+        ss << "Traceback (most recent call last):\n";
+        // Print from bottom (outermost) to top (innermost)
+        for (size_t i = 0; i < lastTraceback_.size(); i++)
+        {
+            const auto &frame = lastTraceback_[i];
+            ss << "  ";
+            if (!sourceFile_.empty())
+                ss << "File \"" << sourceFile_ << "\", ";
+            ss << "line " << frame.callLine
+               << ", in " << frame.functionName << "\n";
+        }
+        return ss.str();
     }
 
 } // namespace xell

@@ -35,6 +35,7 @@
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 #include "interpreter/interpreter.hpp"
+#include "interpreter/debug_ipc.hpp"
 #include "analyzer/static_analyzer.hpp"
 #include "analyzer/symbol_collector.hpp"
 #include "lib/errors/error.hpp"
@@ -68,6 +69,7 @@ static void printHelp()
     std::cout << "Usage:\n";
     std::cout << "  xell                  Start interactive REPL\n";
     std::cout << "  xell <file.xel>       Execute a Xell script\n";
+    std::cout << "  xell -e \"<code>\"      Execute a Xell source string directly\n";
     std::cout << "  xell --check [file]   Lint: parse-only check (file or stdin)\n";
     std::cout << "  xell --lint [file]    Alias for --check\n";
     std::cout << "  xell --check-string <code>  Lint raw source string (no file I/O)\n";
@@ -719,7 +721,7 @@ static int genXesy(const std::string &outputPath = "")
 
 // ---- Trace variables for a file (run with TraceCollector, output JSON) ------
 
-static int traceFile(const std::string &path)
+static int traceFile(const std::string &path, const std::string &sourceDirOverride = "")
 {
     std::string source = readFile(path);
     source = applyConvertIfNeeded(source, path);
@@ -735,7 +737,19 @@ static int traceFile(const std::string &path)
         auto tokens = lexer.tokenize();
         xell::Parser parser(tokens);
         auto program = parser.parse();
-        interpreter.setSourceFile(path);
+
+        if (!sourceDirOverride.empty())
+        {
+            std::string syntheticPath = sourceDirOverride;
+            if (syntheticPath.back() != '/')
+                syntheticPath += '/';
+            syntheticPath += std::filesystem::path(path).filename().string();
+            interpreter.setSourceFile(syntheticPath);
+        }
+        else
+        {
+            interpreter.setSourceFile(path);
+        }
         interpreter.setIsMainFile(true);
         interpreter.run(program);
     }
@@ -762,9 +776,123 @@ static int traceFile(const std::string &path)
     return 0;
 }
 
+// ---- Debug a file with IPC step-through -----------------------------------
+// Starts a DebugServer (Unix socket), prints the socket path to stderr,
+// then runs the file. The IDE connects to the socket for step/continue/etc.
+
+static int debugFile_exec(const std::string &path, const std::string &sourceDirOverride = "")
+{
+    std::string source = readFile(path);
+    source = applyConvertIfNeeded(source, path);
+
+    xell::Interpreter interpreter;
+    interpreter.setStreamOutput(true);
+
+    // Create tracer with debug IPC
+    xell::TraceCollector tracer;
+    tracer.enabled = true; // Start with tracing on for debug mode
+
+    xell::DebugServer debugServer;
+    std::string socketPath = debugServer.start(getpid());
+    if (socketPath.empty())
+    {
+        std::cerr << "[debug] Failed to create debug socket\n";
+        return 1;
+    }
+
+    // Print socket path for the IDE to connect to.
+    // Format: XELL_DEBUG_SOCKET:<path>
+    std::cerr << "XELL_DEBUG_SOCKET:" << socketPath << "\n";
+    std::cerr.flush();
+
+    // Wait for the IDE client to connect before proceeding.
+    // This ensures the first statement pause can actually send state to the IDE.
+    {
+        int waitMs = 0;
+        const int maxWaitMs = 30000; // 30 seconds max
+        const int intervalMs = 50;
+        while (!debugServer.acceptIfReady() && waitMs < maxWaitMs)
+        {
+            usleep(intervalMs * 1000);
+            waitMs += intervalMs;
+        }
+        if (!debugServer.isConnected())
+        {
+            std::cerr << "[debug] No IDE client connected within " << maxWaitMs << "ms\n";
+            debugServer.shutdown();
+            return 1;
+        }
+    }
+
+    tracer.debugIPC = &debugServer;
+    interpreter.setTraceCollector(&tracer);
+
+    // Start stepping immediately — the first statement will pause
+    tracer.stepping = true;
+
+    try
+    {
+        xell::Lexer lexer(source);
+        auto tokens = lexer.tokenize();
+        xell::Parser parser(tokens);
+        auto program = parser.parse();
+
+        if (!sourceDirOverride.empty())
+        {
+            std::string syntheticPath = sourceDirOverride;
+            if (syntheticPath.back() != '/')
+                syntheticPath += '/';
+            syntheticPath += std::filesystem::path(path).filename().string();
+            interpreter.setSourceFile(syntheticPath);
+        }
+        else
+        {
+            interpreter.setSourceFile(path);
+        }
+        interpreter.setIsMainFile(true);
+        interpreter.run(program);
+
+        // Send finished state to IDE
+        if (debugServer.isConnected())
+        {
+            debugServer.send(xell::DebugIPC::buildStateJSON("finished", -1, tracer.currentSequence(), 0));
+        }
+    }
+    catch (const xell::XellError &e)
+    {
+        std::cerr << e.what() << "\n";
+        if (debugServer.isConnected())
+        {
+            debugServer.send(xell::DebugIPC::buildEventJSON("error", e.what()));
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Fatal error: " << e.what() << "\n";
+    }
+
+    // Output trace as JSON to stdout (for IDE post-run analysis)
+    const auto &entries = tracer.entries();
+    std::cout << "[";
+    for (size_t i = 0; i < entries.size(); i++)
+    {
+        if (i > 0)
+            std::cout << ",";
+        std::cout << entries[i].toJSON();
+    }
+    std::cout << "]\n";
+
+    // Give the IDE a moment to read the "finished" message before closing the socket
+    usleep(100000); // 100ms
+
+    debugServer.shutdown();
+    return 0;
+}
+
 // ---- Execute a file ---------------------------------------------------------
 
-static int executeFile(const std::string &path, const std::vector<std::string> &cliArgs = {})
+static int executeFile(const std::string &path, const std::vector<std::string> &cliArgs = {},
+                       const std::string &sourceDirOverride = "")
 {
     std::string source = readFile(path);
 
@@ -787,7 +915,24 @@ static int executeFile(const std::string &path, const std::vector<std::string> &
         auto tokens = lexer.tokenize();
         xell::Parser parser(tokens);
         auto program = parser.parse();
-        interpreter.setSourceFile(path);
+
+        // When running from a temp file (e.g. IDE's Ctrl+Enter / Ctrl+D),
+        // use --source-dir to resolve modules from the original project
+        // directory instead of /tmp/xell/.
+        if (!sourceDirOverride.empty())
+        {
+            // Build a synthetic path in the original directory so that
+            // module resolution finds sibling .xel files correctly.
+            std::string syntheticPath = sourceDirOverride;
+            if (syntheticPath.back() != '/')
+                syntheticPath += '/';
+            syntheticPath += std::filesystem::path(path).filename().string();
+            interpreter.setSourceFile(syntheticPath);
+        }
+        else
+        {
+            interpreter.setSourceFile(path);
+        }
         interpreter.setIsMainFile(true);
         interpreter.setCliArgs(cliArgs);
         interpreter.run(program);
@@ -798,7 +943,10 @@ static int executeFile(const std::string &path, const std::vector<std::string> &
     }
     catch (const xell::XellError &e)
     {
-        // print() already flushed its output to stdout in real time
+        // Print traceback if the call stack is non-empty
+        std::string tb = interpreter.formatTraceback(e.line());
+        if (!tb.empty())
+            std::cerr << tb;
         std::cerr << e.what() << "\n";
         return 1;
     }
@@ -1686,10 +1834,16 @@ int main(int argc, char *argv[])
     {
         if (argc < 3)
         {
-            std::cerr << "Usage: xell --trace-vars <file.xel>\n";
+            std::cerr << "Usage: xell --trace-vars <file.xel> [--source-dir <dir>]\n";
             return 1;
         }
-        return traceFile(argv[2]);
+        std::string traceSourceDir;
+        for (int i = 3; i < argc; ++i)
+        {
+            if (std::string(argv[i]) == "--source-dir" && i + 1 < argc)
+                traceSourceDir = argv[++i];
+        }
+        return traceFile(argv[2], traceSourceDir);
     }
 
     // --check-symbols — lint + output symbol map as JSON on stdout
@@ -1760,10 +1914,77 @@ int main(int argc, char *argv[])
         return genXesy(output);
     }
 
+    // -e / --eval "code" — execute a Xell source string directly (no file)
+    if (arg1 == "-e" || arg1 == "--eval")
+    {
+        if (argc < 3)
+        {
+            std::cerr << "Usage: xell -e \"<code>\"\n";
+            return 1;
+        }
+        std::string code = argv[2];
+        xell::Interpreter interpreter;
+        interpreter.setStreamOutput(true);
+        try
+        {
+            xell::Lexer lexer(code);
+            auto tokens = lexer.tokenize();
+            xell::Parser parser(tokens);
+            auto program = parser.parse();
+            interpreter.run(program);
+            return 0;
+        }
+        catch (const xell::XellError &e)
+        {
+            std::string tb = interpreter.formatTraceback(e.line());
+            if (!tb.empty())
+                std::cerr << tb;
+            std::cerr << e.what() << "\n";
+            return 1;
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Fatal error: " << e.what() << "\n";
+            return 2;
+        }
+    }
+
+    // --debug — run file with debug IPC server for step-through debugging
+    // The IDE connects to the Unix socket for live stepping.
+    if (arg1 == "--debug")
+    {
+        if (argc < 3)
+        {
+            std::cerr << "Usage: xell --debug <file.xel> [--source-dir <dir>]\n";
+            return 1;
+        }
+        std::string debugFile = argv[2];
+        std::string debugSourceDir;
+        for (int i = 3; i < argc; ++i)
+        {
+            if (std::string(argv[i]) == "--source-dir" && i + 1 < argc)
+                debugSourceDir = argv[++i];
+        }
+        return debugFile_exec(debugFile, debugSourceDir);
+    }
+
     // Default: treat as file to execute
     // Any remaining args after the filename are passed as __args__
+    // Special flag: --source-dir <dir> overrides the directory used for
+    // module resolution (used by IDE when running from a temp file).
     std::vector<std::string> cliArgs;
+    std::string sourceDirOverride;
     for (int i = 2; i < argc; ++i)
-        cliArgs.push_back(argv[i]);
-    return executeFile(arg1, cliArgs);
+    {
+        std::string arg = argv[i];
+        if (arg == "--source-dir" && i + 1 < argc)
+        {
+            sourceDirOverride = argv[++i];
+        }
+        else
+        {
+            cliArgs.push_back(arg);
+        }
+    }
+    return executeFile(arg1, cliArgs, sourceDirOverride);
 }

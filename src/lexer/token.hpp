@@ -33,6 +33,7 @@ namespace xell
         TRY,
         CATCH,
         FINALLY,
+        THROW,
         INCASE,
         LET,  // let ... be (RAII / context manager)
         BE,   // let ... be (RAII / context manager)
@@ -137,12 +138,24 @@ namespace xell
         SEMICOLON, // ;
 
         // Shell operators
-        PIPE,      // |
+        PIPE,      // |> (pipe operator)
         AMP_AMP,   // &&
         PIPE_PIPE, // ||
 
+        // Bitwise operators
+        BAR,          // | (bitwise OR)
+        AMP,          // &
+        CARET,        // ^
+        LSHIFT,       // <<
+        RSHIFT,       // >>
+        AMP_EQUAL,    // &=
+        PIPE_EQUAL,   // |=
+        CARET_EQUAL,  // ^=
+        LSHIFT_EQUAL, // <<=
+        RSHIFT_EQUAL, // >>=
+
         // Prefix operator
-        TILDE, // ~ (smart-cast prefix)
+        TILDE, // ~ (bitwise NOT / smart-cast prefix)
 
         // Special
         IDENTIFIER,
@@ -174,6 +187,7 @@ namespace xell
             {(int)TokenType::TRY, "TRY"},
             {(int)TokenType::CATCH, "CATCH"},
             {(int)TokenType::FINALLY, "FINALLY"},
+            {(int)TokenType::THROW, "THROW"},
             {(int)TokenType::INCASE, "INCASE"},
             {(int)TokenType::LET, "LET"},
             {(int)TokenType::BE, "BE"},
@@ -249,6 +263,16 @@ namespace xell
             {(int)TokenType::PIPE, "PIPE"},
             {(int)TokenType::AMP_AMP, "AMP_AMP"},
             {(int)TokenType::PIPE_PIPE, "PIPE_PIPE"},
+            {(int)TokenType::BAR, "BAR"},
+            {(int)TokenType::AMP, "AMP"},
+            {(int)TokenType::CARET, "CARET"},
+            {(int)TokenType::LSHIFT, "LSHIFT"},
+            {(int)TokenType::RSHIFT, "RSHIFT"},
+            {(int)TokenType::AMP_EQUAL, "AMP_EQUAL"},
+            {(int)TokenType::PIPE_EQUAL, "PIPE_EQUAL"},
+            {(int)TokenType::CARET_EQUAL, "CARET_EQUAL"},
+            {(int)TokenType::LSHIFT_EQUAL, "LSHIFT_EQUAL"},
+            {(int)TokenType::RSHIFT_EQUAL, "RSHIFT_EQUAL"},
             {(int)TokenType::TILDE, "TILDE"},
             {(int)TokenType::IDENTIFIER, "IDENTIFIER"},
             {(int)TokenType::NEWLINE, "NEWLINE"},

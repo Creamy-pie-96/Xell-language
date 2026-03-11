@@ -127,6 +127,44 @@ namespace xell
             : entries(std::move(e)) { line = ln; }
     };
 
+    // ---- Comprehension clauses ----
+    // A clause is either a for-clause or an if-clause.
+    struct CompClause
+    {
+        bool isFor;                    // true = for-clause, false = if-clause
+        std::vector<std::string> vars; // for-clause: loop variable names
+        ExprPtr iterable;              // for-clause: iterable expression
+        ExprPtr condition;             // if-clause: condition expression
+    };
+
+    // [expr for x in iterable if cond ...]
+    struct ListComprehension : Expr
+    {
+        ExprPtr valueExpr;
+        std::vector<CompClause> clauses;
+        ListComprehension(ExprPtr val, std::vector<CompClause> cls, int ln = 0)
+            : valueExpr(std::move(val)), clauses(std::move(cls)) { line = ln; }
+    };
+
+    // {expr for x in iterable if cond ...}
+    struct SetComprehension : Expr
+    {
+        ExprPtr valueExpr;
+        std::vector<CompClause> clauses;
+        SetComprehension(ExprPtr val, std::vector<CompClause> cls, int ln = 0)
+            : valueExpr(std::move(val)), clauses(std::move(cls)) { line = ln; }
+    };
+
+    // {keyExpr: valExpr for x in iterable if cond ...}
+    struct MapComprehension : Expr
+    {
+        ExprPtr keyExpr;
+        ExprPtr valueExpr;
+        std::vector<CompClause> clauses;
+        MapComprehension(ExprPtr k, ExprPtr v, std::vector<CompClause> cls, int ln = 0)
+            : keyExpr(std::move(k)), valueExpr(std::move(v)), clauses(std::move(cls)) { line = ln; }
+    };
+
     struct BinaryExpr : Expr
     {
         ExprPtr left;
@@ -134,6 +172,16 @@ namespace xell
         ExprPtr right;
         BinaryExpr(ExprPtr l, std::string o, ExprPtr r, int ln = 0)
             : left(std::move(l)), op(std::move(o)), right(std::move(r)) { line = ln; }
+    };
+
+    // a < b < c >= d  →  operands=[a,b,c,d], ops=["<","<",">="]
+    // Evaluated left-to-right with short-circuit: (a<b) and (b<c) and (c>=d)
+    struct ChainedComparisonExpr : Expr
+    {
+        std::vector<ExprPtr> operands; // N operands
+        std::vector<std::string> ops;  // N-1 operators
+        ChainedComparisonExpr(std::vector<ExprPtr> operands, std::vector<std::string> ops, int ln = 0)
+            : operands(std::move(operands)), ops(std::move(ops)) { line = ln; }
     };
 
     struct UnaryExpr : Expr
@@ -168,6 +216,18 @@ namespace xell
         ExprPtr index;
         IndexAccess(ExprPtr obj, ExprPtr idx, int ln = 0)
             : object(std::move(obj)), index(std::move(idx)) { line = ln; }
+    };
+
+    // obj[start:end] or obj[start:end:step] — all three are optional (nullable)
+    struct SliceExpr : Expr
+    {
+        ExprPtr object;
+        ExprPtr start; // nullable → from beginning
+        ExprPtr end;   // nullable → to end
+        ExprPtr step;  // nullable → default 1
+        SliceExpr(ExprPtr obj, ExprPtr s, ExprPtr e, ExprPtr st, int ln = 0)
+            : object(std::move(obj)), start(std::move(s)),
+              end(std::move(e)), step(std::move(st)) { line = ln; }
     };
 
     struct MemberAccess : Expr
@@ -414,6 +474,16 @@ namespace xell
               catchBody(std::move(catchB)), finallyBody(std::move(finallyB)) { line = ln; }
     };
 
+    // throw expr — user-thrown error
+    // expr can be: a string (becomes RuntimeError message),
+    //              a map with "message"/"type" keys (structured error),
+    //              or omitted (nullptr) for re-throw inside a catch block.
+    struct ThrowStmt : Stmt
+    {
+        ExprPtr value; // nullptr → bare throw (re-throw)
+        explicit ThrowStmt(ExprPtr v, int ln = 0) : value(std::move(v)) { line = ln; }
+    };
+
     // incase x : is 1 or 2 : ... ; is 3 : ... ; else : ... ; ;
     struct InCaseClause
     {
@@ -558,23 +628,34 @@ namespace xell
     };
 
     // Member assignment: obj->field = expr
+    // If augmentedOp is non-empty, this is an augmented assignment:
+    //   obj->field += expr  ⇒  augmentedOp = "+"
+    // The interpreter reads the current value, applies the op, then writes back.
     struct MemberAssignment : Stmt
     {
-        ExprPtr object;     // the object expression (e.g., self, p1)
-        std::string member; // field name
-        ExprPtr value;      // RHS expression
-        MemberAssignment(ExprPtr obj, std::string mem, ExprPtr val, int ln = 0)
-            : object(std::move(obj)), member(std::move(mem)), value(std::move(val)) { line = ln; }
+        ExprPtr object;          // the object expression (e.g., self, p1, a->b)
+        std::string member;      // field name
+        ExprPtr value;           // RHS expression
+        std::string augmentedOp; // "", "+", "-", "*", "/", "%"
+        MemberAssignment(ExprPtr obj, std::string mem, ExprPtr val, int ln = 0,
+                         std::string augOp = "")
+            : object(std::move(obj)), member(std::move(mem)), value(std::move(val)),
+              augmentedOp(std::move(augOp)) { line = ln; }
     };
 
     // Index assignment: list[i] = expr  or  map[key] = expr
+    // If augmentedOp is non-empty, this is an augmented assignment:
+    //   list[i] += expr  ⇒  augmentedOp = "+"
     struct IndexAssignment : Stmt
     {
-        ExprPtr object; // the container
-        ExprPtr index;  // the index/key
-        ExprPtr value;  // RHS
-        IndexAssignment(ExprPtr obj, ExprPtr idx, ExprPtr val, int ln = 0)
-            : object(std::move(obj)), index(std::move(idx)), value(std::move(val)) { line = ln; }
+        ExprPtr object;          // the container
+        ExprPtr index;           // the index/key
+        ExprPtr value;           // RHS
+        std::string augmentedOp; // "", "+", "-", "*", "/", "%"
+        IndexAssignment(ExprPtr obj, ExprPtr idx, ExprPtr val, int ln = 0,
+                        std::string augOp = "")
+            : object(std::move(obj)), index(std::move(idx)), value(std::move(val)),
+              augmentedOp(std::move(augOp)) { line = ln; }
     };
 
     // Decorated function: @decorator fn name(...): ... ;

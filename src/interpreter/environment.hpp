@@ -115,6 +115,16 @@ namespace xell
             return vars_.count(name) > 0;
         }
 
+        /// Collect variable names defined in THIS scope only (no parent walk)
+        std::vector<std::string> allLocalNames() const
+        {
+            std::vector<std::string> names;
+            names.reserve(vars_.size());
+            for (auto &kv : vars_)
+                names.push_back(kv.first);
+            return names;
+        }
+
         /// Parent accessor (for debugging / testing)
         Environment *parent() const { return parent_; }
 
@@ -131,6 +141,9 @@ namespace xell
             }
             return names;
         }
+
+        /// Direct access to the variable map (for GC cycle-collector traversal)
+        const std::unordered_map<std::string, XObject> &vars() const { return vars_; }
 
     private:
         std::unordered_map<std::string, XObject> vars_;

@@ -420,8 +420,8 @@
         "color": "#d19a66",
         "bold": true,
         "italic": false,
-        "label": "Error handling (catch, finally, try)",
-        "example": "catch finally try"
+        "label": "Error handling (catch, finally, throw, try)",
+        "example": "catch finally throw try"
       },
       {
         "id": "kw_binding",

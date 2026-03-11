@@ -59,7 +59,9 @@ own errors**. There is no `throw`, `raise`, or `error` statement in the parser. 
 
 ---
 
-### 1.2 · Cycle Detection / Weak References
+### 1.2 · Cycle Detection / Weak References 
+
+**NOTE --> not done yet**
 
 **Status**: ❌ Missing  
 **Impact**: Critical (silent memory leaks)
@@ -166,8 +168,8 @@ with subclasses matching the C++ hierarchy. Support `catch (e: TypeError)` synta
 **Status**: ⚠️ Incomplete  
 **Impact**: Medium
 
-`obj.field += 1` has limited support. The parser handles `a.b op= expr` but chained member
-access like `a.b.c += 1` may not resolve correctly because the assignment target resolution
+`obj->field += 1` has limited support. The parser handles `a->b op= expr` but chained member
+access like `a->b->c += 1` may not resolve correctly because the assignment target resolution
 only goes one level deep.
 
 **Recommendation**: Generalize augmented assignment to work with any valid l-value expression

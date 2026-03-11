@@ -23,6 +23,7 @@ Six decorator keywords let you control debugging directly from your code:
 - [@checkpoint — Named Snapshots](#checkpoint--named-snapshots)
 - [@track / @notrack — Selective Tracing](#track--notrack--selective-tracing)
 - [Combining Decorators](#combining-decorators)
+- [Live Debugging (F5 Session)](#live-debugging-f5-session)
 - [Trace Events Reference](#trace-events-reference)
 - [Snapshot Details](#snapshot-details)
 - [Zero-Cost Guarantee](#zero-cost-guarantee)
@@ -32,14 +33,15 @@ Six decorator keywords let you control debugging directly from your code:
 
 ## IDE Run Modes
 
-The Xell IDE has three execution modes. Debug decorators (`@debug`, `@breakpoint`, `@watch`, etc.)
-are only active in **Debug Run** mode.
+The Xell IDE has four execution modes. Debug decorators (`@debug`, `@breakpoint`, `@watch`, etc.)
+are only active in **Debug Run** and **Live Debug** modes.
 
-| Shortcut       | Mode       | What runs                     | Variables | Objects | Dashboard | Lifecycle | Debug decorators |
-| -------------- | ---------- | ----------------------------- | :-------: | :-----: | :-------: | :-------: | :--------------: |
-| **Ctrl+Enter** | Quick Run  | Selection, or line 1 → cursor |    ✅     |   ✅    |    ✅     |    ❌     |        ❌        |
-| **Ctrl+R**     | Normal Run | Entire current file           |    ✅     |   ✅    |    ✅     |    ❌     |        ❌        |
-| **Ctrl+D**     | Debug Run  | Selection, or line 1 → cursor |    ✅     |   ✅    |    ✅     |    ✅     |        ✅        |
+| Shortcut       | Mode       | What runs                     | Variables | Objects | Dashboard | Lifecycle | Debug decorators | Stepping |
+| -------------- | ---------- | ----------------------------- | :-------: | :-----: | :-------: | :-------: | :--------------: | :------: |
+| **Ctrl+Enter** | Quick Run  | Selection, or line 1 → cursor |    ✅     |   ✅    |    ✅     |    ❌     |        ❌        |    ❌    |
+| **Ctrl+R**     | Normal Run | Entire current file           |    ✅     |   ✅    |    ✅     |    ❌     |        ❌        |    ❌    |
+| **Ctrl+D**     | Debug Run  | Selection, or line 1 → cursor |    ✅     |   ✅    |    ✅     |    ✅     |        ✅        |    ❌    |
+| **F5**         | Live Debug | Entire current file via IPC   |    ✅     |   ✅    |    ✅     |    ✅     |        ✅        |    ✅    |
 
 **Quick Run / Normal Run** — Fast execution. Variables, Objects, and Dashboard tabs
 are always populated via static analysis. No lifecycle tracking, no runtime debug overhead.
@@ -48,8 +50,14 @@ are always populated via static analysis. No lifecycle tracking, no runtime debu
 `--trace-vars` to collect lifecycle events (VAR_BORN, VAR_CHANGED, FUNCTION_CALLED, etc.).
 Debug decorators (`@breakpoint`, `@watch`, `@checkpoint`, `@track`, `@notrack`) are active.
 
-> **Tip:** Use Ctrl+Enter for rapid iteration, and Ctrl+D when you need
-> to investigate a bug with lifecycle tracking or debug decorators.
+**Live Debug (F5)** — Interactive step-through debugging. Launches `xell --debug <file>`
+as a subprocess, connects via Unix domain socket IPC, and pauses before the first
+statement. Use F10/F11/Shift+F11 to step, F5 to continue, F9 to toggle breakpoints,
+F12 to stop. The editor gutter shows breakpoint indicators (●) and the current
+debug line arrow (▶). The TIMELINE and CALLSTACK tabs update in real-time.
+
+> **Tip:** Use Ctrl+Enter for rapid iteration, Ctrl+D for post-mortem trace analysis,
+> and F5 when you need interactive step-through debugging.
 
 ---
 
@@ -167,20 +175,18 @@ raw pointers.
 
 ### @breakpoint pause — Execution Pause
 
-Pauses execution until the user presses Enter:
+Pauses execution. In **Live Debug mode (F5)**, this sends a "paused" state to the
+IDE over IPC and waits for a resume command. In standalone mode, it reads from stdin:
 
 ```xell
 @debug on
 x = compute_something()
 @breakpoint pause
-# Execution stops here. Press Enter to continue.
+# In F5 mode: IDE shows paused state, press F5 to continue
+# In standalone: press Enter to continue
 y = compute_more()
 @debug off
 ```
-
-> **Note:** In the current implementation, this reads from stdin. In Phase 7
-> (Debug Socket IPC), this will be replaced by IPC-based pause/resume controlled
-> from the IDE.
 
 ### @breakpoint pause N — Timed Pause
 
@@ -419,6 +425,154 @@ This:
 
 ---
 
+## Live Debugging (F5 Session)
+
+### Overview
+
+Press **F5** in the Xell IDE terminal to start an interactive debug session.
+The IDE launches `xell --debug <file>` as a subprocess, connects via a Unix
+domain socket, and gives you full step-through control.
+
+### How It Works
+
+1. **F5** pressed → IDE launches `xell --debug myscript.xel`
+2. Interpreter creates socket at `/tmp/xell-debug-<pid>.sock`
+3. Interpreter prints `XELL_DEBUG_SOCKET:/tmp/xell-debug-<pid>.sock` to stderr
+4. IDE reads stderr, connects the debug client to the socket
+5. IDE syncs any existing gutter breakpoints to the interpreter
+6. Interpreter pauses before the first statement, sends state JSON
+7. IDE highlights the current line in the editor (▶ arrow in gutter, yellow background)
+8. User steps through code with F10/F11, or continues with F5
+
+### Keybindings
+
+| Key           | Action                                             |
+| ------------- | -------------------------------------------------- |
+| **F5**        | Start debug session / Continue (resume execution)  |
+| **F9**        | Toggle breakpoint on current editor line           |
+| **F10**       | Step Over — execute one statement, skip into calls |
+| **F11**       | Step Into — descend into the next function call    |
+| **Shift+F11** | Step Out — run until the current function returns  |
+| **F12**       | Stop — terminate the debug session                 |
+
+### Editor Indicatorsmake -C /home/DATA/CODE/code/Xell/build -j$(nproc) 2>&1 | tail -10 && echo "---BUILD OK---" && cd /home/DATA/CODE/code/Xell/build && ./debug_test 2>&1 | tail -30
+
+During a debug session, the editor gutter shows:
+
+| Symbol | Color  | Meaning                |
+| ------ | ------ | ---------------------- |
+| ▶      | Yellow | Current execution line |
+| ●      | Red    | Pause breakpoint       |
+| ●      | Purple | Snapshot breakpoint    |
+
+The current execution line also has a yellow-tinted background in the code area.
+
+### IDE Breakpoints vs Decorator Breakpoints
+
+There are two kinds of breakpoints:
+
+1. **IDE breakpoints** — Set via F9 or clicking the editor gutter. These are
+   sent to the interpreter over IPC as `add_breakpoint`/`remove_breakpoint`
+   commands. They are stored in `TraceCollector::ideBreakpoints` and checked
+   at the top of `exec()`.
+
+2. **Decorator breakpoints** — Written in code as `@breakpoint("name")`. These
+   take snapshots during trace-mode execution. They work in both Ctrl+D and F5 modes.
+
+Both types are visible in the gutter. IDE breakpoints can be toggled at any time
+during a debug session.
+
+### Bottom Panel Tabs
+
+| Tab       | Content                                                   |
+| --------- | --------------------------------------------------------- |
+| REPL      | Interactive Xell shell                                    |
+| OUTPUT    | stdout/stderr from the current run                        |
+| VARIABLES | Current scope variables (all run modes)                   |
+| OBJECTS   | Object instances and their fields                         |
+| DASHBOARD | Runtime statistics and metrics                            |
+| LIFECYCLE | Trace events from @debug decorators (Ctrl+D and F5)       |
+| TIMELINE  | Real-time event feed during F5 sessions (stepping events) |
+| CALLSTACK | Live call stack during F5 sessions                        |
+| HELP      | Keyboard shortcuts and usage reference                    |
+
+The **TIMELINE** tab shows a scrollable list of debug events with color coding:
+
+- 🟡 Yellow — paused (stepping)
+- 🔵 Blue — step executed
+- 🔴 Red — breakpoint hit
+
+The **CALLSTACK** tab shows the current call stack with a ▶ indicator on the
+active frame. Click a frame to navigate to that source location.
+
+### IPC Protocol Reference
+
+The debug IPC uses **newline-delimited JSON** over Unix domain sockets.
+
+**IDE → Interpreter (commands):**
+
+| Command             | Fields         | Description                   |
+| ------------------- | -------------- | ----------------------------- |
+| `continue`          | —              | Resume execution              |
+| `step_over`         | —              | Execute one statement         |
+| `step_into`         | —              | Descend into function         |
+| `step_out`          | —              | Return to caller              |
+| `stop`              | —              | Terminate execution           |
+| `add_breakpoint`    | `line`, `type` | Set a breakpoint              |
+| `remove_breakpoint` | `line`         | Remove a breakpoint           |
+| `add_watch`         | `expr`         | Add a watch expression        |
+| `remove_watch`      | `expr`         | Remove a watch expression     |
+| `jump_to`           | `sequence`     | Jump to trace sequence number |
+| `eval`              | `expr`         | Evaluate expression in scope  |
+
+**Interpreter → IDE (state updates):**
+
+```json
+{
+  "state": "paused",
+  "line": 25,
+  "seq": 42,
+  "depth": 3,
+  "vars": { "x": "10", "name": "hello" },
+  "callStack": ["main:1", "process:15", "helper:25"]
+}
+```
+
+### Cross-Module Debugging
+
+When a debug session encounters a `bring` statement, the trace collector is
+shared with the imported module's interpreter. This means:
+
+- Breakpoints set in the main file apply when stepping into brought modules
+- The call stack shows cross-module frames (e.g., `moduleA:10 → main:25`)
+- Timeline events include a `module` field identifying the source module
+- The trace collector's `setCurrentModule()` tracks module transitions
+
+### Example Session
+
+```xell
+# myscript.xel
+fn fibonacci(n) :
+    if n <= 1 :
+        give n
+    ;
+    give fibonacci(n-1) + fibonacci(n-2)
+;
+
+result = fibonacci(10)
+print(result)
+```
+
+1. Press **F5** — debugger launches, pauses at line 1
+2. Editor shows ▶ on line 1 (the `fn` definition)
+3. Press **F10** three times — steps to `result = fibonacci(10)`
+4. Press **F11** — steps INTO fibonacci, now at line 2
+5. Press **F10** — steps over `if` check
+6. Press **Shift+F11** — runs until fibonacci returns, back at line 9
+7. Press **F5** — continues to end, session finishes
+
+---
+
 ## Trace Events Reference
 
 | Event               | When Emitted                          |
@@ -489,8 +643,8 @@ each event with O(1) hash lookups.
 
 ## Limitations & Notes
 
-1. **`@breakpoint pause`** currently reads from stdin. This will be replaced by
-   IPC-based pause/resume in Phase 7 (Debug Socket IPC).
+1. **`@breakpoint pause`** uses IPC-based pause/resume when running via F5 (Live Debug).
+   In standalone mode (no IPC), it falls back to stdin.
 
 2. **`@watch`** evaluates in the current environment. If the watch references
    variables not in scope, it will throw (caught and ignored by the trace system).
@@ -517,6 +671,15 @@ each event with O(1) hash lookups.
    Complex expressions like `obj->method()` will track `obj` but not the
    method return value — the watch re-evaluates when `obj` changes.
 
+7. **Live Debug (F5)** requires the `xell` binary to be installed and accessible
+   in `$PATH`. The IDE terminal launches it as a subprocess.
+
+8. **IPC sockets** are Unix domain sockets — currently Linux/macOS only.
+   Socket files are automatically cleaned up when the debug session ends.
+
+9. **Cross-module stepping** shares the trace collector across `bring` calls.
+   The module field in trace entries identifies which module generated each event.
+
 ---
 
 ## Phase Status
@@ -528,11 +691,11 @@ each event with O(1) hash lookups.
 | 3     | Dashboard Panel         | ✅     |
 | 4     | TraceCollector engine   | ✅     |
 | 5     | @breakpoint + @watch    | ✅     |
-| 6     | Cross-module debug      | ⬜     |
-| 7     | Debug socket IPC        | ⬜     |
-| 8     | Timeline Tab            | ⬜     |
-| 9     | Step-through (F10/F11)  | ⬜     |
+| 6     | Cross-module debug      | ✅     |
+| 7     | Debug socket IPC        | ✅     |
+| 8     | Timeline Tab            | ✅     |
+| 9     | Step-through (F10/F11)  | ✅     |
 | 10    | Time Travel engine      | ⬜     |
-| 11    | Variable Lifecycle view | ⬜     |
-| 12    | Call Stack live view    | ⬜     |
-| 13    | Polish                  | ⬜     |
+| 11    | Variable Lifecycle view | ✅     |
+| 12    | Call Stack live view    | ✅     |
+| 13    | Polish                  | ✅     |

@@ -590,6 +590,11 @@ namespace xell
                 }
                 checkBlock(tryStmt->finallyBody);
             }
+            else if (auto *throwStmt = dynamic_cast<const ThrowStmt *>(stmt))
+            {
+                if (throwStmt->value)
+                    checkExpr(throwStmt->value.get());
+            }
             else if (auto *incase = dynamic_cast<const InCaseStmt *>(stmt))
             {
                 checkExpr(incase->subject.get());
@@ -902,6 +907,11 @@ namespace xell
                 checkExpr(bin->left.get());
                 checkExpr(bin->right.get());
             }
+            else if (auto *chain = dynamic_cast<const ChainedComparisonExpr *>(expr))
+            {
+                for (const auto &operand : chain->operands)
+                    checkExpr(operand.get());
+            }
             else if (auto *unary = dynamic_cast<const UnaryExpr *>(expr))
             {
                 checkExpr(unary->operand.get());
@@ -910,6 +920,16 @@ namespace xell
             {
                 checkExpr(index->object.get());
                 checkExpr(index->index.get());
+            }
+            else if (auto *slice = dynamic_cast<const SliceExpr *>(expr))
+            {
+                checkExpr(slice->object.get());
+                if (slice->start)
+                    checkExpr(slice->start.get());
+                if (slice->end)
+                    checkExpr(slice->end.get());
+                if (slice->step)
+                    checkExpr(slice->step.get());
             }
             else if (auto *mapAcc = dynamic_cast<const MemberAccess *>(expr))
             {

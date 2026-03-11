@@ -11,6 +11,7 @@ add_library(xell_lib
     src/parser/parser.cpp
     src/interpreter/xobject.cpp
     src/interpreter/interpreter.cpp
+    src/xobject/gc.cpp
     src/module/module_resolver.cpp
     src/os/fs.cpp
     src/os/env.cpp
@@ -156,3 +157,7 @@ add_test(NAME expr_loop_test COMMAND expr_loop_test)
 add_executable(debug_test test/debug_test.cpp)
 target_link_libraries(debug_test xell_lib)
 add_test(NAME debug_test COMMAND debug_test)
+
+add_executable(debug_ipc_test test/debug_ipc_test.cpp)
+target_link_libraries(debug_ipc_test xell_lib)
+add_test(NAME debug_ipc_test COMMAND debug_ipc_test)

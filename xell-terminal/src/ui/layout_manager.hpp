@@ -42,6 +42,7 @@
 #include "config_manager.hpp"
 #include "autocomplete.hpp"
 #include "dashboard_panel.hpp"
+#include "debug_client.hpp"
 
 namespace xterm
 {
@@ -206,6 +207,20 @@ namespace xterm
                         showAutocomplete();
                     }
                 }
+            }
+
+            // Poll debug session for state updates
+            pollDebugSession();
+
+            // Check if editor had a gutter breakpoint toggle
+            int toggledBP = editor_.consumeBreakpointToggle();
+            if (toggledBP >= 0 && debugState_.active)
+            {
+                auto bps = editor_.breakpoints();
+                if (bps && bps->count(toggledBP))
+                    debugClient_.sendAddBreakpoint(toggledBP + 1); // 1-based for interpreter
+                else
+                    debugClient_.sendRemoveBreakpoint(toggledBP + 1);
             }
         }
 
@@ -570,6 +585,82 @@ namespace xterm
                 auto key = event.key.keysym;
                 bool ctrl = (key.mod & KMOD_CTRL) != 0;
                 bool shift = (key.mod & KMOD_SHIFT) != 0;
+
+                // ── Debug function keys (F5/F9/F10/F11/F12) ─────────
+                switch (key.sym)
+                {
+                case SDLK_F5:
+                    if (debugState_.active && debugState_.paused)
+                    {
+                        // Continue execution
+                        debugClient_.sendContinue();
+                        editor_.setStatusMessage("▶ Continue");
+                    }
+                    else if (!debugState_.active)
+                    {
+                        // Start debug session
+                        handleDebugLaunch();
+                    }
+                    return LayoutAction::HANDLED;
+
+                case SDLK_F9:
+                {
+                    // Toggle breakpoint on current line
+                    int row = editor_.cursorRow();
+                    if (row >= 0)
+                    {
+                        editor_.toggleBreakpoint(row);
+                        // If debug session is active, sync to interpreter
+                        if (debugState_.active)
+                        {
+                            auto bps = editor_.breakpoints();
+                            if (bps && bps->count(row))
+                                debugClient_.sendAddBreakpoint(row + 1); // 1-based for interpreter
+                            else
+                                debugClient_.sendRemoveBreakpoint(row + 1);
+                        }
+                        editor_.setStatusMessage("Breakpoint toggled at line " + std::to_string(row + 1));
+                    }
+                    return LayoutAction::HANDLED;
+                }
+
+                case SDLK_F10:
+                    if (debugState_.active && debugState_.paused)
+                    {
+                        debugClient_.sendStepOver();
+                        editor_.setStatusMessage("⤳ Step Over");
+                    }
+                    return LayoutAction::HANDLED;
+
+                case SDLK_F11:
+                    if (debugState_.active && debugState_.paused)
+                    {
+                        if (shift)
+                        {
+                            debugClient_.sendStepOut();
+                            editor_.setStatusMessage("⤴ Step Out");
+                        }
+                        else
+                        {
+                            debugClient_.sendStepInto();
+                            editor_.setStatusMessage("⤵ Step Into");
+                        }
+                    }
+                    return LayoutAction::HANDLED;
+
+                case SDLK_F12:
+                    if (debugState_.active)
+                    {
+                        // Stop debug session
+                        debugClient_.sendStop();
+                        endDebugSession();
+                        editor_.setStatusMessage("⏹ Debug Stopped");
+                    }
+                    return LayoutAction::HANDLED;
+
+                default:
+                    break;
+                }
 
                 // Global shortcuts (regardless of focus)
                 if (ctrl)
@@ -1405,6 +1496,8 @@ namespace xterm
                 {" VARIABLES ", BottomTab::VARIABLES},
                 {" OBJECTS ", BottomTab::OBJECTS},
                 {" LIFECYCLE ", BottomTab::LIFECYCLE},
+                {" TIMELINE ", BottomTab::TIMELINE},
+                {" CALLSTACK ", BottomTab::CALLSTACK},
                 {" HELP ", BottomTab::HELP},
             };
 
@@ -1789,6 +1882,13 @@ namespace xterm
         std::string lastTracedFile_;
         std::string traceJsonCache_; // raw JSON from --trace-vars
 
+        // ── Debug session state ──────────────────────────────────────
+        DebugClient debugClient_;
+        DebugState debugState_;
+        std::string debugSocketPath_;
+        pid_t debugChildPid_ = 0;
+        bool debugLaunching_ = false; // waiting for socket connection
+
         // File context menu state
         bool showFileContextMenu_ = false;
         int contextMenuRow_ = 0;
@@ -2125,6 +2225,10 @@ namespace xterm
             while (start > 0 && (std::isalnum(line[start - 1]) || line[start - 1] == '_'))
                 start--;
 
+            // Include leading @ for decorator completions (@debug, @breakpoint, etc.)
+            if (start > 0 && line[start - 1] == '@')
+                start--;
+
             acPrefix_ = line.substr(start, col - start);
 
             // Check for -> member access pattern
@@ -2252,8 +2356,9 @@ namespace xterm
                 return;
             }
 
-            // Store label and kind before hiding popup
+            // Store fields before hiding popup
             std::string label = item->label;
+            std::string insertText = item->insertText;
             CompletionKind kind = item->kind;
 
             acPopup_.hide();
@@ -2289,8 +2394,20 @@ namespace xterm
                 }
             }
 
-            // Regular completion — insert the label
-            editor_.insertTextAtCursor(label);
+            // If the item has insertText with snippet placeholders, expand as snippet
+            if (!insertText.empty() && insertText.find("${") != std::string::npos)
+            {
+                SnippetDef tempDef;
+                tempDef.prefix = label;
+                tempDef.description = label;
+                tempDef.bodyLines = {insertText};
+                expandSnippet(tempDef);
+                acPrefix_.clear();
+                return;
+            }
+
+            // Regular completion — insert insertText if available, else label
+            editor_.insertTextAtCursor(insertText.empty() ? label : insertText);
             acPrefix_.clear();
         }
 
@@ -2511,7 +2628,12 @@ namespace xterm
 
             // Send to REPL — show results in OUTPUT tab
             replPanel_.setActiveTab(BottomTab::OUTPUT);
-            replPanel_.runCode(code);
+            // Pass the editor file's directory so module imports resolve correctly
+            std::string sourceDir;
+            std::string filePath = editor_.getCurrentFilePath();
+            if (!filePath.empty())
+                sourceDir = std::filesystem::path(filePath).parent_path().string();
+            replPanel_.runCode(code, sourceDir);
         }
 
         // ── Debug Run (Ctrl+Shift+D) — run selection/cursor with full lifecycle + debug ──
@@ -2544,8 +2666,14 @@ namespace xterm
             // Switch to LIFECYCLE tab so user sees debug output
             replPanel_.setActiveTab(BottomTab::LIFECYCLE);
 
+            // Get the editor file's directory so module imports resolve correctly
+            std::string sourceDir;
+            std::string filePath = editor_.getCurrentFilePath();
+            if (!filePath.empty())
+                sourceDir = std::filesystem::path(filePath).parent_path().string();
+
             // Run the code for output
-            replPanel_.runCode(code);
+            replPanel_.runCode(code, sourceDir);
 
             // Write code to a temp file for trace collection
             std::string tmpDir = "/tmp/xell";
@@ -2560,7 +2688,7 @@ namespace xterm
 
                     // Collect trace (lifecycle events) from the temp file
                     lastTracedFile_ = tmpFile;
-                    collectTraceForFile(tmpFile);
+                    collectTraceForFile(tmpFile, sourceDir);
                 }
             }
         }
@@ -2589,12 +2717,14 @@ namespace xterm
         }
 
         // Collect trace data lazily after file execution
-        void collectTraceForFile(const std::string &filePath)
+        void collectTraceForFile(const std::string &filePath, const std::string &sourceDir = "")
         {
             std::string xellBin = findXellBinary();
             int exitCode = 0;
-            traceJsonCache_ = captureCommand(
-                xellBin + " --trace-vars \"" + filePath + "\"", exitCode);
+            std::string cmd = xellBin + " --trace-vars \"" + filePath + "\"";
+            if (!sourceDir.empty())
+                cmd += " --source-dir \"" + sourceDir + "\"";
+            traceJsonCache_ = captureCommand(cmd, exitCode);
         }
 
         // Lifecycle lookup: given a variable name, extract lifecycle events from trace cache
@@ -2692,6 +2822,298 @@ namespace xterm
                 result.push_back(lineStr + "  " + eventStr + typeStr + valStr + byWhom);
             }
             return result;
+        }
+
+        // ── Debug session management ─────────────────────────────────
+
+        void handleDebugLaunch()
+        {
+            if (debugState_.active)
+            {
+                editor_.setStatusMessage("Debug session already active. F12 to stop.");
+                return;
+            }
+
+            std::string filePath = editor_.getCurrentFilePath();
+            if (filePath.empty())
+            {
+                editor_.setStatusMessage("Save file first to debug");
+                return;
+            }
+
+            // Show bottom panel
+            if (!showBottomPanel_)
+            {
+                showBottomPanel_ = true;
+                recalcLayout();
+            }
+
+            // Clear previous state
+            replPanel_.clearTimeline();
+            replPanel_.clearCallStack();
+            editor_.clearDebugLine();
+
+            std::string xellBin = findXellBinary();
+            std::string sourceDir = std::filesystem::path(filePath).parent_path().string();
+
+            // Launch xell --debug directly with fork/exec.
+            // We capture stderr via a pipe to read the XELL_DEBUG_SOCKET: line.
+            int stderrPipe[2];
+            if (pipe(stderrPipe) != 0)
+            {
+                editor_.setStatusMessage("❌ Failed to create pipe for debug launch");
+                return;
+            }
+
+            pid_t pid = fork();
+            if (pid < 0)
+            {
+                close(stderrPipe[0]);
+                close(stderrPipe[1]);
+                editor_.setStatusMessage("❌ Failed to fork for debug launch");
+                return;
+            }
+
+            if (pid == 0)
+            {
+                // Child process — run xell --debug <file>
+                setsid();             // new process group
+                close(stderrPipe[0]); // close read end
+
+                // Redirect stderr to the pipe so parent can read XELL_DEBUG_SOCKET:
+                dup2(stderrPipe[1], STDERR_FILENO);
+                close(stderrPipe[1]);
+
+                // Redirect stdout to /dev/null (trace JSON goes to stdout, we don't need it now)
+                int devnull = open("/dev/null", O_WRONLY);
+                if (devnull >= 0)
+                {
+                    dup2(devnull, STDOUT_FILENO);
+                    close(devnull);
+                }
+
+                // Build args
+                if (sourceDir.empty())
+                    execlp(xellBin.c_str(), xellBin.c_str(), "--debug", filePath.c_str(), nullptr);
+                else
+                    execlp(xellBin.c_str(), xellBin.c_str(), "--debug", filePath.c_str(),
+                           "--source-dir", sourceDir.c_str(), nullptr);
+                _exit(127);
+            }
+
+            // Parent process
+            close(stderrPipe[1]); // close write end
+            debugChildPid_ = pid;
+
+            // Read stderr from the child (non-blocking with timeout).
+            // The child should write XELL_DEBUG_SOCKET:<path> very quickly.
+            debugSocketPath_.clear();
+            {
+                // Set the read end to non-blocking
+                int flags = fcntl(stderrPipe[0], F_GETFL, 0);
+                fcntl(stderrPipe[0], F_SETFL, flags | O_NONBLOCK);
+
+                std::string stderrBuf;
+                char buf[512];
+                int elapsed = 0;
+                const int intervalUs = 20000;  // 20ms
+                const int timeoutUs = 3000000; // 3 seconds
+
+                while (elapsed < timeoutUs)
+                {
+                    ssize_t n = read(stderrPipe[0], buf, sizeof(buf) - 1);
+                    if (n > 0)
+                    {
+                        buf[n] = '\0';
+                        stderrBuf.append(buf, n);
+
+                        // Check if we have the socket path line
+                        const std::string prefix = "XELL_DEBUG_SOCKET:";
+                        auto pos = stderrBuf.find(prefix);
+                        if (pos != std::string::npos)
+                        {
+                            auto lineEnd = stderrBuf.find('\n', pos);
+                            if (lineEnd != std::string::npos)
+                                debugSocketPath_ = stderrBuf.substr(pos + prefix.size(), lineEnd - pos - prefix.size());
+                            else
+                                debugSocketPath_ = stderrBuf.substr(pos + prefix.size());
+                            // Trim whitespace
+                            while (!debugSocketPath_.empty() && (debugSocketPath_.back() == '\n' || debugSocketPath_.back() == '\r' || debugSocketPath_.back() == ' '))
+                                debugSocketPath_.pop_back();
+                            break;
+                        }
+                    }
+                    else if (n == 0)
+                    {
+                        break; // EOF — child closed stderr
+                    }
+                    // else n < 0 → EAGAIN, nothing to read yet
+
+                    usleep(intervalUs);
+                    elapsed += intervalUs;
+                }
+
+                close(stderrPipe[0]);
+            }
+
+            if (debugSocketPath_.empty())
+            {
+                editor_.setStatusMessage("❌ Failed to start debug session (no socket path)");
+                // Kill the child if it's still running
+                if (debugChildPid_ > 0)
+                {
+                    kill(debugChildPid_, SIGTERM);
+                    waitpid(debugChildPid_, nullptr, WNOHANG);
+                    debugChildPid_ = 0;
+                }
+                return;
+            }
+
+            // Connect to the debug socket
+            if (!debugClient_.connect(debugSocketPath_, 5000))
+            {
+                editor_.setStatusMessage("❌ Failed to connect to debug socket");
+                debugSocketPath_.clear();
+                if (debugChildPid_ > 0)
+                {
+                    kill(debugChildPid_, SIGTERM);
+                    waitpid(debugChildPid_, nullptr, WNOHANG);
+                    debugChildPid_ = 0;
+                }
+                return;
+            }
+
+            debugState_.active = true;
+            debugState_.paused = true; // starts paused on first statement
+
+            // Send any existing breakpoints to the interpreter
+            auto bps = editor_.breakpoints();
+            if (bps)
+            {
+                for (auto &[line, type] : *bps)
+                    debugClient_.sendAddBreakpoint(line + 1, type); // 1-based
+            }
+
+            // Switch to TIMELINE tab
+            replPanel_.setActiveTab(BottomTab::TIMELINE);
+            replPanel_.appendTimelineEvent("[session] Debug started: " + filePath);
+            editor_.setStatusMessage("🐛 Debug session started — F5:Continue F10:StepOver F11:StepIn/Out F12:Stop");
+        }
+
+        void endDebugSession()
+        {
+            debugClient_.disconnect();
+            // Kill the debug child process if still running
+            if (debugChildPid_ > 0)
+            {
+                kill(-debugChildPid_, SIGTERM); // kill process group
+                kill(debugChildPid_, SIGTERM);
+                usleep(50000); // 50ms grace
+                kill(-debugChildPid_, SIGKILL);
+                kill(debugChildPid_, SIGKILL);
+                waitpid(debugChildPid_, nullptr, WNOHANG); // reap zombie
+            }
+            debugState_ = DebugState{};
+            debugSocketPath_.clear();
+            debugChildPid_ = 0;
+            editor_.clearDebugLine();
+        }
+
+        void pollDebugSession()
+        {
+            if (!debugState_.active)
+                return;
+
+            // Poll for messages from the interpreter (non-blocking)
+            std::string msg = debugClient_.tryRecv();
+            while (!msg.empty())
+            {
+                DebugState newState = DebugClient::parseState(msg);
+
+                if (!newState.active && !newState.paused)
+                {
+                    // Session finished
+                    replPanel_.appendTimelineEvent("[session] Debug session ended");
+                    endDebugSession();
+                    editor_.setStatusMessage("✓ Debug session finished");
+                    return;
+                }
+
+                if (newState.paused)
+                {
+                    debugState_ = newState;
+                    int line0 = newState.currentLine - 1; // 0-based for editor
+                    editor_.setDebugLine(line0);
+                    editor_.goToLine(line0);
+
+                    // Update timeline
+                    std::string event = "[line " + std::to_string(newState.currentLine) +
+                                        "] paused (seq:" + std::to_string(newState.sequence) +
+                                        " depth:" + std::to_string(newState.depth) + ")";
+                    replPanel_.appendTimelineEvent(event);
+
+                    // Update call stack from JSON
+                    updateCallStackFromJSON(newState.stackJSON);
+
+                    editor_.setStatusMessage("⏸ Paused at line " + std::to_string(newState.currentLine));
+                }
+                else
+                {
+                    debugState_ = newState;
+                    editor_.clearDebugLine();
+                }
+
+                msg = debugClient_.tryRecv();
+            }
+
+            // Check if the connection dropped (and we didn't get a clean "finished")
+            if (!debugClient_.isConnected() && debugState_.active)
+            {
+                // Check if child process is still alive
+                if (debugChildPid_ > 0)
+                {
+                    int status = 0;
+                    pid_t result = waitpid(debugChildPid_, &status, WNOHANG);
+                    if (result > 0)
+                    {
+                        // Child exited — program finished (socket closed before we read "finished")
+                        replPanel_.appendTimelineEvent("[session] Debug session ended (process exited)");
+                        endDebugSession();
+                        editor_.setStatusMessage("✓ Debug session finished");
+                        return;
+                    }
+                }
+                replPanel_.appendTimelineEvent("[session] Connection lost");
+                endDebugSession();
+                editor_.setStatusMessage("⚠ Debug connection lost");
+            }
+        }
+
+        void updateCallStackFromJSON(const std::string &json)
+        {
+            // Parse a JSON array of strings: ["main:1","foo:5","bar:10"]
+            std::vector<std::string> frames;
+            if (json.size() < 2 || json[0] != '[')
+            {
+                replPanel_.setCallStack(frames);
+                return;
+            }
+
+            size_t pos = 1;
+            while (pos < json.size())
+            {
+                pos = json.find('"', pos);
+                if (pos == std::string::npos)
+                    break;
+                pos++;
+                size_t end = json.find('"', pos);
+                if (end == std::string::npos)
+                    break;
+                frames.push_back(json.substr(pos, end - pos));
+                pos = end + 1;
+            }
+
+            replPanel_.setCallStack(frames);
         }
 
         void handleInlineEval()

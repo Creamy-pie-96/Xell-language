@@ -25,6 +25,7 @@ namespace xell
             {"try", TokenType::TRY},
             {"catch", TokenType::CATCH},
             {"finally", TokenType::FINALLY},
+            {"throw", TokenType::THROW},
             {"incase", TokenType::INCASE},
             {"let", TokenType::LET},
             {"be", TokenType::BE},
@@ -134,6 +135,11 @@ namespace xell
         return c >= '0' && c <= '9';
     }
 
+    bool Lexer::isHexDigit(char c)
+    {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    }
+
     bool Lexer::isAlphaNumeric(char c)
     {
         return isAlpha(c) || isDigit(c);
@@ -208,9 +214,86 @@ namespace xell
         int startLine = line_;
         std::string num;
 
-        while (!isAtEnd() && isDigit(current()))
+        // Check for 0x, 0o, 0b prefixes
+        if (current() == '0' && !isAtEnd())
         {
-            num += current();
+            char next = peek(1);
+            if (next == 'x' || next == 'X')
+            {
+                // Hexadecimal: 0x1F, 0xFF
+                num += '0';
+                advance(); // consume '0'
+                num += current();
+                advance(); // consume 'x'/'X'
+                if (isAtEnd() || !isHexDigit(current()))
+                    throw LexerError("Expected hex digit after '0x'", startLine);
+                while (!isAtEnd() && (isHexDigit(current()) || current() == '_'))
+                {
+                    if (current() != '_')
+                        num += current();
+                    advance();
+                }
+                // Imaginary suffix
+                if (!isAtEnd() && current() == 'i' && !isAlphaNumeric(peek(1)))
+                {
+                    advance();
+                    return Token(TokenType::IMAGINARY, num, startLine);
+                }
+                return Token(TokenType::NUMBER, num, startLine);
+            }
+            if (next == 'o' || next == 'O')
+            {
+                // Octal: 0o77
+                num += '0';
+                advance(); // consume '0'
+                num += current();
+                advance(); // consume 'o'/'O'
+                if (isAtEnd() || !(current() >= '0' && current() <= '7'))
+                    throw LexerError("Expected octal digit after '0o'", startLine);
+                while (!isAtEnd() && ((current() >= '0' && current() <= '7') || current() == '_'))
+                {
+                    if (current() != '_')
+                        num += current();
+                    advance();
+                }
+                // Imaginary suffix
+                if (!isAtEnd() && current() == 'i' && !isAlphaNumeric(peek(1)))
+                {
+                    advance();
+                    return Token(TokenType::IMAGINARY, num, startLine);
+                }
+                return Token(TokenType::NUMBER, num, startLine);
+            }
+            if (next == 'b' || next == 'B')
+            {
+                // Binary: 0b1010
+                num += '0';
+                advance(); // consume '0'
+                num += current();
+                advance(); // consume 'b'/'B'
+                if (isAtEnd() || !(current() == '0' || current() == '1'))
+                    throw LexerError("Expected binary digit after '0b'", startLine);
+                while (!isAtEnd() && (current() == '0' || current() == '1' || current() == '_'))
+                {
+                    if (current() != '_')
+                        num += current();
+                    advance();
+                }
+                // Imaginary suffix
+                if (!isAtEnd() && current() == 'i' && !isAlphaNumeric(peek(1)))
+                {
+                    advance();
+                    return Token(TokenType::IMAGINARY, num, startLine);
+                }
+                return Token(TokenType::NUMBER, num, startLine);
+            }
+        }
+
+        // Decimal number (with _ separator support)
+        while (!isAtEnd() && (isDigit(current()) || current() == '_'))
+        {
+            if (current() != '_')
+                num += current();
             advance();
         }
 
@@ -219,9 +302,10 @@ namespace xell
         {
             num += '.';
             advance(); // consume '.'
-            while (!isAtEnd() && isDigit(current()))
+            while (!isAtEnd() && (isDigit(current()) || current() == '_'))
             {
-                num += current();
+                if (current() != '_')
+                    num += current();
                 advance();
             }
         }
@@ -661,10 +745,23 @@ namespace xell
                 continue;
             }
 
-            // > and >=
+            // > / >= / >> / >>=
             if (c == '>')
             {
-                if (peek(1) == '=')
+                if (peek(1) == '>' && peek(2) == '=')
+                {
+                    tokens.emplace_back(TokenType::RSHIFT_EQUAL, ">>=", tokenLine);
+                    advance();
+                    advance();
+                    advance();
+                }
+                else if (peek(1) == '>')
+                {
+                    tokens.emplace_back(TokenType::RSHIFT, ">>", tokenLine);
+                    advance();
+                    advance();
+                }
+                else if (peek(1) == '=')
                 {
                     tokens.emplace_back(TokenType::GREATER_EQUAL, ">=", tokenLine);
                     advance();
@@ -678,10 +775,23 @@ namespace xell
                 continue;
             }
 
-            // < and <=
+            // < / <= / << / <<=
             if (c == '<')
             {
-                if (peek(1) == '=')
+                if (peek(1) == '<' && peek(2) == '=')
+                {
+                    tokens.emplace_back(TokenType::LSHIFT_EQUAL, "<<=", tokenLine);
+                    advance();
+                    advance();
+                    advance();
+                }
+                else if (peek(1) == '<')
+                {
+                    tokens.emplace_back(TokenType::LSHIFT, "<<", tokenLine);
+                    advance();
+                    advance();
+                }
+                else if (peek(1) == '=')
                 {
                     tokens.emplace_back(TokenType::LESS_EQUAL, "<=", tokenLine);
                     advance();
@@ -778,24 +888,36 @@ namespace xell
                 continue;
             }
 
-            // | and ||
+            // |> / || / |= / |
             if (c == '|')
             {
-                if (peek(1) == '|')
+                if (peek(1) == '>')
+                {
+                    tokens.emplace_back(TokenType::PIPE, "|>", tokenLine);
+                    advance();
+                    advance();
+                }
+                else if (peek(1) == '|')
                 {
                     tokens.emplace_back(TokenType::PIPE_PIPE, "||", tokenLine);
                     advance();
                     advance();
                 }
+                else if (peek(1) == '=')
+                {
+                    tokens.emplace_back(TokenType::PIPE_EQUAL, "|=", tokenLine);
+                    advance();
+                    advance();
+                }
                 else
                 {
-                    tokens.emplace_back(TokenType::PIPE, "|", tokenLine);
+                    tokens.emplace_back(TokenType::BAR, "|", tokenLine);
                     advance();
                 }
                 continue;
             }
 
-            // &&
+            // & / && / &=
             if (c == '&')
             {
                 if (peek(1) == '&')
@@ -804,9 +926,33 @@ namespace xell
                     advance();
                     advance();
                 }
+                else if (peek(1) == '=')
+                {
+                    tokens.emplace_back(TokenType::AMP_EQUAL, "&=", tokenLine);
+                    advance();
+                    advance();
+                }
                 else
                 {
-                    throw LexerError("Unexpected character '&' (did you mean '&&'?)", tokenLine);
+                    tokens.emplace_back(TokenType::AMP, "&", tokenLine);
+                    advance();
+                }
+                continue;
+            }
+
+            // ^ / ^=
+            if (c == '^')
+            {
+                if (peek(1) == '=')
+                {
+                    tokens.emplace_back(TokenType::CARET_EQUAL, "^=", tokenLine);
+                    advance();
+                    advance();
+                }
+                else
+                {
+                    tokens.emplace_back(TokenType::CARET, "^", tokenLine);
+                    advance();
                 }
                 continue;
             }

@@ -320,6 +320,24 @@ namespace xterm
                 }
             }
 
+            // ── Gutter click: toggle breakpoint ─────────────────────
+            if (view)
+            {
+                int gutterW = view->gutterWidth();
+                int codeRow = cellRow - 1; // subtract tab bar
+                if (cellCol < gutterW && codeRow >= 0)
+                {
+                    int bufRow = view->scrollTopLine() + codeRow;
+                    if (bufRow < tabs_[activeTab_].buffer->lineCount())
+                    {
+                        view->toggleBreakpoint(bufRow);
+                        // Signal to layout_manager via a flag
+                        lastToggledBreakpointLine_ = bufRow;
+                        return EditorAction::HANDLED;
+                    }
+                }
+            }
+
             // Don't move cursor if clicking past the last line of the file
             if (view)
             {
@@ -626,6 +644,66 @@ namespace xterm
                 activeView()->clearDiagnostics();
         }
 
+        // ── Debug support ───────────────────────────────────────────
+
+        void setDebugLine(int line)
+        {
+            if (activeView())
+                activeView()->setDebugLine(line);
+        }
+
+        void clearDebugLine()
+        {
+            if (activeView())
+                activeView()->setDebugLine(-1);
+        }
+
+        void toggleBreakpoint(int line, const std::string &type = "pause")
+        {
+            if (activeView())
+                activeView()->toggleBreakpoint(line, type);
+        }
+
+        void addBreakpoint(int line, const std::string &type = "pause")
+        {
+            if (activeView())
+                activeView()->addBreakpoint(line, type);
+        }
+
+        void removeBreakpoint(int line)
+        {
+            if (activeView())
+                activeView()->removeBreakpoint(line);
+        }
+
+        void clearBreakpoints()
+        {
+            if (activeView())
+                activeView()->clearBreakpoints();
+        }
+
+        const std::unordered_map<int, std::string> *breakpoints() const
+        {
+            auto view = activeView();
+            return view ? &view->breakpoints() : nullptr;
+        }
+
+        // Check if a breakpoint was toggled by a gutter click (returns line, -1 if none).
+        // Consuming it resets to -1.
+        int consumeBreakpointToggle()
+        {
+            int line = lastToggledBreakpointLine_;
+            lastToggledBreakpointLine_ = -1;
+            return line;
+        }
+
+        // Get the buffer row at the cursor position (0-based)
+        int cursorRow() const
+        {
+            auto view = activeView();
+            return view ? view->cursor().row : -1;
+        }
+
         // ── Autocomplete support ────────────────────────────────────
 
         // Insert text at the current cursor position
@@ -754,6 +832,9 @@ namespace xterm
         bool showTabBar_ = true;
         std::string statusMessage_;
         int hoverCol_ = -1;
+
+        // Breakpoint toggle notification: set by gutter click, consumed by layout manager
+        int lastToggledBreakpointLine_ = -1;
 
         // Theme colors
         Color tabBarBg_ = {30, 30, 30};

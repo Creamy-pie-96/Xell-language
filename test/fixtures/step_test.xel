@@ -1,0 +1,11 @@
+fn add(a, b) :
+    result = a + b
+    give result
+;
+fn multiply(a, b) :
+    give a * b
+;
+x = 10
+y = add(3, 4)
+z = multiply(x, y)
+print(z)
