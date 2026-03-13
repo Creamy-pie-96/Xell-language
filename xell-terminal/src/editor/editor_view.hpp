@@ -806,7 +806,9 @@ namespace xterm
                 lines /= 10;
                 digits++;
             }
-            return std::max(digits + 2, 4); // min 4 columns (space + digits + space + separator)
+            // Columns: [marker][optional pad][digits...][separator]
+            // Keep marker and digits separate so 2+ digit numbers don't overwrite col 0.
+            return std::max(digits + 3, 5);
         }
 
         int codeAreaWidth() const { return rect_.w - gutterWidth(); }
@@ -1051,7 +1053,7 @@ namespace xterm
             bool hasBP = (bpIt != breakpoints_.end());
             bool isDebugLine = (debugLine_ == bufferRow);
 
-            int numStart = gutterW - 2 - (int)numStr.size(); // right-aligned before separator
+            int numStart = std::max(1, gutterW - 1 - (int)numStr.size()); // right-aligned before separator
 
             for (int col = 0; col < gutterW; col++)
             {

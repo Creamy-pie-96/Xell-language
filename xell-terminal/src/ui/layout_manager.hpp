@@ -2249,6 +2249,17 @@ namespace xterm
 
             acPrefix_ = line.substr(start, col - start);
 
+            // If we're not on an identifier/decorator token, try operator token prefix.
+            // This enables completions for symbols like $, ->, ==, etc.
+            if (acPrefix_.empty())
+            {
+                int opStart = col;
+                while (opStart > 0 && acDB_.isOperatorChar(line[opStart - 1]))
+                    opStart--;
+                if (opStart < col)
+                    acPrefix_ = line.substr(opStart, col - opStart);
+            }
+
             // Check for -> member access pattern
             acModuleName_.clear();
             if (start >= 2 && line[start - 1] == '>' && line[start - 2] == '-')

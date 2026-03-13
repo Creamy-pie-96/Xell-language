@@ -274,6 +274,53 @@ def extract_tier2_modules():
     return re.findall(r'regModule\s*\(\s*"(\w+)"\s*,\s*true\b', content)
 
 
+def extract_operators_from_lexer():
+    """
+    Dynamically extract operator lexemes from lexer.cpp token emission.
+    Returns list of dicts: [{"symbol": "->", "token": "ARROW"}, ...]
+    """
+    if not LEXER_CPP.exists():
+        return []
+
+    src = read_file(LEXER_CPP)
+
+    # Match: tokens.emplace_back(TokenType::TOKEN_NAME, "lexeme", tokenLine)
+    pairs = re.findall(
+        r'tokens\.emplace_back\(\s*TokenType::([A-Z_0-9]+)\s*,\s*"((?:\\\\.|[^"\\])*)"\s*,',
+        src,
+    )
+
+    ignored = {"(", ")", "[", "]", "{", "}", ",", ":", ";"}
+    op_by_symbol = {}
+
+    for token_name, raw_lexeme in pairs:
+        try:
+            lexeme = bytes(raw_lexeme, "utf-8").decode("unicode_escape")
+        except Exception:
+            lexeme = raw_lexeme
+
+        if not lexeme:
+            continue
+        if lexeme in ignored:
+            continue
+        if re.fullmatch(r"[A-Za-z0-9_]+", lexeme):
+            continue
+
+        op_by_symbol.setdefault(lexeme, token_name)
+
+    # SHELL_CMD is emitted from '$' prefix path with command payload as lexeme.
+    if "SHELL_CMD" in src:
+        op_by_symbol.setdefault("$", "SHELL_CMD")
+
+    operators = [
+        {"symbol": sym, "token": tok}
+        for sym, tok in op_by_symbol.items()
+    ]
+
+    operators.sort(key=lambda d: (-len(d["symbol"]), d["symbol"]))
+    return operators
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 2. EXTRACT BUILTINS (unchanged — already dynamic)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1742,7 +1789,7 @@ KEYWORD_COMPLETION_DESC: dict[str, str] = {
 }
 
 
-def build_language_data(kw_classes, builtin_cats, keywords):
+def build_language_data(kw_classes, builtin_cats, keywords, operators):
     """Build the language_data.json consumed by the TypeScript language server."""
     data = OrderedDict()
 
@@ -1769,6 +1816,18 @@ def build_language_data(kw_classes, builtin_cats, keywords):
                 item["hover"] = hover
             builtin_items.append(item)
     data["builtins"] = builtin_items
+
+    # Operators (dynamic from lexer.cpp)
+    op_items = []
+    for op in operators:
+        token_name = op["token"].lower().replace("_", " ")
+        op_items.append({
+            "symbol": op["symbol"],
+            "kind": "Operator",
+            "token": op["token"],
+            "detail": f"{token_name} operator",
+        })
+    data["operators"] = op_items
 
     # Block-opening keywords for indent rules (keywords that precede a colon to open a block)
     BLOCK_KEYWORDS = {
@@ -1997,6 +2056,7 @@ def main():
     kw_classes = classify_keywords(token_src)
     builtin_cats = extract_all_builtins()
     tier2_modules = extract_tier2_modules()
+    operators = extract_operators_from_lexer()
 
     all_builtins = []
     for cat, names in sorted(builtin_cats.items()):
@@ -2019,6 +2079,7 @@ def main():
     for cat, names in sorted(builtin_cats.items()):
         print(f"    {cat:12s}: {names}")
     print(f"  Tier 2 modules: {tier2_modules}")
+    print(f"  Operators: {len(operators)} → {[o['symbol'] for o in operators]}")
 
     grammar = build_tmlanguage(kw_classes, builtin_cats)
     grammar_json = json.dumps(grammar, indent=2) + "\n"
@@ -2029,7 +2090,7 @@ def main():
     snippets = build_snippets(kw_classes, builtin_cats, tier2_modules)
     snippets_json = json.dumps(snippets, indent=2) + "\n"
 
-    lang_data = build_language_data(kw_classes, builtin_cats, keywords)
+    lang_data = build_language_data(kw_classes, builtin_cats, keywords, operators)
     lang_data_json = json.dumps(lang_data, indent=2) + "\n"
 
     lang_config = build_language_config(lang_data["blockKeywords"])

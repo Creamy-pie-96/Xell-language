@@ -36,7 +36,7 @@ n = none
 items = [1, 2, 3]           # list
 point = (10, 20)            # tuple
 tags = {"a", "b"}          # set
-frozen = <1, 2, 3>          # frozen_set
+frozen = ~{1, 2, 3}          # frozen_set
 user = {name: "Ari", id: 1} # map
 raw = b"abc"                # bytes
 ```

@@ -141,6 +141,14 @@ namespace xterm
                 item.detail = std::string(b.cat) + " builtin";
                 allItems_.push_back(item);
             }
+
+            // Fallback operator completions (used when language_data.json is missing)
+            const char *ops[] = {
+                "$", "->", "=>", "=", "==", "!=", "<", ">", "<=", ">=",
+                "+", "-", "*", "/", "%", "**", "++", "--",
+                "|>", "&&", "||", "&", "|", "^", "~", "@"};
+            for (auto op : ops)
+                addOperatorItem(op, "operator");
         }
 
         void addUserSymbol(const std::string &name, CompletionKind kind,
@@ -246,8 +254,8 @@ namespace xterm
                 if (pos == std::string::npos)
                     break;
 
-                // Find matching '}'
-                size_t end = json.find('}', pos);
+                // Find matching '}' while respecting strings/escapes
+                size_t end = findJsonObjectEnd(json, pos);
                 if (end == std::string::npos)
                     break;
 
@@ -297,6 +305,11 @@ namespace xterm
 
             // Re-populate builtin type members (string, list, map, etc.)
             loadBuiltinMembers();
+        }
+
+        bool isOperatorChar(char ch) const
+        {
+            return operatorChars_.count(ch) > 0;
         }
 
         // Fuzzy match: find completions matching prefix
@@ -498,6 +511,7 @@ namespace xterm
         std::vector<CompletionItem> userItems_;
         std::vector<CompletionItem> snippetItems_;
         std::unordered_map<std::string, std::vector<CompletionItem>> moduleMembers_;
+        std::unordered_set<char> operatorChars_;
 
         static std::string toLower(const std::string &s)
         {
@@ -547,6 +561,15 @@ namespace xterm
                     parseBuiltinArray(json, arrStart);
             }
 
+            // Parse operators
+            size_t opPos = json.find("\"operators\"");
+            if (opPos != std::string::npos)
+            {
+                size_t arrStart = json.find('[', opPos);
+                if (arrStart != std::string::npos)
+                    parseOperatorArray(json, arrStart);
+            }
+
             // Parse debug decorators
             size_t ddPos = json.find("\"debugDecorators\"");
             if (ddPos != std::string::npos)
@@ -554,6 +577,17 @@ namespace xterm
                 size_t arrStart = json.find('[', ddPos);
                 if (arrStart != std::string::npos)
                     parseDecoratorArray(json, arrStart);
+            }
+
+            // Backwards compatibility: older language_data.json may not ship operators yet.
+            if (operatorChars_.empty())
+            {
+                const char *fallbackOps[] = {
+                    "$", "->", "=>", "=", "==", "!=", "<", ">", "<=", ">=",
+                    "+", "-", "*", "/", "%", "**", "++", "--",
+                    "|>", "&&", "||", "&", "|", "^", "~", "@"};
+                for (auto op : fallbackOps)
+                    addOperatorItem(op, "operator");
             }
         }
 
@@ -671,6 +705,108 @@ namespace xterm
                 allItems_.push_back(item);
                 pos = namePos + name.size() + 8;
             }
+        }
+
+        void parseOperatorArray(const std::string &json, size_t pos)
+        {
+            while (pos < json.size())
+            {
+                size_t symbolPos = json.find("\"symbol\"", pos);
+                if (symbolPos == std::string::npos)
+                    break;
+
+                // Check if we've left the operators array
+                size_t arrEnd = json.find(']', pos);
+                if (arrEnd != std::string::npos && symbolPos > arrEnd)
+                    break;
+
+                std::string symbol = extractString(json, symbolPos);
+                if (symbol.empty())
+                {
+                    pos = symbolPos + 8;
+                    continue;
+                }
+
+                std::string detail = "operator";
+                size_t detailPos = json.find("\"detail\"", symbolPos);
+                if (detailPos != std::string::npos && detailPos < symbolPos + 300)
+                {
+                    std::string parsedDetail = extractString(json, detailPos);
+                    if (!parsedDetail.empty())
+                        detail = parsedDetail;
+                }
+
+                addOperatorItem(symbol, detail);
+                pos = symbolPos + symbol.size() + 10;
+            }
+        }
+
+        void addOperatorItem(const std::string &symbol, const std::string &detail)
+        {
+            if (symbol.empty())
+                return;
+
+            // Track chars used by operators to help prefix extraction logic.
+            for (char ch : symbol)
+            {
+                if (!std::isalnum(static_cast<unsigned char>(ch)) && !std::isspace(static_cast<unsigned char>(ch)))
+                    operatorChars_.insert(ch);
+            }
+
+            for (const auto &item : allItems_)
+                if (item.label == symbol && item.detail == detail)
+                    return;
+
+            CompletionItem item;
+            item.label = symbol;
+            item.kind = CompletionKind::Keyword;
+            item.detail = detail;
+            item.insertText = symbol;
+            allItems_.push_back(item);
+        }
+
+        static size_t findJsonObjectEnd(const std::string &json, size_t start)
+        {
+            if (start >= json.size() || json[start] != '{')
+                return std::string::npos;
+
+            int depth = 0;
+            bool inString = false;
+            bool escaped = false;
+
+            for (size_t i = start; i < json.size(); i++)
+            {
+                char ch = json[i];
+
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+                if (ch == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (ch == '"')
+                {
+                    inString = !inString;
+                    continue;
+                }
+                if (inString)
+                    continue;
+
+                if (ch == '{')
+                    depth++;
+                else if (ch == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                        return i;
+                }
+            }
+
+            return std::string::npos;
         }
 
         // Populate moduleMembers_ with builtin type members for -> access.

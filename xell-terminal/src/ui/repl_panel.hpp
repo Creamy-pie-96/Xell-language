@@ -1856,7 +1856,11 @@ namespace xterm
                 pos = json.find('{', pos);
                 if (pos == std::string::npos)
                     break;
-                pos++; // skip '{'
+                size_t objStart = pos;
+                size_t objEnd = findJsonObjectEnd(json, objStart);
+                if (objEnd == std::string::npos)
+                    break;
+                pos = objStart + 1; // skip '{'
 
                 VarEntry entry;
                 std::string lineEnd;
@@ -1864,26 +1868,26 @@ namespace xterm
                 std::string scopeTypeRaw; // raw scopeType from JSON
 
                 // Parse key-value pairs until '}'
-                while (pos < json.size() && json[pos] != '}')
+                while (pos < objEnd)
                 {
                     // Skip whitespace and commas
-                    while (pos < json.size() && (json[pos] == ' ' || json[pos] == ',' || json[pos] == '\n' || json[pos] == '\r' || json[pos] == '\t'))
+                    while (pos < objEnd && (json[pos] == ' ' || json[pos] == ',' || json[pos] == '\n' || json[pos] == '\r' || json[pos] == '\t'))
                         pos++;
-                    if (pos >= json.size() || json[pos] == '}')
+                    if (pos >= objEnd)
                         break;
 
                     // Parse key
                     std::string key = parseJsonString(json, pos);
                     // Skip ':'
-                    while (pos < json.size() && json[pos] != ':')
+                    while (pos < objEnd && json[pos] != ':')
                         pos++;
-                    if (pos < json.size())
+                    if (pos < objEnd)
                         pos++; // skip ':'
-                    while (pos < json.size() && json[pos] == ' ')
+                    while (pos < objEnd && json[pos] == ' ')
                         pos++;
 
                     // Parse value
-                    if (pos < json.size() && json[pos] == '"')
+                    if (pos < objEnd && json[pos] == '"')
                     {
                         std::string val = parseJsonString(json, pos);
                         if (key == "name")
@@ -1903,21 +1907,39 @@ namespace xterm
                         else if (key == "sourceFile")
                             entry.sourceFile = val;
                     }
-                    else if (pos < json.size() && json[pos] == '[')
+                    else if (pos < objEnd && json[pos] == '[')
                     {
                         // Skip arrays (params, children, etc.)
                         int depth = 1;
                         pos++;
-                        while (pos < json.size() && depth > 0)
+                        bool inString = false;
+                        bool escaped = false;
+                        while (pos < objEnd && depth > 0)
                         {
-                            if (json[pos] == '[')
-                                depth++;
-                            else if (json[pos] == ']')
-                                depth--;
+                            char ch = json[pos];
+                            if (escaped)
+                            {
+                                escaped = false;
+                            }
+                            else if (ch == '\\')
+                            {
+                                escaped = true;
+                            }
+                            else if (ch == '"')
+                            {
+                                inString = !inString;
+                            }
+                            else if (!inString)
+                            {
+                                if (ch == '[')
+                                    depth++;
+                                else if (ch == ']')
+                                    depth--;
+                            }
                             pos++;
                         }
                     }
-                    else if (pos < json.size() && (json[pos] == 't' || json[pos] == 'f'))
+                    else if (pos < objEnd && (json[pos] == 't' || json[pos] == 'f'))
                     {
                         // boolean
                         if (json.substr(pos, 4) == "true")
@@ -1925,11 +1947,11 @@ namespace xterm
                         else if (json.substr(pos, 5) == "false")
                             pos += 5;
                     }
-                    else if (pos < json.size() && (isdigit(json[pos]) || json[pos] == '-'))
+                    else if (pos < objEnd && (isdigit(json[pos]) || json[pos] == '-'))
                     {
                         // number — extract for line/lineEnd
                         size_t numStart = pos;
-                        while (pos < json.size() && (isdigit(json[pos]) || json[pos] == '-' || json[pos] == '.'))
+                        while (pos < objEnd && (isdigit(json[pos]) || json[pos] == '-' || json[pos] == '.'))
                             pos++;
                         std::string numStr = json.substr(numStart, pos - numStart);
                         if (key == "line")
@@ -1938,8 +1960,7 @@ namespace xterm
                             lineEnd = numStr;
                     }
                 }
-                if (pos < json.size())
-                    pos++; // skip '}'
+                pos = objEnd + 1; // skip full object
 
                 // Build lines string "N" or "N-M"
                 if (!lineEnd.empty() && lineEnd != entry.lines)
@@ -2070,6 +2091,49 @@ namespace xterm
             if (pos < json.size())
                 pos++; // skip closing quote
             return result;
+        }
+
+        static size_t findJsonObjectEnd(const std::string &json, size_t start)
+        {
+            if (start >= json.size() || json[start] != '{')
+                return std::string::npos;
+
+            int depth = 0;
+            bool inString = false;
+            bool escaped = false;
+
+            for (size_t i = start; i < json.size(); i++)
+            {
+                char ch = json[i];
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+                if (ch == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (ch == '"')
+                {
+                    inString = !inString;
+                    continue;
+                }
+                if (inString)
+                    continue;
+
+                if (ch == '{')
+                    depth++;
+                else if (ch == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                        return i;
+                }
+            }
+
+            return std::string::npos;
         }
 
         mutable BottomTab activeTab_ = BottomTab::TERMINAL;
