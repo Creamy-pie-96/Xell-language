@@ -721,10 +721,57 @@ static int genXesy(const std::string &outputPath = "")
 
 // ---- Trace variables for a file (run with TraceCollector, output JSON) ------
 
+static std::string resolveExecutionCwd(const std::string &path,
+                                       const std::string &sourceDirOverride)
+{
+    std::error_code ec;
+    if (!sourceDirOverride.empty())
+    {
+        auto p = std::filesystem::absolute(std::filesystem::path(sourceDirOverride), ec);
+        if (!ec)
+            return p.string();
+        return sourceDirOverride;
+    }
+
+    auto absPath = std::filesystem::absolute(std::filesystem::path(path), ec);
+    if (ec)
+        return "";
+    return absPath.parent_path().string();
+}
+
+struct ScopedWorkingDirectory
+{
+    std::filesystem::path oldPath;
+    bool changed = false;
+
+    explicit ScopedWorkingDirectory(const std::string &targetDir)
+    {
+        if (targetDir.empty())
+            return;
+        std::error_code ec;
+        oldPath = std::filesystem::current_path(ec);
+        if (ec)
+            return;
+        std::filesystem::current_path(std::filesystem::path(targetDir), ec);
+        if (!ec)
+            changed = true;
+    }
+
+    ~ScopedWorkingDirectory()
+    {
+        if (!changed)
+            return;
+        std::error_code ec;
+        std::filesystem::current_path(oldPath, ec);
+    }
+};
+
 static int traceFile(const std::string &path, const std::string &sourceDirOverride = "")
 {
     std::string source = readFile(path);
     source = applyConvertIfNeeded(source, path);
+
+    ScopedWorkingDirectory cwdGuard(resolveExecutionCwd(path, sourceDirOverride));
 
     xell::Interpreter interpreter;
     xell::TraceCollector tracer;
@@ -784,6 +831,8 @@ static int debugFile_exec(const std::string &path, const std::string &sourceDirO
 {
     std::string source = readFile(path);
     source = applyConvertIfNeeded(source, path);
+
+    ScopedWorkingDirectory cwdGuard(resolveExecutionCwd(path, sourceDirOverride));
 
     xell::Interpreter interpreter;
     interpreter.setStreamOutput(true);
@@ -898,6 +947,8 @@ static int executeFile(const std::string &path, const std::vector<std::string> &
 
     // Auto-detect @convert and convert dialect → canonical in-memory
     source = applyConvertIfNeeded(source, path);
+
+    ScopedWorkingDirectory cwdGuard(resolveExecutionCwd(path, sourceDirOverride));
 
     xell::Interpreter interpreter;
     // Enable streaming output: print() writes to stdout immediately

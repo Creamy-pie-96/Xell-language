@@ -45,6 +45,7 @@ namespace xterm
         grid_ = std::move(new_grid);
         rows_ = new_rows;
         cols_ = new_cols;
+        pending_wrap_ = false;
         clamp_cursor();
         mark_all_dirty();
     }
@@ -173,6 +174,7 @@ namespace xterm
 
     void ScreenBuffer::move_cursor(int row, int col)
     {
+        pending_wrap_ = false;
         cursor_row = row;
         cursor_col = col;
         clamp_cursor();
@@ -183,18 +185,16 @@ namespace xterm
         cursor_col++;
         if (cursor_col >= cols_)
         {
-            cursor_col = 0;
-            cursor_row++;
-            if (cursor_row >= rows_)
-            {
-                scroll_up(1);
-                cursor_row = rows_ - 1;
-            }
+            // VT100 pending-wrap: don't wrap immediately; defer until the next
+            // printable char arrives. This lets \r cancel the wrap (readline redraws).
+            pending_wrap_ = true;
+            cursor_col = cols_ - 1; // stay at last column
         }
     }
 
     void ScreenBuffer::newline()
     {
+        pending_wrap_ = false; // discard pending wrap — LF already moves to next row
         cursor_row++;
         if (cursor_row >= rows_)
         {
@@ -205,6 +205,7 @@ namespace xterm
 
     void ScreenBuffer::carriage_return()
     {
+        pending_wrap_ = false; // cancel deferred wrap — cursor returns to col 0 of same row
         cursor_col = 0;
     }
 
@@ -239,6 +240,23 @@ namespace xterm
 
     void ScreenBuffer::put_char(char32_t ch, const Cell &style)
     {
+        // Deferred VT100 line-wrap: fire the pending wrap only if the cursor
+        // is still at the last column (i.e. nothing moved it since advance_cursor).
+        if (pending_wrap_)
+        {
+            pending_wrap_ = false;
+            if (cursor_col >= cols_ - 1)
+            {
+                cursor_col = 0;
+                cursor_row++;
+                if (cursor_row >= rows_)
+                {
+                    scroll_up(1);
+                    cursor_row = rows_ - 1;
+                }
+            }
+        }
+
         if (cursor_row >= 0 && cursor_row < rows_ &&
             cursor_col >= 0 && cursor_col < cols_)
         {

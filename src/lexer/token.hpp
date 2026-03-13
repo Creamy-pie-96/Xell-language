@@ -38,6 +38,7 @@ namespace xell
         LET,  // let ... be (RAII / context manager)
         BE,   // let ... be (RAII / context manager)
         LOOP, // loop : ... ; (infinite loop)
+        DO,   // do : ... ; while condition
 
         // Import / module keywords
         BRING,
@@ -86,6 +87,10 @@ namespace xell
         GE,
         LE,
 
+        // Pattern matching keywords
+        BELONG, // 'belong' — type check in incase
+        BIND,   // 'bind'   — capture in incase
+
         // Utility keyword
         OF,
 
@@ -107,11 +112,13 @@ namespace xell
         BANG_EQUAL,  // !=
 
         // Augmented assignment
-        PLUS_EQUAL,    // +=
-        MINUS_EQUAL,   // -=
-        STAR_EQUAL,    // *=
-        SLASH_EQUAL,   // /=
-        PERCENT_EQUAL, // %=
+        PLUS_EQUAL,      // +=
+        MINUS_EQUAL,     // -=
+        STAR_EQUAL,      // *=
+        SLASH_EQUAL,     // /=
+        PERCENT_EQUAL,   // %=
+        STAR_STAR,       // **
+        STAR_STAR_EQUAL, // **=
 
         // Relational operators
         GREATER,       // >
@@ -157,6 +164,9 @@ namespace xell
         // Prefix operator
         TILDE, // ~ (bitwise NOT / smart-cast prefix)
 
+        // Shell command: $cmd args...
+        SHELL_CMD,
+
         // Special
         IDENTIFIER,
         NEWLINE,
@@ -192,6 +202,7 @@ namespace xell
             {(int)TokenType::LET, "LET"},
             {(int)TokenType::BE, "BE"},
             {(int)TokenType::LOOP, "LOOP"},
+            {(int)TokenType::DO, "DO"},
             {(int)TokenType::BRING, "BRING"},
             {(int)TokenType::FROM, "FROM"},
             {(int)TokenType::AS, "AS"},
@@ -225,6 +236,8 @@ namespace xell
             {(int)TokenType::LT, "LT"},
             {(int)TokenType::GE, "GE"},
             {(int)TokenType::LE, "LE"},
+            {(int)TokenType::BELONG, "BELONG"},
+            {(int)TokenType::BIND, "BIND"},
             {(int)TokenType::OF, "OF"},
             {(int)TokenType::PLUS, "PLUS"},
             {(int)TokenType::MINUS, "MINUS"},
@@ -242,6 +255,8 @@ namespace xell
             {(int)TokenType::STAR_EQUAL, "STAR_EQUAL"},
             {(int)TokenType::SLASH_EQUAL, "SLASH_EQUAL"},
             {(int)TokenType::PERCENT_EQUAL, "PERCENT_EQUAL"},
+            {(int)TokenType::STAR_STAR, "STAR_STAR"},
+            {(int)TokenType::STAR_STAR_EQUAL, "STAR_STAR_EQUAL"},
             {(int)TokenType::GREATER, "GREATER"},
             {(int)TokenType::LESS, "LESS"},
             {(int)TokenType::GREATER_EQUAL, "GREATER_EQUAL"},
@@ -274,6 +289,7 @@ namespace xell
             {(int)TokenType::LSHIFT_EQUAL, "LSHIFT_EQUAL"},
             {(int)TokenType::RSHIFT_EQUAL, "RSHIFT_EQUAL"},
             {(int)TokenType::TILDE, "TILDE"},
+            {(int)TokenType::SHELL_CMD, "SHELL_CMD"},
             {(int)TokenType::IDENTIFIER, "IDENTIFIER"},
             {(int)TokenType::NEWLINE, "NEWLINE"},
             {(int)TokenType::BYTE_STRING, "BYTE_STRING"},

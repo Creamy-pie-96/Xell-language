@@ -454,16 +454,13 @@ static void testLexerErrors()
         }
         XASSERT(caught); });
 
-    runTest("lexer: unexpected character $ → LexerError", []()
+    runTest("lexer: $ starts shell command token", []()
             {
         Lexer lex("$var");
-        bool caught = false;
-        try { lex.tokenize(); }
-        catch (const LexerError& e) {
-            caught = true;
-            XASSERT(contains(e.what(), "$"));
-        }
-        XASSERT(caught); });
+        auto tokens = lex.tokenize();
+        XASSERT(tokens.size() >= 2);
+        XASSERT_EQ((int)tokens[0].type, (int)TokenType::SHELL_CMD);
+        XASSERT_EQ(tokens[0].value, std::string("var")); });
 
     runTest("lexer: unexpected character \\ → LexerError", []()
             {

@@ -103,7 +103,13 @@ namespace xterm
 
         // Programming languages
         if (ext == ".xel" || ext == ".xell")
-            return nfIcon(0xe7a8); //  (lambda/custom)
+            return nfIcon(0xf40d); // 󴀍 main Xell source (.xel)
+        if (ext == ".nxel")
+            return nfIcon(0xf1614); // 󱘔 Xell notebook (.nxel)
+        if (ext == ".xell_meta")
+            return nfIcon(0xf1540); // 󵅀 Xell metadata (.xell_meta)
+        if (ext == ".xesy")
+            return nfIcon(0xe615); //  Xell dialect/extension script (.xesy)
         if (ext == ".cpp" || ext == ".cc" || ext == ".cxx")
             return nfIcon(0xe61d); //
         if (ext == ".hpp" || ext == ".h" || ext == ".hxx")

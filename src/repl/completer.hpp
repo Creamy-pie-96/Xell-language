@@ -22,37 +22,18 @@ namespace xell
     public:
         Completer()
         {
-            // Keywords
-            addWords({"fn", "give", "if", "elif", "else", "for", "while", "in",
-                      "bring", "from", "as", "and", "or", "not",
-                      "is", "eq", "ne", "gt", "lt", "ge", "le", "of",
-                      "true", "false", "none"});
-
-            // IO builtins
-            addWords({"print", "assert"});
-
-            // Type builtins
-            addWords({"type", "str", "num", "len"});
-
-            // Collection builtins
-            addWords({"push", "pop", "keys", "values", "range", "set", "has"});
-
-            // Math builtins
-            addWords({"floor", "ceil", "round", "abs", "mod"});
-
-            // Utility builtins
-            addWords({"input"});
-
-            // OS builtins
-            addWords({"mkdir", "rm", "cp", "mv", "exists", "is_file", "is_dir",
-                      "ls", "read", "write", "append", "file_size",
-                      "cwd", "cd", "abspath", "basename", "dirname", "ext",
-                      "env_get", "env_set", "env_unset", "env_has",
-                      "run", "run_capture", "pid"});
+            // Initialize default keywords
+            initializeKeywords();
         }
 
         /// Set a pointer to the current environment for user-defined completions
-        void setEnvironment(Environment *env) { env_ = env; }
+        /// and to extract builtin functions
+        void setEnvironment(Environment *env)
+        {
+            env_ = env;
+            if (env_)
+                extractBuiltins();
+        }
 
         /// Get completions matching a prefix
         std::vector<std::string> complete(const std::string &prefix) const
@@ -62,12 +43,22 @@ namespace xell
 
             std::vector<std::string> matches;
 
-            // Static words
-            for (auto &w : words_)
+            // Keywords
+            for (auto &w : keywords_)
             {
                 if (w.size() >= prefix.size() &&
                     w.substr(0, prefix.size()) == prefix)
                     matches.push_back(w);
+            }
+
+            // Builtins (extracted from environment on first use)
+            for (auto &w : builtins_)
+            {
+                if (w.size() >= prefix.size() &&
+                    w.substr(0, prefix.size()) == prefix)
+                    // Avoid duplicates
+                    if (std::find(matches.begin(), matches.end(), w) == matches.end())
+                        matches.push_back(w);
             }
 
             // User-defined variables from environment
@@ -110,13 +101,74 @@ namespace xell
         }
 
     private:
-        std::vector<std::string> words_;
+        std::vector<std::string> keywords_;
+        std::vector<std::string> builtins_;
         Environment *env_ = nullptr;
 
-        void addWords(std::initializer_list<std::string> ws)
+        void initializeKeywords()
         {
-            for (auto &w : ws)
-                words_.push_back(w);
+            // All language keywords
+            keywords_ = {
+                // Control flow
+                "fn", "give", "if", "elif", "else", "for", "while", "in",
+                "break", "continue", "try", "catch", "finally", "throw",
+                "incase", "let", "be", "loop", "do",
+                // Import / module
+                "bring", "from", "as", "module", "export", "requires",
+                // OOP
+                "struct", "class", "inherits", "abstract", "interface",
+                "mixin", "property", "get", "set",
+                // Enum
+                "enum",
+                // Operators / expressions
+                "and", "or", "not", "is", "of",
+                // Decorators
+                "decorator",
+                // Literals
+                "true", "false", "none"};
+            std::sort(keywords_.begin(), keywords_.end());
+        }
+
+        void extractBuiltins()
+        {
+            if (!env_)
+                return;
+
+            // Get all names from the environment that are likely builtins
+            // (This includes globally registered functions and classes)
+            auto names = env_->allNames();
+
+            // Filter to include functions, classes, and commonly known builtins
+            // Exclude user variables by checking common builtin patterns
+            for (auto &name : names)
+            {
+                // Common builtin prefixes/patterns to include
+                if (isLikelyBuiltin(name))
+                    builtins_.push_back(name);
+            }
+
+            std::sort(builtins_.begin(), builtins_.end());
+            // Remove duplicates
+            builtins_.erase(std::unique(builtins_.begin(), builtins_.end()),
+                            builtins_.end());
+        }
+
+        bool isLikelyBuiltin(const std::string &name) const
+        {
+            // Include all-lowercase names and CapitalCase names (classes)
+            // Exclude names with underscores that look like user variables
+            if (name.empty())
+                return false;
+
+            // Exclude private/magic names
+            if (name.substr(0, 2) == "__")
+                return false;
+
+            // Include if all lowercase (functions) or starts with capital (classes)
+            if (std::islower(name[0]) || std::isupper(name[0]))
+                return true;
+
+            return false;
         }
     };
 

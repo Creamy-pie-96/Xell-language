@@ -161,3 +161,7 @@ add_test(NAME debug_test COMMAND debug_test)
 add_executable(debug_ipc_test test/debug_ipc_test.cpp)
 target_link_libraries(debug_ipc_test xell_lib)
 add_test(NAME debug_ipc_test COMMAND debug_ipc_test)
+
+add_executable(threading_test test/threading_test.cpp)
+target_link_libraries(threading_test xell_lib)
+add_test(NAME threading_test COMMAND threading_test)

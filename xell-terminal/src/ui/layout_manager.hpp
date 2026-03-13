@@ -1144,10 +1144,16 @@ namespace xterm
                 {
                     int localRow = motionRow - bottomRect_.y;
                     int localCol = motionCol - bottomRect_.x;
-                    // Only drag on rightmost column (scrollbar)
+                    // Vertical scrollbar drag (rightmost column)
                     if (localCol == bottomRect_.w - 1 && localRow > 0)
                     {
                         replPanel_.handleScrollbarDrag(localRow);
+                        return LayoutAction::HANDLED;
+                    }
+                    // Horizontal scrollbar drag (last row, not last column)
+                    if (localRow == bottomRect_.h - 1 && localCol < bottomRect_.w - 1 && localRow > 0)
+                    {
+                        replPanel_.handleHScrollbarDrag(localCol);
                         return LayoutAction::HANDLED;
                     }
                 }
@@ -1172,7 +1178,17 @@ namespace xterm
                 // Check which region the mouse is over
                 if (showBottomPanel_ && mouseRow >= bottomRect_.y)
                 {
-                    replPanel_.handleMouseWheel(event.wheel.y);
+                    if (event.wheel.y != 0)
+                        replPanel_.handleMouseWheel(event.wheel.y);
+
+                    // Horizontal scroll: touchpad X-axis swipe or Shift+wheel
+                    bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
+                    int hDelta = event.wheel.x;
+                    if (hDelta == 0 && shiftHeld && event.wheel.y != 0)
+                        hDelta = event.wheel.y;
+                    if (hDelta != 0)
+                        replPanel_.handleHScroll(hDelta * 3);
+
                     return LayoutAction::HANDLED;
                 }
                 else if (showDashboard_ && mouseCol >= dashboardRect_.x)
@@ -1521,12 +1537,13 @@ namespace xterm
             if (editor_.activeTabIndex() < 0)
                 return;
 
-            // Only lint .xel/.xell files
+            // Only lint Xell files
             std::string filePath = editor_.getCurrentFilePath();
             if (!filePath.empty())
             {
                 std::string ext = std::filesystem::path(filePath).extension().string();
-                if (ext != ".xel" && ext != ".xell")
+                if (ext != ".xel" && ext != ".xell" && ext != ".nxel" &&
+                    ext != ".xesy" && ext != ".xell_meta")
                     return;
             }
 
@@ -1678,7 +1695,8 @@ namespace xterm
 
             // Only lint .xel files
             std::string ext = std::filesystem::path(filePath).extension().string();
-            if (ext != ".xel" && ext != ".xell")
+            if (ext != ".xel" && ext != ".xell" && ext != ".nxel" &&
+                ext != ".xesy" && ext != ".xell_meta")
                 return;
 
             // Use the shared findXellBinary from repl_panel.hpp

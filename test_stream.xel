@@ -1,1 +1,4 @@
-print("hello world")
+x = ls(cwd())
+print(x)
+#note why is | working as pipe operator instead of |> ?
+#$ls -ah |> grep "CM"

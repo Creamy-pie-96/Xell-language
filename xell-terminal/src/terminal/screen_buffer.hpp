@@ -142,6 +142,7 @@ namespace xterm
         int rows_;
         int cols_;
         std::vector<std::vector<Cell>> grid_;
+        bool pending_wrap_ = false; // VT100 deferred wrap: set when cursor fills last col
 
         // Scrollback buffer — stores lines that scrolled off the top
         std::deque<std::vector<Cell>> scrollback_;

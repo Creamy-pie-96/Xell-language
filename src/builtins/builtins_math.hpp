@@ -616,6 +616,77 @@ namespace xell
                 result = "-" + result;
             return XObject::makeString(std::move(result));
         };
+
+        // log2(x) — logarithm base 2
+        t["log2"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 1)
+                throw ArityError("log2", 1, (int)args.size(), line);
+            if (!args[0].isNumber())
+                throw TypeError("log2() expects a number", line);
+            double val = args[0].asNumber();
+            if (val <= 0)
+                throw ValueError("log2() requires positive argument", line);
+            return XObject::makeFloat(std::log2(val));
+        };
+
+        // factorial(n) — n!
+        t["factorial"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 1)
+                throw ArityError("factorial", 1, (int)args.size(), line);
+            if (!args[0].isNumber())
+                throw TypeError("factorial() expects an integer", line);
+            int64_t n = (int64_t)args[0].asNumber();
+            if (n < 0)
+                throw ValueError("factorial() requires non-negative argument", line);
+            if (n > 20)
+                throw ValueError("factorial() overflow for n > 20", line);
+            int64_t result = 1;
+            for (int64_t i = 2; i <= n; i++)
+                result *= i;
+            return XObject::makeInt(result);
+        };
+
+        // gcd(a, b) — greatest common divisor
+        t["gcd"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 2)
+                throw ArityError("gcd", 2, (int)args.size(), line);
+            if (!args[0].isInt() || !args[1].isInt())
+                throw TypeError("gcd() expects two integers", line);
+            int64_t a = std::abs(args[0].asInt());
+            int64_t b = std::abs(args[1].asInt());
+            while (b != 0)
+            {
+                int64_t temp = b;
+                b = a % b;
+                a = temp;
+            }
+            return XObject::makeInt(a);
+        };
+
+        // lcm(a, b) — least common multiple
+        t["lcm"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 2)
+                throw ArityError("lcm", 2, (int)args.size(), line);
+            if (!args[0].isInt() || !args[1].isInt())
+                throw TypeError("lcm() expects two integers", line);
+            int64_t a = std::abs(args[0].asInt());
+            int64_t b = std::abs(args[1].asInt());
+            if (a == 0 || b == 0)
+                return XObject::makeInt(0);
+            // Compute GCD first
+            int64_t orig_a = a, orig_b = b;
+            while (b != 0)
+            {
+                int64_t temp = b;
+                b = a % b;
+                a = temp;
+            }
+            return XObject::makeInt((orig_a / a) * orig_b);
+        };
     }
 
 } // namespace xell

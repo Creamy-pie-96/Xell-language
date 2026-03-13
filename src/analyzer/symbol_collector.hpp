@@ -276,9 +276,12 @@ namespace xell
                     int e = computeEndLine(tryS->tryBody, tryS->line);
                     if (e > maxLine)
                         maxLine = e;
-                    e = computeEndLine(tryS->catchBody, tryS->line);
-                    if (e > maxLine)
-                        maxLine = e;
+                    for (const auto &clause : tryS->catchClauses)
+                    {
+                        e = computeEndLine(clause.body, tryS->line);
+                        if (e > maxLine)
+                            maxLine = e;
+                    }
                     e = computeEndLine(tryS->finallyBody, tryS->line);
                     if (e > maxLine)
                         maxLine = e;
@@ -514,11 +517,14 @@ namespace xell
             {
                 for (auto &s : tryStmt->tryBody)
                     visitStmt(s.get(), scope);
-                if (!tryStmt->catchVarName.empty())
-                    addSymbol(tryStmt->catchVarName, SymbolKind::Variable, tryStmt->line,
-                              "catch " + tryStmt->catchVarName, scope);
-                for (auto &s : tryStmt->catchBody)
-                    visitStmt(s.get(), scope);
+                for (const auto &clause : tryStmt->catchClauses)
+                {
+                    if (!clause.varName.empty())
+                        addSymbol(clause.varName, SymbolKind::Variable, tryStmt->line,
+                                  "catch " + clause.varName, scope);
+                    for (auto &s : clause.body)
+                        visitStmt(s.get(), scope);
+                }
                 for (auto &s : tryStmt->finallyBody)
                     visitStmt(s.get(), scope);
             }

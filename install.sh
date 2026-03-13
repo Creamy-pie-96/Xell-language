@@ -14,7 +14,7 @@
 #
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 # Colors
 RED='\033[0;31m'
@@ -90,6 +90,19 @@ ok "$(g++ --version | head -1 2>/dev/null || c++ --version | head -1)"
 HAS_NODE=false
 HAS_NPM=false
 HAS_CODE=false
+PYTHON_BIN=""
+
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+fi
+
+if [ -n "$PYTHON_BIN" ]; then
+    ok "$PYTHON_BIN $($PYTHON_BIN --version 2>&1 | awk '{print $2}')"
+else
+    warn "Python not found — grammar generation will be skipped"
+fi
 
 if command -v node >/dev/null 2>&1; then
     ok "node $(node --version)"
@@ -343,9 +356,14 @@ EXT_DIR="$SCRIPT_DIR/Extensions/xell-vscode"
 
 if [ "$HAS_NODE" = true ] && [ "$HAS_NPM" = true ]; then
     # Run grammar generator
-    if command -v python3 >/dev/null 2>&1; then
-        python3 "$SCRIPT_DIR/Extensions/gen_xell_grammar.py" 2>&1 | sed 's/^/  /'
-        ok "Grammar generated from C++ sources"
+    if [ -n "$PYTHON_BIN" ]; then
+        if "$PYTHON_BIN" "$SCRIPT_DIR/Extensions/gen_xell_grammar.py" 2>&1 | sed 's/^/  /'; then
+            ok "Grammar generated from C++ sources"
+        else
+            fail "Grammar generation failed"
+        fi
+    else
+        warn "Skipping grammar generation (python not found)"
     fi
 
     cd "$EXT_DIR"

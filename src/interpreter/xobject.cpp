@@ -813,8 +813,11 @@ namespace xell
         case XType::FLOAT:
         {
             double val = asFloat();
-            // Print integers without decimal point
-            if (val == std::floor(val) && std::isfinite(val))
+            // Print whole-number floats without decimal point,
+            // but only if they fit in long long range
+            if (val == std::floor(val) && std::isfinite(val) &&
+                val >= static_cast<double>(std::numeric_limits<long long>::min()) &&
+                val <= static_cast<double>(std::numeric_limits<long long>::max()))
             {
                 long long intVal = static_cast<long long>(val);
                 return std::to_string(intVal);
@@ -830,14 +833,18 @@ namespace xell
             std::ostringstream oss;
             oss << "(";
             // Always print real part
-            if (c.real == std::floor(c.real) && std::isfinite(c.real))
+            if (c.real == std::floor(c.real) && std::isfinite(c.real) &&
+                c.real >= static_cast<double>(std::numeric_limits<long long>::min()) &&
+                c.real <= static_cast<double>(std::numeric_limits<long long>::max()))
                 oss << static_cast<long long>(c.real);
             else
                 oss << c.real;
             // Print sign + imaginary part
             if (c.imag >= 0.0)
                 oss << "+";
-            if (c.imag == std::floor(c.imag) && std::isfinite(c.imag))
+            if (c.imag == std::floor(c.imag) && std::isfinite(c.imag) &&
+                c.imag >= static_cast<double>(std::numeric_limits<long long>::min()) &&
+                c.imag <= static_cast<double>(std::numeric_limits<long long>::max()))
                 oss << static_cast<long long>(c.imag);
             else
                 oss << c.imag;

@@ -254,6 +254,11 @@
     "body": "${1:result} = run_capture(\"${2:command}\")",
     "description": "Run and capture output of a command"
   },
+  "Shell Command ($)": {
+    "prefix": "sh$",
+    "body": "$${1:echo hello}",
+    "description": "Shell command expression with $ prefix"
+  },
   "Builtin: abs": {
     "prefix": "abs",
     "body": "abs(${1:number})",

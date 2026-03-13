@@ -508,7 +508,11 @@ int main(int argc, char *argv[])
                 }
             }
             if (!projectDir.empty())
+            {
                 layout->setProjectRoot(projectDir);
+                std::error_code ec;
+                fs::current_path(projectDir, ec);
+            }
         }
         else
         {
@@ -524,7 +528,10 @@ int main(int argc, char *argv[])
                 if (len > 0)
                 {
                     buf[len] = '\0';
-                    layout->setProjectRoot(std::string(buf));
+                    std::string cwd = std::string(buf);
+                    layout->setProjectRoot(cwd);
+                    std::error_code ec;
+                    fs::current_path(cwd, ec);
                 }
             }
         }

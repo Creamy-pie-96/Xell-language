@@ -149,12 +149,13 @@ static void testModuleRegistryMetadata()
 {
     std::cout << "\n── Module Registry Metadata ──\n";
 
-    runTest("registry knows all 9 Tier 2 modules", []()
+    runTest("registry knows all Tier 2 modules", []()
             {
         Interpreter interp;
         auto &reg = interp.moduleRegistry();
         for (const auto &mod : {"datetime", "regex", "fs", "textproc",
-                                "process", "sysmon", "net", "archive", "json"})
+                                "process", "sysmon", "net", "archive", "json",
+                                "threading"})
         {
             XASSERT(reg.isBuiltinModule(mod));
             XASSERT(reg.isTier2(mod));
@@ -181,6 +182,7 @@ static void testModuleRegistryMetadata()
         XASSERT(reg.moduleFunctions("archive").size() == 10);
         XASSERT(reg.moduleFunctions("regex").size() == 8);
         XASSERT(reg.moduleFunctions("datetime").size() == 8);
+        XASSERT(reg.moduleFunctions("threading").size() >= 4);
         XASSERT(reg.moduleFunctions("io").size() > 0);
         XASSERT(reg.moduleFunctions("math").size() > 0); });
 

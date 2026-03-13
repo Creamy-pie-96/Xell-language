@@ -55,6 +55,16 @@
       }
     },
     {
+      "name": "belong",
+      "kind": "Keyword",
+      "detail": "belong keyword"
+    },
+    {
+      "name": "bind",
+      "kind": "Keyword",
+      "detail": "bind keyword"
+    },
+    {
       "name": "break",
       "kind": "Keyword",
       "detail": "Break out of loop",
@@ -98,6 +108,11 @@
         "sig": "continue",
         "detail": "Skip to the next iteration of the loop."
       }
+    },
+    {
+      "name": "do",
+      "kind": "Keyword",
+      "detail": "do keyword"
     },
     {
       "name": "elif",
@@ -1434,6 +1449,11 @@
       "kind": "Function"
     },
     {
+      "name": "factorial",
+      "category": "math",
+      "kind": "Function"
+    },
+    {
       "name": "floor",
       "category": "math",
       "kind": "Function",
@@ -1444,6 +1464,11 @@
           "x \u2014 any number"
         ]
       }
+    },
+    {
+      "name": "gcd",
+      "category": "math",
+      "kind": "Function"
     },
     {
       "name": "hex",
@@ -1457,6 +1482,11 @@
     },
     {
       "name": "is_nan",
+      "category": "math",
+      "kind": "Function"
+    },
+    {
+      "name": "lcm",
       "category": "math",
       "kind": "Function"
     },
@@ -1483,6 +1513,11 @@
           "x \u2014 positive number"
         ]
       }
+    },
+    {
+      "name": "log2",
+      "category": "math",
+      "kind": "Function"
     },
     {
       "name": "mod",
@@ -2360,6 +2395,11 @@
       "kind": "Function"
     },
     {
+      "name": "center",
+      "category": "string",
+      "kind": "Function"
+    },
+    {
       "name": "char_at",
       "category": "string",
       "kind": "Function",
@@ -2437,6 +2477,11 @@
       "kind": "Function"
     },
     {
+      "name": "ljust",
+      "category": "string",
+      "kind": "Function"
+    },
+    {
       "name": "lower",
       "category": "string",
       "kind": "Function",
@@ -2493,6 +2538,11 @@
           "list \u2014 the list"
         ]
       }
+    },
+    {
+      "name": "rjust",
+      "category": "string",
+      "kind": "Function"
     },
     {
       "name": "split",
@@ -2572,6 +2622,11 @@
           "text \u2014 a string"
         ]
       }
+    },
+    {
+      "name": "zfill",
+      "category": "string",
+      "kind": "Function"
     },
     {
       "name": "cal",
@@ -2929,11 +2984,14 @@
     "async",
     "await",
     "be",
+    "belong",
+    "bind",
     "break",
     "bring",
     "catch",
     "class",
     "continue",
+    "do",
     "elif",
     "else",
     "enum",
@@ -2989,11 +3047,14 @@
       "async",
       "await",
       "be",
+      "belong",
+      "bind",
       "break",
       "bring",
       "catch",
       "class",
       "continue",
+      "do",
       "elif",
       "else",
       "enum",
@@ -3085,6 +3146,7 @@
       "cat",
       "cd",
       "ceil",
+      "center",
       "char_at",
       "chgrp",
       "chmod",
@@ -3137,6 +3199,7 @@
       "export_env",
       "ext",
       "extension",
+      "factorial",
       "false_val",
       "fdisk",
       "fg",
@@ -3152,6 +3215,7 @@
       "format_date",
       "free",
       "from_entries",
+      "gcd",
       "gen_collect",
       "get",
       "getuid",
@@ -3214,14 +3278,17 @@
       "kill_name",
       "last",
       "last_logins",
+      "lcm",
       "len",
       "less",
       "lines",
+      "ljust",
       "ln",
       "local_ip",
       "locate",
       "log",
       "log10",
+      "log2",
       "logout",
       "lower",
       "ls",
@@ -3302,6 +3369,7 @@
       "replace_first",
       "reset",
       "reverse",
+      "rjust",
       "rm",
       "round",
       "route",
@@ -3405,6 +3473,7 @@
       "xz_decompress",
       "yaml_read",
       "yes_cmd",
+      "zfill",
       "zip",
       "zip_archive",
       "zip_longest"

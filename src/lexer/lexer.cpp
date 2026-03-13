@@ -1,5 +1,6 @@
 #include "lexer.hpp"
 #include "../lib/errors/error.hpp"
+#include <cstdint>
 #include <sstream>
 #include <unordered_map>
 
@@ -30,6 +31,7 @@ namespace xell
             {"let", TokenType::LET},
             {"be", TokenType::BE},
             {"loop", TokenType::LOOP},
+            {"do", TokenType::DO},
 
             // Import / module
             {"bring", TokenType::BRING},
@@ -75,6 +77,9 @@ namespace xell
 
             // Comparison keywords
             {"is", TokenType::IS},
+            // Pattern matching
+            {"belong", TokenType::BELONG},
+            {"bind", TokenType::BIND},
             {"eq", TokenType::EQ},
             {"ne", TokenType::NE},
             {"gt", TokenType::GT},
@@ -143,6 +148,66 @@ namespace xell
     bool Lexer::isAlphaNumeric(char c)
     {
         return isAlpha(c) || isDigit(c);
+    }
+
+    // Helper: Remove common leading whitespace from multi-line strings
+    // Also strips leading/trailing blank lines
+    static std::string dedentString(const std::string &str)
+    {
+        // Split into lines
+        std::vector<std::string> lines;
+        std::istringstream iss(str);
+        std::string line;
+        while (std::getline(iss, line))
+            lines.push_back(line);
+
+        if (lines.empty())
+            return "";
+
+        // Remove leading/trailing blank lines
+        size_t start = 0, end = lines.size();
+        while (start < end && lines[start].empty())
+            start++;
+        while (end > start && lines[end - 1].empty())
+            end--;
+
+        if (start >= end)
+            return ""; // All blank
+
+        // Find minimum indentation (ignoring blank lines)
+        size_t minIndent = std::string::npos;
+        for (size_t i = start; i < end; i++)
+        {
+            if (lines[i].empty())
+                continue; // Skip blank lines
+            size_t indent = 0;
+            while (indent < lines[i].size() && (lines[i][indent] == ' ' || lines[i][indent] == '\t'))
+                indent++;
+            if (indent < minIndent)
+                minIndent = indent;
+        }
+
+        if (minIndent == std::string::npos || minIndent == 0)
+            minIndent = 0;
+
+        // Remove common indentation from all non-blank lines and rebuild
+        std::string result;
+        for (size_t i = start; i < end; i++)
+        {
+            if (lines[i].empty())
+                result += "\n";
+            else
+            {
+                size_t offset = std::min(minIndent, lines[i].size());
+                result += lines[i].substr(offset) + "\n";
+            }
+        }
+
+        // Remove trailing newline that we added
+        if (!result.empty() && result.back() == '\n')
+            result.pop_back();
+
+        return result;
     }
 
     // ---- Whitespace & comment skipping -----------------------------------------
@@ -310,6 +375,27 @@ namespace xell
             }
         }
 
+        // Scientific notation: uppercase E only (lowercase e is Euler's constant)
+        // e.g. 1E10, 3.14E-2, 6.022E+23
+        if (!isAtEnd() && current() == 'E')
+        {
+            num += 'E';
+            advance(); // consume 'E'
+            if (!isAtEnd() && (current() == '+' || current() == '-'))
+            {
+                num += current();
+                advance(); // consume sign
+            }
+            if (isAtEnd() || !isDigit(current()))
+                throw LexerError("Expected digit after exponent 'E'", startLine);
+            while (!isAtEnd() && (isDigit(current()) || current() == '_'))
+            {
+                if (current() != '_')
+                    num += current();
+                advance();
+            }
+        }
+
         // Imaginary suffix 'i' → IMAGINARY token (for complex numbers: 2i, 3.14i)
         if (!isAtEnd() && current() == 'i' && !isAlphaNumeric(peek(1)))
         {
@@ -320,26 +406,29 @@ namespace xell
         return Token(TokenType::NUMBER, num, startLine);
     }
 
-    Token Lexer::readString()
+    Token Lexer::readString(char quoteChar)
     {
         int startLine = line_;
 
-        // Check for triple-quoted multi-line string: """..."""
-        bool isTripleQuote = (peek(1) == '"' && peek(2) == '"');
+        // Check for triple-quoted multi-line string: """...""" or '''...'''
+        bool isTripleQuote = (peek(1) == quoteChar && peek(2) == quoteChar);
         if (isTripleQuote)
         {
-            advance(); // consume first "
-            advance(); // consume second "
-            advance(); // consume third "
+            advance(); // consume first quote
+            advance(); // consume second quote
+            advance(); // consume third quote
 
             std::string str;
             while (!isAtEnd())
             {
-                if (current() == '"' && peek(1) == '"' && peek(2) == '"')
+                if (current() == quoteChar && peek(1) == quoteChar && peek(2) == quoteChar)
                 {
                     advance();
                     advance();
-                    advance(); // consume closing """
+                    advance(); // consume closing triple-quote
+                    // Apply dedent only to """ (double-quoted) strings, not ''' (single-quoted)
+                    if (quoteChar == '"')
+                        str = dedentString(str);
                     return Token(TokenType::STRING, str, startLine);
                 }
                 if (current() == '\n')
@@ -347,38 +436,157 @@ namespace xell
                 str += current();
                 advance();
             }
-            throw LexerError("Unterminated multi-line string literal (expected \"\"\")", startLine);
+            std::string qstr(3, quoteChar);
+            throw LexerError("Unterminated multi-line string literal (expected " + qstr + ")", startLine);
         }
 
-        // Regular string: "..."
-        advance(); // consume opening "
+        // Regular string: "..." or '...'
+        advance(); // consume opening quote
+
+        // Helper: convert hex char to int value (-1 if invalid)
+        auto hexVal = [](char c) -> int
+        {
+            if (c >= '0' && c <= '9')
+                return c - '0';
+            if (c >= 'a' && c <= 'f')
+                return 10 + c - 'a';
+            if (c >= 'A' && c <= 'F')
+                return 10 + c - 'A';
+            return -1;
+        };
+
+        // Helper: encode a Unicode code point as UTF-8
+        auto encodeUtf8 = [](uint32_t cp, std::string &out)
+        {
+            if (cp <= 0x7F)
+            {
+                out += static_cast<char>(cp);
+            }
+            else if (cp <= 0x7FF)
+            {
+                out += static_cast<char>(0xC0 | (cp >> 6));
+                out += static_cast<char>(0x80 | (cp & 0x3F));
+            }
+            else if (cp <= 0xFFFF)
+            {
+                out += static_cast<char>(0xE0 | (cp >> 12));
+                out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+                out += static_cast<char>(0x80 | (cp & 0x3F));
+            }
+            else if (cp <= 0x10FFFF)
+            {
+                out += static_cast<char>(0xF0 | (cp >> 18));
+                out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+                out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+                out += static_cast<char>(0x80 | (cp & 0x3F));
+            }
+        };
 
         std::string str;
-        while (!isAtEnd() && current() != '"')
+        while (!isAtEnd() && current() != quoteChar)
         {
-            if (current() == '\\' && peek(1) == '"')
+            if (current() == '\\')
             {
-                str += '"';
-                advance();
-                advance();
-            }
-            else if (current() == '\\' && peek(1) == 'n')
-            {
-                str += '\n';
-                advance();
-                advance();
-            }
-            else if (current() == '\\' && peek(1) == 't')
-            {
-                str += '\t';
-                advance();
-                advance();
-            }
-            else if (current() == '\\' && peek(1) == '\\')
-            {
-                str += '\\';
-                advance();
-                advance();
+                advance(); // consume backslash
+                if (isAtEnd())
+                    throw LexerError("Unterminated escape in string literal", startLine);
+                char esc = current();
+                advance(); // consume escape character
+                switch (esc)
+                {
+                case '"':
+                    str += '"';
+                    break;
+                case '\'':
+                    str += '\'';
+                    break;
+                case '\\':
+                    str += '\\';
+                    break;
+                case 'n':
+                    str += '\n';
+                    break;
+                case 't':
+                    str += '\t';
+                    break;
+                case 'r':
+                    str += '\r';
+                    break;
+                case '0':
+                    str += '\0';
+                    break;
+                case 'a':
+                    str += '\a';
+                    break;
+                case 'b':
+                    str += '\b';
+                    break;
+                case 'f':
+                    str += '\f';
+                    break;
+                case 'v':
+                    str += '\v';
+                    break;
+                case 'x':
+                {
+                    // \xHH — hex byte escape (2 hex digits)
+                    if (isAtEnd())
+                        throw LexerError("Incomplete \\x escape in string", startLine);
+                    int h1 = hexVal(current());
+                    if (h1 < 0)
+                        throw LexerError("Invalid hex digit in \\x escape", startLine);
+                    advance();
+                    if (isAtEnd())
+                        throw LexerError("Incomplete \\x escape in string", startLine);
+                    int h2 = hexVal(current());
+                    if (h2 < 0)
+                        throw LexerError("Invalid hex digit in \\x escape", startLine);
+                    advance();
+                    str += static_cast<char>((h1 << 4) | h2);
+                    break;
+                }
+                case 'u':
+                {
+                    // \uXXXX — Unicode escape (4 hex digits)
+                    uint32_t cp = 0;
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        if (isAtEnd())
+                            throw LexerError("Incomplete \\u escape in string", startLine);
+                        int d = hexVal(current());
+                        if (d < 0)
+                            throw LexerError("Invalid hex digit in \\u escape", startLine);
+                        cp = (cp << 4) | d;
+                        advance();
+                    }
+                    encodeUtf8(cp, str);
+                    break;
+                }
+                case 'U':
+                {
+                    // \UXXXXXXXX — Unicode escape (8 hex digits)
+                    uint32_t cp = 0;
+                    for (int i = 0; i < 8; ++i)
+                    {
+                        if (isAtEnd())
+                            throw LexerError("Incomplete \\U escape in string", startLine);
+                        int d = hexVal(current());
+                        if (d < 0)
+                            throw LexerError("Invalid hex digit in \\U escape", startLine);
+                        cp = (cp << 4) | d;
+                        advance();
+                    }
+                    if (cp > 0x10FFFF)
+                        throw LexerError("\\U escape out of Unicode range", startLine);
+                    encodeUtf8(cp, str);
+                    break;
+                }
+                default:
+                    // Unknown escape — keep as-is (backslash + char)
+                    str += '\\';
+                    str += esc;
+                    break;
+                }
             }
             else
             {
@@ -392,19 +600,19 @@ namespace xell
             throw LexerError("Unterminated string literal", startLine);
         }
 
-        advance(); // consume closing "
+        advance(); // consume closing quote
         return Token(TokenType::STRING, str, startLine);
     }
 
-    // Raw string: r"..." — backslashes are treated as literal characters
-    Token Lexer::readRawString()
+    // Raw string: r"..." or r'...' — backslashes are treated as literal characters
+    Token Lexer::readRawString(char quoteChar)
     {
         int startLine = line_;
         advance(); // consume the 'r'
-        advance(); // consume the opening "
+        advance(); // consume the opening quote
 
         std::string str;
-        while (!isAtEnd() && current() != '"')
+        while (!isAtEnd() && current() != quoteChar)
         {
             str += current();
             advance();
@@ -415,19 +623,19 @@ namespace xell
             throw LexerError("Unterminated raw string literal", startLine);
         }
 
-        advance(); // consume closing "
+        advance(); // consume closing quote
         return Token(TokenType::RAW_STRING, str, startLine);
     }
 
-    // Byte string: b"..." — supports \xHH escape sequences
-    Token Lexer::readByteString()
+    // Byte string: b"..." or b'...' — supports \xHH escape sequences
+    Token Lexer::readByteString(char quoteChar)
     {
         int startLine = line_;
         advance(); // consume the 'b'
-        advance(); // consume the opening "
+        advance(); // consume the opening quote
 
         std::string bytes;
-        while (!isAtEnd() && current() != '"')
+        while (!isAtEnd() && current() != quoteChar)
         {
             if (current() == '\\')
             {
@@ -505,7 +713,7 @@ namespace xell
         if (isAtEnd())
             throw LexerError("Unterminated byte string literal", startLine);
 
-        advance(); // consume closing "
+        advance(); // consume closing quote
         return Token(TokenType::BYTE_STRING, bytes, startLine);
     }
 
@@ -570,26 +778,33 @@ namespace xell
                 continue;
             }
 
-            // --- String literal ---
+            // --- String literal (double quote) ---
             if (c == '"')
             {
-                tokens.push_back(readString());
+                tokens.push_back(readString('"'));
                 continue;
             }
 
-            // --- Identifier or keyword (also handles raw string r"..." and byte string b"...") ---
+            // --- String literal (single quote) ---
+            if (c == '\'')
+            {
+                tokens.push_back(readString('\''));
+                continue;
+            }
+
+            // --- Identifier or keyword (also handles raw string r"..."/ r'...' and byte string b"..."/ b'...') ---
             if (isAlpha(c))
             {
-                // Check for raw string: r"..."
-                if (c == 'r' && peek(1) == '"')
+                // Check for raw string: r"..." or r'...'
+                if (c == 'r' && (peek(1) == '"' || peek(1) == '\''))
                 {
-                    tokens.push_back(readRawString());
+                    tokens.push_back(readRawString(peek(1)));
                     continue;
                 }
-                // Check for byte string: b"..."
-                if (c == 'b' && peek(1) == '"')
+                // Check for byte string: b"..." or b'...'
+                if (c == 'b' && (peek(1) == '"' || peek(1) == '\''))
                 {
-                    tokens.push_back(readByteString());
+                    tokens.push_back(readByteString(peek(1)));
                     continue;
                 }
                 tokens.push_back(readIdentifierOrKeyword());
@@ -659,7 +874,20 @@ namespace xell
 
             if (c == '*')
             {
-                if (peek(1) == '=')
+                if (peek(1) == '*' && peek(2) == '=')
+                {
+                    tokens.emplace_back(TokenType::STAR_STAR_EQUAL, "**=", tokenLine);
+                    advance();
+                    advance();
+                    advance();
+                }
+                else if (peek(1) == '*')
+                {
+                    tokens.emplace_back(TokenType::STAR_STAR, "**", tokenLine);
+                    advance();
+                    advance();
+                }
+                else if (peek(1) == '=')
                 {
                     tokens.emplace_back(TokenType::STAR_EQUAL, "*=", tokenLine);
                     advance();
@@ -970,6 +1198,24 @@ namespace xell
             {
                 tokens.emplace_back(TokenType::TILDE, "~", tokenLine);
                 advance();
+                continue;
+            }
+
+            // $ (shell command: collect rest of line as command string)
+            if (c == '$')
+            {
+                int cmdLine = tokenLine;
+                advance(); // consume $
+                std::string cmd;
+                while (pos_ < source_.size() && source_[pos_] != '\n')
+                {
+                    cmd += source_[pos_];
+                    ++pos_;
+                }
+                // Trim trailing whitespace
+                while (!cmd.empty() && (cmd.back() == ' ' || cmd.back() == '\r' || cmd.back() == '\t'))
+                    cmd.pop_back();
+                tokens.emplace_back(TokenType::SHELL_CMD, cmd, cmdLine);
                 continue;
             }
 

@@ -565,6 +565,21 @@ static void testFunctions()
             ";\n"
             "print(nope())");
         XASSERT_EQ(out[0], std::string("none")); });
+
+    runTest("paren-less call works in assignment RHS", []()
+            {
+        auto out = runXell(
+            "fn check(x):\n"
+            "  give x > 10\n"
+            ";\n"
+            "result1 = check(42)\n"
+            "result2 = check 42\n"
+            "print(result1)\n"
+            "print(result2)\n"
+            "print(type(result2))");
+        XASSERT_EQ(out[0], std::string("true"));
+        XASSERT_EQ(out[1], std::string("true"));
+        XASSERT_EQ(out[2], std::string("bool")); });
 }
 
 // ============================================================================
@@ -1765,7 +1780,7 @@ static void testChainedComparisons()
 
     runTest("mixed operators in chain", []()
             {
-        auto out = runXell("print(1 < 5 >= 3 > 2)\n");
+        auto out = runXell("print(1 <= 3 > 2)\n");
         XASSERT_EQ(out.size(), 1u);
         XASSERT_EQ(out[0], std::string("true")); });
 
@@ -2147,6 +2162,48 @@ static void testDestructuring()
         XASSERT_EQ(out[0], std::string("1"));
         XASSERT_EQ(out[1], std::string("2"));
         XASSERT_EQ(out[2], std::string("none")); });
+
+    runTest("nested list destructuring", []()
+            {
+        auto out = runXell(
+            "[a, [b, c]] = [1, [2, 3]]\n"
+            "print(a)\n"
+            "print(b)\n"
+            "print(c)");
+        XASSERT_EQ(out[0], std::string("1"));
+        XASSERT_EQ(out[1], std::string("2"));
+        XASSERT_EQ(out[2], std::string("3")); });
+
+    runTest("rest destructuring", []()
+            {
+        auto out = runXell(
+            "[head, ...tail] = [1, 2, 3, 4]\n"
+            "print(head)\n"
+            "print(tail)");
+        XASSERT_EQ(out[0], std::string("1"));
+        XASSERT_EQ(out[1], std::string("[2, 3, 4]")); });
+
+    runTest("map destructuring from map", []()
+            {
+        auto out = runXell(
+            "point = {x: 10, y: 20}\n"
+            "{x, y} = point\n"
+            "print(x + y)");
+        XASSERT_EQ(out[0], std::string("30")); });
+
+    runTest("map destructuring from object", []()
+            {
+        auto out = runXell(
+            "class Point :\n"
+            "  x = 0\n"
+            "  y = 0\n"
+            ";\n"
+            "p = Point()\n"
+            "p->x = 7\n"
+            "p->y = 9\n"
+            "{x, y} = p\n"
+            "print(x * y)");
+        XASSERT_EQ(out[0], std::string("63")); });
 }
 
 static void testSpreadOperator()
@@ -2283,6 +2340,21 @@ static void testFormatBuiltin()
             {
         auto out = runXell("print(format(r\"{:.2f}\", 3.14159))");
         XASSERT_EQ(out[0], std::string("3.14")); });
+
+    runTest("format zero-padded integer", []()
+            {
+        auto out = runXell("print(format(r\"{:05d}\", 42))");
+        XASSERT_EQ(out[0], std::string("00042")); });
+
+    runTest("interpolation format spec", []()
+            {
+        auto out = runXell("print(\"pi = {3.14159:.2f}\")");
+        XASSERT_EQ(out[0], std::string("pi = 3.14")); });
+
+    runTest("interpolation format spec with expression", []()
+            {
+        auto out = runXell("print(\"sum = {(2 + 3):04d}\")");
+        XASSERT_EQ(out[0], std::string("sum = 0005")); });
 }
 
 static void testTypeofBuiltin()
@@ -2575,97 +2647,97 @@ static void testFrozenSets()
 
     runTest("frozen set literal", []()
             {
-        auto out = runXell("s = <1, 2, 3>\nprint(type(s))");
+        auto out = runXell("s = ~{1, 2, 3}\nprint(type(s))");
         XASSERT_EQ(out[0], std::string("frozen_set")); });
 
     runTest("empty frozen set", []()
             {
-        auto out = runXell("s = <>\nprint(len(s))");
+        auto out = runXell("s = ~{}\nprint(len(s))");
         XASSERT_EQ(out[0], std::string("0")); });
 
     runTest("frozen set len", []()
             {
-        auto out = runXell("s = <1, 2, 3>\nprint(len(s))");
+        auto out = runXell("s = ~{1, 2, 3}\nprint(len(s))");
         XASSERT_EQ(out[0], std::string("3")); });
 
     runTest("frozen set has", []()
             {
-        auto out = runXell("s = <1, 2, 3>\nprint(has(s, 2))\nprint(has(s, 5))");
+        auto out = runXell("s = ~{1, 2, 3}\nprint(has(s, 2))\nprint(has(s, 5))");
         XASSERT_EQ(out[0], std::string("true"));
         XASSERT_EQ(out[1], std::string("false")); });
 
     runTest("frozen set contains", []()
             {
-        auto out = runXell("s = <\"a\", \"b\">\nprint(contains(s, \"a\"))");
+        auto out = runXell("s = ~{\"a\", \"b\"}\nprint(contains(s, \"a\"))");
         XASSERT_EQ(out[0], std::string("true")); });
 
     runTest("frozen set is immutable (add)", []()
             {
-        auto out = runXell("try:\n  s = <1, 2>\n  add(s, 3)\n;\ncatch e:\n  print(e->message)\n;");
+        auto out = runXell("try:\n  s = ~{1, 2}\n  add(s, 3)\n;\ncatch e:\n  print(e->message)\n;");
         XASSERT(out[0].find("frozen set") != std::string::npos); });
 
     runTest("frozen set is immutable (remove)", []()
             {
-        auto out = runXell("try:\n  s = <1, 2>\n  remove(s, 1)\n;\ncatch e:\n  print(e->message)\n;");
+        auto out = runXell("try:\n  s = ~{1, 2}\n  remove(s, 1)\n;\ncatch e:\n  print(e->message)\n;");
         XASSERT(out[0].find("frozen set") != std::string::npos); });
 
     runTest("frozen set equality", []()
             {
-        auto out = runXell("a = <1, 2, 3>\nb = <1, 2, 3>\nprint(a == b)");
+        auto out = runXell("a = ~{1, 2, 3}\nb = ~{1, 2, 3}\nprint(a == b)");
         XASSERT_EQ(out[0], std::string("true")); });
 
     runTest("frozen set is hashable", []()
             {
-        auto out = runXell("s = <1, 2, 3>\nprint(is_hashable(s))");
+        auto out = runXell("s = ~{1, 2, 3}\nprint(is_hashable(s))");
         XASSERT_EQ(out[0], std::string("true")); });
 
     runTest("frozen set in map key (hashable)", []()
             {
         auto out = runXell(
             "m = {}\n"
-            "k = <1, 2>\n"
+            "k = ~{1, 2}\n"
             "set(m, k, \"value\")\n"
             "print(m[k])");
         XASSERT_EQ(out[0], std::string("value")); });
 
     runTest("frozen set to_list", []()
             {
-        auto out = runXell("s = <42>\nprint(to_list(s))");
+        auto out = runXell("s = ~{42}\nprint(to_list(s))");
         XASSERT_EQ(out[0], std::string("[42]")); });
 
     runTest("frozen set to_tuple", []()
             {
-        auto out = runXell("s = <42>\nprint(to_tuple(s))");
+        auto out = runXell("s = ~{42}\nprint(to_tuple(s))");
         XASSERT_EQ(out[0], std::string("(42,)")); });
 
     runTest("frozen set to_set", []()
             {
-        auto out = runXell("s = <1, 2>\nms = to_set(s)\nprint(type(ms))");
+        auto out = runXell("s = ~{1, 2}\nms = to_set(s)\nprint(type(ms))");
         XASSERT_EQ(out[0], std::string("set")); });
 
     runTest("frozen set with mixed types", []()
             {
-        auto out = runXell("s = <1, 3.14, \"hello\">\nprint(len(s))");
+        auto out = runXell("s = ~{1, 3.14, \"hello\"}\nprint(len(s))");
         XASSERT_EQ(out[0], std::string("3")); });
 
     runTest("frozen set deduplication", []()
             {
-        auto out = runXell("s = <1, 1, 2, 2, 3>\nprint(len(s))");
+        auto out = runXell("s = ~{1, 1, 2, 2, 3}\nprint(len(s))");
         XASSERT_EQ(out[0], std::string("3")); });
 
     runTest("union_set with frozen_set", []()
             {
-        auto out = runXell("a = <1, 2>\nb = <2, 3>\nprint(len(union_set(a, b)))");
+        auto out = runXell("a = ~{1, 2}\nb = ~{2, 3}\nprint(len(union_set(a, b)))");
         XASSERT_EQ(out[0], std::string("3")); });
 
     runTest("intersect with frozen_set", []()
             {
-        auto out = runXell("a = <1, 2, 3>\nb = <2, 3, 4>\nprint(len(intersect(a, b)))");
+        auto out = runXell("a = ~{1, 2, 3}\nb = ~{2, 3, 4}\nprint(len(intersect(a, b)))");
         XASSERT_EQ(out[0], std::string("2")); });
 
     runTest("diff with frozen_set", []()
             {
-        auto out = runXell("a = <1, 2, 3>\nb = <2, 3>\nprint(len(diff(a, b)))");
+        auto out = runXell("a = ~{1, 2, 3}\nb = ~{2, 3}\nprint(len(diff(a, b)))");
         XASSERT_EQ(out[0], std::string("1")); });
 }
 
@@ -2699,7 +2771,7 @@ static void testHashEnhancements()
 
     runTest("hash frozen_set", []()
             {
-        auto out = runXell("h = hash(<1, 2, 3>)\nprint(type(h))");
+        auto out = runXell("h = hash(~{1, 2, 3})\nprint(type(h))");
         XASSERT_EQ(out[0], std::string("int")); });
 
     runTest("hash tuple", []()
@@ -2730,7 +2802,7 @@ static void testHashEnhancements()
 
     runTest("hash_seed frozen_set", []()
             {
-        auto out = runXell("h = hash_seed(<1, 2>, 42)\nprint(type(h))");
+        auto out = runXell("h = hash_seed(~{1, 2}, 42)\nprint(type(h))");
         XASSERT_EQ(out[0], std::string("int")); });
 }
 
@@ -3590,6 +3662,1285 @@ static void testBitwiseOperators()
         XASSERT_EQ(out[0], std::string("ls | grep foo")); });
 }
 
+// ============================================================
+//  Gap 2.4 — Exponentiation **
+// ============================================================
+static void testExponentiation()
+{
+    std::cout << "\n===== Exponentiation ** (Gap 2.4) =====\n";
+
+    // --- Basic integer exponentiation ---
+    runTest("int ** int: 2**10 == 1024", []()
+            {
+        auto out = runXell("print(2 ** 10)\n");
+        XASSERT_EQ(out[0], std::string("1024")); });
+
+    runTest("int ** 0 == 1", []()
+            {
+        auto out = runXell("print(5 ** 0)\n");
+        XASSERT_EQ(out[0], std::string("1")); });
+
+    runTest("int ** 1 == same", []()
+            {
+        auto out = runXell("print(7 ** 1)\n");
+        XASSERT_EQ(out[0], std::string("7")); });
+
+    runTest("0 ** 5 == 0", []()
+            {
+        auto out = runXell("print(0 ** 5)\n");
+        XASSERT_EQ(out[0], std::string("0")); });
+
+    runTest("1 ** 100 == 1", []()
+            {
+        auto out = runXell("print(1 ** 100)\n");
+        XASSERT_EQ(out[0], std::string("1")); });
+
+    // --- Negative exponent yields float ---
+    runTest("int ** negative → float: 2**-1 == 0.5", []()
+            {
+        auto out = runXell("print(2 ** -1)\n");
+        XASSERT_EQ(out[0], std::string("0.5")); });
+
+    // --- Float exponentiation ---
+    runTest("float ** int: 2.5**2 == 6.25", []()
+            {
+        auto out = runXell("print(2.5 ** 2)\n");
+        XASSERT_EQ(out[0], std::string("6.25")); });
+
+    runTest("int ** float: 4 ** 0.5 == 2", []()
+            {
+        auto out = runXell("print(4 ** 0.5)\n");
+        XASSERT_EQ(out[0], std::string("2")); });
+
+    // --- Right-associativity: 2**3**2 == 2**(3**2) == 2**9 == 512 ---
+    runTest("right-associativity: 2**3**2 == 512", []()
+            {
+        auto out = runXell("print(2 ** 3 ** 2)\n");
+        XASSERT_EQ(out[0], std::string("512")); });
+
+    // --- Precedence: ** binds tighter than * ---
+    runTest("precedence: 3 * 2**3 == 24", []()
+            {
+        auto out = runXell("print(3 * 2 ** 3)\n");
+        XASSERT_EQ(out[0], std::string("24")); });
+
+    // --- Precedence: unary minus vs **: -2**2 — in Xell unary binds tighter, so (-2)**2 == 4 ---
+    runTest("precedence: -2**2 == 4 (unary binds tighter in Xell)", []()
+            {
+        auto out = runXell("print(-2 ** 2)\n");
+        XASSERT_EQ(out[0], std::string("4")); });
+
+    // --- Complex exponentiation ---
+    runTest("complex ** int: (1+1i)**2 == 0+2i", []()
+            {
+        auto out = runXell("print((1+1i) ** 2)\n");
+        // (1+1i)^2 = 1+2i-1 = 0+2i
+        XASSERT(out[0].find("2i") != std::string::npos); });
+
+    // --- Augmented assignment **= ---
+    runTest("augmented assignment: x **= 3", []()
+            {
+        auto out = runXell("x = 2\nx **= 3\nprint(x)\n");
+        XASSERT_EQ(out[0], std::string("8")); });
+
+    runTest("augmented assignment **= on member", []()
+            {
+        auto out = runXell(R"(
+            m = {val: 3}
+            m->val **= 2
+            print(m->val)
+        )");
+        XASSERT_EQ(out[0], std::string("9")); });
+
+    // --- Type error ---
+    runTest("** type error: string ** int", []()
+            { XASSERT(expectError<TypeError>("x = \"hi\" ** 2\n")); });
+
+    // --- Magic method __pow__ ---
+    runTest("magic method: __pow__ overload", []()
+            {
+        auto out = runXell(R"XEL(
+class Vec :
+    x = 0
+    y = 0
+
+    fn __init__(self, x, y) :
+        self->x = x
+        self->y = y
+    ;
+
+    fn __pow__(self, n) :
+        give Vec(self->x ** n, self->y ** n)
+    ;
+
+    fn __str__(self) :
+        give "Vec(" + str(self->x) + ", " + str(self->y) + ")"
+    ;
+;
+
+v = Vec(2, 3)
+r = v ** 3
+print(r)
+)XEL");
+        XASSERT_EQ(out[0], std::string("Vec(8, 27)")); });
+}
+
+// ============================================================
+//  Gap 2.6 — Typed Catch / Multi-Catch
+// ============================================================
+static void testTypedCatch()
+{
+    std::cout << "\n===== Typed Catch / Multi-Catch (Gap 2.6) =====\n";
+
+    // --- Backward compatibility: untyped catch-all ---
+    runTest("catch-all still works", []()
+            {
+        auto out = runXell(
+            "try:\n"
+            "  x = 1 / 0\n"
+            ";\n"
+            "catch e:\n"
+            "  print(e->type)\n"
+            ";\n");
+        XASSERT_EQ(out[0], std::string("DivisionByZero")); });
+
+    // --- Single typed catch ---
+    runTest("catch is TypeError: matches TypeError", []()
+            {
+        auto out = runXell(
+            "try:\n"
+            "  x = \"hi\" - 1\n"
+            ";\n"
+            "catch e is TypeError:\n"
+            "  print(\"got TypeError\")\n"
+            ";\n");
+        XASSERT_EQ(out[0], std::string("got TypeError")); });
+
+    // --- Typed catch does NOT match wrong type ---
+    runTest("catch is TypeError: does not match DivisionByZero", []()
+            { XASSERT(expectError<DivisionByZeroError>(
+                  "try:\n"
+                  "  x = 1 / 0\n"
+                  ";\n"
+                  "catch e is TypeError:\n"
+                  "  print(\"wrong\")\n"
+                  ";\n")); });
+
+    // --- Multi-type catch with or ---
+    runTest("catch is TypeError or ValueError: matches TypeError", []()
+            {
+        auto out = runXell(
+            "try:\n"
+            "  x = \"hi\" - 1\n"
+            ";\n"
+            "catch e is TypeError or ValueError:\n"
+            "  print(\"got it: \" + e->type)\n"
+            ";\n");
+        XASSERT_EQ(out[0], std::string("got it: TypeError")); });
+
+    // --- Multiple catch blocks: first match wins ---
+    runTest("multiple catches: TypeError first, then catch-all", []()
+            {
+        auto out = runXell(
+            "try:\n"
+            "  x = \"hi\" - 1\n"
+            ";\n"
+            "catch e is DivisionByZero:\n"
+            "  print(\"div\")\n"
+            ";\n"
+            "catch e is TypeError:\n"
+            "  print(\"type\")\n"
+            ";\n"
+            "catch e:\n"
+            "  print(\"other\")\n"
+            ";\n");
+        XASSERT_EQ(out[0], std::string("type")); });
+
+    // --- Multiple catches: falls through to catch-all ---
+    runTest("multiple catches: no match falls to catch-all", []()
+            {
+        auto out = runXell(
+            "try:\n"
+            "  x = 1 / 0\n"
+            ";\n"
+            "catch e is TypeError:\n"
+            "  print(\"type\")\n"
+            ";\n"
+            "catch e:\n"
+            "  print(\"fallback: \" + e->type)\n"
+            ";\n");
+        XASSERT_EQ(out[0], std::string("fallback: DivisionByZero")); });
+
+    // --- catch is Error matches everything (base class) ---
+    runTest("catch is Error: matches any error", []()
+            {
+        auto out = runXell(
+            "try:\n"
+            "  x = 1 / 0\n"
+            ";\n"
+            "catch e is Error:\n"
+            "  print(\"base: \" + e->type)\n"
+            ";\n");
+        XASSERT_EQ(out[0], std::string("base: DivisionByZero")); });
+
+    // --- Typed catch with finally ---
+    runTest("typed catch with finally", []()
+            {
+        auto out = runXell(
+            "try:\n"
+            "  x = \"a\" * \"b\"\n"
+            ";\n"
+            "catch e is TypeError:\n"
+            "  print(\"caught\")\n"
+            ";\n"
+            "finally:\n"
+            "  print(\"done\")\n"
+            ";\n");
+        XASSERT_EQ(out.size(), 2u);
+        XASSERT_EQ(out[0], std::string("caught"));
+        XASSERT_EQ(out[1], std::string("done")); });
+
+    // --- No catch match but finally still runs ---
+    runTest("no match: finally runs then error propagates", []()
+            {
+        auto out = runXell(
+            "try:\n"
+            "  try:\n"
+            "    x = 1 / 0\n"
+            "  ;\n"
+            "  catch e is TypeError:\n"
+            "    print(\"wrong\")\n"
+            "  ;\n"
+            "  finally:\n"
+            "    print(\"inner finally\")\n"
+            "  ;\n"
+            ";\n"
+            "catch e:\n"
+            "  print(\"outer: \" + e->type)\n"
+            ";\n");
+        XASSERT_EQ(out.size(), 2u);
+        XASSERT_EQ(out[0], std::string("inner finally"));
+        XASSERT_EQ(out[1], std::string("outer: DivisionByZero")); });
+
+    // --- Typed catch preserves error fields ---
+    runTest("typed catch: error instance has all fields", []()
+            {
+        auto out = runXell(
+            "try:\n"
+            "  x = 1 / 0\n"
+            ";\n"
+            "catch e is DivisionByZero:\n"
+            "  print(e->message)\n"
+            "  print(e->type)\n"
+            "  print(e->line)\n"
+            ";\n");
+        XASSERT_EQ(out.size(), 3u);
+        XASSERT(out[0].find("division") != std::string::npos ||
+                out[0].find("zero") != std::string::npos);
+        XASSERT_EQ(out[1], std::string("DivisionByZero"));
+        XASSERT_EQ(out[2], std::string("2")); });
+}
+
+// ============================================================
+//  Gap 2.7 — `is not` Compound Operator
+// ============================================================
+static void testIsNot()
+{
+    std::cout << "\n===== is not Operator (Gap 2.7) =====\n";
+
+    // --- is not with none ---
+    runTest("is not none: non-none value", []()
+            {
+        auto out = runXell("x = 42\nprint(x is not none)\n");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("is not none: none value", []()
+            {
+        auto out = runXell("x = none\nprint(x is not none)\n");
+        XASSERT_EQ(out[0], std::string("false")); });
+
+    // --- is not with class instance ---
+    runTest("is not with class type", []()
+            {
+        auto out = runXell(R"XEL(
+class Foo :
+;
+class Bar :
+;
+f = Foo()
+print(f is not Bar)
+print(f is not Foo)
+)XEL");
+        XASSERT_EQ(out[0], std::string("true"));
+        XASSERT_EQ(out[1], std::string("false")); });
+
+    // --- is not with error types ---
+    runTest("is not with error instance", []()
+            {
+        auto out = runXell(
+            "try:\n"
+            "  x = 1 / 0\n"
+            ";\n"
+            "catch e:\n"
+            "  print(e is not TypeError)\n"
+            "  print(e is not DivisionByZero)\n"
+            ";\n");
+        XASSERT_EQ(out[0], std::string("true"));
+        XASSERT_EQ(out[1], std::string("false")); });
+
+    // --- is not with values ---
+    runTest("is not equality fallback", []()
+            {
+        auto out = runXell("print(1 is not 2)\nprint(1 is not 1)\n");
+        XASSERT_EQ(out[0], std::string("true"));
+        XASSERT_EQ(out[1], std::string("false")); });
+
+    // --- is (without not) still works ---
+    runTest("is still works", []()
+            {
+        auto out = runXell("x = none\nprint(x is none)\n");
+        XASSERT_EQ(out[0], std::string("true")); });
+}
+
+// ============================================================
+// Gap 2.8: Computed / Dynamic Map Keys
+// ============================================================
+static void testComputedMapKeys()
+{
+    // --- Basic computed key with expression ---
+    runTest("computed key: [expr]", []()
+            {
+        auto out = runXell(R"XEL(
+m = {[1 + 1]: "two", [3 * 3]: "nine"}
+print(m[2])
+print(m[9])
+)XEL");
+        XASSERT_EQ(out[0], std::string("two"));
+        XASSERT_EQ(out[1], std::string("nine")); });
+
+    // --- Variable as computed key ---
+    runTest("computed key: [variable]", []()
+            {
+        auto out = runXell(R"XEL(
+key = "name"
+m = {[key]: "Alice"}
+print(m["name"])
+)XEL");
+        XASSERT_EQ(out[0], std::string("Alice")); });
+
+    // --- Integer keys ---
+    runTest("computed key: integer keys", []()
+            {
+        auto out = runXell(R"XEL(
+m = {[1]: "one", [2]: "two", [3]: "three"}
+print(m[1])
+print(m[2])
+print(m[3])
+)XEL");
+        XASSERT_EQ(out[0], std::string("one"));
+        XASSERT_EQ(out[1], std::string("two"));
+        XASSERT_EQ(out[2], std::string("three")); });
+
+    // --- Boolean keys ---
+    runTest("computed key: boolean keys", []()
+            {
+        auto out = runXell(R"XEL(
+m = {[true]: "yes", [false]: "no"}
+print(m[true])
+print(m[false])
+)XEL");
+        XASSERT_EQ(out[0], std::string("yes"));
+        XASSERT_EQ(out[1], std::string("no")); });
+
+    // --- Tuple keys ---
+    runTest("computed key: tuple keys", []()
+            {
+        auto out = runXell(R"XEL(
+m = {[(1, 2)]: "pair", [(3, 4)]: "other"}
+print(m[(1, 2)])
+print(m[(3, 4)])
+)XEL");
+        XASSERT_EQ(out[0], std::string("pair"));
+        XASSERT_EQ(out[1], std::string("other")); });
+
+    // --- Mixed static and computed keys ---
+    runTest("mixed static and computed keys", []()
+            {
+        auto out = runXell(R"XEL(
+x = 42
+m = {name: "Alice", [x]: "forty-two", age: 30}
+print(m["name"])
+print(m[42])
+print(m["age"])
+)XEL");
+        XASSERT_EQ(out[0], std::string("Alice"));
+        XASSERT_EQ(out[1], std::string("forty-two"));
+        XASSERT_EQ(out[2], std::string("30")); });
+
+    // --- Function call as computed key ---
+    runTest("computed key: function call", []()
+            {
+        auto out = runXell(R"XEL(
+fn makeKey(n):
+    give "key_" + str(n)
+;
+
+m = {[makeKey(1)]: "first", [makeKey(2)]: "second"}
+print(m["key_1"])
+print(m["key_2"])
+)XEL");
+        XASSERT_EQ(out[0], std::string("first"));
+        XASSERT_EQ(out[1], std::string("second")); });
+
+    // --- Backward compat: bare identifier keys are still strings ---
+    runTest("backward compat: bare identifier keys", []()
+            {
+        auto out = runXell(R"XEL(
+m = {host: "localhost", port: 3000}
+print(m["host"])
+print(m["port"])
+)XEL");
+        XASSERT_EQ(out[0], std::string("localhost"));
+        XASSERT_EQ(out[1], std::string("3000")); });
+
+    // --- Backward compat: quoted string keys ---
+    runTest("backward compat: quoted string keys", []()
+            {
+        auto out = runXell(R"XEL(
+m = {"key with spaces": 1, "another": 2}
+print(m["key with spaces"])
+print(m["another"])
+)XEL");
+        XASSERT_EQ(out[0], std::string("1"));
+        XASSERT_EQ(out[1], std::string("2")); });
+
+    // --- Class instance as computed key (with __hash__) ---
+    runTest("computed key: class instance with __hash__", []()
+            {
+        auto out = runXell(R"XEL(
+class Point :
+    x = 0
+    y = 0
+
+    fn __init__(self, x, y) :
+        self->x = x
+        self->y = y
+    ;
+    fn __hash__(self) :
+        give self->x * 1000 + self->y
+    ;
+    fn __eq__(self, other) :
+        give self->x == other->x and self->y == other->y
+    ;
+;
+
+p1 = Point(1, 2)
+p2 = Point(3, 4)
+m = {[p1]: "origin", [p2]: "target"}
+print(m[Point(1, 2)])
+print(m[Point(3, 4)])
+)XEL");
+        XASSERT_EQ(out[0], std::string("origin"));
+        XASSERT_EQ(out[1], std::string("target")); });
+
+    // --- Float keys ---
+    runTest("computed key: float keys", []()
+            {
+        auto out = runXell(R"XEL(
+m = {[3.14]: "pi", [2.71]: "e"}
+print(m[3.14])
+print(m[2.71])
+)XEL");
+        XASSERT_EQ(out[0], std::string("pi"));
+        XASSERT_EQ(out[1], std::string("e")); });
+
+    // --- Empty map still works ---
+    runTest("backward compat: empty map", []()
+            {
+        auto out = runXell("m = {}\nprint(len(m))\n");
+        XASSERT_EQ(out[0], std::string("0")); });
+
+    // --- Map comprehension still works ---
+    runTest("backward compat: map comprehension", []()
+            {
+        auto out = runXell(R"XEL(
+m = {x: x * x for x in [1, 2, 3]}
+print(m[1])
+print(m[2])
+print(m[3])
+)XEL");
+        XASSERT_EQ(out[0], std::string("1"));
+        XASSERT_EQ(out[1], std::string("4"));
+        XASSERT_EQ(out[2], std::string("9")); });
+}
+
+// ============================================================
+// Gap 2.9: Scientific Notation (uppercase E only)
+// ============================================================
+static void testScientificNotation()
+{
+    // --- Basic scientific notation ---
+    runTest("scientific notation: 1E10", []()
+            {
+        auto out = runXell("print(1E10)\n");
+        XASSERT_EQ(out[0], std::string("10000000000")); });
+
+    runTest("scientific notation: 3.14E2", []()
+            {
+        auto out = runXell("print(3.14E2)\n");
+        XASSERT_EQ(out[0], std::string("314")); });
+
+    // --- Negative exponent ---
+    runTest("scientific notation: 5E-3", []()
+            {
+        auto out = runXell("print(5E-3)\n");
+        XASSERT_EQ(out[0], std::string("0.005")); });
+
+    // --- Positive sign exponent ---
+    runTest("scientific notation: 6.022E+23", []()
+            {
+        auto out = runXell("print(6.022E+23)\n");
+        XASSERT_EQ(out[0], std::string("6.022e+23")); });
+
+    // --- Scientific notation is a float ---
+    runTest("scientific notation: typeof is float", []()
+            {
+        auto out = runXell("print(typeof(1E5))\n");
+        XASSERT_EQ(out[0], std::string("float")); });
+
+    // --- Arithmetic with scientific notation ---
+    runTest("scientific notation: arithmetic", []()
+            {
+        auto out = runXell("print(1E3 + 500)\n");
+        XASSERT_EQ(out[0], std::string("1500")); });
+
+    // --- lowercase e is NOT scientific notation (it's Euler's number) ---
+    runTest("lowercase e is Euler's constant", []()
+            {
+        auto out = runXell("print(E)\n");
+        // E is Euler's number ≈ 2.718...
+        XASSERT(out[0].find("2.71828") != std::string::npos); });
+
+    // --- Scientific notation with imaginary suffix ---
+    runTest("scientific notation: imaginary 1E3i", []()
+            {
+        auto out = runXell("print(1E3i)\n");
+        XASSERT_EQ(out[0], std::string("(0+1000i)")); });
+}
+
+// ============================================================
+// Gap 2.11: String Escape Sequences
+// ============================================================
+static void testStringEscapes()
+{
+    // --- Existing escapes still work ---
+    runTest("escape: \\n newline", []()
+            {
+        auto out = runXell("x = \"a\\nb\"\nprint(len(x))\n");
+        XASSERT_EQ(out[0], std::string("3")); });
+
+    runTest("escape: \\t tab", []()
+            {
+        auto out = runXell("print(\"a\\tb\")\n");
+        XASSERT_EQ(out[0], std::string("a\tb")); });
+
+    runTest("escape: \\\\ backslash", []()
+            {
+        auto out = runXell("print(\"a\\\\b\")\n");
+        XASSERT_EQ(out[0], std::string("a\\b")); });
+
+    runTest("escape: \\\" quote", []()
+            {
+        auto out = runXell("print(\"a\\\"b\")\n");
+        XASSERT_EQ(out[0], std::string("a\"b")); });
+
+    // --- New standard escapes ---
+    runTest("escape: \\r carriage return", []()
+            {
+        auto out = runXell("print(len(\"a\\rb\"))\n");
+        XASSERT_EQ(out[0], std::string("3")); });
+
+    runTest("escape: \\0 null byte", []()
+            {
+        auto out = runXell("print(len(\"a\\0b\"))\n");
+        XASSERT_EQ(out[0], std::string("3")); });
+
+    runTest("escape: \\a bell", []()
+            {
+        auto out = runXell("print(len(\"\\a\"))\n");
+        XASSERT_EQ(out[0], std::string("1")); });
+
+    runTest("escape: \\b backspace", []()
+            {
+        auto out = runXell("print(len(\"\\b\"))\n");
+        XASSERT_EQ(out[0], std::string("1")); });
+
+    runTest("escape: \\f form feed", []()
+            {
+        auto out = runXell("print(len(\"\\f\"))\n");
+        XASSERT_EQ(out[0], std::string("1")); });
+
+    runTest("escape: \\v vertical tab", []()
+            {
+        auto out = runXell("print(len(\"\\v\"))\n");
+        XASSERT_EQ(out[0], std::string("1")); });
+
+    // --- Hex byte escape \xHH ---
+    runTest("escape: \\x41 = 'A'", []()
+            {
+        auto out = runXell("print(\"\\x41\")\n");
+        XASSERT_EQ(out[0], std::string("A")); });
+
+    runTest("escape: \\x48\\x69 = 'Hi'", []()
+            {
+        auto out = runXell("print(\"\\x48\\x69\")\n");
+        XASSERT_EQ(out[0], std::string("Hi")); });
+
+    // --- Unicode escape \uXXXX ---
+    runTest("escape: \\u0041 = 'A'", []()
+            {
+        auto out = runXell("print(\"\\u0041\")\n");
+        XASSERT_EQ(out[0], std::string("A")); });
+
+    runTest("escape: \\u00E9 = 'é'", []()
+            {
+        auto out = runXell("print(\"\\u00E9\")\n");
+        XASSERT_EQ(out[0], std::string("é")); });
+
+    runTest("escape: \\u4e16 = '世' (CJK)", []()
+            {
+        auto out = runXell("print(\"\\u4e16\")\n");
+        XASSERT_EQ(out[0], std::string("世")); });
+
+    // --- Unicode escape \UXXXXXXXX ---
+    runTest("escape: \\U0001F600 = emoji 😀", []()
+            {
+        auto out = runXell("print(\"\\U0001F600\")\n");
+        XASSERT_EQ(out[0], std::string("😀")); });
+
+    // --- Unknown escape is kept as-is ---
+    runTest("escape: unknown \\q kept", []()
+            {
+        auto out = runXell("print(\"\\q\")\n");
+        XASSERT_EQ(out[0], std::string("\\q")); });
+}
+
+// ======================== Single-Quote Strings ============================
+
+static void testSingleQuoteStrings()
+{
+    // --- Basic single-quote strings ---
+    runTest("single-quote: basic string", []()
+            {
+        auto out = runXell("print('hello world')\n");
+        XASSERT_EQ(out[0], std::string("hello world")); });
+
+    runTest("single-quote: empty string", []()
+            {
+        auto out = runXell("print('')\n");
+        XASSERT_EQ(out[0], std::string("")); });
+
+    runTest("single-quote: double quotes inside", []()
+            {
+        auto out = runXell("print('He said \"hi\"')\n");
+        XASSERT_EQ(out[0], std::string("He said \"hi\"")); });
+
+    // --- Escape sequences work in single-quote strings ---
+    runTest("single-quote: \\n escape", []()
+            {
+        auto out = runXell("print(len('a\\nb'))\n");
+        XASSERT_EQ(out[0], std::string("3")); });
+
+    runTest("single-quote: \\t escape", []()
+            {
+        auto out = runXell("print('a\\tb')\n");
+        XASSERT_EQ(out[0], std::string("a\tb")); });
+
+    runTest("single-quote: escaped single quote", []()
+            {
+        auto out = runXell("print('it\\'s here')\n");
+        XASSERT_EQ(out[0], std::string("it's here")); });
+
+    // --- Equality with double-quote strings ---
+    runTest("single-quote: equals double-quote", []()
+            {
+        auto out = runXell("a = 'hello'\nb = \"hello\"\nprint(a == b)\n");
+        XASSERT_EQ(out[0], std::string("true")); });
+
+    // --- Triple single-quote strings ---
+    runTest("single-quote: triple-quote multi-line", []()
+            {
+        auto out = runXell("msg = '''\nline1\nline2\n'''\nprint(msg)\n");
+        XASSERT_EQ(out[0], std::string("\nline1\nline2\n")); });
+
+    // --- Raw single-quote strings ---
+    runTest("single-quote: r'...' raw string", []()
+            {
+        auto out = runXell("print(r'no\\nescape')\n");
+        XASSERT_EQ(out[0], std::string("no\\nescape")); });
+
+    // --- Concatenation mixed quotes ---
+    runTest("single-quote: concat with double-quote", []()
+            {
+        auto out = runXell("a = 'hello' + \" world\"\nprint(a)\n");
+        XASSERT_EQ(out[0], std::string("hello world")); });
+
+    // --- Unicode escape in single-quote ---
+    runTest("single-quote: \\u0041 = 'A'", []()
+            {
+        auto out = runXell("print('\\u0041')\n");
+        XASSERT_EQ(out[0], std::string("A")); });
+
+    // --- Hex escape in single-quote ---
+    runTest("single-quote: \\x48\\x69 = 'Hi'", []()
+            {
+        auto out = runXell("print('\\x48\\x69')\n");
+        XASSERT_EQ(out[0], std::string("Hi")); });
+}
+
+// ======================== Do-While Loop ============================
+
+static void testDoWhile()
+{
+    // --- Basic do-while ---
+    runTest("do-while: basic counting", []()
+            {
+        auto out = runXell(R"XEL(
+i = 0
+do :
+    print(i)
+    i = i + 1
+; while i < 3
+)XEL");
+        XASSERT_EQ(out.size(), size_t(3));
+        XASSERT_EQ(out[0], std::string("0"));
+        XASSERT_EQ(out[1], std::string("1"));
+        XASSERT_EQ(out[2], std::string("2")); });
+
+    // --- Always runs at least once ---
+    runTest("do-while: runs at least once", []()
+            {
+        auto out = runXell(R"XEL(
+x = 100
+do :
+    print("ran")
+; while x < 0
+)XEL");
+        XASSERT_EQ(out.size(), size_t(1));
+        XASSERT_EQ(out[0], std::string("ran")); });
+
+    // --- Break in do-while ---
+    runTest("do-while: break", []()
+            {
+        auto out = runXell(R"XEL(
+j = 0
+do :
+    if j == 2 :
+        break
+    ;
+    print(j)
+    j = j + 1
+; while j < 10
+)XEL");
+        XASSERT_EQ(out.size(), size_t(2));
+        XASSERT_EQ(out[0], std::string("0"));
+        XASSERT_EQ(out[1], std::string("1")); });
+
+    // --- Continue in do-while ---
+    runTest("do-while: continue", []()
+            {
+        auto out = runXell(R"XEL(
+k = 0
+do :
+    k = k + 1
+    if k == 2 :
+        continue
+    ;
+    print(k)
+; while k < 4
+)XEL");
+        XASSERT_EQ(out.size(), size_t(3));
+        XASSERT_EQ(out[0], std::string("1"));
+        XASSERT_EQ(out[1], std::string("3"));
+        XASSERT_EQ(out[2], std::string("4")); });
+
+    // --- Single iteration ---
+    runTest("do-while: single iteration (false condition)", []()
+            {
+        auto out = runXell(R"XEL(
+do :
+    print("once")
+; while false
+)XEL");
+        XASSERT_EQ(out.size(), size_t(1));
+        XASSERT_EQ(out[0], std::string("once")); });
+
+    // --- Nested do-while ---
+    runTest("do-while: nested", []()
+            {
+        auto out = runXell(R"XEL(
+i = 0
+do :
+    j = 0
+    do :
+        print(str(i) + "," + str(j))
+        j = j + 1
+    ; while j < 2
+    i = i + 1
+; while i < 2
+)XEL");
+        XASSERT_EQ(out.size(), size_t(4));
+        XASSERT_EQ(out[0], std::string("0,0"));
+        XASSERT_EQ(out[1], std::string("0,1"));
+        XASSERT_EQ(out[2], std::string("1,0"));
+        XASSERT_EQ(out[3], std::string("1,1")); });
+}
+
+// ======================== Expression-Mode InCase ============================
+
+static void testInCaseExpr()
+{
+    // --- Basic expression-mode incase ---
+    runTest("incase-expr: basic match", []()
+            {
+        auto out = runXell(R"XEL(
+x = incase 2 : is 1 : "one" is 2 : "two" is 3 : "three" else : "other" ;
+print(x)
+)XEL");
+        XASSERT_EQ(out[0], std::string("two")); });
+
+    // --- Else branch ---
+    runTest("incase-expr: else fallback", []()
+            {
+        auto out = runXell(R"XEL(
+x = incase 99 : is 1 : "one" else : "unknown" ;
+print(x)
+)XEL");
+        XASSERT_EQ(out[0], std::string("unknown")); });
+
+    // --- Or values ---
+    runTest("incase-expr: or values", []()
+            {
+        auto out = runXell(R"XEL(
+x = incase 3 : is 1 or 2 : "low" is 3 or 4 : "mid" else : "high" ;
+print(x)
+)XEL");
+        XASSERT_EQ(out[0], std::string("mid")); });
+
+    // --- Direct in function call ---
+    runTest("incase-expr: direct in print", []()
+            {
+        auto out = runXell(R"XEL(
+print(incase 42 : is 42 : "found" else : "nope" ;)
+)XEL");
+        XASSERT_EQ(out[0], std::string("found")); });
+
+    // --- String matching ---
+    runTest("incase-expr: string match", []()
+            {
+        auto out = runXell(R"XEL(
+cmd = "quit"
+result = incase cmd : is "help" : 1 is "quit" : 2 is "run" : 3 else : 0 ;
+print(result)
+)XEL");
+        XASSERT_EQ(out[0], std::string("2")); });
+
+    // --- Arithmetic in result ---
+    runTest("incase-expr: arithmetic result", []()
+            {
+        auto out = runXell(R"XEL(
+x = incase 2 : is 1 : 10 + 1 is 2 : 20 + 2 else : 0 ;
+print(x)
+)XEL");
+        XASSERT_EQ(out[0], std::string("22")); });
+
+    // --- First match wins ---
+    runTest("incase-expr: first match wins", []()
+            {
+        auto out = runXell(R"XEL(
+x = incase 1 : is 1 : "first" is 1 : "second" else : "none" ;
+print(x)
+)XEL");
+        XASSERT_EQ(out[0], std::string("first")); });
+}
+
+// ============================================================
+// Pattern Matching — type patterns & guard clauses
+// ============================================================
+
+static void testPatternMatching()
+{
+    // --- Type pattern: int ---
+    runTest("pattern: type match int", []()
+            {
+        auto out = runXell(R"XEL(
+incase 42 :
+    belong int :
+        print("integer")
+    ;
+    belong string :
+        print("string")
+    ;
+    else :
+        print("other")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("integer")); });
+
+    // --- Type pattern: string ---
+    runTest("pattern: type match string", []()
+            {
+        auto out = runXell(R"XEL(
+incase "hello" :
+    belong int :
+        print("integer")
+    ;
+    belong string :
+        print("string")
+    ;
+    else :
+        print("other")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("string")); });
+
+    // --- Type pattern: list ---
+    runTest("pattern: type match list", []()
+            {
+        auto out = runXell(R"XEL(
+incase [1, 2, 3] :
+    belong int :
+        print("integer")
+    ;
+    belong list :
+        print("a list")
+    ;
+    else :
+        print("other")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("a list")); });
+
+    // --- Type pattern: float ---
+    runTest("pattern: type match float", []()
+            {
+        auto out = runXell(R"XEL(
+incase 3.14 :
+    belong int :
+        print("integer")
+    ;
+    belong float :
+        print("decimal")
+    ;
+    else :
+        print("other")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("decimal")); });
+
+    // --- Type pattern: bool ---
+    runTest("pattern: type match bool", []()
+            {
+        auto out = runXell(R"XEL(
+incase true :
+    belong bool :
+        print("boolean")
+    ;
+    else :
+        print("not bool")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("boolean")); });
+
+    // --- Type pattern: map ---
+    runTest("pattern: type match map", []()
+            {
+        auto out = runXell(R"XEL(
+incase {"key": "val"} :
+    belong map :
+        print("a map")
+    ;
+    else :
+        print("not map")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("a map")); });
+
+    // --- Type pattern: none ---
+    runTest("pattern: type match none", []()
+            {
+        auto out = runXell(R"XEL(
+incase none :
+    belong none :
+        print("nothing")
+    ;
+    else :
+        print("something")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("nothing")); });
+
+    // --- Type pattern: class instance ---
+    runTest("pattern: type match class instance", []()
+            {
+        auto out = runXell(R"XEL(
+class Dog :
+    name = ""
+    fn __init__(self, name) :
+        self->name = name
+    ;
+;
+
+d = Dog("Rex")
+incase d :
+    belong Dog :
+        print("it's a dog")
+    ;
+    else :
+        print("not a dog")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("it's a dog")); });
+
+    // --- Guard clause: value + guard ---
+    runTest("pattern: guard clause on value", []()
+            {
+        auto out = runXell(R"XEL(
+x = 15
+incase x :
+    is 15 if x > 20 :
+        print("big fifteen")
+    ;
+    is 15 if x < 20 :
+        print("small fifteen")
+    ;
+    else :
+        print("other")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("small fifteen")); });
+
+    // --- Guard clause: binding pattern ---
+    runTest("pattern: binding with guard", []()
+            {
+        auto out = runXell(R"XEL(
+val = 42
+incase val :
+    bind v if v < 0 :
+        print("negative")
+    ;
+    bind v if v >= 0 :
+        print("non-negative: " + str(v))
+    ;
+    else :
+        print("fallback")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("non-negative: 42")); });
+
+    // --- Guard clause: binding pattern with type-like behavior ---
+    runTest("pattern: binding guard filters", []()
+            {
+        auto out = runXell(R"XEL(
+results = [100, -5, 0, 50]
+for item in results :
+    incase item :
+        bind v if v > 50 :
+            print("high: " + str(v))
+        ;
+        bind v if v < 0 :
+            print("negative: " + str(v))
+        ;
+        is 0 :
+            print("zero")
+        ;
+        else :
+            print("normal: " + str(item))
+        ;
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("high: 100"));
+        XASSERT_EQ(out[1], std::string("negative: -5"));
+        XASSERT_EQ(out[2], std::string("zero"));
+        XASSERT_EQ(out[3], std::string("normal: 50")); });
+
+    // --- Expression-mode type pattern ---
+    runTest("pattern: expr-mode type match", []()
+            {
+        auto out = runXell(R"XEL(
+label = incase 42 : belong int : "integer" is string : "text" else : "other" ;
+print(label)
+)XEL");
+        XASSERT_EQ(out[0], std::string("integer")); });
+
+    // --- Expression-mode class type pattern ---
+    runTest("pattern: expr-mode class type", []()
+            {
+        auto out = runXell(R"XEL(
+class Cat :
+    name = ""
+    fn __init__(self) :
+        self->name = "Kitty"
+    ;
+;
+c = Cat()
+label = incase c : belong Cat : "feline" else : "unknown" ;
+print(label)
+)XEL");
+        XASSERT_EQ(out[0], std::string("feline")); });
+
+    // --- Expression-mode guard clause ---
+    runTest("pattern: expr-mode guard", []()
+            {
+        auto out = runXell(R"XEL(
+x = 7
+label = incase x : bind v if v > 10 : "big" bind v if v > 0 : "small" else : "non-positive" ;
+print(label)
+)XEL");
+        XASSERT_EQ(out[0], std::string("small")); });
+
+    // --- Mixed value + type in same incase ---
+    runTest("pattern: mixed value and type", []()
+            {
+        auto out = runXell(R"XEL(
+incase 0 :
+    is 0 :
+        print("zero value")
+    ;
+    belong int :
+        print("some int")
+    ;
+    else :
+        print("other")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("zero value")); });
+
+    // --- Guard fails, falls through to next clause ---
+    runTest("pattern: guard fail falls through", []()
+            {
+        auto out = runXell(R"XEL(
+incase 5 :
+    is 5 if 5 > 100 :
+        print("impossible")
+    ;
+    is 5 :
+        print("five")
+    ;
+    else :
+        print("other")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("five")); });
+
+    // --- Type pattern with else fallback ---
+    runTest("pattern: type no match goes to else", []()
+            {
+        auto out = runXell(R"XEL(
+incase (1, 2, 3) :
+    belong int :
+        print("integer")
+    ;
+    belong string :
+        print("string")
+    ;
+    else :
+        print("something else")
+    ;
+;
+)XEL");
+        XASSERT_EQ(out[0], std::string("something else")); });
+}
+
+static void testCastingEnhancements()
+{
+    std::cout << "\n===== Casting Enhancements =====\n";
+
+    runTest("number() parses hex/octal/binary/complex strings", []()
+            {
+        auto out = runXell(
+            "print(number(\"0xff\"))\n"
+            "print(number(\"0o77\"))\n"
+            "print(number(\"0b1010\"))\n"
+            "print(number(\"10.11+2i\"))\n"
+            "print(type(number(\"10.11+2i\")))\n");
+        XASSERT_EQ(out[0], std::string("255"));
+        XASSERT_EQ(out[1], std::string("63"));
+        XASSERT_EQ(out[2], std::string("10"));
+        XASSERT_EQ(out[3], std::string("(10.11+2i)"));
+        XASSERT_EQ(out[4], std::string("complex")); });
+
+    runTest("Int/Float/Complex/String/auto work across values", []()
+            {
+        auto out = runXell(
+            "print(Int(\"0xff\"))\n"
+            "print(Float(\"0b1010\"))\n"
+            "print(Complex(\"10.11+2i\"))\n"
+            "print(type(String(~{1, 2})))\n"
+            "print(type(auto(\"0o11\")))\n"
+            "print(auto(\"0o11\"))\n"
+            "print(type(auto(\"10.11+2i\")))\n");
+        XASSERT_EQ(out[0], std::string("255"));
+        XASSERT_EQ(out[1], std::string("10"));
+        XASSERT_EQ(out[2], std::string("(10.11+2i)"));
+        XASSERT_EQ(out[3], std::string("string"));
+        XASSERT_EQ(out[4], std::string("int"));
+        XASSERT_EQ(out[5], std::string("9"));
+        XASSERT_EQ(out[6], std::string("complex")); });
+
+    runTest("type() returns proper type names", []()
+            {
+        auto out = runXell(
+            "class Dog :\n"
+            "    name = \"\"\n"
+            "    fn __init__(self, name) :\n"
+            "        self->name = name\n"
+            "    ;\n"
+            ";\n"
+            "d = Dog(\"Rex\")\n"
+            "print(type(~{1, 2}))\n"
+            "print(type(1 + 2i))\n"
+            "print(type(d))\n"
+            "print(type(Dog))\n");
+        XASSERT_EQ(out[0], std::string("frozen_set"));
+        XASSERT_EQ(out[1], std::string("complex"));
+        XASSERT_EQ(out[2], std::string("Dog"));
+        XASSERT_EQ(out[3], std::string("class")); });
+}
+
+static void testShellCommandDollarSyntax()
+{
+    std::cout << "\n===== Shell $ Syntax =====\n";
+
+    runTest("$ command as statement prints output", []()
+            {
+        auto out = runXell("$echo xell_shell_test");
+        XASSERT_EQ(out.size(), (size_t)1);
+        XASSERT(out[0].find("xell_shell_test") != std::string::npos); });
+
+    runTest("$ command as expression returns list", []()
+            {
+        auto out = runXell(
+            "res = $echo xell_shell_expr\n"
+            "print(type(res))\n"
+            "print(res[0])\n");
+        XASSERT_EQ(out[0], std::string("list"));
+        XASSERT(out[1].find("xell_shell_expr") != std::string::npos); });
+}
+
 int main()
 {
     testBasicExpressions();
@@ -3643,6 +4994,18 @@ int main()
     testComprehensions();
     testNumberLiterals();
     testBitwiseOperators();
+    testExponentiation();
+    testTypedCatch();
+    testIsNot();
+    testComputedMapKeys();
+    testScientificNotation();
+    testStringEscapes();
+    testSingleQuoteStrings();
+    testDoWhile();
+    testInCaseExpr();
+    testPatternMatching();
+    testCastingEnhancements();
+    testShellCommandDollarSyntax();
 
     std::cout << "\n============================================\n";
     std::cout << "  Total: " << (g_passed + g_failed)

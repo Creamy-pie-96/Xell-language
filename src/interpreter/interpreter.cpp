@@ -8,6 +8,7 @@
 #include "../os/os.hpp"
 #include <sstream>
 #include <cmath>
+#include <complex>
 #include <algorithm>
 #include <cassert>
 #include <iostream>
@@ -55,6 +56,8 @@ static std::string canonicalPath(const std::string &path)
 
 namespace xell
 {
+    // Forward declarations
+    static bool matchesType(const XObject &obj, const std::string &typeName);
 
     // ========================================================================
     // AST helper: detect yield expressions in a function body
@@ -140,6 +143,24 @@ namespace xell
                     return true;
             return false;
         }
+        if (auto *p = dynamic_cast<const DoWhileStmt *>(stmt))
+        {
+            for (const auto &s : p->body)
+                if (containsYieldStmt(s.get()))
+                    return true;
+            return false;
+        }
+        if (auto *p = dynamic_cast<const InCaseStmt *>(stmt))
+        {
+            for (const auto &clause : p->clauses)
+                for (const auto &s : clause.body)
+                    if (containsYieldStmt(s.get()))
+                        return true;
+            for (const auto &s : p->elseBody)
+                if (containsYieldStmt(s.get()))
+                    return true;
+            return false;
+        }
         if (auto *p = dynamic_cast<const GiveStmt *>(stmt))
             return p->value ? containsYieldExpr(p->value.get()) : false;
         if (auto *p = dynamic_cast<const TryCatchStmt *>(stmt))
@@ -147,9 +168,10 @@ namespace xell
             for (const auto &s : p->tryBody)
                 if (containsYieldStmt(s.get()))
                     return true;
-            for (const auto &s : p->catchBody)
-                if (containsYieldStmt(s.get()))
-                    return true;
+            for (const auto &clause : p->catchClauses)
+                for (const auto &s : clause.body)
+                    if (containsYieldStmt(s.get()))
+                        return true;
             return false;
         }
         return false;
@@ -244,7 +266,10 @@ namespace xell
         if (auto *p = dynamic_cast<const MapLiteral *>(expr))
         {
             for (const auto &e : p->entries)
+            {
+                collectExprDeps(e.first.get(), deps);
                 collectExprDeps(e.second.get(), deps);
+            }
             return;
         }
     }
@@ -354,6 +379,7 @@ namespace xell
         {
             for (const auto &e : p->entries)
             {
+                collectRefsExpr(e.first.get(), refs);
                 collectRefsExpr(e.second.get(), refs);
             }
             return;
@@ -406,6 +432,21 @@ namespace xell
                 collectRefsExpr(p->singleExpr.get(), refs);
             else
                 collectRefsBlock(p->body, refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const InCaseExpr *>(expr))
+        {
+            collectRefsExpr(p->subject.get(), refs);
+            for (const auto &clause : p->clauses)
+            {
+                for (const auto &v : clause.values)
+                    collectRefsExpr(v.get(), refs);
+                if (clause.guard)
+                    collectRefsExpr(clause.guard.get(), refs);
+                collectRefsExpr(clause.result.get(), refs);
+            }
+            if (p->elseValue)
+                collectRefsExpr(p->elseValue.get(), refs);
             return;
         }
         // Literals, YieldExpr, etc. — nothing to collect
@@ -463,10 +504,31 @@ namespace xell
             collectRefsBlock(p->body, refs);
             return;
         }
+        if (auto *p = dynamic_cast<const DoWhileStmt *>(stmt))
+        {
+            collectRefsBlock(p->body, refs);
+            collectRefsExpr(p->condition.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const InCaseStmt *>(stmt))
+        {
+            collectRefsExpr(p->subject.get(), refs);
+            for (const auto &clause : p->clauses)
+            {
+                for (const auto &val : clause.values)
+                    collectRefsExpr(val.get(), refs);
+                if (clause.guard)
+                    collectRefsExpr(clause.guard.get(), refs);
+                collectRefsBlock(clause.body, refs);
+            }
+            collectRefsBlock(p->elseBody, refs);
+            return;
+        }
         if (auto *p = dynamic_cast<const TryCatchStmt *>(stmt))
         {
             collectRefsBlock(p->tryBody, refs);
-            collectRefsBlock(p->catchBody, refs);
+            for (const auto &clause : p->catchClauses)
+                collectRefsBlock(clause.body, refs);
             collectRefsBlock(p->finallyBody, refs);
             return;
         }
@@ -531,8 +593,31 @@ namespace xell
             });
     }
 
+    Interpreter::~Interpreter()
+    {
+        cleanupThreadTasks();
+    }
+
+    void Interpreter::cleanupThreadTasks()
+    {
+        std::unordered_map<int, std::shared_ptr<ThreadTask>> tasks;
+        {
+            std::lock_guard<std::mutex> lock(threadStateMutex_);
+            tasks = threadTasks_;
+            threadTasks_.clear();
+            mutexHandles_.clear();
+        }
+
+        for (auto &[_, task] : tasks)
+        {
+            if (task && task->worker.joinable())
+                task->worker.join();
+        }
+    }
+
     void Interpreter::reset()
     {
+        cleanupThreadTasks();
         globalEnv_ = Environment();
         currentEnv_ = &globalEnv_;
         output_.clear();
@@ -751,6 +836,234 @@ namespace xell
         // Mirror the 5 HOF builtins into allBuiltins_ so they're discoverable
         for (const auto &name : {"map", "filter", "reduce", "any", "all"})
             allBuiltins_[name] = builtins_[name];
+
+        // ---- Threading / concurrency module (Tier 2) ---------------------
+
+        std::vector<std::string> threadingNames;
+        auto registerThreadingBuiltin = [&](const std::string &name, BuiltinFn fn)
+        {
+            allBuiltins_[name] = std::move(fn);
+            threadingNames.push_back(name);
+        };
+
+        registerThreadingBuiltin("thread_spawn", [this](std::vector<XObject> &args, int line) -> XObject
+                                 {
+            if (args.empty())
+                throw ArityError("thread_spawn", 1, 0, line);
+            if (!args[0].isFunction())
+                throw TypeError("thread_spawn() expects a function as its first argument", line);
+
+            const XFunction &fn = args[0].asFunction();
+            auto snapshotEnv = std::make_shared<Environment>();
+            Environment *sourceEnv = fn.closureEnv ? fn.closureEnv : currentEnv_;
+
+            std::unordered_set<std::string> freeVars;
+            if (fn.lambdaSingleExpr)
+                freeVars = collectFreeVars(std::vector<std::unique_ptr<Stmt>>{}, fn.params, fn.lambdaSingleExpr);
+            else if (fn.body)
+                freeVars = collectFreeVars(*fn.body, fn.params);
+
+            for (const auto &name : freeVars)
+            {
+                if (sourceEnv && sourceEnv->has(name))
+                    snapshotEnv->define(name, sourceEnv->get(name, 0));
+            }
+
+            XObject fnCopyObj = XObject::makeFunction(fn.name, fn.params, fn.body, snapshotEnv.get());
+            XFunction &fnCopy = const_cast<XFunction &>(fnCopyObj.asFunction());
+            fnCopy.ownedEnv = snapshotEnv;
+            fnCopy.defaults = fn.defaults;
+            fnCopy.isVariadic = fn.isVariadic;
+            fnCopy.variadicName = fn.variadicName;
+            fnCopy.lambdaSingleExpr = fn.lambdaSingleExpr;
+            fnCopy.isGenerator = fn.isGenerator;
+            fnCopy.isAsync = fn.isAsync;
+            fnCopy.typeAnnotations = fn.typeAnnotations;
+            fnCopy.overloads = fn.overloads;
+
+            std::vector<XObject> fnArgs;
+            for (size_t i = 1; i < args.size(); i++)
+                fnArgs.push_back(args[i]);
+
+            auto task = std::make_shared<ThreadTask>();
+            int taskId;
+            {
+                std::lock_guard<std::mutex> lock(threadStateMutex_);
+                taskId = nextThreadTaskId_++;
+                threadTasks_[taskId] = task;
+            }
+
+            std::vector<std::string> activeTier2Modules;
+            for (const auto &modName : moduleRegistry_.tier2ModuleNames())
+            {
+                const auto &funcs = moduleRegistry_.moduleFunctions(modName);
+                bool active = false;
+                for (const auto &funcName : funcs)
+                {
+                    if (builtins_.count(funcName))
+                    {
+                        active = true;
+                        break;
+                    }
+                }
+                if (active)
+                    activeTier2Modules.push_back(modName);
+            }
+
+            task->worker = std::thread([this, task, fnCopyObj, fnArgs, line, activeTier2Modules]() mutable
+            {
+                try
+                {
+                    Interpreter worker;
+                    worker.setStreamOutput(streamOutput_);
+                    for (const auto &modName : activeTier2Modules)
+                        worker.loadModule(modName);
+
+                    XObject result = worker.callUserFn(fnCopyObj.asFunction(), fnArgs, line);
+
+                    std::lock_guard<std::mutex> lock(task->mtx);
+                    task->result = result;
+                    task->output = worker.output();
+                }
+                catch (...)
+                {
+                    std::lock_guard<std::mutex> lock(task->mtx);
+                    task->error = std::current_exception();
+                }
+
+                {
+                    std::lock_guard<std::mutex> lock(task->mtx);
+                    task->done = true;
+                }
+                task->cv.notify_all();
+            });
+
+            return XObject::makeInt(taskId); });
+
+        registerThreadingBuiltin("thread_join", [this](std::vector<XObject> &args, int line) -> XObject
+                                 {
+            if (args.size() != 1)
+                throw ArityError("thread_join", 1, (int)args.size(), line);
+            if (!args[0].isInt())
+                throw TypeError("thread_join() expects a thread handle integer", line);
+
+            std::shared_ptr<ThreadTask> task;
+            {
+                std::lock_guard<std::mutex> lock(threadStateMutex_);
+                auto it = threadTasks_.find((int)args[0].asInt());
+                if (it == threadTasks_.end())
+                    throw ValueError("unknown thread handle", line);
+                task = it->second;
+            }
+
+            {
+                std::unique_lock<std::mutex> lock(task->mtx);
+                task->cv.wait(lock, [&]() { return task->done; });
+            }
+
+            if (task->worker.joinable() && !task->joined)
+            {
+                task->worker.join();
+                task->joined = true;
+            }
+
+            for (const auto &out : task->output)
+                output_.push_back(out);
+            task->output.clear();
+
+            if (task->error)
+                std::rethrow_exception(task->error);
+            return task->result; });
+
+        registerThreadingBuiltin("thread_done", [this](std::vector<XObject> &args, int line) -> XObject
+                                 {
+            if (args.size() != 1)
+                throw ArityError("thread_done", 1, (int)args.size(), line);
+            if (!args[0].isInt())
+                throw TypeError("thread_done() expects a thread handle integer", line);
+
+            std::shared_ptr<ThreadTask> task;
+            {
+                std::lock_guard<std::mutex> lock(threadStateMutex_);
+                auto it = threadTasks_.find((int)args[0].asInt());
+                if (it == threadTasks_.end())
+                    throw ValueError("unknown thread handle", line);
+                task = it->second;
+            }
+
+            std::lock_guard<std::mutex> lock(task->mtx);
+            return XObject::makeBool(task->done); });
+
+        registerThreadingBuiltin("thread_count", [](std::vector<XObject> &args, int line) -> XObject
+                                 {
+            if (!args.empty())
+                throw ArityError("thread_count", 0, (int)args.size(), line);
+            auto count = std::thread::hardware_concurrency();
+            return XObject::makeInt((int64_t)(count == 0 ? 1 : count)); });
+
+        registerThreadingBuiltin("mutex_create", [this](std::vector<XObject> &args, int line) -> XObject
+                                 {
+            if (!args.empty())
+                throw ArityError("mutex_create", 0, (int)args.size(), line);
+            std::lock_guard<std::mutex> lock(threadStateMutex_);
+            int handle = nextMutexHandleId_++;
+            mutexHandles_[handle] = std::make_shared<std::mutex>();
+            return XObject::makeInt(handle); });
+
+        registerThreadingBuiltin("mutex_lock", [this](std::vector<XObject> &args, int line) -> XObject
+                                 {
+            if (args.size() != 1)
+                throw ArityError("mutex_lock", 1, (int)args.size(), line);
+            if (!args[0].isInt())
+                throw TypeError("mutex_lock() expects a mutex handle integer", line);
+
+            std::shared_ptr<std::mutex> mtx;
+            {
+                std::lock_guard<std::mutex> lock(threadStateMutex_);
+                auto it = mutexHandles_.find((int)args[0].asInt());
+                if (it == mutexHandles_.end())
+                    throw ValueError("unknown mutex handle", line);
+                mtx = it->second;
+            }
+            mtx->lock();
+            return XObject::makeNone(); });
+
+        registerThreadingBuiltin("mutex_unlock", [this](std::vector<XObject> &args, int line) -> XObject
+                                 {
+            if (args.size() != 1)
+                throw ArityError("mutex_unlock", 1, (int)args.size(), line);
+            if (!args[0].isInt())
+                throw TypeError("mutex_unlock() expects a mutex handle integer", line);
+
+            std::shared_ptr<std::mutex> mtx;
+            {
+                std::lock_guard<std::mutex> lock(threadStateMutex_);
+                auto it = mutexHandles_.find((int)args[0].asInt());
+                if (it == mutexHandles_.end())
+                    throw ValueError("unknown mutex handle", line);
+                mtx = it->second;
+            }
+            mtx->unlock();
+            return XObject::makeNone(); });
+
+        registerThreadingBuiltin("mutex_try_lock", [this](std::vector<XObject> &args, int line) -> XObject
+                                 {
+            if (args.size() != 1)
+                throw ArityError("mutex_try_lock", 1, (int)args.size(), line);
+            if (!args[0].isInt())
+                throw TypeError("mutex_try_lock() expects a mutex handle integer", line);
+
+            std::shared_ptr<std::mutex> mtx;
+            {
+                std::lock_guard<std::mutex> lock(threadStateMutex_);
+                auto it = mutexHandles_.find((int)args[0].asInt());
+                if (it == mutexHandles_.end())
+                    throw ValueError("unknown mutex handle", line);
+                mtx = it->second;
+            }
+            return XObject::makeBool(mtx->try_lock()); });
+
+        moduleRegistry_.registerModule("threading", threadingNames, true);
 
         // ---- Override print to support __print__/__str__ magic methods ----
         builtins_["print"] = [this](std::vector<XObject> &args, int line) -> XObject
@@ -1151,6 +1464,8 @@ namespace xell
             return execLet(p);
         if (auto *p = dynamic_cast<const LoopStmt *>(stmt))
             return execLoop(p);
+        if (auto *p = dynamic_cast<const DoWhileStmt *>(stmt))
+            return execDoWhile(p);
         if (auto *p = dynamic_cast<const DestructuringAssignment *>(stmt))
             return execDestructuring(p);
         if (auto *p = dynamic_cast<const EnumDef *>(stmt))
@@ -1488,6 +1803,8 @@ namespace xell
 
     std::vector<XObject> Interpreter::materializeIterable(XObject &src, int line)
     {
+        src = normalizeIterableSource(src, line);
+
         if (src.isList())
             return src.asList();
         if (src.isTuple())
@@ -1516,13 +1833,12 @@ namespace xell
                 chars.push_back(XObject::makeString(std::string(1, c)));
             return chars;
         }
-        if (src.isGenerator())
+        if (isLazyIterableSource(src))
         {
-            // Fallback: eagerly drain (used when generator is mixed with other sources)
             std::vector<XObject> items;
             while (true)
             {
-                auto [done, val] = nextGeneratorValue(src, line);
+                auto [done, val] = nextLazyIterableValue(src, line);
                 if (done)
                     break;
                 items.push_back(std::move(val));
@@ -1531,80 +1847,110 @@ namespace xell
         }
         if (src.isInstance())
         {
-            XObject iterResult;
-            std::vector<XObject> iterArgs;
-            if (callMagicMethod(src, "__iter__", iterArgs, line, iterResult))
-            {
-                if (iterResult.isList())
-                    return iterResult.asList();
-                if (iterResult.isTuple())
-                {
-                    auto &tup = iterResult.asTuple();
-                    return std::vector<XObject>(tup.begin(), tup.end());
-                }
-                if (iterResult.isGenerator())
-                {
-                    // __iter__ returned a generator — drain it
-                    std::vector<XObject> items;
-                    while (true)
-                    {
-                        auto [done, val] = nextGeneratorValue(iterResult, line);
-                        if (done)
-                            break;
-                        items.push_back(std::move(val));
-                    }
-                    return items;
-                }
-                throw TypeError("__iter__ must return a list, tuple, or generator, got " +
-                                    std::string(xtype_name(iterResult.type())),
-                                line);
-            }
             throw IterationError("'" + src.asInstance().typeName +
-                                     "' is not iterable (no __iter__ method defined)",
+                                     "' is not iterable (no __iter__ or __next__ method defined)",
                                  line);
         }
+
         throw TypeError("for..in requires a list, tuple, map, set, string, generator, or iterable instance, got " +
                             std::string(xtype_name(src.type())),
                         line);
     }
 
-    std::pair<bool, XObject> Interpreter::nextGeneratorValue(XObject &src, int line)
+    std::pair<bool, XObject> Interpreter::nextGeneratorValue(XObject &src, int /*line*/)
     {
         auto &gen = src.asGeneratorMut();
-        auto &state = gen.state;
-        std::unique_lock<std::mutex> lock(state->mtx);
+        auto &gs = gen.state;
 
-        if (state->phase == GeneratorState::Phase::DONE)
-            return {true, XObject::makeNone()};
-
-        if (!state->started)
         {
-            state->started = true;
-            state->phase = GeneratorState::Phase::RUNNING;
-            lock.unlock();
-            state->cv.notify_all();
-            lock.lock();
+            std::unique_lock<std::mutex> lk(gs->mtx);
+            if (gs->phase == GeneratorState::DONE)
+            {
+                if (gs->error)
+                    std::rethrow_exception(gs->error);
+                return {true, XObject::makeNone()};
+            }
+            gs->phase = GeneratorState::RUNNING;
         }
-        else
+        gs->cv.notify_all();
+
         {
-            state->phase = GeneratorState::Phase::RUNNING;
-            lock.unlock();
-            state->cv.notify_all();
-            lock.lock();
+            std::unique_lock<std::mutex> lk(gs->mtx);
+            gs->cv.wait(lk, [&gs]
+                        { return gs->phase == GeneratorState::YIELDED || gs->phase == GeneratorState::DONE; });
+
+            if (gs->phase == GeneratorState::YIELDED && gs->yieldedValue)
+                return {false, gs->yieldedValue->clone()};
+
+            if (gs->error)
+                std::rethrow_exception(gs->error);
+            return {true, XObject::makeNone()};
+        }
+    }
+
+    XObject Interpreter::normalizeIterableSource(XObject src, int line)
+    {
+        auto hasNext = [&](const XObject &obj)
+        {
+            if (!obj.isInstance() || !obj.asInstance().structDef)
+                return false;
+            auto [mi, _] = obj.asInstance().structDef->findMethodWithOwner("__next__");
+            return mi != nullptr;
+        };
+
+        if (src.isInstance())
+        {
+            XObject iterResult;
+            std::vector<XObject> iterArgs;
+            if (callMagicMethod(src, "__iter__", iterArgs, line, iterResult))
+            {
+                if (iterResult.isList() || iterResult.isTuple() || iterResult.isGenerator())
+                    return iterResult;
+                if (hasNext(iterResult))
+                    return iterResult;
+                throw TypeError("__iter__ must return a list, tuple, generator, or iterator object, got " +
+                                    std::string(xtype_name(iterResult.type())),
+                                line);
+            }
+            if (hasNext(src))
+                return src;
         }
 
-        state->cv.wait(lock, [&]
-                       { return state->phase == GeneratorState::Phase::YIELDED ||
-                                state->phase == GeneratorState::Phase::DONE; });
+        return src;
+    }
 
-        if (state->error)
-            std::rethrow_exception(state->error);
+    bool Interpreter::isLazyIterableSource(const XObject &src) const
+    {
+        if (src.isGenerator())
+            return true;
+        if (!src.isInstance() || !src.asInstance().structDef)
+            return false;
+        auto [mi, _] = src.asInstance().structDef->findMethodWithOwner("__next__");
+        return mi != nullptr;
+    }
 
-        if (state->phase == GeneratorState::Phase::DONE)
-            return {true, XObject::makeNone()};
+    std::pair<bool, XObject> Interpreter::nextLazyIterableValue(XObject &src, int line)
+    {
+        if (src.isGenerator())
+            return nextGeneratorValue(src, line);
 
-        XObject val = state->yieldedValue ? state->yieldedValue->clone() : XObject::makeNone();
-        return {false, std::move(val)};
+        if (src.isInstance())
+        {
+            XObject result;
+            std::vector<XObject> args;
+            try
+            {
+                if (!callMagicMethod(src, "__next__", args, line, result))
+                    throw IterationError("iterator object has no __next__ method", line);
+                return {false, std::move(result)};
+            }
+            catch (const IterationError &)
+            {
+                return {true, XObject::makeNone()};
+            }
+        }
+
+        throw TypeError("value is not a lazy iterable source", line);
     }
 
     void Interpreter::execFor(const ForStmt *node)
@@ -1612,7 +1958,7 @@ namespace xell
         // ---- Evaluate all source iterables ----
         std::vector<XObject> sources;
         for (const auto &iterExpr : node->iterables)
-            sources.push_back(eval(iterExpr.get()));
+            sources.push_back(normalizeIterableSource(eval(iterExpr.get()), node->line));
 
         const size_t numTargets = node->varNames.size();
         const size_t numSources = sources.size();
@@ -1628,18 +1974,18 @@ namespace xell
         // Generators are consumed one value at a time, enabling infinite
         // sequences, memory-efficient streaming, and proper break semantics.
         // ================================================================
-        bool singleGenerator = (numSources == 1 && sources[0].isGenerator());
+        bool singleLazy = (numSources == 1 && isLazyIterableSource(sources[0]));
 
-        // Also check for parallel generators (all sources are generators)
-        bool allGenerators = true;
+        // Also check for parallel lazy iterables (all sources are lazy)
+        bool allLazy = true;
         for (auto &s : sources)
-            if (!s.isGenerator())
+            if (!isLazyIterableSource(s))
             {
-                allGenerators = false;
+                allLazy = false;
                 break;
             }
 
-        if (singleGenerator || (numSources > 1 && allGenerators))
+        if (singleLazy || (numSources > 1 && allLazy))
         {
             // Trace: for-loop start (unknown length)
             if (trace_ && trace_->enabled && trace_->filter().trackLoopFor)
@@ -1659,18 +2005,18 @@ namespace xell
             {
                 while (true)
                 {
-                    if (singleGenerator && numTargets == 1 && !node->hasRest)
+                    if (singleLazy && numTargets == 1 && !node->hasRest)
                     {
                         // Simple: for x in gen
-                        auto [done, val] = nextGeneratorValue(sources[0], node->line);
+                        auto [done, val] = nextLazyIterableValue(sources[0], node->line);
                         if (done)
                             break;
                         loopEnv.define(node->varNames[0], std::move(val));
                     }
-                    else if (singleGenerator)
+                    else if (singleLazy)
                     {
                         // Destructuring: for a, b in gen (each yield is a list/tuple)
-                        auto [done, elem] = nextGeneratorValue(sources[0], node->line);
+                        auto [done, elem] = nextLazyIterableValue(sources[0], node->line);
                         if (done)
                             break;
                         std::vector<XObject> inner;
@@ -1706,7 +2052,7 @@ namespace xell
                         std::vector<XObject> vals;
                         for (size_t s = 0; s < numSources; s++)
                         {
-                            auto [done, val] = nextGeneratorValue(sources[s], node->line);
+                            auto [done, val] = nextLazyIterableValue(sources[s], node->line);
                             if (done)
                             {
                                 anyDone = true;
@@ -2018,12 +2364,16 @@ namespace xell
             if (auto *p = dynamic_cast<const LoopStmt *>(s.get()))
                 if (bodyContainsBreak(p->body))
                     return true;
+            if (auto *p = dynamic_cast<const DoWhileStmt *>(s.get()))
+                if (bodyContainsBreak(p->body))
+                    return true;
             if (auto *p = dynamic_cast<const TryCatchStmt *>(s.get()))
             {
                 if (bodyContainsBreak(p->tryBody))
                     return true;
-                if (bodyContainsBreak(p->catchBody))
-                    return true;
+                for (const auto &clause : p->catchClauses)
+                    if (bodyContainsBreak(clause.body))
+                        return true;
                 if (bodyContainsBreak(p->finallyBody))
                     return true;
             }
@@ -2092,6 +2442,48 @@ namespace xell
     }
 
     // ============================================================
+    // Do-while statement: do : BLOCK ; while CONDITION
+    // ============================================================
+
+    void Interpreter::execDoWhile(const DoWhileStmt *node)
+    {
+        Environment loopEnv(currentEnv_);
+        auto *savedEnv = currentEnv_;
+        currentEnv_ = &loopEnv;
+
+        try
+        {
+            do
+            {
+                try
+                {
+                    for (const auto &stmt : node->body)
+                        exec(stmt.get());
+                }
+                catch (const BreakSignal &bs)
+                {
+                    if (bs.hasValue)
+                        throw RuntimeError("Cannot use 'break VALUE' in a do-while loop",
+                                           node->line);
+                    goto done;
+                }
+                catch (const ContinueSignal &)
+                {
+                    continue;
+                }
+            } while (eval(node->condition.get()).truthy());
+        done:;
+        }
+        catch (...)
+        {
+            currentEnv_ = savedEnv;
+            throw;
+        }
+
+        currentEnv_ = savedEnv;
+    }
+
+    // ============================================================
     // Expression-mode if: if cond: val elif cond: val else: val
     // ============================================================
 
@@ -2121,7 +2513,7 @@ namespace xell
     {
         std::vector<XObject> sources;
         for (const auto &iterExpr : node->iterables)
-            sources.push_back(eval(iterExpr.get()));
+            sources.push_back(normalizeIterableSource(eval(iterExpr.get()), node->line));
 
         const size_t numTargets = node->varNames.size();
         const size_t numSources = sources.size();
@@ -2185,32 +2577,32 @@ namespace xell
         };
 
         // Check for generator sources
-        bool singleGenerator = (numSources == 1 && sources[0].isGenerator());
-        bool allGenerators = true;
+        bool singleLazy = (numSources == 1 && isLazyIterableSource(sources[0]));
+        bool allLazy = true;
         for (auto &s : sources)
-            if (!s.isGenerator())
+            if (!isLazyIterableSource(s))
             {
-                allGenerators = false;
+                allLazy = false;
                 break;
             }
 
         try
         {
-            if (singleGenerator || (numSources > 1 && allGenerators))
+            if (singleLazy || (numSources > 1 && allLazy))
             {
                 // Lazy generator iteration
                 while (true)
                 {
-                    if (singleGenerator && numTargets == 1 && !node->hasRest)
+                    if (singleLazy && numTargets == 1 && !node->hasRest)
                     {
-                        auto [done, val] = nextGeneratorValue(sources[0], node->line);
+                        auto [done, val] = nextLazyIterableValue(sources[0], node->line);
                         if (done)
                             break;
                         loopEnv.define(node->varNames[0], std::move(val));
                     }
-                    else if (singleGenerator)
+                    else if (singleLazy)
                     {
-                        auto [done, elem] = nextGeneratorValue(sources[0], node->line);
+                        auto [done, elem] = nextLazyIterableValue(sources[0], node->line);
                         if (done)
                             break;
                         bindDestructured(std::move(elem));
@@ -2222,7 +2614,7 @@ namespace xell
                         std::vector<XObject> vals;
                         for (size_t s = 0; s < numSources; s++)
                         {
-                            auto [done, val] = nextGeneratorValue(sources[s], node->line);
+                            auto [done, val] = nextLazyIterableValue(sources[s], node->line);
                             if (done)
                             {
                                 anyDone = true;
@@ -2411,6 +2803,67 @@ namespace xell
         return XObject::makeNone();
     }
 
+    // ============================================================
+    // Expression-mode incase (switch expression)
+    // ============================================================
+
+    XObject Interpreter::evalInCaseExpr(const InCaseExpr *node)
+    {
+        XObject subject = eval(node->subject.get());
+
+        for (const auto &clause : node->clauses)
+        {
+            bool matched = false;
+            Environment clauseEnv(currentEnv_);
+
+            if (clause.kind == ClauseKind::BELONG_TYPE)
+            {
+                matched = matchesType(subject, clause.typeName);
+            }
+            else if (clause.kind == ClauseKind::BIND_CAPTURE)
+            {
+                matched = true;
+                clauseEnv.define(clause.bindName, subject);
+            }
+            else // IS_VALUE
+            {
+                for (const auto &val : clause.values)
+                {
+                    XObject matchVal = eval(val.get());
+                    if (subject.equals(matchVal))
+                    {
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+
+            if (matched)
+            {
+                if (clause.guard)
+                {
+                    Environment *prevEnv = currentEnv_;
+                    currentEnv_ = &clauseEnv;
+                    XObject guardResult = eval(clause.guard.get());
+                    currentEnv_ = prevEnv;
+                    if (!guardResult.truthy())
+                        continue;
+                }
+
+                Environment *prevEnv = currentEnv_;
+                currentEnv_ = &clauseEnv;
+                XObject result = eval(clause.result.get());
+                currentEnv_ = prevEnv;
+                return result;
+            }
+        }
+
+        // No match — evaluate else value
+        if (node->elseValue)
+            return eval(node->elseValue.get());
+        return XObject::makeNone();
+    }
+
     void Interpreter::execFnDef(const FnDef *node)
     {
         // Capture the current environment as the lexical closure scope.
@@ -2579,6 +3032,22 @@ namespace xell
 
     void Interpreter::execExprStmt(const ExprStmt *node)
     {
+        // Shell command as statement: print output directly
+        if (auto *sh = dynamic_cast<const ShellCmdExpr *>(node->expr.get()))
+        {
+            XObject result = evalShellCmd(sh);
+            if (result.isList())
+            {
+                for (const auto &lineObj : result.asList())
+                {
+                    output_.push_back(lineObj.toString());
+                    if (streamOutput_)
+                        std::cout << lineObj.toString() << "\n"
+                                  << std::flush;
+                }
+            }
+            return;
+        }
         eval(node->expr.get());
     }
 
@@ -3358,6 +3827,10 @@ namespace xell
             return evalWhileExpr(p);
         if (auto *p = dynamic_cast<const LoopExpr *>(expr))
             return evalLoopExpr(p);
+        if (auto *p = dynamic_cast<const InCaseExpr *>(expr))
+            return evalInCaseExpr(p);
+        if (auto *p = dynamic_cast<const ShellCmdExpr *>(expr))
+            return evalShellCmd(p);
 
         throw NotImplementedError("unknown expression node", expr->line);
     }
@@ -3473,6 +3946,7 @@ namespace xell
                 {"*", "__mul__"},
                 {"/", "__div__"},
                 {"%", "__mod__"},
+                {"**", "__pow__"},
                 {"&", "__and__"},
                 {"|", "__or__"},
                 {"^", "__xor__"},
@@ -3517,16 +3991,22 @@ namespace xell
             return XObject::makeBool(!left.equals(right));
 
         // Instance-of check: obj is ClassName
-        if (op == "is")
+        if (op == "is" || op == "is not")
         {
+            bool negate = (op == "is not");
+            bool result = false;
             if (left.isInstance() && right.isStructDef())
             {
                 const XInstance &inst = left.asInstance();
                 const XStructDef &def = right.asStructDef();
-                return XObject::makeBool(inst.structDef->isOrInherits(def.name));
+                result = inst.structDef->isOrInherits(def.name);
             }
-            // Fallback: treat as equality for non-instance operands
-            return XObject::makeBool(left.equals(right));
+            else
+            {
+                // Fallback: treat as equality for non-instance operands
+                result = left.equals(right);
+            }
+            return XObject::makeBool(negate ? !result : result);
         }
 
         // Containment check: x in collection / x not in collection
@@ -3682,6 +4162,45 @@ namespace xell
             if (r == 0.0)
                 throw DivisionByZeroError(node->line);
             return XObject::makeFloat(l / r);
+        }
+
+        // Exponentiation: **
+        if (op == "**")
+        {
+            if (!left.isNumeric() || !right.isNumeric())
+                throw TypeError("unsupported operand types for **: " +
+                                    std::string(xtype_name(left.type())) + " and " +
+                                    std::string(xtype_name(right.type())),
+                                node->line);
+            // Complex exponentiation
+            if (left.isComplex() || right.isComplex())
+            {
+                XComplex a = left.isComplex() ? left.asComplex() : XComplex(left.asNumber(), 0.0);
+                XComplex b = right.isComplex() ? right.asComplex() : XComplex(right.asNumber(), 0.0);
+                std::complex<double> ca(a.real, a.imag), cb(b.real, b.imag);
+                auto result = std::pow(ca, cb);
+                return XObject::makeComplex(XComplex(result.real(), result.imag()));
+            }
+            // Integer exponentiation when both are int and exponent >= 0
+            if (left.isInt() && right.isInt())
+            {
+                int64_t base = left.asInt(), exp = right.asInt();
+                if (exp < 0)
+                    return XObject::makeFloat(std::pow(static_cast<double>(base), static_cast<double>(exp)));
+                // Fast integer power
+                int64_t result = 1;
+                int64_t b = base;
+                int64_t e = exp;
+                while (e > 0)
+                {
+                    if (e & 1)
+                        result *= b;
+                    b *= b;
+                    e >>= 1;
+                }
+                return XObject::makeInt(result);
+            }
+            return XObject::makeFloat(std::pow(left.asNumber(), right.asNumber()));
         }
 
         // Comparison (numbers and strings)
@@ -3943,6 +4462,9 @@ namespace xell
             return obj.isBytes();
         if (typeName == "frozen_set" || typeName == "iset" || typeName == "iSet")
             return obj.isFrozenSet();
+        // Check for custom class/struct instances
+        if (obj.isInstance())
+            return obj.asInstance().structDef->name == typeName;
         return false; // unknown type name
     }
 
@@ -5371,8 +5893,7 @@ namespace xell
         XMap map;
         for (const auto &entry : node->entries)
         {
-            // Map literal keys are strings (from parser: identifier or string literal)
-            XObject key = XObject::makeString(entry.first);
+            XObject key = eval(entry.first.get());
             map.set(key, eval(entry.second.get()));
         }
         return XObject::makeMap(std::move(map));
@@ -5422,6 +5943,47 @@ namespace xell
             set.add(val);
         }
         return XObject::makeFrozenSet(std::move(set));
+    }
+
+    // ---- Shell command expression -------------------------------------------
+
+    XObject Interpreter::evalShellCmd(const ShellCmdExpr *node)
+    {
+        // Execute the shell command and collect stdout
+        std::string cmd = node->command;
+#if defined(_WIN32) || defined(_WIN64)
+        FILE *pipe = _popen(cmd.c_str(), "r");
+#else
+        FILE *pipe = popen(cmd.c_str(), "r");
+#endif
+        if (!pipe)
+            throw RuntimeError("Shell command failed to execute: " + cmd, node->line);
+
+        std::string output;
+        char buf[4096];
+        while (fgets(buf, sizeof(buf), pipe))
+            output += buf;
+
+#if defined(_WIN32) || defined(_WIN64)
+        int exitCode = _pclose(pipe);
+#else
+        int exitCode = pclose(pipe);
+#endif
+        (void)exitCode;
+
+        // Split output into lines
+        std::vector<XObject> lines;
+        std::istringstream ss(output);
+        std::string line;
+        while (std::getline(ss, line))
+        {
+            // Remove trailing \r on Windows
+            if (!line.empty() && line.back() == '\r')
+                line.pop_back();
+            lines.push_back(XObject::makeString(line));
+        }
+
+        return XObject::makeList(std::move(lines));
     }
 
     // ---- Comprehension helpers (shared recursive iteration) ----------------
@@ -6050,6 +6612,7 @@ namespace xell
                 {"*", "__mul__"},
                 {"/", "__div__"},
                 {"%", "__mod__"},
+                {"**", "__pow__"},
                 {"&", "__and__"},
                 {"|", "__or__"},
                 {"^", "__xor__"},
@@ -6177,6 +6740,42 @@ namespace xell
             if (r < 0)
                 throw ValueError("negative shift count", line);
             return XObject::makeInt(l >> r);
+        }
+
+        // Exponentiation: **
+        if (op == "**")
+        {
+            if (!left.isNumeric() || !right.isNumeric())
+                throw TypeError("unsupported operand types for **: " +
+                                    std::string(xtype_name(left.type())) + " and " +
+                                    std::string(xtype_name(right.type())),
+                                line);
+            if (left.isComplex() || right.isComplex())
+            {
+                XComplex a = left.isComplex() ? left.asComplex() : XComplex(left.asNumber(), 0.0);
+                XComplex b = right.isComplex() ? right.asComplex() : XComplex(right.asNumber(), 0.0);
+                std::complex<double> ca(a.real, a.imag), cb(b.real, b.imag);
+                auto result = std::pow(ca, cb);
+                return XObject::makeComplex(XComplex(result.real(), result.imag()));
+            }
+            if (left.isInt() && right.isInt())
+            {
+                int64_t base = left.asInt(), exp = right.asInt();
+                if (exp < 0)
+                    return XObject::makeFloat(std::pow(static_cast<double>(base), static_cast<double>(exp)));
+                int64_t result = 1;
+                int64_t b = base;
+                uint64_t e = static_cast<uint64_t>(exp);
+                while (e > 0)
+                {
+                    if (e & 1)
+                        result *= b;
+                    b *= b;
+                    e >>= 1;
+                }
+                return XObject::makeInt(result);
+            }
+            return XObject::makeFloat(std::pow(left.asNumber(), right.asNumber()));
         }
 
         throw NotImplementedError("augmented assignment operator '" + op + "'", line);
@@ -6642,54 +7241,87 @@ namespace xell
             // Error handled — reset traceback capture so future errors get fresh tracebacks
             tracebackCaptured_ = false;
 
+            std::string category = e.category();
+
+            // Find the first catch clause whose type filter matches (or catch-all)
+            const CatchClause *matched = nullptr;
+            for (const auto &clause : node->catchClauses)
+            {
+                if (clause.errorTypes.empty())
+                {
+                    // catch-all — always matches
+                    matched = &clause;
+                    break;
+                }
+                // Check if error category matches any of the listed types
+                // Also match parent "Error" type (every error is-an Error)
+                for (const auto &typeName : clause.errorTypes)
+                {
+                    if (typeName == category || typeName == "Error")
+                    {
+                        matched = &clause;
+                        break;
+                    }
+                }
+                if (matched)
+                    break;
+            }
+
+            if (!matched)
+            {
+                // No catch clause matched — run finally and re-throw
+                if (!node->finallyBody.empty())
+                {
+                    Environment finallyEnv(currentEnv_);
+                    execBlock(node->finallyBody, finallyEnv);
+                }
+                throw;
+            }
+
             // Trace: error caught
             if (trace_ && trace_->enabled)
-                trace_->emit(TraceEvent::ERROR_CAUGHT, e.line(), node->catchVarName,
+                trace_->emit(TraceEvent::ERROR_CAUGHT, e.line(), matched->varName,
                              e.category(), e.detail(), "catch", "try", node->line);
 
-            if (!node->catchBody.empty())
+            Environment catchEnv(currentEnv_);
+
+            // Build traceback as a list of maps [{name: "funcname", line: N}, ...]
+            XList tracebackList;
+            for (const auto &frame : lastTraceback_)
             {
-                Environment catchEnv(currentEnv_);
+                XMap frameMap;
+                frameMap.set("name", XObject::makeString(frame.functionName));
+                frameMap.set("line", XObject::makeInt(frame.callLine));
+                tracebackList.push_back(XObject::makeMap(std::move(frameMap)));
+            }
+            lastTraceback_.clear();
 
-                // Build traceback as a list of maps [{name: "funcname", line: N}, ...]
-                XList tracebackList;
-                for (const auto &frame : lastTraceback_)
+            // Create error as a proper class instance (Gap 1.8)
+            auto it = errorClasses_.find(category);
+            if (it == errorClasses_.end())
+                it = errorClasses_.find("Error"); // fallback to base Error
+
+            XInstance errInst(category, it->second);
+            errInst.fields["message"] = XObject::makeString(e.detail());
+            errInst.fields["type"] = XObject::makeString(category);
+            errInst.fields["line"] = XObject::makeInt(e.line());
+            errInst.fields["traceback"] = XObject::makeList(std::move(tracebackList));
+
+            catchEnv.define(matched->varName, XObject::makeInstance(std::move(errInst)));
+
+            try
+            {
+                execBlock(matched->body, catchEnv);
+            }
+            catch (...)
+            {
+                // If finally exists, run it before re-throwing
+                if (!node->finallyBody.empty())
                 {
-                    XMap frameMap;
-                    frameMap.set("name", XObject::makeString(frame.functionName));
-                    frameMap.set("line", XObject::makeInt(frame.callLine));
-                    tracebackList.push_back(XObject::makeMap(std::move(frameMap)));
+                    Environment finallyEnv(currentEnv_);
+                    execBlock(node->finallyBody, finallyEnv);
                 }
-                lastTraceback_.clear();
-
-                // Create error as a proper class instance (Gap 1.8)
-                std::string category = e.category();
-                auto it = errorClasses_.find(category);
-                if (it == errorClasses_.end())
-                    it = errorClasses_.find("Error"); // fallback to base Error
-
-                XInstance errInst(category, it->second);
-                errInst.fields["message"] = XObject::makeString(e.detail());
-                errInst.fields["type"] = XObject::makeString(category);
-                errInst.fields["line"] = XObject::makeInt(e.line());
-                errInst.fields["traceback"] = XObject::makeList(std::move(tracebackList));
-
-                catchEnv.define(node->catchVarName, XObject::makeInstance(std::move(errInst)));
-
-                try
-                {
-                    execBlock(node->catchBody, catchEnv);
-                }
-                catch (...)
-                {
-                    // If finally exists, run it before re-throwing
-                    if (!node->finallyBody.empty())
-                    {
-                        Environment finallyEnv(currentEnv_);
-                        execBlock(node->finallyBody, finallyEnv);
-                    }
-                    throw;
-                }
+                throw;
             }
         }
         catch (...)
@@ -6960,15 +7592,49 @@ namespace xell
 
         for (const auto &clause : node->clauses)
         {
-            for (const auto &val : clause.values)
+            bool matched = false;
+            Environment clauseEnv(currentEnv_);
+
+            if (clause.kind == ClauseKind::BELONG_TYPE)
             {
-                XObject matchVal = eval(val.get());
-                if (subject.equals(matchVal))
+                // belong TypeName: check if subject is of that type/class
+                matched = matchesType(subject, clause.typeName);
+            }
+            else if (clause.kind == ClauseKind::BIND_CAPTURE)
+            {
+                // bind varname: always structurally matches; guard applied below
+                matched = true;
+                clauseEnv.define(clause.bindName, subject);
+            }
+            else
+            {
+                // IS_VALUE: value equality check
+                for (const auto &val : clause.values)
                 {
-                    Environment clauseEnv(currentEnv_);
-                    execBlock(clause.body, clauseEnv);
-                    return; // first match wins, exit
+                    XObject matchVal = eval(val.get());
+                    if (subject.equals(matchVal))
+                    {
+                        matched = true;
+                        break;
+                    }
                 }
+            }
+
+            if (matched)
+            {
+                // Evaluate optional guard
+                if (clause.guard)
+                {
+                    Environment *prevEnv = currentEnv_;
+                    currentEnv_ = &clauseEnv;
+                    XObject guardResult = eval(clause.guard.get());
+                    currentEnv_ = prevEnv;
+                    if (!guardResult.truthy())
+                        continue; // guard failed, try next clause
+                }
+
+                execBlock(clause.body, clauseEnv);
+                return; // first match wins
             }
         }
 
@@ -6985,39 +7651,119 @@ namespace xell
     void Interpreter::execDestructuring(const DestructuringAssignment *node)
     {
         XObject value = eval(node->value.get());
-        if (!value.isList())
-            throw TypeError("destructuring requires a list on the right side, got " +
-                                std::string(xtype_name(value.type())),
-                            node->line);
 
-        const auto &list = value.asList();
-        for (size_t i = 0; i < node->names.size(); i++)
+        auto traceBind = [&](const std::string &name, const XObject &bound)
         {
-            if (i < list.size())
+            if (name == "_")
+                return;
+            if (trace_ && trace_->enabled)
             {
-                // Trace: destructuring variable
-                if (trace_ && trace_->enabled)
-                {
-                    bool exists = currentEnv_->has(node->names[i]);
-                    trace_->emitVar(exists ? TraceEvent::VAR_CHANGED : TraceEvent::VAR_BORN,
-                                    node->line, node->names[i],
-                                    std::string(xtype_name(list[i].type())), list[i].toString(),
-                                    "destructuring", node->line);
-                }
-                currentEnv_->set(node->names[i], list[i]);
+                bool exists = currentEnv_->has(name);
+                trace_->emitVar(exists ? TraceEvent::VAR_CHANGED : TraceEvent::VAR_BORN,
+                                node->line, name,
+                                std::string(xtype_name(bound.type())), bound.toString(),
+                                "destructuring", node->line);
             }
-            else
+            currentEnv_->set(name, bound);
+        };
+
+        std::function<XObject(const XObject &, const std::string &)> getObjectField =
+            [&](const XObject &obj, const std::string &key) -> XObject
+        {
+            if (obj.isMap())
             {
-                if (trace_ && trace_->enabled)
-                {
-                    bool exists = currentEnv_->has(node->names[i]);
-                    trace_->emitVar(exists ? TraceEvent::VAR_CHANGED : TraceEvent::VAR_BORN,
-                                    node->line, node->names[i],
-                                    "none", "none", "destructuring", node->line);
-                }
-                currentEnv_->set(node->names[i], XObject::makeNone());
+                const XObject *val = obj.asMap().get(key);
+                return val ? *val : XObject::makeNone();
             }
-        }
+
+            if (!obj.isInstance())
+                throw TypeError("map/object destructuring requires a map or instance on the right side, got " +
+                                    std::string(xtype_name(obj.type())),
+                                node->line);
+
+            const XInstance &inst = obj.asInstance();
+            if (inst.structDef && inst.structDef->isClass)
+            {
+                const XPropertyInfo *prop = inst.structDef->findProperty(key);
+                if (prop)
+                {
+                    if (prop->getter.isNone())
+                        throw AttributeError("property '" + key + "' is write-only", node->line);
+                    const XFunction &getterFn = prop->getter.asFunction();
+                    std::vector<XObject> getterArgs;
+                    getterArgs.push_back(obj);
+                    auto *savedMethodClass = executingMethodClass_;
+                    executingMethodClass_ = inst.structDef.get();
+                    XObject result = callUserFn(getterFn, getterArgs, node->line);
+                    executingMethodClass_ = savedMethodClass;
+                    return result;
+                }
+            }
+
+            auto it = inst.fields.find(key);
+            if (it != inst.fields.end())
+                return it->second;
+            return XObject::makeNone();
+        };
+
+        std::function<void(const DestructuringPattern *, const XObject &)> bindPattern =
+            [&](const DestructuringPattern *pattern, const XObject &src)
+        {
+            if (!pattern)
+                return;
+
+            switch (pattern->kind)
+            {
+            case DestructuringPattern::Kind::NAME:
+            case DestructuringPattern::Kind::REST:
+                traceBind(pattern->name, src);
+                return;
+
+            case DestructuringPattern::Kind::LIST:
+            {
+                std::vector<XObject> items;
+                if (src.isList())
+                    items = src.asList();
+                else if (src.isTuple())
+                {
+                    const auto &tup = src.asTuple();
+                    items = std::vector<XObject>(tup.begin(), tup.end());
+                }
+                else
+                {
+                    throw TypeError("list destructuring requires a list or tuple on the right side, got " +
+                                        std::string(xtype_name(src.type())),
+                                    node->line);
+                }
+
+                size_t sourceIndex = 0;
+                for (size_t i = 0; i < pattern->elements.size(); i++)
+                {
+                    const auto *elem = pattern->elements[i].get();
+                    if (elem->kind == DestructuringPattern::Kind::REST)
+                    {
+                        std::vector<XObject> rest;
+                        for (size_t j = sourceIndex; j < items.size(); j++)
+                            rest.push_back(items[j]);
+                        traceBind(elem->name, XObject::makeList(std::move(rest)));
+                        return;
+                    }
+
+                    XObject nextVal = sourceIndex < items.size() ? items[sourceIndex] : XObject::makeNone();
+                    bindPattern(elem, nextVal);
+                    sourceIndex++;
+                }
+                return;
+            }
+
+            case DestructuringPattern::Kind::MAP:
+                for (const auto &entry : pattern->entries)
+                    bindPattern(entry.pattern.get(), getObjectField(src, entry.key));
+                return;
+            }
+        };
+
+        bindPattern(node->pattern.get(), value);
     }
 
     // ========================================================================
@@ -7113,8 +7859,72 @@ namespace xell
                 // Extract expression text between { }
                 std::string exprText = raw.substr(i + 1, j - i - 2);
 
+                auto splitFormatSpec = [](const std::string &text)
+                {
+                    std::pair<std::string, std::string> parts{text, ""};
+                    int parenDepth = 0;
+                    int bracketDepth = 0;
+                    int braceDepth = 0;
+                    bool inString = false;
+                    char quote = '\0';
+                    bool escaped = false;
+
+                    for (size_t idx = 0; idx < text.size(); idx++)
+                    {
+                        char c = text[idx];
+                        if (inString)
+                        {
+                            if (escaped)
+                            {
+                                escaped = false;
+                                continue;
+                            }
+                            if (c == '\\')
+                            {
+                                escaped = true;
+                                continue;
+                            }
+                            if (c == quote)
+                            {
+                                inString = false;
+                                quote = '\0';
+                            }
+                            continue;
+                        }
+
+                        if (c == '\'' || c == '"')
+                        {
+                            inString = true;
+                            quote = c;
+                            continue;
+                        }
+                        if (c == '(')
+                            parenDepth++;
+                        else if (c == ')')
+                            parenDepth--;
+                        else if (c == '[')
+                            bracketDepth++;
+                        else if (c == ']')
+                            bracketDepth--;
+                        else if (c == '{')
+                            braceDepth++;
+                        else if (c == '}')
+                            braceDepth--;
+                        else if (c == ':' && parenDepth == 0 && bracketDepth == 0 && braceDepth == 0)
+                        {
+                            parts.first = text.substr(0, idx);
+                            parts.second = text.substr(idx + 1);
+                            break;
+                        }
+                    }
+
+                    return parts;
+                };
+
+                auto [exprOnly, formatSpec] = splitFormatSpec(exprText);
+
                 // Lex → parse → evaluate
-                Lexer lexer(exprText);
+                Lexer lexer(exprOnly);
                 auto tokens = lexer.tokenize();
                 Parser parser(tokens);
                 auto prog = parser.parse();
@@ -7124,6 +7934,13 @@ namespace xell
                     if (auto *es = dynamic_cast<ExprStmt *>(prog.statements[0].get()))
                     {
                         XObject val = eval(es->expr.get());
+                        if (!formatSpec.empty())
+                        {
+                            result += applyFormatSpec(val, formatSpec, line);
+                            i = j;
+                            continue;
+                        }
+
                         // Check for __str__ or __print__ magic method on instances
                         if (val.isInstance())
                         {

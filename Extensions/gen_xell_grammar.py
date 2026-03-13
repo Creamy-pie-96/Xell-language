@@ -135,7 +135,7 @@ def extract_keywords_dynamic(token_src):
 # keywords fall into "declaration" as default.
 CATEGORY_TO_CLASS = {
     "Boolean & None":       "constants",
-    "Control flow":         "control",     # will be sub-classified below
+    "Control flow":         "control_flow",  # will be sub-classified below
     "Import / module":      "import",      # will be sub-classified below
     "Enum":                 "oop_decl",
     "OOP":                  "oop_decl",    # will be sub-classified below
@@ -317,7 +317,7 @@ def build_tmlanguage(kw_classes, builtin_cats):
         includes.append(f"#{cat}-builtins")
     includes += [
         "#arrow-access", "#comparison-operators", "#increment-operators",
-        "#assignment-operator", "#arithmetic-operators",
+        "#assignment-operator", "#arithmetic-operators", "#shell-command",
         "#numbers", "#method-call", "#function-call",
         "#semicolon-terminator", "#dot-terminator",
         "#punctuation", "#identifiers",
@@ -684,6 +684,10 @@ def build_tmlanguage(kw_classes, builtin_cats):
     repo["arithmetic-operators"] = {
         "patterns": [{"name": "keyword.operator.arithmetic.xell", "match": "\\+|-|\\*|/|%"}]
     }
+    repo["shell-command"] = {
+        "comment": "Shell command line prefixed with '$'",
+        "patterns": [{"name": "keyword.operator.shell.xell", "match": "(?m)^\\s*\\$.*$"}]
+    }
 
     # Numbers
     repo["numbers"] = {
@@ -805,6 +809,7 @@ DEFAULT_COLORS = {
     "keyword.operator.logical.xell": "#c678dd",
     "keyword.operator.increment.xell": "#c678dd",
     "keyword.operator.access.xell": "#61afef",
+    "keyword.operator.shell.xell": "#98c379",
     "punctuation.bracket.round.xell": "#abb2bf",
     "punctuation.bracket.square.xell": "#abb2bf",
     "punctuation.bracket.curly.xell": "#abb2bf",
@@ -835,6 +840,7 @@ DEFAULT_STYLES = {
     "keyword.other.modifier.xell": "bold italic",
     "keyword.other.special.xell": "bold",
     "keyword.operator.access.xell": "bold",
+    "keyword.operator.shell.xell": "bold",
     "punctuation.section.interpolation.begin.xell": "bold",
     "punctuation.section.interpolation.end.xell": "bold",
 }
@@ -1024,6 +1030,7 @@ def build_token_data(kw_classes, builtin_cats):
                  " ".join(kw_classes.get("logical", []))),
             _tok("op_increment", "keyword.operator.increment.xell", "Increment/Decrement (++, --)", "++ --"),
             _tok("op_access", "keyword.operator.access.xell", "Map access (->)", "->"),
+            _tok("op_shell", "keyword.operator.shell.xell", "Shell command prefix ($)", "$echo hello"),
         ]
     })
 
@@ -1229,6 +1236,7 @@ def build_terminal_colors(kw_classes, builtin_cats):
         "AMP_AMP": "keyword.operator.logical.xell",
         "PIPE_PIPE": "keyword.operator.logical.xell",
         "TILDE": "keyword.operator.arithmetic.xell",
+        "SHELL_CMD": "keyword.operator.shell.xell",
     }
     token_type_map.update(SPECIAL_MAP)
 
@@ -1502,6 +1510,11 @@ def build_snippets(kw_classes, builtin_cats, tier2_modules):
         "prefix": "runc",
         "body": "${1:result} = run_capture(\"${2:command}\")",
         "description": "Run and capture output of a command",
+    }
+    snips["Shell Command ($)"] = {
+        "prefix": "sh$",
+        "body": "$${1:echo hello}",
+        "description": "Shell command expression with $ prefix",
     }
 
     # ── Dynamic: builtin function snippets ───────────────────────────

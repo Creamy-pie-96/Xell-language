@@ -349,9 +349,21 @@ namespace xterm
             if (selection_.active)
                 deleteSelected();
 
-            // Auto-indent: if current line ends with ':', add indent
+            // Auto-indent: if current line ends with ':', add indent.
+            // Auto-dedent: if current line is a block terminator ';', outdent.
             int currentIndent = buffer_.getIndentLevel(cursor_.row);
             bool addIndent = buffer_.lineEndsWithColon(cursor_.row);
+
+            auto trim = [](const std::string &s) -> std::string
+            {
+                size_t start = s.find_first_not_of(" \t\r\n");
+                if (start == std::string::npos)
+                    return "";
+                size_t end = s.find_last_not_of(" \t\r\n");
+                return s.substr(start, end - start + 1);
+            };
+            std::string currentLine = buffer_.getLine(cursor_.row);
+            bool dedentAfterTerminator = (trim(currentLine) == ";");
 
             buffer_.insertNewline(cursor_);
             cursor_.row++;
@@ -359,6 +371,8 @@ namespace xterm
 
             // Insert indentation
             int indent = currentIndent + (addIndent ? buffer_.tabSize() : 0);
+            if (dedentAfterTerminator)
+                indent = std::max(0, currentIndent - buffer_.tabSize());
             if (indent > 0)
             {
                 std::string indentStr = buffer_.makeIndent(indent);

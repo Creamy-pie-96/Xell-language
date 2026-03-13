@@ -122,8 +122,8 @@ namespace xell
 
     struct MapLiteral : Expr
     {
-        std::vector<std::pair<std::string, ExprPtr>> entries;
-        explicit MapLiteral(std::vector<std::pair<std::string, ExprPtr>> e, int ln = 0)
+        std::vector<std::pair<ExprPtr, ExprPtr>> entries;
+        explicit MapLiteral(std::vector<std::pair<ExprPtr, ExprPtr>> e, int ln = 0)
             : entries(std::move(e)) { line = ln; }
     };
 
@@ -280,6 +280,14 @@ namespace xell
         explicit SpreadExpr(ExprPtr op, int ln = 0) : operand(std::move(op)) { line = ln; }
     };
 
+    // Shell command expression: $cmd args...
+    // Standalone → print output; Assigned → returns list of lines or structured data
+    struct ShellCmdExpr : Expr
+    {
+        std::string command; // raw command string (everything after $)
+        explicit ShellCmdExpr(std::string cmd, int ln = 0) : command(std::move(cmd)) { line = ln; }
+    };
+
     // Named argument: name: value (used in struct construction)
     struct NamedArgExpr : Expr
     {
@@ -424,6 +432,15 @@ namespace xell
             : body(std::move(body)), safeLoop(safe) { line = ln; }
     };
 
+    // do : BLOCK ; while CONDITION  — post-condition loop
+    struct DoWhileStmt : Stmt
+    {
+        std::vector<StmtPtr> body;
+        ExprPtr condition;
+        DoWhileStmt(std::vector<StmtPtr> body, ExprPtr cond, int ln = 0)
+            : body(std::move(body)), condition(std::move(cond)) { line = ln; }
+    };
+
     struct FnDef : Stmt
     {
         std::string name;
@@ -462,16 +479,23 @@ namespace xell
         explicit ContinueStmt(int ln = 0) { line = ln; }
     };
 
+    // A single catch clause: catch varname [is Type [or Type]*] : body ;
+    struct CatchClause
+    {
+        std::string varName;                 // error variable name
+        std::vector<std::string> errorTypes; // empty = catch-all, else matched types
+        std::vector<StmtPtr> body;
+    };
+
     struct TryCatchStmt : Stmt
     {
         std::vector<StmtPtr> tryBody;
-        std::string catchVarName; // name of error variable in catch block (e.g., "e" in "catch e :")
-        std::vector<StmtPtr> catchBody;
-        std::vector<StmtPtr> finallyBody; // empty if no finally block
-        TryCatchStmt(std::vector<StmtPtr> tryB, std::string catchVar,
-                     std::vector<StmtPtr> catchB, std::vector<StmtPtr> finallyB, int ln = 0)
-            : tryBody(std::move(tryB)), catchVarName(std::move(catchVar)),
-              catchBody(std::move(catchB)), finallyBody(std::move(finallyB)) { line = ln; }
+        std::vector<CatchClause> catchClauses; // one or more catch blocks
+        std::vector<StmtPtr> finallyBody;      // empty if no finally block
+        TryCatchStmt(std::vector<StmtPtr> tryB, std::vector<CatchClause> catches,
+                     std::vector<StmtPtr> finallyB, int ln = 0)
+            : tryBody(std::move(tryB)), catchClauses(std::move(catches)),
+              finallyBody(std::move(finallyB)) { line = ln; }
     };
 
     // throw expr — user-thrown error
@@ -484,10 +508,21 @@ namespace xell
         explicit ThrowStmt(ExprPtr v, int ln = 0) : value(std::move(v)) { line = ln; }
     };
 
-    // incase x : is 1 or 2 : ... ; is 3 : ... ; else : ... ; ;
+    // incase x : is 1 or 2 : ... ; belong int : ... ; bind v if v > 0 : ... ; else : ... ; ;
+    enum class ClauseKind
+    {
+        IS_VALUE,     // is <value> [or <value> ...] [if guard] — value equality check
+        BELONG_TYPE,  // belong <TypeName> [if guard]          — type/class check
+        BIND_CAPTURE, // bind <name> [if guard]                — capture subject into name
+    };
+
     struct InCaseClause
     {
-        std::vector<ExprPtr> values; // one or more values joined by 'or'
+        ClauseKind kind = ClauseKind::IS_VALUE;
+        std::vector<ExprPtr> values; // IS_VALUE: one or more values joined by 'or'
+        std::string typeName;        // BELONG_TYPE: the type name to match
+        std::string bindName;        // BIND_CAPTURE / IS_VALUE: optional capture name
+        ExprPtr guard;               // optional guard condition
         std::vector<StmtPtr> body;
         int line = 0;
     };
@@ -503,13 +538,69 @@ namespace xell
               elseBody(std::move(elseBody)) { line = ln; }
     };
 
-    // Destructuring assignment: a, b = [1, 2]
+    // Expression-mode incase: x = incase val : is 1 : "one" belong int : "int" bind v if v > 0 : v else : 0 ;
+    struct InCaseExprClause
+    {
+        ClauseKind kind = ClauseKind::IS_VALUE;
+        std::vector<ExprPtr> values; // IS_VALUE: one or more values joined by 'or'
+        std::string typeName;        // BELONG_TYPE: the type name to match
+        std::string bindName;        // BIND_CAPTURE: capture name
+        ExprPtr guard;               // optional guard condition
+        ExprPtr result;              // the result expression for this clause
+        int line = 0;
+    };
+
+    struct InCaseExpr : Expr
+    {
+        ExprPtr subject;
+        std::vector<InCaseExprClause> clauses;
+        ExprPtr elseValue; // required for expression mode
+        InCaseExpr(ExprPtr subj, std::vector<InCaseExprClause> clauses,
+                   ExprPtr elseVal, int ln = 0)
+            : subject(std::move(subj)), clauses(std::move(clauses)),
+              elseValue(std::move(elseVal)) { line = ln; }
+    };
+
+    struct DestructuringPattern
+    {
+        enum class Kind
+        {
+            NAME,
+            LIST,
+            MAP,
+            REST
+        };
+
+        struct MapEntry
+        {
+            std::string key;
+            std::unique_ptr<DestructuringPattern> pattern;
+
+            MapEntry(std::string key, std::unique_ptr<DestructuringPattern> pattern)
+                : key(std::move(key)), pattern(std::move(pattern)) {}
+        };
+
+        Kind kind;
+        std::string name;
+        std::vector<std::unique_ptr<DestructuringPattern>> elements;
+        std::vector<MapEntry> entries;
+
+        explicit DestructuringPattern(Kind kind, std::string name = "")
+            : kind(kind), name(std::move(name)) {}
+    };
+
+    // Destructuring assignment: a, b = [1, 2], [a, [b, c], ...rest] = value,
+    // {x, y: alias} = point
     struct DestructuringAssignment : Stmt
     {
+        std::unique_ptr<DestructuringPattern> pattern;
         std::vector<std::string> names;
         ExprPtr value;
-        DestructuringAssignment(std::vector<std::string> names, ExprPtr val, int ln = 0)
-            : names(std::move(names)), value(std::move(val)) { line = ln; }
+        DestructuringAssignment(std::unique_ptr<DestructuringPattern> pattern,
+                                std::vector<std::string> names,
+                                ExprPtr val, int ln = 0)
+            : pattern(std::move(pattern)), names(std::move(names)),
+              value(std::move(val)) { line = ln; }
     };
 
     // Bring statement — unified module import system

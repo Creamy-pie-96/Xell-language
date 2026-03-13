@@ -761,6 +761,7 @@ namespace xterm
         void clearOutput()
         {
             fileOutputLog_.clear();
+            maxOutputLineWidth_ = 0;
             fileScrollOffset_ = 0;
         }
 
@@ -880,12 +881,21 @@ namespace xterm
                                 {
                                     std::lock_guard<std::mutex> lock(outputMutex_);
                                     fileOutputLog_.push_back(line);
+                                    if ((int)line.text.size() > maxOutputLineWidth_)
+                                        maxOutputLineWidth_ = (int)line.text.size();
                                     fileScrollOffset_ = std::max(0,
                                                                  (int)fileOutputLog_.size() - contentHeight());
                                 }
                                 lineBuffer.clear();
                             }
-                            else if (buf[i] != '\r')
+                            else if (buf[i] == '\r')
+                            {
+                                // Carriage return means "return to start of line".
+                                // Reset the in-progress line so redraw-style terminal
+                                // output does not duplicate/cross text.
+                                lineBuffer.clear();
+                            }
+                            else
                             {
                                 lineBuffer += buf[i];
                             }
@@ -915,10 +925,16 @@ namespace xterm
                             {
                                 std::lock_guard<std::mutex> lock(outputMutex_);
                                 fileOutputLog_.push_back(line);
+                                if ((int)line.text.size() > maxOutputLineWidth_)
+                                    maxOutputLineWidth_ = (int)line.text.size();
                             }
                             lineBuffer.clear();
                         }
-                        else if (buf[i] != '\r')
+                        else if (buf[i] == '\r')
+                        {
+                            lineBuffer.clear();
+                        }
+                        else
                         {
                             lineBuffer += buf[i];
                         }
@@ -960,6 +976,7 @@ namespace xterm
 
             // Clear previous output for a fresh run
             fileOutputLog_.clear();
+            maxOutputLineWidth_ = 0;
             stdinInputBuffer_.clear();
             stdinCursor_ = 0;
 
@@ -1028,6 +1045,7 @@ namespace xterm
                 return;
 
             fileOutputLog_.clear();
+            maxOutputLineWidth_ = 0;
             stdinInputBuffer_.clear();
             stdinCursor_ = 0;
 
@@ -1472,6 +1490,28 @@ namespace xterm
                 return true;
             }
 
+            // Non-terminal horizontal scrollbar click (last row, any col except last)
+            if (activeTab_ != BottomTab::TERMINAL && row == rect_.h - 1 && col < rect_.w - 1)
+            {
+                // Figure out what maxW is for this tab
+                int maxW = 0;
+                if (activeTab_ == BottomTab::OUTPUT)
+                {
+                    std::lock_guard<std::mutex> lk(outputMutex_);
+                    maxW = maxOutputLineWidth_;
+                }
+                int contentW = rect_.w - 1;
+                if (maxW > contentW)
+                {
+                    int trackW = contentW;
+                    int maxScroll = maxW - contentW;
+                    int &hOff = activeHorizontalScrollOffset();
+                    hOff = col * maxScroll / std::max(1, trackW - 1);
+                    hOff = std::max(0, std::min(hOff, maxScroll));
+                }
+                return true;
+            }
+
             // Click in content area — just consume the event
             return true;
         }
@@ -1490,12 +1530,33 @@ namespace xterm
                 }
                 return true;
             }
-            // All other tabs use the generic scroll system
+            // All other tabs use the generic vertical scroll system
             int &offset = activeScrollOffset();
             offset -= delta * 3;
             offset = std::max(0, offset);
             int maxScroll = std::max(0, activeContentLines() - contentHeight());
             offset = std::min(offset, maxScroll);
+            return true;
+        }
+
+        // Horizontal scroll (from Shift+wheel or touchpad X-axis swipe)
+        bool handleHScroll(int delta)
+        {
+            if (activeTab_ == BottomTab::TERMINAL)
+                return false; // terminal wraps natively
+
+            int maxW = 0;
+            if (activeTab_ == BottomTab::OUTPUT)
+            {
+                std::lock_guard<std::mutex> lk(outputMutex_);
+                maxW = maxOutputLineWidth_;
+            }
+            int contentW = rect_.w - 1;
+            int maxScroll = std::max(0, maxW - contentW);
+
+            int &hOff = activeHorizontalScrollOffset();
+            hOff += delta;
+            hOff = std::max(0, std::min(hOff, maxScroll));
             return true;
         }
 
@@ -1541,6 +1602,28 @@ namespace xterm
             }
         }
 
+        // Handle horizontal scrollbar drag (localCol = column in panel coordinates)
+        void handleHScrollbarDrag(int localCol)
+        {
+            if (activeTab_ == BottomTab::TERMINAL)
+                return;
+
+            int maxW = 0;
+            if (activeTab_ == BottomTab::OUTPUT)
+            {
+                std::lock_guard<std::mutex> lk(outputMutex_);
+                maxW = maxOutputLineWidth_;
+            }
+            int contentW = rect_.w - 1;
+            if (maxW <= contentW)
+                return;
+            int trackW = contentW;
+            int maxScroll = maxW - contentW;
+            int &hOff = activeHorizontalScrollOffset();
+            hOff = localCol * maxScroll / std::max(1, trackW - 1);
+            hOff = std::max(0, std::min(hOff, maxScroll));
+        }
+
         // ── Keyboard handling ────────────────────────────────────────
 
         bool handleKeyDown(const SDL_Event &event) override
@@ -1564,6 +1647,23 @@ namespace xterm
             {
                 clearOutput();
                 return true;
+            }
+
+            // Ctrl+Left / Ctrl+Right — horizontal scrolling for non-terminal tabs
+            if (ctrl && activeTab_ != BottomTab::TERMINAL)
+            {
+                if (key.sym == SDLK_LEFT)
+                {
+                    int &h = activeHorizontalScrollOffset();
+                    h = std::max(0, h - 4);
+                    return true;
+                }
+                if (key.sym == SDLK_RIGHT)
+                {
+                    int &h = activeHorizontalScrollOffset();
+                    h += 4;
+                    return true;
+                }
             }
 
             // If TERMINAL tab is active, send keys to embedded terminal
@@ -1719,7 +1819,10 @@ namespace xterm
 
             // Scrollbar for non-terminal tabs
             if (activeTab_ != BottomTab::TERMINAL)
-                renderScrollbar(cells, w, h);
+            {
+                renderScrollbar(cells, w, h);           // vertical
+                renderHorizontalScrollbar(cells, w, h); // horizontal (independent)
+            }
 
             // Scrollbar for terminal (based on scrollback)
             if (activeTab_ == BottomTab::TERMINAL && embeddedTerm_)
@@ -1997,6 +2100,8 @@ namespace xterm
         // File output state
         mutable std::vector<REPLLine> fileOutputLog_;
         mutable int fileScrollOffset_ = 0;
+        mutable int maxOutputLineWidth_ = 0;     // tracks widest line for h-scrollbar
+        mutable int horizontalScrollOffset_ = 0; // shared horizontal scroll for non-terminal tabs
 
         // Variable inspector
         std::function<void(int)> onJumpToLine_;
@@ -2150,6 +2255,11 @@ namespace xterm
             }
         }
 
+        int &activeHorizontalScrollOffset() const
+        {
+            return horizontalScrollOffset_;
+        }
+
         void scrollUp()
         {
             int &offset = activeScrollOffset();
@@ -2278,6 +2388,7 @@ namespace xterm
                 scrollOff = fileScrollOffset_;
             }
             int startLine = scrollOff;
+            int hOff = std::max(0, activeHorizontalScrollOffset());
 
             for (int r = 0; r < outputH && startLine + r < (int)snapshot.size(); r++)
             {
@@ -2288,13 +2399,16 @@ namespace xterm
                 else if (line.kind == REPLLine::INFO)
                     fg = infoColor_;
 
-                // UTF-8 aware rendering
+                // UTF-8 aware rendering with horizontal offset
                 {
                     size_t si = 0;
+                    int logicalCol = 0;
                     int c = 0;
                     while (si < line.text.size() && c < w)
                     {
                         char32_t cp = utf8Decode(line.text, si);
+                        if (logicalCol++ < hOff)
+                            continue;
                         cells[r + 1][c].ch = cp;
                         cells[r + 1][c].fg = fg;
                         cells[r + 1][c].dirty = true;
@@ -2376,6 +2490,8 @@ namespace xterm
                 return;
             }
 
+            int hOff = std::max(0, activeHorizontalScrollOffset());
+
             for (int r = 0; r < contentH && diagScrollOffset_ + r < (int)diagnosticLines_.size(); r++)
             {
                 const auto &line = diagnosticLines_[diagScrollOffset_ + r];
@@ -2390,10 +2506,14 @@ namespace xterm
 
                 {
                     size_t si = 0;
+                    int logicalCol = 0;
                     int c = 0;
                     while (si < line.size() && c < w)
                     {
-                        cells[r + 1][c].ch = utf8Decode(line, si);
+                        char32_t cp = utf8Decode(line, si);
+                        if (logicalCol++ < hOff)
+                            continue;
+                        cells[r + 1][c].ch = cp;
                         cells[r + 1][c].fg = fg;
                         cells[r + 1][c].dirty = true;
                         c++;
@@ -2856,6 +2976,7 @@ namespace xterm
         void renderLifecycle(std::vector<std::vector<Cell>> &cells, int w, int h) const
         {
             int contentH = h - 1;
+            int hOff = std::max(0, activeHorizontalScrollOffset());
             Color bornClr = {78, 201, 176};    // teal
             Color changeClr = {220, 220, 170}; // yellow
             Color diedClr = {244, 71, 71};     // red
@@ -2866,9 +2987,13 @@ namespace xterm
                 std::string msg = "Click a variable in VARIABLES or OBJECTS to see its lifecycle.";
                 size_t si = 0;
                 int c = 1;
+                int logicalCol = 0;
                 while (si < msg.size() && c < w)
                 {
-                    cells[1][c].ch = utf8Decode(msg, si);
+                    char32_t cp = utf8Decode(msg, si);
+                    if (logicalCol++ < hOff)
+                        continue;
+                    cells[1][c].ch = cp;
                     cells[1][c].fg = infoColor_;
                     cells[1][c].dirty = true;
                     c++;
@@ -2881,9 +3006,13 @@ namespace xterm
                 std::string title = " Lifecycle: '" + lifecycleVarName_ + "'";
                 size_t si = 0;
                 int c = 0;
+                int logicalCol = 0;
                 while (si < title.size() && c < w)
                 {
-                    cells[1][c].ch = utf8Decode(title, si);
+                    char32_t cp = utf8Decode(title, si);
+                    if (logicalCol++ < hOff)
+                        continue;
+                    cells[1][c].ch = cp;
                     cells[1][c].fg = {86, 156, 214};
                     cells[1][c].bold = true;
                     cells[1][c].dirty = true;
@@ -2898,9 +3027,13 @@ namespace xterm
                 {
                     size_t si = 0;
                     int c = 1;
+                    int logicalCol = 0;
                     while (si < msg.size() && c < w)
                     {
-                        cells[2][c].ch = utf8Decode(msg, si);
+                        char32_t cp = utf8Decode(msg, si);
+                        if (logicalCol++ < hOff)
+                            continue;
+                        cells[2][c].ch = cp;
                         cells[2][c].fg = tabInactiveFg_;
                         cells[2][c].dirty = true;
                         c++;
@@ -2957,9 +3090,13 @@ namespace xterm
 
                 size_t si = 0;
                 int c = 1;
+                int logicalCol = 0;
                 while (si < evt.size() && c < w)
                 {
-                    cells[row][c].ch = utf8Decode(evt, si);
+                    char32_t cp = utf8Decode(evt, si);
+                    if (logicalCol++ < hOff)
+                        continue;
+                    cells[row][c].ch = cp;
                     cells[row][c].fg = fg;
                     cells[row][c].dirty = true;
                     c++;
@@ -2972,6 +3109,7 @@ namespace xterm
         void renderTimeline(std::vector<std::vector<Cell>> &cells, int w, int h) const
         {
             int contentH = h; // all rows available
+            int hOff = std::max(0, activeHorizontalScrollOffset());
 
             // Row 0: header
             {
@@ -2980,8 +3118,11 @@ namespace xterm
                     hdr += "(" + std::to_string(timelineEvents_.size()) + " events)";
                 Color hdrFg = {86, 156, 214};
                 int c = 0;
+                int logicalCol = 0;
                 for (auto ch : hdr)
                 {
+                    if (logicalCol++ < hOff)
+                        continue;
                     if (c >= w)
                         break;
                     cells[0][c].ch = static_cast<char32_t>(static_cast<unsigned char>(ch));
@@ -2999,8 +3140,11 @@ namespace xterm
                 if (contentH > 1)
                 {
                     int c = 0;
+                    int logicalCol = 0;
                     for (auto ch : msg)
                     {
+                        if (logicalCol++ < hOff)
+                            continue;
                         if (c >= w)
                             break;
                         cells[1][c].ch = static_cast<char32_t>(static_cast<unsigned char>(ch));
@@ -3030,9 +3174,13 @@ namespace xterm
 
                 size_t si = 0;
                 int c = 1;
+                int logicalCol = 0;
                 while (si < evt.size() && c < w)
                 {
-                    cells[row][c].ch = utf8Decode(evt, si);
+                    char32_t cp = utf8Decode(evt, si);
+                    if (logicalCol++ < hOff)
+                        continue;
+                    cells[row][c].ch = cp;
                     cells[row][c].fg = fg;
                     cells[row][c].dirty = true;
                     c++;
@@ -3044,13 +3192,17 @@ namespace xterm
 
         void renderCallStack(std::vector<std::vector<Cell>> &cells, int w, int h) const
         {
+            int hOff = std::max(0, activeHorizontalScrollOffset());
             // Row 0: header
             {
                 std::string hdr = " CALL STACK";
                 Color hdrFg = {86, 156, 214};
                 int c = 0;
+                int logicalCol = 0;
                 for (auto ch : hdr)
                 {
+                    if (logicalCol++ < hOff)
+                        continue;
                     if (c >= w)
                         break;
                     cells[0][c].ch = static_cast<char32_t>(static_cast<unsigned char>(ch));
@@ -3067,8 +3219,11 @@ namespace xterm
                 if (h > 1)
                 {
                     int c = 0;
+                    int logicalCol = 0;
                     for (auto ch : msg)
                     {
+                        if (logicalCol++ < hOff)
+                            continue;
                         if (c >= w)
                             break;
                         cells[1][c].ch = static_cast<char32_t>(static_cast<unsigned char>(ch));
@@ -3096,9 +3251,16 @@ namespace xterm
                 Color bg = isSelected ? Color{40, 40, 60} : contentBg_;
 
                 int c = 0;
+                int logicalCol = 0;
                 for (size_t si = 0; si < display.size() && c < w; c++)
                 {
-                    cells[row][c].ch = utf8Decode(display, si);
+                    char32_t cp = utf8Decode(display, si);
+                    if (logicalCol++ < hOff)
+                    {
+                        c--;
+                        continue;
+                    }
+                    cells[row][c].ch = cp;
                     cells[row][c].fg = fg;
                     cells[row][c].bg = bg;
                     cells[row][c].bold = isSelected;
@@ -3159,6 +3321,7 @@ namespace xterm
             };
 
             int contentH = h - 1;
+            int hOff = std::max(0, activeHorizontalScrollOffset());
             Color headerFg = {86, 156, 214}; // blue
             Color keyFg = {206, 145, 120};   // orange
             Color descFg = {204, 204, 204};  // gray
@@ -3168,9 +3331,13 @@ namespace xterm
                 std::string title = " Xell IDE - Keyboard Shortcuts";
                 size_t si = 0;
                 int c = 0;
+                int logicalCol = 0;
                 while (si < title.size() && c < w)
                 {
-                    cells[1][c].ch = utf8Decode(title, si);
+                    char32_t cp = utf8Decode(title, si);
+                    if (logicalCol++ < hOff)
+                        continue;
+                    cells[1][c].ch = cp;
                     cells[1][c].fg = headerFg;
                     cells[1][c].bold = true;
                     cells[1][c].dirty = true;
@@ -3202,10 +3369,14 @@ namespace xterm
                 // Key (padded to 20 chars)
                 {
                     size_t si = 0;
+                    int logicalCol = 0;
                     int count = 0;
                     while (si < key.size() && col < w && count < 20)
                     {
-                        cells[row][col].ch = utf8Decode(key, si);
+                        char32_t cp = utf8Decode(key, si);
+                        if (logicalCol++ < hOff)
+                            continue;
+                        cells[row][col].ch = cp;
                         cells[row][col].fg = keyFg;
                         cells[row][col].dirty = true;
                         col++;
@@ -3221,9 +3392,13 @@ namespace xterm
                 // Description
                 {
                     size_t si = 0;
+                    int logicalCol = 0;
                     while (si < desc.size() && col < w)
                     {
-                        cells[row][col].ch = utf8Decode(desc, si);
+                        char32_t cp = utf8Decode(desc, si);
+                        if (logicalCol++ < hOff)
+                            continue;
+                        cells[row][col].ch = cp;
                         cells[row][col].fg = descFg;
                         cells[row][col].dirty = true;
                         col++;
@@ -3272,6 +3447,48 @@ namespace xterm
                 cells[row][scrollCol].fg = isThumb ? Color{120, 120, 120} : Color{50, 50, 50};
                 cells[row][scrollCol].bg = contentBg_;
                 cells[row][scrollCol].dirty = true;
+            }
+        }
+
+        // ── Horizontal scrollbar (bottom row of content area) ──────────────────
+        // Matches the editor style: ─ track, ━ thumb, last content row.
+        void renderHorizontalScrollbar(std::vector<std::vector<Cell>> &cells, int w, int h) const
+        {
+            // Determine the widest line for the current tab
+            int maxW = 0;
+            if (activeTab_ == BottomTab::OUTPUT)
+            {
+                std::lock_guard<std::mutex> lk(outputMutex_);
+                maxW = maxOutputLineWidth_;
+            }
+
+            int contentW = w - 1; // leave rightmost col for vertical scrollbar
+            if (maxW <= contentW || contentW < 4 || h < 3)
+                return; // no overflow — no scrollbar needed
+
+            int hBarRow = h - 1; // overlay on the last content row (same approach as editor)
+            if (hBarRow < 1 || hBarRow >= h)
+                return;
+
+            int hOff = std::max(0, activeHorizontalScrollOffset());
+            int maxScroll = maxW - contentW;
+            int trackW = contentW;
+            int thumbW = std::max(2, trackW * contentW / maxW);
+            int thumbStart = (maxScroll > 0)
+                                 ? hOff * (trackW - thumbW) / maxScroll
+                                 : 0;
+            thumbStart = std::clamp(thumbStart, 0, trackW - thumbW);
+
+            Color thumbFg = {110, 110, 110};
+            Color trackFg = {45, 45, 45};
+
+            for (int c = 0; c < trackW && c < w; c++)
+            {
+                bool isThumb = (c >= thumbStart && c < thumbStart + thumbW);
+                cells[hBarRow][c].ch = isThumb ? U'\u2501' : U'\u2500'; // ━ / ─
+                cells[hBarRow][c].fg = isThumb ? thumbFg : trackFg;
+                cells[hBarRow][c].bg = contentBg_;
+                cells[hBarRow][c].dirty = true;
             }
         }
 

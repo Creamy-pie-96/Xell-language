@@ -3,6 +3,7 @@
 #include "../lexer/lexer.hpp"
 #include <sstream>
 #include <iostream>
+#include <unordered_set>
 
 namespace xell
 {
@@ -75,7 +76,164 @@ namespace xell
 
     bool Parser::canStartPrimary(TokenType type) const
     {
-        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::BYTE_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::LESS || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS || type == TokenType::YIELD || type == TokenType::AWAIT || type == TokenType::TILDE || type == TokenType::IF || type == TokenType::FOR || type == TokenType::WHILE || type == TokenType::LOOP;
+        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::BYTE_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS || type == TokenType::YIELD || type == TokenType::AWAIT || type == TokenType::TILDE || type == TokenType::IF || type == TokenType::FOR || type == TokenType::WHILE || type == TokenType::LOOP || type == TokenType::INCASE || type == TokenType::SHELL_CMD;
+    }
+
+    std::unique_ptr<DestructuringPattern> Parser::parseDestructuringPattern(
+        bool allowRest,
+        std::vector<std::string> *flatNames)
+    {
+        if (check(TokenType::ELLIPSIS))
+        {
+            if (!allowRest)
+                throw ParseError("Rest pattern is only allowed inside list destructuring", current().line);
+            advance();
+            std::string name = consume(TokenType::IDENTIFIER, "Expected variable name after '...'").value;
+            if (flatNames && name != "_")
+                flatNames->push_back(name);
+            return std::make_unique<DestructuringPattern>(DestructuringPattern::Kind::REST, name);
+        }
+
+        if (check(TokenType::IDENTIFIER))
+        {
+            std::string name = advance().value;
+            if (flatNames && name != "_")
+                flatNames->push_back(name);
+            return std::make_unique<DestructuringPattern>(DestructuringPattern::Kind::NAME, name);
+        }
+
+        if (check(TokenType::LBRACKET))
+        {
+            advance();
+            auto pattern = std::make_unique<DestructuringPattern>(DestructuringPattern::Kind::LIST);
+            bool sawRest = false;
+
+            if (!check(TokenType::RBRACKET))
+            {
+                while (true)
+                {
+                    auto element = parseDestructuringPattern(true, flatNames);
+                    if (element->kind == DestructuringPattern::Kind::REST)
+                    {
+                        if (sawRest)
+                            throw ParseError("Only one rest pattern is allowed in a list destructuring pattern", current().line);
+                        sawRest = true;
+                    }
+                    else if (sawRest)
+                    {
+                        throw ParseError("Rest pattern must be the last element in a list destructuring pattern", current().line);
+                    }
+
+                    pattern->elements.push_back(std::move(element));
+                    if (!check(TokenType::COMMA))
+                        break;
+                    advance();
+                    if (check(TokenType::RBRACKET))
+                        break;
+                }
+            }
+
+            consume(TokenType::RBRACKET, "Expected ']' after list destructuring pattern");
+            return pattern;
+        }
+
+        if (check(TokenType::LBRACE))
+        {
+            advance();
+            auto pattern = std::make_unique<DestructuringPattern>(DestructuringPattern::Kind::MAP);
+
+            if (!check(TokenType::RBRACE))
+            {
+                while (true)
+                {
+                    std::string key;
+                    std::unique_ptr<DestructuringPattern> entryPattern;
+
+                    if (check(TokenType::IDENTIFIER) || check(TokenType::STRING))
+                    {
+                        key = current().value;
+                        advance();
+                    }
+                    else
+                    {
+                        throw ParseError("Expected identifier or string key in map destructuring pattern", current().line);
+                    }
+
+                    if (check(TokenType::COLON))
+                    {
+                        advance();
+                        entryPattern = parseDestructuringPattern(false, flatNames);
+                    }
+                    else
+                    {
+                        if (flatNames && key != "_")
+                            flatNames->push_back(key);
+                        entryPattern = std::make_unique<DestructuringPattern>(DestructuringPattern::Kind::NAME, key);
+                    }
+
+                    pattern->entries.emplace_back(key, std::move(entryPattern));
+
+                    if (!check(TokenType::COMMA))
+                        break;
+                    advance();
+                    if (check(TokenType::RBRACE))
+                        break;
+                }
+            }
+
+            consume(TokenType::RBRACE, "Expected '}' after map destructuring pattern");
+            return pattern;
+        }
+
+        throw ParseError("Expected destructuring pattern", current().line);
+    }
+
+    std::unique_ptr<DestructuringPattern> Parser::parseTopLevelDestructuringPattern(
+        std::vector<std::string> *flatNames)
+    {
+        if (check(TokenType::LBRACKET) || check(TokenType::LBRACE))
+            return parseDestructuringPattern(false, flatNames);
+
+        auto pattern = std::make_unique<DestructuringPattern>(DestructuringPattern::Kind::LIST);
+        bool sawComma = false;
+        bool sawRest = false;
+
+        while (true)
+        {
+            std::unique_ptr<DestructuringPattern> element;
+            if (check(TokenType::ELLIPSIS))
+            {
+                if (sawRest)
+                    throw ParseError("Only one rest pattern is allowed in destructuring assignment", current().line);
+                element = parseDestructuringPattern(true, flatNames);
+                sawRest = true;
+            }
+            else if (check(TokenType::IDENTIFIER))
+            {
+                if (sawRest)
+                    throw ParseError("Rest pattern must be the last element in destructuring assignment", current().line);
+                element = parseDestructuringPattern(false, flatNames);
+            }
+            else
+            {
+                throw ParseError("Expected identifier in destructuring assignment", current().line);
+            }
+
+            pattern->elements.push_back(std::move(element));
+
+            if (!check(TokenType::COMMA))
+                break;
+            sawComma = true;
+            advance();
+        }
+
+        if (!sawComma && pattern->elements.size() == 1 &&
+            pattern->elements[0]->kind == DestructuringPattern::Kind::NAME)
+        {
+            throw ParseError("Not a destructuring assignment", current().line);
+        }
+
+        return pattern;
     }
 
     // ============================================================
@@ -157,6 +315,7 @@ namespace xell
             case TokenType::INCASE:
             case TokenType::LET:
             case TokenType::LOOP:
+            case TokenType::DO:
             case TokenType::ENUM:
             case TokenType::ASYNC:
             case TokenType::AT:
@@ -216,6 +375,8 @@ namespace xell
             return parseWhileStmt();
         if (type == TokenType::LOOP)
             return parseLoopStmt();
+        if (type == TokenType::DO)
+            return parseDoWhileStmt();
         if (type == TokenType::FN)
             return parseFnDef();
         if (type == TokenType::GIVE)
@@ -311,7 +472,8 @@ namespace xell
              peekToken(1).type == TokenType::PIPE_EQUAL ||
              peekToken(1).type == TokenType::CARET_EQUAL ||
              peekToken(1).type == TokenType::LSHIFT_EQUAL ||
-             peekToken(1).type == TokenType::RSHIFT_EQUAL))
+             peekToken(1).type == TokenType::RSHIFT_EQUAL ||
+             peekToken(1).type == TokenType::STAR_STAR_EQUAL))
         {
             std::string name = current().value;
             int ln = current().line;
@@ -351,6 +513,9 @@ namespace xell
             case TokenType::RSHIFT_EQUAL:
                 op = ">>";
                 break;
+            case TokenType::STAR_STAR_EQUAL:
+                op = "**";
+                break;
             default:
                 op = "+";
                 break;
@@ -373,50 +538,35 @@ namespace xell
             return parseAssignment(name, ln);
         }
 
-        // --- Destructuring assignment: a, b = [1, 2] ---
-        // Detect: IDENTIFIER COMMA IDENTIFIER ... EQUAL
-        if (type == TokenType::IDENTIFIER)
+        // --- Destructuring assignment ---
+        if (type == TokenType::IDENTIFIER || type == TokenType::ELLIPSIS ||
+            type == TokenType::LBRACKET || type == TokenType::LBRACE)
         {
-            // Look ahead to see if this is a destructuring pattern
-            size_t look = pos_;
+            size_t savedPos = pos_;
             std::vector<std::string> names;
-            bool isDestructuring = false;
-            while (look < tokens_.size())
+            std::unique_ptr<DestructuringPattern> pattern;
+            bool parsedPattern = false;
+
+            try
             {
-                if (tokens_[look].type == TokenType::IDENTIFIER)
-                {
-                    names.push_back(tokens_[look].value);
-                    look++;
-                    if (look < tokens_.size() && tokens_[look].type == TokenType::COMMA)
-                    {
-                        look++;
-                        continue;
-                    }
-                    if (look < tokens_.size() && tokens_[look].type == TokenType::EQUAL)
-                    {
-                        isDestructuring = names.size() >= 2;
-                    }
-                    break;
-                }
-                break;
+                pattern = parseTopLevelDestructuringPattern(&names);
+                parsedPattern = true;
             }
-            if (isDestructuring)
+            catch (const ParseError &)
             {
-                int ln = current().line;
-                // Consume all: ident, ident, ... = expr
-                names.clear();
-                names.push_back(current().value);
-                advance(); // first ident
-                while (check(TokenType::COMMA))
-                {
-                    advance(); // consume comma
-                    names.push_back(consume(TokenType::IDENTIFIER, "Expected identifier in destructuring").value);
-                }
-                consume(TokenType::EQUAL, "Expected '=' in destructuring assignment");
+                pos_ = savedPos;
+            }
+
+            if (parsedPattern && check(TokenType::EQUAL))
+            {
+                int ln = tokens_[savedPos].line;
+                advance(); // consume '='
                 ExprPtr value = parseExpression();
                 consumeStatementEnd();
-                return std::make_unique<DestructuringAssignment>(std::move(names), std::move(value), ln);
+                return std::make_unique<DestructuringAssignment>(std::move(pattern), std::move(names), std::move(value), ln);
             }
+
+            pos_ = savedPos;
         }
 
         // --- Expression statement (including paren-less calls) ---
@@ -467,7 +617,7 @@ namespace xell
                 check(TokenType::PERCENT_EQUAL) ||
                 check(TokenType::AMP_EQUAL) || check(TokenType::PIPE_EQUAL) ||
                 check(TokenType::CARET_EQUAL) || check(TokenType::LSHIFT_EQUAL) ||
-                check(TokenType::RSHIFT_EQUAL))
+                check(TokenType::RSHIFT_EQUAL) || check(TokenType::STAR_STAR_EQUAL))
             {
                 std::string op;
                 switch (current().type)
@@ -501,6 +651,9 @@ namespace xell
                     break;
                 case TokenType::RSHIFT_EQUAL:
                     op = ">>";
+                    break;
+                case TokenType::STAR_STAR_EQUAL:
+                    op = "**";
                     break;
                 default:
                     op = "+";
@@ -533,7 +686,7 @@ namespace xell
                 check(TokenType::PERCENT_EQUAL) ||
                 check(TokenType::AMP_EQUAL) || check(TokenType::PIPE_EQUAL) ||
                 check(TokenType::CARET_EQUAL) || check(TokenType::LSHIFT_EQUAL) ||
-                check(TokenType::RSHIFT_EQUAL))
+                check(TokenType::RSHIFT_EQUAL) || check(TokenType::STAR_STAR_EQUAL))
             {
                 std::string op;
                 switch (current().type)
@@ -568,6 +721,9 @@ namespace xell
                 case TokenType::RSHIFT_EQUAL:
                     op = ">>";
                     break;
+                case TokenType::STAR_STAR_EQUAL:
+                    op = "**";
+                    break;
                 default:
                     op = "+";
                     break;
@@ -592,6 +748,28 @@ namespace xell
     StmtPtr Parser::parseAssignment(const std::string &name, int line)
     {
         ExprPtr value = parseExpression();
+
+        // Support paren-less function call on assignment RHS:
+        //   result = check 42
+        // (same shorthand behavior as expression statements)
+        if (auto *ident = dynamic_cast<Identifier *>(value.get()))
+        {
+            if (!check(TokenType::NEWLINE) && !check(TokenType::DOT) &&
+                !check(TokenType::SEMICOLON) && !isAtEnd() &&
+                canStartPrimary(current().type))
+            {
+                std::string callee = ident->name;
+                std::vector<ExprPtr> args;
+                while (!check(TokenType::NEWLINE) && !check(TokenType::DOT) &&
+                       !check(TokenType::SEMICOLON) && !isAtEnd() &&
+                       canStartPrimary(current().type))
+                {
+                    args.push_back(parsePrimary());
+                }
+                value = std::make_unique<CallExpr>(callee, std::move(args), line);
+            }
+        }
+
         consumeStatementEnd();
         return std::make_unique<Assignment>(name, std::move(value), line);
     }
@@ -784,6 +962,25 @@ namespace xell
         consume(TokenType::SEMICOLON, "Expected ';' to close loop block");
 
         return std::make_unique<LoopStmt>(std::move(body), /*safeLoop=*/false, ln);
+    }
+
+    // ============================================================
+    // Do-while statement:  do : BLOCK ; while CONDITION
+    // ============================================================
+
+    StmtPtr Parser::parseDoWhileStmt()
+    {
+        int ln = current().line;
+        advance(); // consume DO
+
+        consume(TokenType::COLON, "Expected ':' after 'do'");
+        auto body = parseBlock();
+        consume(TokenType::SEMICOLON, "Expected ';' to close do block");
+
+        consume(TokenType::WHILE, "Expected 'while' after do block");
+        ExprPtr condition = parseExpression();
+
+        return std::make_unique<DoWhileStmt>(std::move(body), std::move(condition), ln);
     }
 
     // ============================================================
@@ -1029,17 +1226,36 @@ namespace xell
         consume(TokenType::SEMICOLON, "Expected ';' to close try block");
         skipNewlines();
 
-        // catch varname :
-        std::string catchVar;
-        std::vector<StmtPtr> catchBody;
-        if (check(TokenType::CATCH))
+        // Parse one or more catch clauses:
+        //   catch varname :                          (catch-all)
+        //   catch varname is TypeError :             (single type)
+        //   catch varname is TypeError or ValueError : (multi-type)
+        std::vector<CatchClause> catchClauses;
+        while (check(TokenType::CATCH))
         {
             advance(); // consume CATCH
-            catchVar = consume(TokenType::IDENTIFIER, "Expected variable name after 'catch'").value;
-            consume(TokenType::COLON, "Expected ':' after catch variable");
-            catchBody = parseBlock();
+            CatchClause clause;
+            clause.varName = consume(TokenType::IDENTIFIER, "Expected variable name after 'catch'").value;
+
+            // Optional type filter: is TypeName [or TypeName]*
+            if (check(TokenType::IS))
+            {
+                advance(); // consume IS
+                clause.errorTypes.push_back(
+                    consume(TokenType::IDENTIFIER, "Expected error type name after 'is'").value);
+                while (check(TokenType::OR))
+                {
+                    advance(); // consume OR
+                    clause.errorTypes.push_back(
+                        consume(TokenType::IDENTIFIER, "Expected error type name after 'or'").value);
+                }
+            }
+
+            consume(TokenType::COLON, "Expected ':' after catch clause");
+            clause.body = parseBlock();
             consume(TokenType::SEMICOLON, "Expected ';' to close catch block");
             skipNewlines();
+            catchClauses.push_back(std::move(clause));
         }
 
         // optional finally :
@@ -1053,8 +1269,8 @@ namespace xell
         }
 
         return std::make_unique<TryCatchStmt>(
-            std::move(tryBody), std::move(catchVar),
-            std::move(catchBody), std::move(finallyBody), ln);
+            std::move(tryBody), std::move(catchClauses),
+            std::move(finallyBody), ln);
     }
 
     // ============================================================
@@ -1082,6 +1298,16 @@ namespace xell
     // InCase (switch/match)
     // ============================================================
 
+    // Helper: check if an identifier is a built-in type name for incase type patterns
+    static bool isBuiltinTypeName(const std::string &name)
+    {
+        static const std::unordered_set<std::string> typeNames = {
+            "int", "float", "complex", "bool", "string", "list", "tuple",
+            "set", "frozen_set", "map", "function", "enum", "bytes",
+            "generator", "struct_def", "module", "none"};
+        return typeNames.count(name) > 0;
+    }
+
     StmtPtr Parser::parseInCaseStmt()
     {
         int ln = current().line;
@@ -1094,14 +1320,44 @@ namespace xell
         std::vector<InCaseClause> clauses;
         std::vector<StmtPtr> elseBody;
 
-        // Parse clauses: is EXPR [or EXPR ...] : block ;
-        while (check(TokenType::IS))
+        // Parse clauses: is / belong / bind
+        while (check(TokenType::IS) || check(TokenType::BELONG) || check(TokenType::BIND))
         {
             InCaseClause clause;
             clause.line = current().line;
-            advance(); // consume IS
+            TokenType kw = current().type;
+            advance(); // consume IS / BELONG / BIND
 
-            // First value — use parseLogicalAnd so 'or' is not consumed as logical OR
+            if (kw == TokenType::BELONG)
+            {
+                // belong TypeName [if guard] :
+                clause.kind = ClauseKind::BELONG_TYPE;
+                // Accept IDENTIFIER or keyword type names (int, string, bool, none, etc.)
+                std::string typeName;
+                if (check(TokenType::IDENTIFIER))
+                    typeName = current().value;
+                else if (isBuiltinTypeName(current().value))
+                    typeName = current().value; // e.g., "none", "int", "string"
+                else
+                    throw ParseError("Expected type name after 'belong'", clause.line);
+                clause.typeName = typeName;
+                advance();
+                goto parse_guard;
+            }
+            else if (kw == TokenType::BIND)
+            {
+                // bind varname [if guard] :
+                clause.kind = ClauseKind::BIND_CAPTURE;
+                if (!check(TokenType::IDENTIFIER))
+                    throw ParseError("Expected variable name after 'bind'", clause.line);
+                clause.bindName = current().value;
+                advance();
+                goto parse_guard;
+            }
+            // else IS: fall through to parse values
+
+        parse_values:
+            // First value
             clause.values.push_back(parseLogicalAnd());
             // Additional values separated by 'or'
             while (check(TokenType::OR))
@@ -1110,7 +1366,15 @@ namespace xell
                 clause.values.push_back(parseLogicalAnd());
             }
 
-            consume(TokenType::COLON, "Expected ':' after incase value(s)");
+        parse_guard:
+            // Optional guard clause: if CONDITION
+            if (check(TokenType::IF))
+            {
+                advance(); // consume IF
+                clause.guard = parseExpression();
+            }
+
+            consume(TokenType::COLON, "Expected ':' after incase clause");
             clause.body = parseBlock();
             consume(TokenType::SEMICOLON, "Expected ';' to close incase clause");
             skipNewlines();
@@ -2374,6 +2638,13 @@ namespace xell
                    peekToken(1).type == TokenType::IN;
         };
 
+        // Helper: check for "is not" (two-token lookahead)
+        auto isIsNot = [this]()
+        {
+            return check(TokenType::IS) &&
+                   (peekToken(1).type == TokenType::NOT || peekToken(1).type == TokenType::BANG);
+        };
+
         while (check(TokenType::EQUAL_EQUAL) || check(TokenType::BANG_EQUAL) ||
                check(TokenType::IS) || check(TokenType::EQ) || check(TokenType::NE) ||
                check(TokenType::IN) || isNotIn())
@@ -2384,7 +2655,18 @@ namespace xell
 
             std::string op;
             if (opType == TokenType::IS)
-                op = "is"; // instance-of check: obj is ClassName
+            {
+                // Check for "is not" compound operator
+                if (check(TokenType::NOT) || check(TokenType::BANG))
+                {
+                    advance(); // consume NOT/BANG
+                    op = "is not";
+                }
+                else
+                {
+                    op = "is"; // instance-of check: obj is ClassName
+                }
+            }
             else if (opType == TokenType::IN)
                 op = "in"; // containment check: x in collection
             else if ((opType == TokenType::NOT || opType == TokenType::BANG) && check(TokenType::IN))
@@ -2490,14 +2772,29 @@ namespace xell
 
     ExprPtr Parser::parseMultiplication()
     {
-        auto left = parseUnary();
+        auto left = parseExponentiation();
         while (check(TokenType::STAR) || check(TokenType::SLASH) || check(TokenType::PERCENT))
         {
             int ln = current().line;
             std::string op = current().value;
             advance();
-            auto right = parseUnary();
+            auto right = parseExponentiation();
             left = std::make_unique<BinaryExpr>(std::move(left), op, std::move(right), ln);
+        }
+        return left;
+    }
+
+    // ---- Exponentiation: right-associative ** ----
+
+    ExprPtr Parser::parseExponentiation()
+    {
+        auto left = parseUnary();
+        if (check(TokenType::STAR_STAR))
+        {
+            int ln = current().line;
+            advance();
+            auto right = parseExponentiation(); // right-associative: recurse into self
+            left = std::make_unique<BinaryExpr>(std::move(left), "**", std::move(right), ln);
         }
         return left;
     }
@@ -2563,16 +2860,21 @@ namespace xell
             return std::make_unique<AwaitExpr>(std::move(operand), ln);
         }
 
-        // ~ — bitwise NOT (integer) or smart-cast prefix (~type(args))
+        // ~ — frozen set (~{...}), bitwise NOT (integer), or smart-cast prefix (~type(args))
         if (check(TokenType::TILDE))
         {
-            int ln = current().line;
-            // Lookahead: ~identifier( → smart-cast; anything else → bitwise NOT
+            // Lookahead: ~{ → frozen set; ~identifier( → smart-cast; else → bitwise NOT
+            if (peekToken(1).type == TokenType::LBRACE)
+            {
+                // Frozen set: handled in parsePrimary
+                return parsePrimary();
+            }
             if (peekToken(1).type == TokenType::IDENTIFIER && peekToken(2).type == TokenType::LPAREN)
             {
                 // Smart-cast: handled in parsePrimary
                 return parsePrimary();
             }
+            int ln = current().line;
             advance(); // consume ~
             auto operand = parseUnary();
             return std::make_unique<UnaryExpr>("~", std::move(operand), ln);
@@ -2594,9 +2896,10 @@ namespace xell
         {
             const std::string &val = current().value;
             advance();
-            if (val.find('.') != std::string::npos)
+            if (val.find('.') != std::string::npos ||
+                val.find('E') != std::string::npos)
             {
-                // Has decimal point → float
+                // Has decimal point or scientific notation → float
                 return parsePostfix(std::make_unique<FloatLiteral>(std::stod(val), ln));
             }
             else if (val.size() > 2 && val[0] == '0' && (val[1] == 'b' || val[1] == 'B'))
@@ -2681,8 +2984,14 @@ namespace xell
             return parsePostfix(parseBraceExpr());
         }
 
-        // Frozen set literal: <expr, expr, ...>
-        if (check(TokenType::LESS))
+        // Shell command: $cmd args...
+        if (check(TokenType::SHELL_CMD))
+        {
+            return parsePostfix(parseShellCmdExpr());
+        }
+
+        // Frozen set literal: ~{expr, expr, ...}
+        if (check(TokenType::TILDE) && peekToken(1).type == TokenType::LBRACE)
         {
             return parsePostfix(parseFrozenSetLiteral());
         }
@@ -2713,7 +3022,8 @@ namespace xell
                 // ~name without parens → treat as identifier (future bitwise NOT)
                 throw ParseError("Expected '(' after '~" + name.substr(1) + "'", ln);
             }
-            throw ParseError("Expected identifier after '~'", ln);
+            // ~{ is frozen set — should have been caught above
+            throw ParseError("Expected identifier or '{' after '~'", ln);
         }
 
         // Grouped expression or lambda: ( expr ) or (a, b) => expr
@@ -3024,6 +3334,84 @@ namespace xell
                 std::move(body), std::move(defaultValue), ln));
         }
 
+        // ---- Expression-mode incase (switch expression) ----
+        // x = incase val : is 1 : "one" belong int : "int" bind v if v > 0 : v else : 0 ;
+        if (check(TokenType::INCASE))
+        {
+            advance(); // consume INCASE
+            ExprPtr subject = parseExpression();
+            consume(TokenType::COLON, "Expected ':' after incase expression in expression mode");
+            skipNewlines();
+
+            std::vector<InCaseExprClause> clauses;
+
+            while (check(TokenType::IS) || check(TokenType::BELONG) || check(TokenType::BIND))
+            {
+                InCaseExprClause clause;
+                clause.line = current().line;
+                TokenType kw = current().type;
+                advance(); // consume IS / BELONG / BIND
+
+                if (kw == TokenType::BELONG)
+                {
+                    clause.kind = ClauseKind::BELONG_TYPE;
+                    std::string typeName;
+                    if (check(TokenType::IDENTIFIER))
+                        typeName = current().value;
+                    else if (isBuiltinTypeName(current().value))
+                        typeName = current().value;
+                    else
+                        throw ParseError("Expected type name after 'belong'", clause.line);
+                    clause.typeName = typeName;
+                    advance();
+                    goto expr_parse_guard;
+                }
+                else if (kw == TokenType::BIND)
+                {
+                    clause.kind = ClauseKind::BIND_CAPTURE;
+                    if (!check(TokenType::IDENTIFIER))
+                        throw ParseError("Expected variable name after 'bind'", clause.line);
+                    clause.bindName = current().value;
+                    advance();
+                    goto expr_parse_guard;
+                }
+                // else IS: fall through to parse values
+
+            expr_parse_values:
+                clause.values.push_back(parseLogicalAnd());
+                while (check(TokenType::OR))
+                {
+                    advance();
+                    clause.values.push_back(parseLogicalAnd());
+                }
+
+            expr_parse_guard:
+                if (check(TokenType::IF))
+                {
+                    advance(); // consume IF
+                    clause.guard = parseComparison();
+                }
+
+                consume(TokenType::COLON, "Expected ':' after incase clause in expression mode");
+                clause.result = parseComparison();
+                skipNewlines();
+
+                clauses.push_back(std::move(clause));
+            }
+
+            // else branch (required for expression-mode)
+            if (!check(TokenType::ELSE))
+                throw ParseError("Expression-mode incase requires an 'else' branch", ln);
+            advance(); // consume ELSE
+            consume(TokenType::COLON, "Expected ':' after 'else' in incase expression");
+            ExprPtr elseValue = parseComparison();
+            skipNewlines();
+
+            consume(TokenType::SEMICOLON, "Expected ';' to close incase expression");
+
+            return parsePostfix(std::make_unique<InCaseExpr>(
+                std::move(subject), std::move(clauses), std::move(elseValue), ln));
+        }
         throw ParseError("Unexpected token: " + tokenTypeToString(current().type) +
                              " ('" + current().value + "')",
                          current().line);
@@ -3228,12 +3616,18 @@ namespace xell
         {
             advance();
             return std::make_unique<MapLiteral>(
-                std::vector<std::pair<std::string, ExprPtr>>{}, ln);
+                std::vector<std::pair<ExprPtr, ExprPtr>>{}, ln);
         }
 
         // Lookahead: if (IDENTIFIER|STRING|RAW_STRING) followed by COLON → map or map comprehension
+        // Also: if LBRACKET → computed key map {[expr]: value}
         bool isMapPattern = false;
-        if (check(TokenType::IDENTIFIER) || check(TokenType::STRING) || check(TokenType::RAW_STRING))
+        if (check(TokenType::LBRACKET))
+        {
+            // {[expr]: ...} is definitely a map with computed keys
+            isMapPattern = true;
+        }
+        else if (check(TokenType::IDENTIFIER) || check(TokenType::STRING) || check(TokenType::RAW_STRING))
         {
             size_t saved = pos_;
             advance(); // consume potential key
@@ -3251,23 +3645,40 @@ namespace xell
 
     ExprPtr Parser::parseMapEntries(int ln)
     {
-        // Helper: parse a map key (IDENTIFIER or STRING)
-        auto parseKey = [this]() -> std::string
+        // Helper: parse a map key.
+        // - Bare identifier or string → wrap as StringLiteral (backward compat)
+        // - [expr] → computed key: parse expression inside brackets
+        auto parseKey = [this, ln]() -> ExprPtr
         {
+            if (check(TokenType::LBRACKET))
+            {
+                advance(); // consume [
+                skipNewlines();
+                ExprPtr keyExpr = parseExpression();
+                skipNewlines();
+                consume(TokenType::RBRACKET, "Expected ']' after computed map key");
+                return keyExpr;
+            }
             if (check(TokenType::IDENTIFIER))
-                return advance().value;
+            {
+                std::string name = advance().value;
+                return std::make_unique<StringLiteral>(name, ln);
+            }
             if (check(TokenType::STRING) || check(TokenType::RAW_STRING))
-                return advance().value;
+            {
+                std::string val = advance().value;
+                return std::make_unique<StringLiteral>(val, ln);
+            }
             throw ParseError(
-                "Expected map key (identifier or string), got " +
+                "Expected map key (identifier, string, or [expr]), got " +
                     tokenTypeToString(current().type) + " ('" + current().value + "')",
                 current().line);
         };
 
-        std::vector<std::pair<std::string, ExprPtr>> entries;
+        std::vector<std::pair<ExprPtr, ExprPtr>> entries;
         skipNewlines();
 
-        std::string key = parseKey();
+        ExprPtr key = parseKey();
         consume(TokenType::COLON, "Expected ':' after map key");
         skipNewlines();
         ExprPtr value = parseExpression();
@@ -3276,17 +3687,20 @@ namespace xell
         skipNewlines();
         if (check(TokenType::FOR))
         {
-            // The key was parsed as a string from identifier/string token.
-            // In comprehension context, an identifier key should be a variable reference.
+            // For comprehension, use the key expression directly.
+            // If it was a bare identifier wrapped as StringLiteral, convert to Identifier
+            // so variable resolution works.
             ExprPtr keyExpr;
-            // Check if the key looks like a valid variable name (was an identifier token)
-            // We need to distinguish {name: expr for ...} where name is a variable
-            // vs {"literal": expr for ...} where it's a string constant.
-            // Since parseKey consumed the token, we wrap as Identifier to allow
-            // variable resolution. For string literal keys, wrap as StringLiteral.
-            // Heuristic: if the key could be a variable in scope, treat as Identifier.
-            // For simplicity, always treat as Identifier — user can quote for string keys.
-            keyExpr = std::make_unique<Identifier>(key, ln);
+            if (auto *strLit = dynamic_cast<StringLiteral *>(key.get()))
+            {
+                // Bare identifier key in comprehension context → variable reference
+                keyExpr = std::make_unique<Identifier>(strLit->value, ln);
+            }
+            else
+            {
+                // Computed key [expr] → use as-is
+                keyExpr = std::move(key);
+            }
             auto clauses = parseCompClauses();
             skipNewlines();
             consume(TokenType::RBRACE, "Expected '}' to close map comprehension");
@@ -3294,7 +3708,7 @@ namespace xell
                 std::move(keyExpr), std::move(value), std::move(clauses), ln);
         }
 
-        entries.emplace_back(key, std::move(value));
+        entries.emplace_back(std::move(key), std::move(value));
 
         while (check(TokenType::COMMA))
         {
@@ -3306,7 +3720,7 @@ namespace xell
             consume(TokenType::COLON, "Expected ':' after map key");
             skipNewlines();
             value = parseExpression();
-            entries.emplace_back(key, std::move(value));
+            entries.emplace_back(std::move(key), std::move(value));
         }
 
         skipNewlines();
@@ -3349,33 +3763,40 @@ namespace xell
     ExprPtr Parser::parseFrozenSetLiteral()
     {
         int ln = current().line;
-        advance(); // consume <
+        advance(); // consume ~
+        advance(); // consume {
         skipNewlines();
 
-        // Empty frozen set: <>
-        if (check(TokenType::GREATER))
+        // Empty frozen set: ~{}
+        if (check(TokenType::RBRACE))
         {
             advance();
             return std::make_unique<FrozenSetLiteral>(std::vector<ExprPtr>{}, ln);
         }
 
-        // Parse elements using parseAddition() to avoid consuming '>' or '<'
-        // as comparison operators (since '>' is our closing delimiter).
         std::vector<ExprPtr> elements;
-        elements.push_back(parseAddition());
+        elements.push_back(parseExpression());
 
         while (check(TokenType::COMMA))
         {
             advance();
             skipNewlines();
-            if (check(TokenType::GREATER))
+            if (check(TokenType::RBRACE))
                 break; // trailing comma
-            elements.push_back(parseAddition());
+            elements.push_back(parseExpression());
         }
 
         skipNewlines();
-        consume(TokenType::GREATER, "Expected '>' to close frozen set");
+        consume(TokenType::RBRACE, "Expected '}' to close frozen set");
         return std::make_unique<FrozenSetLiteral>(std::move(elements), ln);
+    }
+
+    ExprPtr Parser::parseShellCmdExpr()
+    {
+        int ln = current().line;
+        std::string cmd = current().value; // command string collected by lexer
+        advance();                         // consume SHELL_CMD
+        return std::make_unique<ShellCmdExpr>(std::move(cmd), ln);
     }
 
     std::vector<ExprPtr> Parser::parseArgList()

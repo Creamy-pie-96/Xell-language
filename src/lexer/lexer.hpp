@@ -29,9 +29,9 @@ namespace xell
         void skipMultiLineComment();
 
         Token readNumber();
-        Token readString();
-        Token readRawString();
-        Token readByteString();
+        Token readString(char quoteChar = '"');
+        Token readRawString(char quoteChar = '"');
+        Token readByteString(char quoteChar = '"');
         Token readIdentifierOrKeyword();
 
         // Map-based keyword lookup (extensible)

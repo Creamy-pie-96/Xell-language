@@ -67,6 +67,7 @@ namespace xell
     {
     public:
         Interpreter();
+        ~Interpreter();
 
         /// Execute a complete program
         void run(const Program &program);
@@ -204,6 +205,26 @@ namespace xell
         std::unordered_map<std::string, std::shared_ptr<XStructDef>> errorClasses_;
         void registerErrorClasses();
 
+        struct ThreadTask
+        {
+            std::thread worker;
+            std::mutex mtx;
+            std::condition_variable cv;
+            bool done = false;
+            bool joined = false;
+            XObject result = XObject::makeNone();
+            std::vector<std::string> output;
+            std::exception_ptr error;
+        };
+
+        std::unordered_map<int, std::shared_ptr<ThreadTask>> threadTasks_;
+        std::unordered_map<int, std::shared_ptr<std::mutex>> mutexHandles_;
+        std::mutex threadStateMutex_;
+        int nextThreadTaskId_ = 1;
+        int nextMutexHandleId_ = 1;
+
+        void cleanupThreadTasks();
+
         // ---- Statement execution -------------------------------------------
 
         void exec(const Stmt *stmt);
@@ -213,15 +234,27 @@ namespace xell
         void execFor(const ForStmt *node);
         void execWhile(const WhileStmt *node);
         void execLoop(const LoopStmt *node);
+        void execDoWhile(const DoWhileStmt *node);
         void execFnDef(const FnDef *node);
         void execGive(const GiveStmt *node);
         void execExprStmt(const ExprStmt *node);
 
         /// Convert any iterable source to a materialized vector of XObjects.
         /// Handles lists, tuples, maps, sets, strings, instances with __iter__.
-        /// Does NOT handle generators — callers should check isGenerator() first
-        /// and consume lazily with nextGeneratorValue().
+        /// Lazy iterators are drained into a vector here; for-loops should prefer
+        /// `normalizeIterableSource()` + `nextLazyIterableValue()` when possible.
         std::vector<XObject> materializeIterable(XObject &src, int line);
+
+        /// Normalize an iteration source. Instance values may be replaced by the
+        /// result of `__iter__()` when present.
+        XObject normalizeIterableSource(XObject src, int line);
+
+        /// True when a source can be consumed lazily (`generator` or iterator
+        /// object exposing `__next__`).
+        bool isLazyIterableSource(const XObject &src) const;
+
+        /// Pull the next value from any lazy iterable source.
+        std::pair<bool, XObject> nextLazyIterableValue(XObject &src, int line);
 
         /// Pull the next value from a generator. Returns {false, value} on yield,
         /// {true, none} when the generator is exhausted.
@@ -268,6 +301,7 @@ namespace xell
         XObject evalTuple(const TupleLiteral *node);
         XObject evalSet(const SetLiteral *node);
         XObject evalFrozenSet(const FrozenSetLiteral *node);
+        XObject evalShellCmd(const ShellCmdExpr *node);
         XObject evalMap(const MapLiteral *node);
         XObject evalListComprehension(const ListComprehension *node);
         XObject evalSetComprehension(const SetComprehension *node);
@@ -279,6 +313,7 @@ namespace xell
         XObject evalForExpr(const ForExpr *node);
         XObject evalWhileExpr(const WhileExpr *node);
         XObject evalLoopExpr(const LoopExpr *node);
+        XObject evalInCaseExpr(const InCaseExpr *node);
         XObject evalLambda(const LambdaExpr *node);
         XObject evalSpread(const SpreadExpr *node);
         XObject evalYield(const YieldExpr *node);

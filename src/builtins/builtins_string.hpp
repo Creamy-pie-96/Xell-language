@@ -498,6 +498,121 @@ namespace xell
                 result.push_back(XObject::makeString(std::string(1, c)));
             return XObject::makeList(std::move(result));
         };
+
+        // center(str, width, fill) → centered string
+        t["center"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() < 2 || args.size() > 3)
+                throw ArityError("center", 2, (int)args.size(), line);
+            if (!args[0].isString() || !args[1].isInt())
+                throw TypeError("center() expects string and integer", line);
+            std::string fill = " ";
+            if (args.size() == 3)
+            {
+                if (!args[2].isString())
+                    throw TypeError("center() fill must be a string", line);
+                fill = args[2].asString();
+                if (fill.empty())
+                    throw ValueError("center() fill character cannot be empty", line);
+            }
+            const std::string &s = args[0].asString();
+            int64_t width = args[1].asInt();
+            if (width <= (int64_t)s.size())
+                return XObject::makeString(s);
+            int64_t pad_total = width - (int64_t)s.size();
+            int64_t pad_left = pad_total / 2;
+            int64_t pad_right = pad_total - pad_left;
+            std::string result;
+            for (int64_t i = 0; i < pad_left; i++)
+                result += fill;
+            result += s;
+            for (int64_t i = 0; i < pad_right; i++)
+                result += fill;
+            return XObject::makeString(std::move(result));
+        };
+
+        // ljust(str, width, fill) — left-justify
+        t["ljust"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() < 2 || args.size() > 3)
+                throw ArityError("ljust", 2, (int)args.size(), line);
+            if (!args[0].isString() || !args[1].isInt())
+                throw TypeError("ljust() expects string and integer", line);
+            std::string fill = " ";
+            if (args.size() == 3)
+            {
+                if (!args[2].isString())
+                    throw TypeError("ljust() fill must be a string", line);
+                fill = args[2].asString();
+                if (fill.empty())
+                    throw ValueError("ljust() fill character cannot be empty", line);
+            }
+            const std::string &s = args[0].asString();
+            int64_t width = args[1].asInt();
+            if (width <= (int64_t)s.size())
+                return XObject::makeString(s);
+            std::string result = s;
+            for (int64_t i = 0; i < width - (int64_t)s.size(); i++)
+                result += fill;
+            return XObject::makeString(std::move(result));
+        };
+
+        // rjust(str, width, fill) — right-justify
+        t["rjust"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() < 2 || args.size() > 3)
+                throw ArityError("rjust", 2, (int)args.size(), line);
+            if (!args[0].isString() || !args[1].isInt())
+                throw TypeError("rjust() expects string and integer", line);
+            std::string fill = " ";
+            if (args.size() == 3)
+            {
+                if (!args[2].isString())
+                    throw TypeError("rjust() fill must be a string", line);
+                fill = args[2].asString();
+                if (fill.empty())
+                    throw ValueError("rjust() fill character cannot be empty", line);
+            }
+            const std::string &s = args[0].asString();
+            int64_t width = args[1].asInt();
+            if (width <= (int64_t)s.size())
+                return XObject::makeString(s);
+            std::string result;
+            for (int64_t i = 0; i < width - (int64_t)s.size(); i++)
+                result += fill;
+            result += s;
+            return XObject::makeString(std::move(result));
+        };
+
+        // zfill(str, width) — zero-pad on left
+        t["zfill"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 2)
+                throw ArityError("zfill", 2, (int)args.size(), line);
+            if (!args[0].isString() || !args[1].isInt())
+                throw TypeError("zfill() expects string and integer", line);
+            const std::string &s = args[0].asString();
+            int64_t width = args[1].asInt();
+            if (width <= (int64_t)s.size())
+                return XObject::makeString(s);
+            // Handle sign
+            size_t start = 0;
+            if (!s.empty() && (s[0] == '+' || s[0] == '-'))
+            {
+                start = 1;
+                std::string result;
+                result += s[0];
+                for (int64_t i = 0; i < width - (int64_t)s.size(); i++)
+                    result += '0';
+                result += s.substr(1);
+                return XObject::makeString(std::move(result));
+            }
+            std::string result;
+            for (int64_t i = 0; i < width - (int64_t)s.size(); i++)
+                result += '0';
+            result += s;
+            return XObject::makeString(std::move(result));
+        };
     }
 
 } // namespace xell

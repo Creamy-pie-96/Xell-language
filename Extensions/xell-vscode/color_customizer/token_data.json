@@ -199,8 +199,8 @@
         "color": "#00ffff",
         "bold": false,
         "italic": false,
-        "label": "Math builtins (abs, acos, acosh, acot, acoth, acsc, acsch, asec, asech, asin, asinh, atan, atan2, atanh, bin, ceil, clamp, cos, cosh, cot, coth, csc, csch, floor, hex, is_inf, is_nan, log, log10, mod, pow, random, random_choice, random_int, round, sec, sech, sin, sinh, sqrt, tan, tanh, to_float, to_int)",
-        "example": "abs, acos, acosh, acot, acoth, acsc, acsch, asec, asech, asin, asinh, atan, atan2, atanh, bin, ceil, clamp, cos, cosh, cot, coth, csc, csch, floor, hex, is_inf, is_nan, log, log10, mod, pow, random, random_choice, random_int, round, sec, sech, sin, sinh, sqrt, tan, tanh, to_float, to_int"
+        "label": "Math builtins (abs, acos, acosh, acot, acoth, acsc, acsch, asec, asech, asin, asinh, atan, atan2, atanh, bin, ceil, clamp, cos, cosh, cot, coth, csc, csch, factorial, floor, gcd, hex, is_inf, is_nan, lcm, log, log10, log2, mod, pow, random, random_choice, random_int, round, sec, sech, sin, sinh, sqrt, tan, tanh, to_float, to_int)",
+        "example": "abs, acos, acosh, acot, acoth, acsc, acsch, asec, asech, asin, asinh, atan, atan2, atanh, bin, ceil, clamp, cos, cosh, cot, coth, csc, csch, factorial, floor, gcd, hex, is_inf, is_nan, lcm, log, log10, log2, mod, pow, random, random_choice, random_int, round, sec, sech, sin, sinh, sqrt, tan, tanh, to_float, to_int"
       },
       {
         "id": "builtin_os",
@@ -343,8 +343,8 @@
         "color": "#eeeeee",
         "bold": false,
         "italic": false,
-        "label": "String builtins (char_at, count, ends_with, index_of, is_alpha, is_empty, is_numeric, join, lines, lower, pad_end, pad_start, repeat, replace, replace_first, reverse, split, starts_with, substr, to_chars, trim, trim_end, trim_start, upper)",
-        "example": "char_at, count, ends_with"
+        "label": "String builtins (center, char_at, count, ends_with, index_of, is_alpha, is_empty, is_numeric, join, lines, ljust, lower, pad_end, pad_start, repeat, replace, replace_first, reverse, rjust, split, starts_with, substr, to_chars, trim, trim_end, trim_start, upper, zfill)",
+        "example": "center, char_at, count"
       },
       {
         "id": "builtin_sysmon",
@@ -411,8 +411,8 @@
         "color": "#ef596f",
         "bold": true,
         "italic": false,
-        "label": "Control flow (break, continue)",
-        "example": "break continue"
+        "label": "Control flow (break, continue, do)",
+        "example": "break continue do"
       },
       {
         "id": "kw_error",
@@ -501,8 +501,8 @@
         "color": "#e5c07b",
         "bold": true,
         "italic": false,
-        "label": "Special (of)",
-        "example": "of"
+        "label": "Special (belong, bind, of)",
+        "example": "belong bind of"
       }
     ]
   },
@@ -571,6 +571,15 @@
         "italic": false,
         "label": "Map access (->)",
         "example": "->"
+      },
+      {
+        "id": "op_shell",
+        "scope": "keyword.operator.shell.xell",
+        "color": "#98c379",
+        "bold": true,
+        "italic": false,
+        "label": "Shell command prefix ($)",
+        "example": "$echo hello"
       }
     ]
   },

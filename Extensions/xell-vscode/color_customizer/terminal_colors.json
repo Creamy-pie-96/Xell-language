@@ -296,6 +296,12 @@
       "italic": false
     },
     {
+      "scope": "keyword.operator.shell.xell",
+      "fg": "#98c379",
+      "bold": true,
+      "italic": false
+    },
+    {
       "scope": "punctuation.bracket.round.xell",
       "fg": "#abb2bf",
       "bold": false,
@@ -513,6 +519,7 @@
     "LET": "keyword.other.binding.xell",
     "BE": "keyword.other.binding.xell",
     "LOOP": "keyword.control.loop.xell",
+    "DO": "keyword.control.flow.xell",
     "BRING": "keyword.control.import.xell",
     "FROM": "keyword.control.import.xell",
     "AS": "keyword.control.import.xell",
@@ -543,6 +550,8 @@
     "OR": "keyword.operator.logical.xell",
     "NOT": "keyword.operator.logical.xell",
     "IS": "keyword.operator.comparison.word.xell",
+    "BELONG": "keyword.other.special.xell",
+    "BIND": "keyword.other.special.xell",
     "EQ": "keyword.operator.comparison.word.xell",
     "NE": "keyword.operator.comparison.word.xell",
     "GT": "keyword.operator.comparison.word.xell",
@@ -593,7 +602,8 @@
     "PIPE": "keyword.operator.arithmetic.xell",
     "AMP_AMP": "keyword.operator.logical.xell",
     "PIPE_PIPE": "keyword.operator.logical.xell",
-    "TILDE": "keyword.operator.arithmetic.xell"
+    "TILDE": "keyword.operator.arithmetic.xell",
+    "SHELL_CMD": "keyword.operator.shell.xell"
   },
   "builtin_names": {
     "support.function.archive.xell": [
@@ -777,12 +787,16 @@
       "coth",
       "csc",
       "csch",
+      "factorial",
       "floor",
+      "gcd",
       "hex",
       "is_inf",
       "is_nan",
+      "lcm",
       "log",
       "log10",
+      "log2",
       "mod",
       "pow",
       "random",
@@ -921,6 +935,7 @@
       "yes_cmd"
     ],
     "support.function.string.xell": [
+      "center",
       "char_at",
       "count",
       "ends_with",
@@ -930,6 +945,7 @@
       "is_numeric",
       "join",
       "lines",
+      "ljust",
       "lower",
       "pad_end",
       "pad_start",
@@ -937,6 +953,7 @@
       "replace",
       "replace_first",
       "reverse",
+      "rjust",
       "split",
       "starts_with",
       "substr",
@@ -944,7 +961,8 @@
       "trim",
       "trim_end",
       "trim_start",
-      "upper"
+      "upper",
+      "zfill"
     ],
     "support.function.sysmon.xell": [
       "cal",

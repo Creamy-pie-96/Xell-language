@@ -68,6 +68,7 @@ namespace xell
         StmtPtr parseDecoratedFnDef();
         StmtPtr parseLetStmt();
         StmtPtr parseLoopStmt();
+        StmtPtr parseDoWhileStmt();
         std::vector<StmtPtr> parseBlock(bool stopAtElifElse = false, bool stopAtGive = false);
 
         // Expressions (precedence climbing)
@@ -85,6 +86,7 @@ namespace xell
         ExprPtr parseShift(); // << >>
         ExprPtr parseAddition();
         ExprPtr parseMultiplication();
+        ExprPtr parseExponentiation(); // ** (right-associative)
         ExprPtr parseUnary();
         ExprPtr parsePrimary();
         ExprPtr parsePostfix(ExprPtr expr);
@@ -94,8 +96,16 @@ namespace xell
         ExprPtr parseBraceExpr(); // disambiguates {} as map or set
         ExprPtr parseMapEntries(int ln);
         ExprPtr parseSetEntries(int ln);
-        ExprPtr parseFrozenSetLiteral(); // <expr, expr, ...>
+        ExprPtr parseFrozenSetLiteral(); // ~{expr, expr, ...}
+        ExprPtr parseShellCmdExpr();     // $cmd args
         std::vector<ExprPtr> parseArgList();
+
+        // Destructuring helpers
+        std::unique_ptr<DestructuringPattern> parseDestructuringPattern(
+            bool allowRest,
+            std::vector<std::string> *flatNames);
+        std::unique_ptr<DestructuringPattern> parseTopLevelDestructuringPattern(
+            std::vector<std::string> *flatNames);
 
         // Comprehension helpers
         std::vector<CompClause> parseCompClauses();

@@ -827,6 +827,104 @@ for i in b :
     print(i)
 ;
 )XEL")); });
+
+    runTest("__iter__: generator return is consumed lazily", []()
+            {
+        auto out = runXell(R"XEL(
+class Range :
+    start = 0
+
+    fn __init__(self, s) :
+        self->start = s
+    ;
+
+    fn __iter__(self) :
+        i = self->start
+        loop :
+            yield i
+            i = i + 1
+        ;
+    ;
+;
+
+count = 0
+for x in Range(1) :
+    print(x)
+    count = count + 1
+    if count == 3 :
+        break
+    ;
+;
+)XEL");
+        XASSERT_EQ(out.size(), 3u);
+        XASSERT_EQ(out[0], "1");
+        XASSERT_EQ(out[1], "2");
+        XASSERT_EQ(out[2], "3"); });
+
+    runTest("__next__: direct iterator object works in for", []()
+            {
+        auto out = runXell(R"XEL(
+class Counter :
+    i = 0
+    stop = 0
+
+    fn __init__(self, stop) :
+        self->stop = stop
+    ;
+
+    fn __next__(self) :
+        if self->i >= self->stop :
+            throw {type: "IterationError", message: "done"}
+        ;
+        val = self->i
+        self->i = self->i + 1
+        give val
+    ;
+;
+
+for x in Counter(3) :
+    print(x)
+;
+)XEL");
+        XASSERT_EQ(out.size(), 3u);
+        XASSERT_EQ(out[0], "0");
+        XASSERT_EQ(out[1], "1");
+        XASSERT_EQ(out[2], "2"); });
+
+    runTest("__iter__: iterator object with __next__ works", []()
+            {
+        auto out = runXell(R"XEL(
+class Counter :
+    i = 0
+    stop = 0
+
+    fn __init__(self, stop) :
+        self->stop = stop
+    ;
+
+    fn __next__(self) :
+        if self->i >= self->stop :
+            throw {type: "IterationError", message: "done"}
+        ;
+        val = self->i + 10
+        self->i = self->i + 1
+        give val
+    ;
+;
+
+class Wrapper :
+    fn __iter__(self) :
+        give Counter(2)
+    ;
+;
+
+for x in Wrapper() :
+    print(x)
+;
+)XEL");
+        XASSERT_EQ(out.size(), 2u);
+        XASSERT_EQ(out[0], "10");
+        XASSERT_EQ(out[1], "11"); });
 }
 
 // ============================================================================

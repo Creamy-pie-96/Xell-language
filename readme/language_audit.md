@@ -264,11 +264,10 @@ precedence. Add `**=` augmented assignment. Map to `__pow__` magic method.
 **Status**: ❌ Missing (standalone)  
 **Impact**: Medium
 
-There is no `x if cond else y` or `cond ? x : y` expression. The `in_case` (switch) exists
-as a statement but has no expression form.
+There is no `x if cond else y` expression. The `in_case` (switch) exists
+as a statement but has no expression form. bt wait i thought we had <expr> if <cond> elif <cond> : <expr> okay maybe we have  a gap, check and varify and we maybe dont have ternary expression 
 
-**Recommendation**: Add `<expr> if <cond> else <expr>` or `<cond> ? <expr> : <expr>`.
-Either syntax works; pick one consistent with Xell's style.
+**Recommendation**: Add `<expr> if <cond> else <expr>`consistent with Xell's style.
 
 ---
 
@@ -294,7 +293,7 @@ matching catch block.
 **Impact**: Medium
 
 No `not in` or `is not`. Users must negate manually: `not (x in list)` (once `in` exists)
-or `not (x is y)`.
+or `not (x is y)`. I think we already did not in, now we need is not.
 
 **Recommendation**: Add compound operators in the parser. `not in` → negate containment check.
 `is not` → negate identity check.
@@ -309,7 +308,7 @@ or `not (x is y)`.
 Map literals only support identifier or string-literal keys. No computed keys like
 `{[expr]: value}` (JS) or `{(expr): value}`.
 
-**Recommendation**: Support `{[<expr>]: <expr>}` syntax for dynamic map keys.
+**Recommendation**: Support `{[<expr>]: <expr>}` syntax for dynamic map keys. we already support user's defined class or variables to be hashed via the __hash__ and have mutability controll too. check so we have to let user use those as key too.
 
 ---
 
@@ -318,12 +317,14 @@ Map literals only support identifier or string-literal keys. No computed keys li
 **Status**: ❌ Missing  
 **Impact**: Medium
 
-The lexer does not handle `1.5e10`, `3.14e-2`, `6.022e23`. Important for scientific and
+The lexer does not handle `1.5e10`, `3.14e-2`, `6.022E23`. Important for scientific and
 data-processing use cases.
+
+**NOTE: e is euler numebr and E is exponent**
 
 **Recommendation**: Extend `scanNumber()` to recognize `e`/`E` followed by optional `+`/`-`
 and digits.
-
+Also i suggest you to checkout the math built in module for constants we have there(dont make all part of lang itself, tthe e an E will be part of lang)
 ---
 
 ### 2.10 · Spread / Rest in Function Parameters
@@ -362,7 +363,7 @@ The lexer handles `\n`, `\t`, `\\`, `\"`, `\r`, `\0`. Missing:
 The analyzer header comments claim unused-variable and unreachable-code detection, but neither
 is implemented. The analyzer only checks for undefined names and typos.
 
-**Recommendation**: Implement at least unused-variable warnings. Track which names are read
+**Recommendation**: Implement unused-variable and unreachable code warnings. Track which names are read
 in Pass 2 and report names that were defined but never accessed.
 
 ---
@@ -502,7 +503,7 @@ This forces eager materialization for custom iterables.
 **Status**: ⚠️ Partial  
 **Impact**: Medium
 
-`__enter__` and `__exit__` magic methods exist, but there's no explicit `with` statement
+`__enter__` and `__exit__` magic methods exist, but there's no explicit `with` statement. wait i think i intentionally desinged it with `let...be` key word instead of `with....as` please do check if we implimented it completely!? i dont remember. in shell let should be context manager.
 syntax in the parser to invoke them automatically for resource cleanup.
 
 ---
@@ -513,7 +514,7 @@ syntax in the parser to invoke them automatically for resource cleanup.
 **Impact**: Low-Medium
 
 The REPL completer registers only a small subset of builtins. The analyzer knows ~400+
-names but the REPL completer has far fewer. No context-aware (dot-triggered) completion.
+names but the REPL completer has far fewer. No context-aware (dot-triggered) completion. need this. we probably already have a autocomplete system for our built in ide check the shell-terminal sub-project files and maybe we could use that? i actually forgot where i had implimented that so you will have to search for it and check
 
 ---
 
@@ -525,7 +526,7 @@ names but the REPL completer has far fewer. No context-aware (dot-triggered) com
 Identifiers are ASCII-only (`[a-zA-Z_][a-zA-Z0-9_]*`). Non-Latin scripts cannot be used
 for variable/function names. This limits internationalization — ironic given the `@convert`
 dialect system.
-
+but we want it to work at preprocessor level so it does not touch the core of the language(i hope our convert already works that way?!)
 ---
 
 ### 3.14 · Standard Library Gaps
@@ -598,7 +599,7 @@ for programs that accept untrusted input as map keys.
 
 Interfaces can declare method signatures but cannot provide default implementations.
 This forces implementing classes to define every method even when a sensible default exists.
-
+**NOTE: but this is exactly why the interface was created for: only a template. if user need some defaults they should use abstract class we have right? so maybe it's okay as design choice**
 ---
 
 ### 4.5 · Enum Associated Values / Methods
@@ -643,6 +644,7 @@ hashing large data streams.
 The LSP extension provides diagnostics via `xell --check` (the static analyzer), but there's
 no type inference, no go-to-definition across files, no rename refactoring, no call hierarchy.
 
+Also do check the built-in terminal and ide we are shipping with it please! 
 ---
 
 ### 4.9 · Package Manager / Registry
@@ -662,7 +664,7 @@ requires manual file copying.
 
 No breakpoints, no step-in/step-over, no variable inspection. The only debugging tool is
 `print()`.
-
+**NOTE: wait maybe i had added a huge debugging system  for it check the decorators**
 ---
 
 ---

@@ -14,6 +14,7 @@
 
 #include "builtin_registry.hpp"
 #include <algorithm>
+#include <cctype>
 #include <sstream>
 
 namespace xell
@@ -67,90 +68,198 @@ namespace xell
         return result;
     }
 
+    /// Parse an integer string with support for decimal, 0x/0X, 0o/0O, 0b/0B.
+    static inline bool parseIntegerString(const std::string &raw, int64_t &out)
+    {
+        std::string s = trimStr(raw);
+        if (s.empty())
+            return false;
+
+        bool hasSign = (s[0] == '+' || s[0] == '-');
+        size_t digitsStart = hasSign ? 1 : 0;
+        if (digitsStart >= s.size())
+            return false;
+
+        int base = 10;
+        if (digitsStart + 1 < s.size() && s[digitsStart] == '0')
+        {
+            char p = s[digitsStart + 1];
+            if (p == 'x' || p == 'X')
+            {
+                base = 16;
+                s.erase(digitsStart, 2);
+            }
+            else if (p == 'o' || p == 'O')
+            {
+                base = 8;
+                s.erase(digitsStart, 2);
+            }
+            else if (p == 'b' || p == 'B')
+            {
+                base = 2;
+                s.erase(digitsStart, 2);
+            }
+        }
+
+        if (hasSign && s.size() == 1)
+            return false;
+        if (!hasSign && s.empty())
+            return false;
+
+        try
+        {
+            size_t pos = 0;
+            long long v = std::stoll(s, &pos, base);
+            if (pos != s.size())
+                return false;
+            out = static_cast<int64_t>(v);
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    /// Parse a real number string (int or float) into double.
+    static inline bool parseRealNumberString(const std::string &raw, double &out)
+    {
+        int64_t i;
+        if (parseIntegerString(raw, i))
+        {
+            out = static_cast<double>(i);
+            return true;
+        }
+
+        std::string s = trimStr(raw);
+        if (s.empty())
+            return false;
+        try
+        {
+            size_t pos = 0;
+            double d = std::stod(s, &pos);
+            if (pos != s.size())
+                return false;
+            out = d;
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    /// Parse complex forms like "3i", "2+3i", "2-3i", "10.11+2i".
+    static inline bool parseComplexString(const std::string &raw, XComplex &out)
+    {
+        std::string s = trimStr(raw);
+        if (s.size() < 2)
+            return false;
+        char last = s.back();
+        if (last != 'i' && last != 'I')
+            return false;
+
+        std::string body = s.substr(0, s.size() - 1);
+        if (body.empty())
+            return false;
+
+        // Pure imaginary: "3i", "-2.5i", "+i", "-i"
+        {
+            std::string imagPart = body;
+            if (imagPart == "+")
+                imagPart = "1";
+            else if (imagPart == "-")
+                imagPart = "-1";
+
+            double imagOnly = 0.0;
+            if (parseRealNumberString(imagPart, imagOnly))
+            {
+                out = XComplex{0.0, imagOnly};
+                return true;
+            }
+        }
+
+        // Real + imaginary: find split at last +/- not part of exponent.
+        size_t splitAt = std::string::npos;
+        for (size_t i = 1; i < body.size(); ++i)
+        {
+            char c = body[i];
+            if ((c == '+' || c == '-') && body[i - 1] != 'e' && body[i - 1] != 'E')
+                splitAt = i;
+        }
+        if (splitAt == std::string::npos)
+            return false;
+
+        std::string realPart = body.substr(0, splitAt);
+        std::string imagPart = body.substr(splitAt);
+        if (imagPart == "+")
+            imagPart = "1";
+        else if (imagPart == "-")
+            imagPart = "-1";
+
+        double real = 0.0;
+        double imag = 0.0;
+        if (!parseRealNumberString(realPart, real) || !parseRealNumberString(imagPart, imag))
+            return false;
+
+        out = XComplex{real, imag};
+        return true;
+    }
+
+    /// Parse number/complex string. Returns int, float, or complex.
+    static inline bool parseNumericValue(const std::string &raw, XObject &out)
+    {
+        XComplex c;
+        if (parseComplexString(raw, c))
+        {
+            out = XObject::makeComplex(c);
+            return true;
+        }
+
+        int64_t i;
+        if (parseIntegerString(raw, i))
+        {
+            out = XObject::makeInt(i);
+            return true;
+        }
+
+        double d;
+        if (parseRealNumberString(raw, d))
+        {
+            out = XObject::makeFloat(d);
+            return true;
+        }
+
+        return false;
+    }
+
     /// Auto-cast a string to the best XObject type
     static inline XObject autocastValue(const std::string &s, int line)
     {
+        std::string value = trimStr(s);
+
         // Boolean
-        if (s == "true")
+        if (value == "true")
             return XObject::makeBool(true);
-        if (s == "false")
+        if (value == "false")
             return XObject::makeBool(false);
-        if (s == "none")
+        if (value == "none")
             return XObject::makeNone();
 
-        // Try integer
-        if (!s.empty() && (s[0] == '-' || s[0] == '+' || (s[0] >= '0' && s[0] <= '9')))
+        // Try int/float/complex
+        if (!value.empty() && (value[0] == '-' || value[0] == '+' || (value[0] >= '0' && value[0] <= '9')))
         {
-            // Check for complex: ends with 'i'
-            if (s.size() > 1 && s.back() == 'i')
+            XObject numeric;
+            if (parseNumericValue(value, numeric))
             {
-                // Try parsing as complex: could be "3i" or "2+3i" or "2-3i"
-                std::string withoutI = s.substr(0, s.size() - 1);
-                // Simple imaginary: "3i", "-2.5i"
-                try
-                {
-                    size_t pos;
-                    double imag = std::stod(withoutI, &pos);
-                    if (pos == withoutI.size())
-                        return XObject::makeComplex(0.0, imag);
-                }
-                catch (...)
-                {
-                }
-                // Complex: "2+3i" or "2-3i"
-                size_t plusPos = withoutI.find_last_of('+');
-                size_t minusPos = withoutI.find_last_of('-');
-                size_t splitAt = std::string::npos;
-                if (plusPos != std::string::npos && plusPos > 0)
-                    splitAt = plusPos;
-                else if (minusPos != std::string::npos && minusPos > 0)
-                    splitAt = minusPos;
-                if (splitAt != std::string::npos)
-                {
-                    try
-                    {
-                        double real = std::stod(withoutI.substr(0, splitAt));
-                        double imag = std::stod(withoutI.substr(splitAt));
-                        return XObject::makeComplex(real, imag);
-                    }
-                    catch (...)
-                    {
-                    }
-                }
-            }
-
-            // Try integer (no decimal point)
-            if (s.find('.') == std::string::npos && s.back() != 'i')
-            {
-                try
-                {
-                    size_t pos;
-                    int64_t i = std::stoll(s, &pos);
-                    if (pos == s.size())
-                        return XObject::makeInt(i);
-                }
-                catch (...)
-                {
-                }
-            }
-
-            // Try float
-            try
-            {
-                size_t pos;
-                double d = std::stod(s, &pos);
-                if (pos == s.size())
-                    return XObject::makeFloat(d);
-            }
-            catch (...)
-            {
+                return numeric;
             }
         }
 
         // Try nested container detection: [1,2,3] → list
-        if (s.size() >= 2 && s.front() == '[' && s.back() == ']')
+        if (value.size() >= 2 && value.front() == '[' && value.back() == ']')
         {
-            std::string inner = s.substr(1, s.size() - 2);
+            std::string inner = value.substr(1, value.size() - 2);
             auto parts = splitForContainer(inner);
             XList list;
             for (const auto &part : parts)
@@ -159,9 +268,9 @@ namespace xell
         }
 
         // Try tuple: (1,2,3)
-        if (s.size() >= 2 && s.front() == '(' && s.back() == ')')
+        if (value.size() >= 2 && value.front() == '(' && value.back() == ')')
         {
-            std::string inner = s.substr(1, s.size() - 2);
+            std::string inner = value.substr(1, value.size() - 2);
             auto parts = splitForContainer(inner);
             XTuple tup;
             for (const auto &part : parts)
@@ -170,9 +279,9 @@ namespace xell
         }
 
         // Try set: {1,2,3}
-        if (s.size() >= 2 && s.front() == '{' && s.back() == '}')
+        if (value.size() >= 2 && value.front() == '{' && value.back() == '}')
         {
-            std::string inner = s.substr(1, s.size() - 2);
+            std::string inner = value.substr(1, value.size() - 2);
             auto parts = splitForContainer(inner);
             XSet set;
             for (const auto &part : parts)
@@ -185,7 +294,7 @@ namespace xell
         }
 
         // Default: keep as string
-        return XObject::makeString(s);
+        return XObject::makeString(value);
     }
 
     /// Convert an XObject to a list of elements (for container conversions)
@@ -295,15 +404,20 @@ namespace xell
                 return XObject::makeInt(static_cast<int64_t>(args[0].asFloat()));
             if (args[0].isString())
             {
-                try
-                {
-                    int64_t i = std::stoll(args[0].asString());
-                    return XObject::makeInt(i);
-                }
-                catch (...)
-                {
+                XObject parsed;
+                if (!parseNumericValue(args[0].asString(), parsed))
                     throw ConversionError("cannot convert '" + args[0].asString() + "' to Int", line);
+                if (parsed.isInt())
+                    return parsed;
+                if (parsed.isFloat())
+                    return XObject::makeInt(static_cast<int64_t>(parsed.asFloat()));
+                if (parsed.isComplex())
+                {
+                    if (parsed.asComplex().imag != 0.0)
+                        throw ConversionError("cannot convert complex with non-zero imaginary part to Int", line);
+                    return XObject::makeInt(static_cast<int64_t>(parsed.asComplex().real));
                 }
+                throw ConversionError("cannot convert '" + args[0].asString() + "' to Int", line);
             }
             if (args[0].isBool())
                 return XObject::makeInt(args[0].asBool() ? 1 : 0);
@@ -327,15 +441,20 @@ namespace xell
                 return XObject::makeFloat(static_cast<double>(args[0].asInt()));
             if (args[0].isString())
             {
-                try
-                {
-                    double d = std::stod(args[0].asString());
-                    return XObject::makeFloat(d);
-                }
-                catch (...)
-                {
+                XObject parsed;
+                if (!parseNumericValue(args[0].asString(), parsed))
                     throw ConversionError("cannot convert '" + args[0].asString() + "' to Float", line);
+                if (parsed.isInt())
+                    return XObject::makeFloat(static_cast<double>(parsed.asInt()));
+                if (parsed.isFloat())
+                    return parsed;
+                if (parsed.isComplex())
+                {
+                    if (parsed.asComplex().imag != 0.0)
+                        throw ConversionError("cannot convert complex with non-zero imaginary part to Float", line);
+                    return XObject::makeFloat(parsed.asComplex().real);
                 }
+                throw ConversionError("cannot convert '" + args[0].asString() + "' to Float", line);
             }
             if (args[0].isBool())
                 return XObject::makeFloat(args[0].asBool() ? 1.0 : 0.0);
@@ -368,7 +487,9 @@ namespace xell
                 if (args[0].isString())
                 {
                     // Try parsing complex from string
-                    XObject result = autocastValue(args[0].asString(), line);
+                    XObject result;
+                    if (!parseNumericValue(args[0].asString(), result))
+                        throw ConversionError("cannot convert '" + args[0].asString() + "' to Complex", line);
                     if (result.isComplex())
                         return result;
                     if (result.isNumeric())
@@ -407,33 +528,10 @@ namespace xell
                 return args[0]; // complex is numeric
             if (args[0].isString())
             {
-                const std::string &s = args[0].asString();
-                // Try int
-                if (s.find('.') == std::string::npos)
-                {
-                    try
-                    {
-                        size_t pos;
-                        int64_t i = std::stoll(s, &pos);
-                        if (pos == s.size())
-                            return XObject::makeInt(i);
-                    }
-                    catch (...)
-                    {
-                    }
-                }
-                // Try float
-                try
-                {
-                    size_t pos;
-                    double d = std::stod(s, &pos);
-                    if (pos == s.size())
-                        return XObject::makeFloat(d);
-                }
-                catch (...)
-                {
-                }
-                throw ConversionError("cannot convert '" + s + "' to number", line);
+                XObject parsed;
+                if (parseNumericValue(args[0].asString(), parsed))
+                    return parsed;
+                throw ConversionError("cannot convert '" + args[0].asString() + "' to number", line);
             }
             if (args[0].isBool())
                 return XObject::makeInt(args[0].asBool() ? 1 : 0);

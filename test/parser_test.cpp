@@ -676,9 +676,16 @@ void test_parse_map_literal()
     auto *assign = firstStmt<Assignment>(prog);
     auto *map = asExpr<MapLiteral>(assign->value.get());
     XASSERT_EQ(map->entries.size(), (size_t)3);
-    XASSERT_EQ(map->entries[0].first, std::string("host"));
-    XASSERT_EQ(map->entries[1].first, std::string("port"));
-    XASSERT_EQ(map->entries[2].first, std::string("debug"));
+    // Keys are now ExprPtr (StringLiteral for bare identifiers)
+    auto *k0 = dynamic_cast<const StringLiteral *>(map->entries[0].first.get());
+    auto *k1 = dynamic_cast<const StringLiteral *>(map->entries[1].first.get());
+    auto *k2 = dynamic_cast<const StringLiteral *>(map->entries[2].first.get());
+    XASSERT(k0 != nullptr);
+    XASSERT(k1 != nullptr);
+    XASSERT(k2 != nullptr);
+    XASSERT_EQ(k0->value, std::string("host"));
+    XASSERT_EQ(k1->value, std::string("port"));
+    XASSERT_EQ(k2->value, std::string("debug"));
 }
 
 void test_parse_empty_map()

@@ -1,0 +1,25 @@
+{
+  "nxel_format": "1.0",
+  "metadata": {
+    "title": "Untitled",
+    "created": "2026-03-13T00:51:56.440Z",
+    "modified": "2026-03-13T02:43:30.852Z",
+    "kernel": "xell",
+    "kernel_version": "1.0"
+  },
+  "cells": [
+    {
+      "id": "cell-1",
+      "type": "code",
+      "source": "bring * of fs\n#print(cwd())\nx = pwd()\ny = 10\nprint x y 10 20 30 40. y = 30. print (y is 30) .\nfn my_fun(a,b,c=3):\nprint (a+b+c)\n;\nmy_fun 1 2 5 # this works\nfn check(x):\n    print(\"called check function\")\n    give x > 10\n;\n\nresult = check (42)    # this works but \nprint result type(result)\n\nresult = check 42    # this does not work. so the expressiong style has the bug. need to fix it \nprint result type(result)\na= 0\nx = loop: if a eq 0: break 10;\n;\nprint x",
+      "outputs": [
+        {
+          "type": "stdout",
+          "text": "/home/zero 10 10 20 30 40\ntrue\n8\ncalled check function\ntrue bool\n<fn check> function\n10"
+        }
+      ],
+      "execution_count": null,
+      "metadata": {}
+    }
+  ]
+}

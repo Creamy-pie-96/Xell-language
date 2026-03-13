@@ -34,6 +34,13 @@ namespace xell
         std::string severity; // "error", "warning", "hint"
     };
 
+    // Tracks per-variable metadata for unused-variable detection
+    struct VarInfo
+    {
+        int defLine = 0;      // line where the variable was defined
+        bool wasRead = false; // whether the variable was referenced
+    };
+
     class StaticAnalyzer
     {
     public:
@@ -234,7 +241,7 @@ namespace xell
 
         std::unordered_set<std::string> builtins_;
         std::unordered_map<std::string, std::string> typoMap_;
-        std::vector<std::unordered_set<std::string>> scopes_;
+        std::vector<std::unordered_map<std::string, VarInfo>> scopes_;
         std::vector<LintDiagnostic> diagnostics_;
         bool hasWildcardBring_ = false;                   // suppress "undefined" when wildcard bring is in scope
         std::string sourceDir_;                           // directory of the source file being analyzed
@@ -265,13 +272,46 @@ namespace xell
         void popScope()
         {
             if (scopes_.size() > 1)
+            {
+                // Check for unused variables before popping
+                auto &scope = scopes_.back();
+                for (auto &[name, info] : scope)
+                {
+                    if (info.wasRead)
+                        continue;
+                    // Skip conventional ignore patterns
+                    if (name.empty())
+                        continue;
+                    if (name[0] == '_')
+                        continue; // _ prefix = intentionally unused
+                    if (name == "self")
+                        continue;
+                    diagnostics_.push_back({info.defLine,
+                                            "Variable '" + name + "' is defined but never used",
+                                            "hint"});
+                }
                 scopes_.pop_back();
+            }
         }
 
-        void define(const std::string &name)
+        void define(const std::string &name, int line = 0)
         {
             if (!scopes_.empty())
-                scopes_.back().insert(name);
+                scopes_.back()[name] = VarInfo{line, false};
+        }
+
+        // Mark a variable as read (walk scopes from innermost to outermost)
+        void markRead(const std::string &name)
+        {
+            for (int i = (int)scopes_.size() - 1; i >= 0; i--)
+            {
+                auto it = scopes_[i].find(name);
+                if (it != scopes_[i].end())
+                {
+                    it->second.wasRead = true;
+                    return;
+                }
+            }
         }
 
         // Register a function's arity for argument count validation
@@ -279,7 +319,7 @@ namespace xell
         {
             if (!fn || fn->name.empty())
                 return;
-            define(fn->name);
+            define(fn->name, fn->line);
             FnArity arity;
             arity.maxParams = (int)fn->params.size();
             arity.isVariadic = fn->isVariadic;
@@ -426,12 +466,12 @@ namespace xell
             if (auto *assign = dynamic_cast<const Assignment *>(stmt))
             {
                 checkExpr(assign->value.get());
-                define(assign->name);
+                define(assign->name, assign->line);
             }
             else if (auto *imm = dynamic_cast<const ImmutableBinding *>(stmt))
             {
                 checkExpr(imm->value.get());
-                define(imm->name);
+                define(imm->name, imm->line);
             }
             else if (auto *exprStmt = dynamic_cast<const ExprStmt *>(stmt))
             {
@@ -468,6 +508,11 @@ namespace xell
             else if (auto *loopStmt = dynamic_cast<const LoopStmt *>(stmt))
             {
                 checkBlock(loopStmt->body);
+            }
+            else if (auto *doWhileStmt = dynamic_cast<const DoWhileStmt *>(stmt))
+            {
+                checkBlock(doWhileStmt->body);
+                checkExpr(doWhileStmt->condition.get());
             }
             else if (auto *fn = dynamic_cast<const FnDef *>(stmt))
             {
@@ -580,12 +625,12 @@ namespace xell
             else if (auto *tryStmt = dynamic_cast<const TryCatchStmt *>(stmt))
             {
                 checkBlock(tryStmt->tryBody);
-                if (!tryStmt->catchBody.empty())
+                for (const auto &clause : tryStmt->catchClauses)
                 {
                     pushScope();
-                    if (!tryStmt->catchVarName.empty())
-                        define(tryStmt->catchVarName);
-                    checkBlockContents(tryStmt->catchBody);
+                    if (!clause.varName.empty())
+                        define(clause.varName);
+                    checkBlockContents(clause.body);
                     popScope();
                 }
                 checkBlock(tryStmt->finallyBody);
@@ -602,6 +647,8 @@ namespace xell
                 {
                     for (auto &v : c.values)
                         checkExpr(v.get());
+                    if (c.guard)
+                        checkExpr(c.guard.get());
                     checkBlock(c.body);
                 }
                 checkBlock(incase->elseBody);
@@ -776,6 +823,7 @@ namespace xell
             if (auto *ident = dynamic_cast<const Identifier *>(expr))
             {
                 const std::string &name = ident->name;
+                markRead(name); // Track that this variable was used
                 if (!isDefined(name) && !hasWildcardBring_)
                 {
                     auto it = typoMap_.find(name);
@@ -990,7 +1038,10 @@ namespace xell
             else if (auto *map = dynamic_cast<const MapLiteral *>(expr))
             {
                 for (auto &entry : map->entries)
+                {
+                    checkExpr(entry.first.get());
                     checkExpr(entry.second.get());
+                }
             }
             else if (auto *postfix = dynamic_cast<const PostfixExpr *>(expr))
             {
@@ -1011,6 +1062,20 @@ namespace xell
                     if (branch.value)
                         checkExpr(branch.value.get());
                 }
+            }
+            else if (auto *incaseExpr = dynamic_cast<const InCaseExpr *>(expr))
+            {
+                checkExpr(incaseExpr->subject.get());
+                for (auto &clause : incaseExpr->clauses)
+                {
+                    for (auto &v : clause.values)
+                        checkExpr(v.get());
+                    if (clause.guard)
+                        checkExpr(clause.guard.get());
+                    checkExpr(clause.result.get());
+                }
+                if (incaseExpr->elseValue)
+                    checkExpr(incaseExpr->elseValue.get());
             }
             else if (auto *lambda = dynamic_cast<const LambdaExpr *>(expr))
             {
@@ -1049,7 +1114,7 @@ namespace xell
 
             for (int i = (int)scopes_.size() - 1; i >= 0; i--)
             {
-                for (auto &def : scopes_[i])
+                for (auto &[def, info] : scopes_[i])
                 {
                     int d = editDistance(name, def);
                     if (d < bestDist)

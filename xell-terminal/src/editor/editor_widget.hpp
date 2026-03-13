@@ -513,6 +513,18 @@ namespace xterm
                 info.cursorRow = activeView()->cursor().row + 1;
                 info.cursorCol = activeView()->cursor().col + 1;
                 info.totalLines = tab.buffer->lineCount();
+                // Language label based on extension
+                {
+                    std::string ext = std::filesystem::path(tab.filePath).extension().string();
+                    if (ext == ".nxel")
+                        info.language = "Xell Notebook";
+                    else if (ext == ".xell_meta")
+                        info.language = "Xell Meta";
+                    else if (ext == ".xesy")
+                        info.language = "Xell Dialect";
+                    else
+                        info.language = "Xell";
+                }
             }
             info.message = statusMessage_;
             return info;

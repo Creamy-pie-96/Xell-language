@@ -177,6 +177,9 @@
       "include": "#arithmetic-operators"
     },
     {
+      "include": "#shell-command"
+    },
+    {
       "include": "#numbers"
     },
     {
@@ -443,11 +446,11 @@
       ]
     },
     "control-flow-keywords": {
-      "comment": "Control flow: break, continue",
+      "comment": "Control flow: break, continue, do",
       "patterns": [
         {
           "name": "keyword.control.flow.xell",
-          "match": "\\b(continue|break)\\b"
+          "match": "\\b(continue|break|do)\\b"
         }
       ]
     },
@@ -551,11 +554,11 @@
       ]
     },
     "special-keywords": {
-      "comment": "Special: of",
+      "comment": "Special: belong, bind, of",
       "patterns": [
         {
           "name": "keyword.other.special.xell",
-          "match": "\\b(of)\\b"
+          "match": "\\b(belong|bind|of)\\b"
         }
       ]
     },
@@ -688,11 +691,11 @@
       ]
     },
     "math-builtins": {
-      "comment": "MATH builtins: abs, acos, acosh, acot, acoth, acsc, acsch, asec, asech, asin, asinh, atan, atan2, atanh, bin, ceil, clamp, cos, cosh, cot, coth, csc, csch, floor, hex, is_inf, is_nan, log, log10, mod, pow, random, random_choice, random_int, round, sec, sech, sin, sinh, sqrt, tan, tanh, to_float, to_int",
+      "comment": "MATH builtins: abs, acos, acosh, acot, acoth, acsc, acsch, asec, asech, asin, asinh, atan, atan2, atanh, bin, ceil, clamp, cos, cosh, cot, coth, csc, csch, factorial, floor, gcd, hex, is_inf, is_nan, lcm, log, log10, log2, mod, pow, random, random_choice, random_int, round, sec, sech, sin, sinh, sqrt, tan, tanh, to_float, to_int",
       "patterns": [
         {
           "name": "support.function.math.xell",
-          "match": "\\b(abs|acos|acosh|acot|acoth|acsc|acsch|asec|asech|asin|asinh|atan|atan2|atanh|bin|ceil|clamp|cos|cosh|cot|coth|csc|csch|floor|hex|is_inf|is_nan|log|log10|mod|pow|random|random_choice|random_int|round|sec|sech|sin|sinh|sqrt|tan|tanh|to_float|to_int)\\b(?=\\s*\\()"
+          "match": "\\b(abs|acos|acosh|acot|acoth|acsc|acsch|asec|asech|asin|asinh|atan|atan2|atanh|bin|ceil|clamp|cos|cosh|cot|coth|csc|csch|factorial|floor|gcd|hex|is_inf|is_nan|lcm|log|log10|log2|mod|pow|random|random_choice|random_int|round|sec|sech|sin|sinh|sqrt|tan|tanh|to_float|to_int)\\b(?=\\s*\\()"
         }
       ]
     },
@@ -742,11 +745,11 @@
       ]
     },
     "string-builtins": {
-      "comment": "STRING builtins: char_at, count, ends_with, index_of, is_alpha, is_empty, is_numeric, join, lines, lower, pad_end, pad_start, repeat, replace, replace_first, reverse, split, starts_with, substr, to_chars, trim, trim_end, trim_start, upper",
+      "comment": "STRING builtins: center, char_at, count, ends_with, index_of, is_alpha, is_empty, is_numeric, join, lines, ljust, lower, pad_end, pad_start, repeat, replace, replace_first, reverse, rjust, split, starts_with, substr, to_chars, trim, trim_end, trim_start, upper, zfill",
       "patterns": [
         {
           "name": "support.function.string.xell",
-          "match": "\\b(char_at|count|ends_with|index_of|is_alpha|is_empty|is_numeric|join|lines|lower|pad_end|pad_start|repeat|replace|replace_first|reverse|split|starts_with|substr|to_chars|trim|trim_end|trim_start|upper)\\b(?=\\s*\\()"
+          "match": "\\b(center|char_at|count|ends_with|index_of|is_alpha|is_empty|is_numeric|join|lines|ljust|lower|pad_end|pad_start|repeat|replace|replace_first|reverse|rjust|split|starts_with|substr|to_chars|trim|trim_end|trim_start|upper|zfill)\\b(?=\\s*\\()"
         }
       ]
     },
@@ -824,6 +827,15 @@
         {
           "name": "keyword.operator.arithmetic.xell",
           "match": "\\+|-|\\*|/|%"
+        }
+      ]
+    },
+    "shell-command": {
+      "comment": "Shell command line prefixed with '$'",
+      "patterns": [
+        {
+          "name": "keyword.operator.shell.xell",
+          "match": "(?m)^\\s*\\$.*$"
         }
       ]
     },
