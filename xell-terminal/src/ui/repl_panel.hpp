@@ -750,10 +750,45 @@ namespace xterm
         void setActiveTab(BottomTab tab) { activeTab_ = tab; }
         void setHoverCol(int col) { hoverCol_ = col; }
         void setHoverRow(int row) { hoverRow_ = row; }
+        void handleTabBarClick(int localCol)
+        {
+            std::vector<std::pair<std::string, BottomTab>> tabs = {
+                {"TERMINAL", BottomTab::TERMINAL},
+                {"OUTPUT", BottomTab::OUTPUT},
+                {"DIAGNOSTICS", BottomTab::DIAGNOSTICS},
+                {"VARIABLES", BottomTab::VARIABLES},
+                {"OBJECTS", BottomTab::OBJECTS},
+                {"LIFECYCLE", BottomTab::LIFECYCLE},
+                {"TIMELINE", BottomTab::TIMELINE},
+                {"CALLSTACK", BottomTab::CALLSTACK},
+                {"HELP", BottomTab::HELP},
+            };
+
+            int virtualCol = std::max(0, tabBarScrollOffset_) + std::max(0, localCol);
+            int col = 0;
+            for (auto &[label, tab] : tabs)
+            {
+                std::string text = " " + label + " ";
+                int textLen = utf8Len(text);
+                int tabEnd = col + textLen;
+                if (virtualCol >= col && virtualCol < tabEnd)
+                {
+                    activeTab_ = tab;
+                    return;
+                }
+                col = tabEnd + 1; // +1 for separator
+            }
+        }
+
+        void scrollTabBar(int delta)
+        {
+            int maxScroll = std::max(0, tabBarTotalWidth() - rect_.w);
+            tabBarScrollOffset_ = std::clamp(tabBarScrollOffset_ + delta, 0, maxScroll);
+        }
         void cycleTab()
         {
             int t = static_cast<int>(activeTab_);
-            t = (t + 1) % 7;
+            t = (t + 1) % 9;
             activeTab_ = static_cast<BottomTab>(t);
         }
 
@@ -2142,6 +2177,7 @@ namespace xterm
         mutable std::unique_ptr<EmbeddedTerminal> embeddedTerm_;
         mutable int hoverCol_ = -1;
         mutable int hoverRow_ = -1; // hover row relative to panel (0=tab bar, 1=header, 2+=content)
+        mutable int tabBarScrollOffset_ = 0;
 
         void ensureTerminalStarted() const
         {
@@ -2231,6 +2267,17 @@ namespace xterm
         Color varLinesColor_ = {128, 128, 128}; // dim gray
         Color dimColor_ = {100, 100, 100};      // dim for expand arrows
         Color borderColor_ = {51, 51, 51};
+
+        int tabBarTotalWidth() const
+        {
+            const std::vector<std::string> labels = {
+                " TERMINAL ", " OUTPUT ", " DIAGNOSTICS ", " VARIABLES ", " OBJECTS ",
+                " LIFECYCLE ", " TIMELINE ", " CALLSTACK ", " HELP "};
+            int total = 0;
+            for (auto &t : labels)
+                total += utf8Len(t) + 1; // text + separator
+            return std::max(0, total);
+        }
 
         // Color by type — returns a specific color for each inferred type
         Color colorForType(const std::string &type) const
@@ -2371,7 +2418,11 @@ namespace xterm
                 {"HELP", BottomTab::HELP},
             };
 
-            int col = 0;
+            int totalW = tabBarTotalWidth();
+            int maxScroll = std::max(0, totalW - w);
+            int scroll = std::clamp(tabBarScrollOffset_, 0, maxScroll);
+
+            int col = 0; // virtual col
             for (auto &[label, tab] : tabs)
             {
                 bool active = (tab == activeTab_);
@@ -2380,22 +2431,58 @@ namespace xterm
 
                 std::string text = " " + label + " ";
                 int textLen = utf8Len(text);
+                int tabScreenStart = col - scroll;
 
                 // Hover effect: highlight tab background if mouse is over it
-                if (!active && hoverCol_ >= col && hoverCol_ < col + textLen)
+                int hoverVirtualCol = hoverCol_ + scroll;
+                if (!active && hoverRow_ == 0 && hoverVirtualCol >= col && hoverVirtualCol < col + textLen)
                     bg = {40, 40, 40}; // hover bg
 
-                // UTF-8 aware writing (labels are ASCII but future-proof)
-                col = utf8Write(row, col, text, fg, bg, active);
-
-                if (col < w)
+                // UTF-8 aware writing with clipping
+                size_t si = 0;
+                int vi = 0;
+                while (si < text.size())
                 {
-                    row[col].ch = U'│';
-                    row[col].fg = borderColor_;
-                    row[col].bg = tabBarBg_;
-                    row[col].dirty = true;
-                    col++;
+                    char32_t cp = utf8Decode(text, si);
+                    int sc = tabScreenStart + vi;
+                    if (sc >= 0 && sc < w)
+                    {
+                        row[sc].ch = cp;
+                        row[sc].fg = fg;
+                        row[sc].bg = bg;
+                        row[sc].bold = active;
+                        row[sc].dirty = true;
+                    }
+                    vi++;
                 }
+
+                col += textLen;
+
+                int sepScreenCol = col - scroll;
+                if (sepScreenCol >= 0 && sepScreenCol < w)
+                {
+                    row[sepScreenCol].ch = U'│';
+                    row[sepScreenCol].fg = borderColor_;
+                    row[sepScreenCol].bg = tabBarBg_;
+                    row[sepScreenCol].dirty = true;
+                }
+                col += 1; // separator
+            }
+
+            // Overflow hints
+            if (scroll > 0 && w > 0)
+            {
+                row[0].ch = U'◀';
+                row[0].fg = tabInactiveFg_;
+                row[0].bg = tabBarBg_;
+                row[0].dirty = true;
+            }
+            if (scroll < maxScroll && w > 0)
+            {
+                row[w - 1].ch = U'▶';
+                row[w - 1].fg = tabInactiveFg_;
+                row[w - 1].bg = tabBarBg_;
+                row[w - 1].dirty = true;
             }
         }
 

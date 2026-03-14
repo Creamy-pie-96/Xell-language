@@ -81,7 +81,7 @@ namespace xterm
         for (auto &c : lower)
             c = (char)std::tolower((unsigned char)c);
 
-        if (lower == "makefile" || lower == "cmakeLists.txt")
+        if (lower == "makefile" || lower == "cmakelists.txt")
             return nfIcon(0xe779); //
         if (lower == "dockerfile")
             return nfIcon(0xf308); //
@@ -103,11 +103,15 @@ namespace xterm
 
         // Programming languages
         if (ext == ".xel" || ext == ".xell")
-            return nfIcon(0xf40d); // 󴀍 main Xell source (.xel)
+            return nfIcon(0xf0b1f); // 󴀍 main Xell source (.xel)
         if (ext == ".nxel")
             return nfIcon(0xf1614); // 󱘔 Xell notebook (.nxel)
         if (ext == ".xell_meta")
-            return nfIcon(0xf1540); // 󵅀 Xell metadata (.xell_meta)
+            return nfIcon(0xf15c); // stable metadata/document icon (.xell_meta)
+        if (ext == ".hash")
+            return nfIcon(0xf292); // requested hash file icon (.hash)
+        if (ext == ".xelc")
+            return nfIcon(0xf00e8); // requested compiled xell icon (.xelc)
         if (ext == ".xesy")
             return nfIcon(0xe615); //  Xell dialect/extension script (.xesy)
         if (ext == ".cpp" || ext == ".cc" || ext == ".cxx")
@@ -469,14 +473,14 @@ namespace xterm
                         std::string folderIcon = fileIconForName(node.name, true);
                         Color iconColor = fileIconColor(node.name, true);
                         int pos = writeString(grid[visibleRow], indent, arrow, fg, bg, false);
-                        pos = writeString(grid[visibleRow], pos, folderIcon + " ", iconColor, bg, false);
+                        pos = writeString(grid[visibleRow], pos, folderIcon + "  ", iconColor, bg, false);
                         writeString(grid[visibleRow], pos, node.name, fg, bg, isSelected);
                     }
                     else
                     {
                         std::string fileIcon = fileIconForName(node.name, false);
                         Color iconColor = fileIconColor(node.name, false);
-                        int pos = writeString(grid[visibleRow], indent, fileIcon + " ", iconColor, bg, false);
+                        int pos = writeString(grid[visibleRow], indent, fileIcon + "  ", iconColor, bg, false);
                         writeString(grid[visibleRow], pos, node.name, fg, bg, isSelected);
                     }
                 }
@@ -579,6 +583,19 @@ namespace xterm
 
         const std::string &rootPath() const { return rootPath_; }
         void setOnOpenFile(OpenFileCallback cb) { onOpenFile_ = cb; }
+        bool showHiddenFiles() const { return showHiddenFiles_; }
+        void setShowHiddenFiles(bool show)
+        {
+            if (showHiddenFiles_ == show)
+                return;
+            showHiddenFiles_ = show;
+            refresh();
+        }
+        void toggleShowHiddenFiles()
+        {
+            showHiddenFiles_ = !showHiddenFiles_;
+            refresh();
+        }
 
         // Selected file/folder path for context menu actions
         std::string selectedFilePath() const
@@ -809,6 +826,7 @@ namespace xterm
         int selectedIdx_ = 0;
         int scrollTop_ = 0;
         int hoverIdx_ = -1;
+        bool showHiddenFiles_ = false;
 
         // Inline editing state
         EditMode editMode_ = EditMode::NONE;
@@ -851,12 +869,15 @@ namespace xterm
                     {
                         std::string name = entry.path().filename().string();
 
-                        // Skip hidden files, build dirs, caches
-                        if (name.empty() || name[0] == '.')
+                        // Skip hidden files (unless toggled on)
+                        if (name.empty())
                             continue;
+                        if (!showHiddenFiles_ && isHiddenEntryName(name))
+                            continue;
+
+                        // Skip heavyweight build/dependency dirs
                         if (name == "build" || name == "build_release" ||
-                            name == "__pycache__" || name == "node_modules" ||
-                            name == "__xelcache__")
+                            name == "__pycache__" || name == "node_modules")
                             continue;
 
                         auto child = scanDirectory(entry.path().string(), depth + 1);
@@ -1026,6 +1047,18 @@ namespace xterm
             }
             for (auto &child : node.children)
                 restoreExpanded(child, paths);
+        }
+
+        static bool isHiddenEntryName(const std::string &name)
+        {
+            if (name.empty())
+                return true;
+            if (name[0] == '.')
+                return true;
+            // Keep xell cache folders hidden by default, exposed via toggle.
+            if (name == "__xellcache__" || name == "__xelcache__")
+                return true;
+            return false;
         }
 
         static constexpr int maxDepth_ = 8;

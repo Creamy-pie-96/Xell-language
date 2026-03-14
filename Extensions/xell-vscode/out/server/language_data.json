@@ -55,6 +55,16 @@
             }
         },
         {
+            "name": "belong",
+            "kind": "Keyword",
+            "detail": "belong keyword"
+        },
+        {
+            "name": "bind",
+            "kind": "Keyword",
+            "detail": "bind keyword"
+        },
+        {
             "name": "break",
             "kind": "Keyword",
             "detail": "Break out of loop",
@@ -98,6 +108,11 @@
                 "sig": "continue",
                 "detail": "Skip to the next iteration of the loop."
             }
+        },
+        {
+            "name": "do",
+            "kind": "Keyword",
+            "detail": "do keyword"
         },
         {
             "name": "elif",
@@ -440,6 +455,11 @@
                 "sig": "struct Name:",
                 "detail": "Define a struct (value type with fields)."
             }
+        },
+        {
+            "name": "throw",
+            "kind": "Keyword",
+            "detail": "throw keyword"
         },
         {
             "name": "true",
@@ -1429,6 +1449,11 @@
             "kind": "Function"
         },
         {
+            "name": "factorial",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
             "name": "floor",
             "category": "math",
             "kind": "Function",
@@ -1439,6 +1464,11 @@
                     "x \u2014 any number"
                 ]
             }
+        },
+        {
+            "name": "gcd",
+            "category": "math",
+            "kind": "Function"
         },
         {
             "name": "hex",
@@ -1452,6 +1482,11 @@
         },
         {
             "name": "is_nan",
+            "category": "math",
+            "kind": "Function"
+        },
+        {
+            "name": "lcm",
             "category": "math",
             "kind": "Function"
         },
@@ -1478,6 +1513,11 @@
                     "x \u2014 positive number"
                 ]
             }
+        },
+        {
+            "name": "log2",
+            "category": "math",
+            "kind": "Function"
         },
         {
             "name": "mod",
@@ -2355,6 +2395,11 @@
             "kind": "Function"
         },
         {
+            "name": "center",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
             "name": "char_at",
             "category": "string",
             "kind": "Function",
@@ -2432,6 +2477,11 @@
             "kind": "Function"
         },
         {
+            "name": "ljust",
+            "category": "string",
+            "kind": "Function"
+        },
+        {
             "name": "lower",
             "category": "string",
             "kind": "Function",
@@ -2488,6 +2538,11 @@
                     "list \u2014 the list"
                 ]
             }
+        },
+        {
+            "name": "rjust",
+            "category": "string",
+            "kind": "Function"
         },
         {
             "name": "split",
@@ -2567,6 +2622,11 @@
                     "text \u2014 a string"
                 ]
             }
+        },
+        {
+            "name": "zfill",
+            "category": "string",
+            "kind": "Function"
         },
         {
             "name": "cal",
@@ -2897,6 +2957,266 @@
             "kind": "Function"
         }
     ],
+    "operators": [
+        {
+            "symbol": "**=",
+            "kind": "Operator",
+            "token": "STAR_STAR_EQUAL",
+            "detail": "star star equal operator"
+        },
+        {
+            "symbol": "...",
+            "kind": "Operator",
+            "token": "ELLIPSIS",
+            "detail": "ellipsis operator"
+        },
+        {
+            "symbol": "<<=",
+            "kind": "Operator",
+            "token": "LSHIFT_EQUAL",
+            "detail": "lshift equal operator"
+        },
+        {
+            "symbol": ">>=",
+            "kind": "Operator",
+            "token": "RSHIFT_EQUAL",
+            "detail": "rshift equal operator"
+        },
+        {
+            "symbol": "!=",
+            "kind": "Operator",
+            "token": "BANG_EQUAL",
+            "detail": "bang equal operator"
+        },
+        {
+            "symbol": "%=",
+            "kind": "Operator",
+            "token": "PERCENT_EQUAL",
+            "detail": "percent equal operator"
+        },
+        {
+            "symbol": "&&",
+            "kind": "Operator",
+            "token": "AMP_AMP",
+            "detail": "amp amp operator"
+        },
+        {
+            "symbol": "&=",
+            "kind": "Operator",
+            "token": "AMP_EQUAL",
+            "detail": "amp equal operator"
+        },
+        {
+            "symbol": "**",
+            "kind": "Operator",
+            "token": "STAR_STAR",
+            "detail": "star star operator"
+        },
+        {
+            "symbol": "*=",
+            "kind": "Operator",
+            "token": "STAR_EQUAL",
+            "detail": "star equal operator"
+        },
+        {
+            "symbol": "++",
+            "kind": "Operator",
+            "token": "PLUS_PLUS",
+            "detail": "plus plus operator"
+        },
+        {
+            "symbol": "+=",
+            "kind": "Operator",
+            "token": "PLUS_EQUAL",
+            "detail": "plus equal operator"
+        },
+        {
+            "symbol": "--",
+            "kind": "Operator",
+            "token": "MINUS_MINUS",
+            "detail": "minus minus operator"
+        },
+        {
+            "symbol": "-=",
+            "kind": "Operator",
+            "token": "MINUS_EQUAL",
+            "detail": "minus equal operator"
+        },
+        {
+            "symbol": "->",
+            "kind": "Operator",
+            "token": "ARROW",
+            "detail": "arrow operator"
+        },
+        {
+            "symbol": "/=",
+            "kind": "Operator",
+            "token": "SLASH_EQUAL",
+            "detail": "slash equal operator"
+        },
+        {
+            "symbol": "<<",
+            "kind": "Operator",
+            "token": "LSHIFT",
+            "detail": "lshift operator"
+        },
+        {
+            "symbol": "<=",
+            "kind": "Operator",
+            "token": "LESS_EQUAL",
+            "detail": "less equal operator"
+        },
+        {
+            "symbol": "==",
+            "kind": "Operator",
+            "token": "EQUAL_EQUAL",
+            "detail": "equal equal operator"
+        },
+        {
+            "symbol": "=>",
+            "kind": "Operator",
+            "token": "FAT_ARROW",
+            "detail": "fat arrow operator"
+        },
+        {
+            "symbol": ">=",
+            "kind": "Operator",
+            "token": "GREATER_EQUAL",
+            "detail": "greater equal operator"
+        },
+        {
+            "symbol": ">>",
+            "kind": "Operator",
+            "token": "RSHIFT",
+            "detail": "rshift operator"
+        },
+        {
+            "symbol": "\\n",
+            "kind": "Operator",
+            "token": "NEWLINE",
+            "detail": "newline operator"
+        },
+        {
+            "symbol": "^=",
+            "kind": "Operator",
+            "token": "CARET_EQUAL",
+            "detail": "caret equal operator"
+        },
+        {
+            "symbol": "|=",
+            "kind": "Operator",
+            "token": "PIPE_EQUAL",
+            "detail": "pipe equal operator"
+        },
+        {
+            "symbol": "|>",
+            "kind": "Operator",
+            "token": "PIPE",
+            "detail": "pipe operator"
+        },
+        {
+            "symbol": "||",
+            "kind": "Operator",
+            "token": "PIPE_PIPE",
+            "detail": "pipe pipe operator"
+        },
+        {
+            "symbol": "!",
+            "kind": "Operator",
+            "token": "BANG",
+            "detail": "bang operator"
+        },
+        {
+            "symbol": "$",
+            "kind": "Operator",
+            "token": "SHELL_CMD",
+            "detail": "shell cmd operator"
+        },
+        {
+            "symbol": "%",
+            "kind": "Operator",
+            "token": "PERCENT",
+            "detail": "percent operator"
+        },
+        {
+            "symbol": "&",
+            "kind": "Operator",
+            "token": "AMP",
+            "detail": "amp operator"
+        },
+        {
+            "symbol": "*",
+            "kind": "Operator",
+            "token": "STAR",
+            "detail": "star operator"
+        },
+        {
+            "symbol": "+",
+            "kind": "Operator",
+            "token": "PLUS",
+            "detail": "plus operator"
+        },
+        {
+            "symbol": "-",
+            "kind": "Operator",
+            "token": "MINUS",
+            "detail": "minus operator"
+        },
+        {
+            "symbol": ".",
+            "kind": "Operator",
+            "token": "DOT",
+            "detail": "dot operator"
+        },
+        {
+            "symbol": "/",
+            "kind": "Operator",
+            "token": "SLASH",
+            "detail": "slash operator"
+        },
+        {
+            "symbol": "<",
+            "kind": "Operator",
+            "token": "LESS",
+            "detail": "less operator"
+        },
+        {
+            "symbol": "=",
+            "kind": "Operator",
+            "token": "EQUAL",
+            "detail": "equal operator"
+        },
+        {
+            "symbol": ">",
+            "kind": "Operator",
+            "token": "GREATER",
+            "detail": "greater operator"
+        },
+        {
+            "symbol": "@",
+            "kind": "Operator",
+            "token": "AT",
+            "detail": "at operator"
+        },
+        {
+            "symbol": "^",
+            "kind": "Operator",
+            "token": "CARET",
+            "detail": "caret operator"
+        },
+        {
+            "symbol": "|",
+            "kind": "Operator",
+            "token": "BAR",
+            "detail": "bar operator"
+        },
+        {
+            "symbol": "~",
+            "kind": "Operator",
+            "token": "TILDE",
+            "detail": "tilde operator"
+        }
+    ],
     "blockKeywords": [
         "abstract",
         "catch",
@@ -2924,11 +3244,14 @@
         "async",
         "await",
         "be",
+        "belong",
+        "bind",
         "break",
         "bring",
         "catch",
         "class",
         "continue",
+        "do",
         "elif",
         "else",
         "enum",
@@ -2967,6 +3290,7 @@
         "requires",
         "static",
         "struct",
+        "throw",
         "true",
         "try",
         "while",
@@ -2983,11 +3307,14 @@
             "async",
             "await",
             "be",
+            "belong",
+            "bind",
             "break",
             "bring",
             "catch",
             "class",
             "continue",
+            "do",
             "elif",
             "else",
             "enum",
@@ -3026,6 +3353,7 @@
             "requires",
             "static",
             "struct",
+            "throw",
             "true",
             "try",
             "while",
@@ -3078,6 +3406,7 @@
             "cat",
             "cd",
             "ceil",
+            "center",
             "char_at",
             "chgrp",
             "chmod",
@@ -3130,6 +3459,7 @@
             "export_env",
             "ext",
             "extension",
+            "factorial",
             "false_val",
             "fdisk",
             "fg",
@@ -3145,6 +3475,7 @@
             "format_date",
             "free",
             "from_entries",
+            "gcd",
             "gen_collect",
             "get",
             "getuid",
@@ -3207,14 +3538,17 @@
             "kill_name",
             "last",
             "last_logins",
+            "lcm",
             "len",
             "less",
             "lines",
+            "ljust",
             "ln",
             "local_ip",
             "locate",
             "log",
             "log10",
+            "log2",
             "logout",
             "lower",
             "ls",
@@ -3295,6 +3629,7 @@
             "replace_first",
             "reset",
             "reverse",
+            "rjust",
             "rm",
             "round",
             "route",
@@ -3398,9 +3733,84 @@
             "xz_decompress",
             "yaml_read",
             "yes_cmd",
+            "zfill",
             "zip",
             "zip_archive",
             "zip_longest"
         ]
-    }
+    },
+    "debugDecorators": [
+        {
+            "name": "@debug on",
+            "kind": "Keyword",
+            "detail": "Enable the debug trace system",
+            "insertText": "@debug on"
+        },
+        {
+            "name": "@debug off",
+            "kind": "Keyword",
+            "detail": "Disable the debug trace system",
+            "insertText": "@debug off"
+        },
+        {
+            "name": "@debug sample",
+            "kind": "Keyword",
+            "detail": "Only trace every Nth event (sampling mode)",
+            "insertText": "@debug sample ${1:10}"
+        },
+        {
+            "name": "@breakpoint",
+            "kind": "Keyword",
+            "detail": "Take a variable snapshot (non-blocking)",
+            "insertText": "@breakpoint(\"${1:name}\")"
+        },
+        {
+            "name": "@breakpoint pause",
+            "kind": "Keyword",
+            "detail": "Pause execution until Enter is pressed",
+            "insertText": "@breakpoint pause"
+        },
+        {
+            "name": "@watch",
+            "kind": "Keyword",
+            "detail": "Alert when an expression becomes true",
+            "insertText": "@watch(\"${1:expression}\")"
+        },
+        {
+            "name": "@checkpoint",
+            "kind": "Keyword",
+            "detail": "Save full state for time-travel debugging",
+            "insertText": "@checkpoint(\"${1:name}\")"
+        },
+        {
+            "name": "@track",
+            "kind": "Keyword",
+            "detail": "Selectively track variables, functions, or categories",
+            "insertText": "@track ${1:var(x) fn(y) loop}"
+        },
+        {
+            "name": "@notrack",
+            "kind": "Keyword",
+            "detail": "Exclude items from tracking",
+            "insertText": "@notrack ${1:var(x)}"
+        },
+        {
+            "name": "@profile",
+            "kind": "Keyword",
+            "detail": "Measure function execution time",
+            "insertText": "@profile fn ${1:functionName}"
+        },
+        {
+            "name": "@log",
+            "kind": "Keyword",
+            "detail": "Print a log message with {var} interpolation",
+            "insertText": "@log \"${1:message {var}}\""
+        },
+        {
+            "name": "@log when",
+            "kind": "Keyword",
+            "detail": "Conditional log: only print when expression is true",
+            "insertText": "@log when ${1:condition} \"${2:message}\""
+        }
+    ]
 }

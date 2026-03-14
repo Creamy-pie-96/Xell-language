@@ -1,8 +1,8 @@
 # Variables and Types
 
-This section explains how to create values, store them, and convert between types in Xell.
+Xell supports dynamic values with rich literal syntax and strong built-in type helpers.
 
-## Basic assignment
+## Basic binding
 
 ```xell
 name = "Ari"
@@ -12,33 +12,22 @@ active = true
 
 ## Immutable binding
 
-Use `immutable` when a name must not be rebound.
+Use `immutable` when rebinding is not allowed.
 
 ```xell
 immutable pi_label = "PI"
-# pi_label = "new"   # error: immutable binding
+# pi_label = "new"   # error
 ```
 
-## Core value types
+## Primitive values
 
 ```xell
 i = 42
 f = 3.14
-c = 2 + 3i
+z = 2 + 3i      # complex-style value
 s = "hello"
 b = false
 n = none
-```
-
-## Collections
-
-```xell
-items = [1, 2, 3]           # list
-point = (10, 20)            # tuple
-tags = {"a", "b"}          # set
-frozen = ~{1, 2, 3}          # frozen_set
-user = {name: "Ari", id: 1} # map
-raw = b"abc"                # bytes
 ```
 
 ## Numeric literals
@@ -52,54 +41,84 @@ sci = 1.25e3
 imag = 7i
 ```
 
-## Strings and interpolation
+`hexv`, `octv`, and `binv` are all integer values.
+
+## Strings
 
 ```xell
 name = "Ari"
 msg = "Hello, {name}!"
-print(msg)
 ```
 
-## Raw and multiline strings
+### Raw string
 
 ```xell
 path = r"C:\Users\demo"
+```
+
+### Multiline string
+
+```xell
 text = """
 line 1
 line 2
 """
 ```
 
+## Bytes
+
+```xell
+raw = b"abc"
+```
+
+## Collections
+
+```xell
+items = [1, 2, 3]              # list
+point = (10, 20)               # tuple
+tags = {"a", "b"}             # set
+frozen = ~{1, 2, 3}            # frozen_set (immutable set)
+user = {name: "Ari", id: 1}   # map
+```
+
+Note: frozen-set literal syntax is `~{...}`.
+
 ## Destructuring
 
 ```xell
 [a, b, ...rest] = [10, 20, 30, 40]
 {k: id, n: label} = {k: 7, n: "node"}
-print(a, b, rest, id, label)
 ```
 
-## Type conversion
+## Type inspection
+
+```xell
+print(type(items))    # list
+print(type(point))    # tuple
+print(type(tags))     # set
+print(type(frozen))   # frozen_set
+print(type(user))     # map
+print(type(raw))      # bytes
+```
+
+## Conversions and helpers
 
 ```xell
 x = "123"
 xi = int(x)
 xf = float(x)
-xs = string(xi)
-ok = bool(xi)
+xs = str(xi)
+n = num(x)
+
+print(len(items))
+print(typeof(user))
 ```
 
-## Smart cast with `~`
+## Smart-cast prefix `~`
 
 ```xell
 value = "42"
 as_int = ~int(value)
-print(as_int + 1)
 ```
 
-## Useful type helpers
-
-```xell
-v = [1, 2, 3]
-print(type(v))
-print(len(v))
-```
+`~` is also used for frozen-set literals (`~{...}`).

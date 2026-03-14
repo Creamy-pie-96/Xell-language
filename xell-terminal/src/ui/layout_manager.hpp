@@ -918,7 +918,9 @@ namespace xterm
                     }
 
                     // Route to bottom panel
-                    if (showBottomPanel_ && clickRow >= bottomRect_.y)
+                    if (showBottomPanel_ && clickRow >= bottomRect_.y &&
+                        clickRow < bottomRect_.y + bottomRect_.h &&
+                        clickCol >= bottomRect_.x && clickCol < bottomRect_.x + bottomRect_.w)
                     {
                         setFocus(FocusRegion::BottomPanel);
                         int localRow = clickRow - bottomRect_.y;
@@ -1081,7 +1083,8 @@ namespace xterm
                 // Update bottom panel hover (tab bar + content area)
                 if (showBottomPanel_ && motionRow >= bottomRect_.y &&
                     motionRow < bottomRect_.y + bottomRect_.h &&
-                    motionCol >= bottomRect_.x)
+                    motionCol >= bottomRect_.x &&
+                    motionCol < bottomRect_.x + bottomRect_.w)
                 {
                     int localRow = motionRow - bottomRect_.y;
                     int localCol = motionCol - bottomRect_.x;
@@ -1176,12 +1179,32 @@ namespace xterm
                 int mouseRow = my / cellH_;
 
                 // Check which region the mouse is over
-                if (showBottomPanel_ && mouseRow >= bottomRect_.y)
+                if (showBottomPanel_ && mouseRow >= bottomRect_.y &&
+                    mouseRow < bottomRect_.y + bottomRect_.h &&
+                    mouseCol >= bottomRect_.x && mouseCol < bottomRect_.x + bottomRect_.w)
                 {
+                    int localRow = mouseRow - bottomRect_.y;
+
+                    // On the tab title row, wheel scroll moves the tab strip horizontally.
+                    if (localRow == 0)
+                    {
+                        bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
+                        int tabDelta = event.wheel.x;
+                        if (tabDelta == 0 && shiftHeld && event.wheel.y != 0)
+                            tabDelta = event.wheel.y;
+                        if (tabDelta == 0 && event.wheel.y != 0)
+                            tabDelta = -event.wheel.y; // vertical wheel fallback on tab bar
+
+                        if (tabDelta != 0)
+                            replPanel_.scrollTabBar(tabDelta * 3);
+
+                        return LayoutAction::HANDLED;
+                    }
+
+                    // Content body keeps existing vertical/horizontal scroll behavior.
                     if (event.wheel.y != 0)
                         replPanel_.handleMouseWheel(event.wheel.y);
 
-                    // Horizontal scroll: touchpad X-axis swipe or Shift+wheel
                     bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
                     int hDelta = event.wheel.x;
                     if (hDelta == 0 && shiftHeld && event.wheel.y != 0)
@@ -1498,36 +1521,7 @@ namespace xterm
 
         void handleBottomTabClick(int localCol)
         {
-            // Tab labels: " TERMINAL " " OUTPUT " " DIAGNOSTICS " " VARIABLES "
-            // Each separated by │
-            struct TabDef
-            {
-                std::string label;
-                BottomTab tab;
-            };
-            std::vector<TabDef> tabs = {
-                {" TERMINAL ", BottomTab::TERMINAL},
-                {" OUTPUT ", BottomTab::OUTPUT},
-                {" DIAGNOSTICS ", BottomTab::DIAGNOSTICS},
-                {" VARIABLES ", BottomTab::VARIABLES},
-                {" OBJECTS ", BottomTab::OBJECTS},
-                {" LIFECYCLE ", BottomTab::LIFECYCLE},
-                {" TIMELINE ", BottomTab::TIMELINE},
-                {" CALLSTACK ", BottomTab::CALLSTACK},
-                {" HELP ", BottomTab::HELP},
-            };
-
-            int col = 0;
-            for (auto &td : tabs)
-            {
-                int tabEnd = col + (int)td.label.size();
-                if (localCol >= col && localCol < tabEnd)
-                {
-                    replPanel_.setActiveTab(td.tab);
-                    return;
-                }
-                col = tabEnd + 1; // +1 for │ separator
-            }
+            replPanel_.handleTabBarClick(localCol);
         }
 
         // ── Live linting (on buffer content via stdin) ──────────────
@@ -2010,7 +2004,9 @@ namespace xterm
                         "  Delete",
                         "  ─────────────────",
                         "  Copy Path",
-                        "  Copy Relative Path"};
+                        "  Copy Relative Path",
+                        "  ─────────────────",
+                        fileTree_.showHiddenFiles() ? "  Hide Hidden Files" : "  Show Hidden Files"};
             case ContextTarget::FOLDER:
                 return {"  New File",
                         "  New Folder",
@@ -2019,11 +2015,15 @@ namespace xterm
                         "  Delete",
                         "  ─────────────────",
                         "  Copy Path",
-                        "  Copy Relative Path"};
+                        "  Copy Relative Path",
+                        "  ─────────────────",
+                        fileTree_.showHiddenFiles() ? "  Hide Hidden Files" : "  Show Hidden Files"};
             case ContextTarget::EMPTY:
             default:
                 return {"  New File",
-                        "  New Folder"};
+                        "  New Folder",
+                        "  ─────────────────",
+                        fileTree_.showHiddenFiles() ? "  Hide Hidden Files" : "  Show Hidden Files"};
             }
         }
 
@@ -2176,6 +2176,16 @@ namespace xterm
                     rel = path.substr(root.size() + 1);
                 SDL_SetClipboardText(rel.c_str());
                 editor_.setStatusMessage("Copied: " + rel);
+            }
+            else if (action == "Show Hidden Files")
+            {
+                fileTree_.setShowHiddenFiles(true);
+                editor_.setStatusMessage("Explorer: showing hidden files");
+            }
+            else if (action == "Hide Hidden Files")
+            {
+                fileTree_.setShowHiddenFiles(false);
+                editor_.setStatusMessage("Explorer: hiding hidden files");
             }
         }
 

@@ -29,6 +29,21 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
+
+TERMINAL_THEME_LOCAL = os.path.join(os.path.expanduser("~"), ".config", "xell", "terminal_colors.json")
+TERMINAL_THEME_CANDIDATES = [
+    os.path.join(SCRIPT_DIR, "terminal_colors.json"),
+    TERMINAL_THEME_LOCAL,
+    os.path.join(REPO_ROOT, "xell-terminal", "build", "assets", "terminal_colors.json"),
+    os.path.join(REPO_ROOT, "xell-terminal", "build_release", "assets", "terminal_colors.json"),
+    os.path.join(REPO_ROOT, "xell-terminal", "assets", "terminal_colors.json"),
+    os.path.join(os.path.expanduser("~"), ".local", "share", "xell", "terminal_colors.json"),
+    os.path.join(os.path.expanduser("~"), ".local", "share", "xell-terminal", "terminal_colors.json"),
+    "/usr/local/share/xell/terminal_colors.json",
+    "/usr/local/share/xell-terminal/terminal_colors.json",
+    "/usr/share/xell-terminal/terminal_colors.json",
+]
 
 # ── Find extension.ts (dev tree) ──
 def _find_extension_ts():
@@ -236,6 +251,11 @@ class CustomizerHandler(SimpleHTTPRequestHandler):
                 result = self._save_to_extension_ts(flat_rules, install)
             else:
                 result = self._save_to_vscode_settings(flat_rules)
+
+            term_msg = self._sync_terminal_theme(flat_rules)
+            if term_msg:
+                result["message"] = result.get("message", "") + "\n" + term_msg
+
             self._send_json(result)
         except Exception as e:
             self._send_json({"status": "error", "message": str(e)})
@@ -274,6 +294,10 @@ class CustomizerHandler(SimpleHTTPRequestHandler):
 
             if not DEV_MODE:
                 result = self._save_to_vscode_settings(flat_rules)
+                term_msg = self._sync_terminal_theme(flat_rules)
+                if term_msg:
+                    send_event("log", term_msg)
+                    result["message"] = result.get("message", "") + "\n" + term_msg
                 send_event("log", result.get("message", "Done"))
                 send_event("done", json.dumps(result))
                 return
@@ -295,6 +319,11 @@ class CustomizerHandler(SimpleHTTPRequestHandler):
             with open(EXTENSION_TS, "w") as f:
                 f.write(new_content)
             send_event("log", "✅ Colors saved to extension.ts")
+
+            term_msg = self._sync_terminal_theme(flat_rules)
+            if term_msg:
+                send_event("log", term_msg)
+
             send_event("log", "🔄 Rebuild the extension to see changes")
             send_event("done", json.dumps({"status": "ok", "message": "Colors saved to extension.ts! Rebuild to apply."}))
         except Exception as e:
@@ -394,6 +423,99 @@ class CustomizerHandler(SimpleHTTPRequestHandler):
             lines.append(f"    {{ scope: '{r['scope']}', settings: {{ {', '.join(parts)} }} }},")
         lines.append("];")
         return "\n".join(lines)
+
+    def _sync_terminal_theme(self, rules):
+        """
+        Keep xell-terminal theme in sync with customizer rules.
+        Always writes a user override at ~/.config/xell/terminal_colors.json,
+        and mirrors to any writable installed theme file it can find.
+        """
+        scope_map = {}
+        for r in rules:
+            scope = r.get("scope", "")
+            if not scope:
+                continue
+            scope_map[scope] = {
+                "fg": r.get("foreground", "#ffffff"),
+                "bold": "bold" in (r.get("fontStyle", "") or ""),
+                "italic": "italic" in (r.get("fontStyle", "") or ""),
+            }
+
+        if not scope_map:
+            return ""
+
+        # Choose base theme JSON from first existing candidate.
+        base_path = None
+        for p in TERMINAL_THEME_CANDIDATES:
+            if os.path.exists(p):
+                base_path = p
+                break
+        if base_path is None:
+            return "⚠ terminal_colors.json not found; terminal IDE theme not updated"
+
+        try:
+            with open(base_path, "r", encoding="utf-8") as f:
+                theme = json.load(f)
+        except Exception as e:
+            return f"⚠ Failed reading terminal theme ({base_path}): {e}"
+
+        token_colors = theme.get("token_colors", [])
+        if not isinstance(token_colors, list):
+            token_colors = []
+
+        existing = {}
+        for i, item in enumerate(token_colors):
+            if isinstance(item, dict) and "scope" in item:
+                existing[item["scope"]] = i
+
+        # Update known scopes
+        for scope, st in scope_map.items():
+            if scope in existing:
+                idx = existing[scope]
+                token_colors[idx]["fg"] = st["fg"]
+                token_colors[idx]["bold"] = st["bold"]
+                token_colors[idx]["italic"] = st["italic"]
+            else:
+                token_colors.append({
+                    "scope": scope,
+                    "fg": st["fg"],
+                    "bold": st["bold"],
+                    "italic": st["italic"],
+                })
+
+        theme["token_colors"] = token_colors
+
+        updated_paths = []
+
+        # Always write local override path (works without sudo, highest user precedence).
+        try:
+            os.makedirs(os.path.dirname(TERMINAL_THEME_LOCAL), exist_ok=True)
+            with open(TERMINAL_THEME_LOCAL, "w", encoding="utf-8") as f:
+                json.dump(theme, f, indent=2)
+                f.write("\n")
+            updated_paths.append(TERMINAL_THEME_LOCAL)
+        except Exception:
+            pass
+
+        # Mirror to any writable existing theme files.
+        for p in TERMINAL_THEME_CANDIDATES:
+            if p == TERMINAL_THEME_LOCAL:
+                continue
+            if not os.path.exists(p):
+                continue
+            if not os.access(p, os.W_OK):
+                continue
+            try:
+                with open(p, "w", encoding="utf-8") as f:
+                    json.dump(theme, f, indent=2)
+                    f.write("\n")
+                updated_paths.append(p)
+            except Exception:
+                pass
+
+        if updated_paths:
+            return "✅ Synced terminal IDE theme: " + ", ".join(updated_paths)
+        return "⚠ Could not write terminal IDE theme files (permission/path issue)"
 
     def _send_json(self, data):
         body = json.dumps(data).encode("utf-8")

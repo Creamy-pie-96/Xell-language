@@ -216,6 +216,7 @@ if [ "$INSTALL_MODE" = "system" ]; then
         cp "$CUSTOMIZER_SRC/customizer_server.py" "$TMP_DATA/color_customizer/" 2>/dev/null || true
         cp "$CUSTOMIZER_SRC/customize.html" "$TMP_DATA/color_customizer/" 2>/dev/null || true
         cp "$CUSTOMIZER_SRC/token_data.json" "$TMP_DATA/color_customizer/" 2>/dev/null || true
+        cp "$CUSTOMIZER_SRC/terminal_colors.json" "$TMP_DATA/color_customizer/" 2>/dev/null || true
     fi
 
     STDLIB_SRC="$SCRIPT_DIR/stdlib"
@@ -234,6 +235,7 @@ else
         cp "$CUSTOMIZER_SRC/customizer_server.py" "$SHARE_DIR/color_customizer/" 2>/dev/null || true
         cp "$CUSTOMIZER_SRC/customize.html" "$SHARE_DIR/color_customizer/" 2>/dev/null || true
         cp "$CUSTOMIZER_SRC/token_data.json" "$SHARE_DIR/color_customizer/" 2>/dev/null || true
+        cp "$CUSTOMIZER_SRC/terminal_colors.json" "$SHARE_DIR/color_customizer/" 2>/dev/null || true
         ok "Customizer installed: $SHARE_DIR/color_customizer/"
     fi
 

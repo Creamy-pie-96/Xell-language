@@ -350,16 +350,21 @@ namespace xterm
     inline ThemeData loadDefaultTheme()
     {
         // Search order:
-        // 1. ./terminal_colors.json (current directory)
-        // 2. ~/.config/xell/terminal_colors.json
-        // 3. /usr/local/share/xell/terminal_colors.json
-        // 4. ~/.local/share/xell/terminal_colors.json
-        // 5. Built-in defaults (no file)
+        // 1. ~/.config/xell/terminal_colors.json (user override)
+        // 2. ~/.local/share/xell/terminal_colors.json
+        // 3. executable-relative assets/share paths
+        // 4. system install paths
+        // 5. local working-directory files (dev fallback)
+        // 6. Built-in defaults (no file)
 
         std::vector<std::string> searchPaths;
 
-        searchPaths.push_back("terminal_colors.json");
-        searchPaths.push_back("assets/terminal_colors.json");
+        const char *home = std::getenv("HOME");
+        if (home)
+        {
+            searchPaths.push_back(std::string(home) + "/.config/xell/terminal_colors.json");
+            searchPaths.push_back(std::string(home) + "/.local/share/xell/terminal_colors.json");
+        }
 
         // Search relative to executable
         char *base = SDL_GetBasePath();
@@ -371,15 +376,13 @@ namespace xterm
             SDL_free(base);
         }
 
-        const char *home = std::getenv("HOME");
-        if (home)
-        {
-            searchPaths.push_back(std::string(home) + "/.config/xell/terminal_colors.json");
-            searchPaths.push_back(std::string(home) + "/.local/share/xell/terminal_colors.json");
-        }
         searchPaths.push_back("/usr/local/share/xell/terminal_colors.json");
         searchPaths.push_back("/usr/local/share/xell-terminal/terminal_colors.json");
         searchPaths.push_back("/usr/share/xell-terminal/terminal_colors.json");
+
+        // Dev/local fallback paths (lowest priority)
+        searchPaths.push_back("terminal_colors.json");
+        searchPaths.push_back("assets/terminal_colors.json");
 
         for (auto &path : searchPaths)
         {

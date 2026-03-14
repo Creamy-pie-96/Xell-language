@@ -335,9 +335,13 @@ namespace xell
             if (dynamic_cast<const FloatLiteral *>(expr))
                 return "float";
             if (dynamic_cast<const NumberLiteral *>(expr))
-                return "float";
+                return "number";
+            if (dynamic_cast<const ImaginaryLiteral *>(expr))
+                return "complex";
             if (dynamic_cast<const StringLiteral *>(expr))
                 return "str";
+            if (dynamic_cast<const BytesLiteral *>(expr))
+                return "bytes";
             if (dynamic_cast<const BoolLiteral *>(expr))
                 return "bool";
             if (dynamic_cast<const NoneLiteral *>(expr))
@@ -348,7 +352,15 @@ namespace xell
                 return "tuple";
             if (dynamic_cast<const SetLiteral *>(expr))
                 return "set";
+            if (dynamic_cast<const FrozenSetLiteral *>(expr))
+                return "frozen_set";
             if (dynamic_cast<const MapLiteral *>(expr))
+                return "map";
+            if (dynamic_cast<const ListComprehension *>(expr))
+                return "list";
+            if (dynamic_cast<const SetComprehension *>(expr))
+                return "set";
+            if (dynamic_cast<const MapComprehension *>(expr))
                 return "map";
             return ""; // unknown / can't infer statically
         }
