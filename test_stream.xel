@@ -1,4 +1,5 @@
-x = ls(cwd())
-print(x)
-#note why is | working as pipe operator instead of |> ?
-#$ls -ah |> grep "CM"
+if 10 > 1:
+    print("yes")
+else: 
+    print("no")
+;
