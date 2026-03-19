@@ -1,0 +1,1168 @@
+# =============================================================================
+# Reiko File Organizer — Native Xell Implementation
+# =============================================================================
+#
+# Usage:
+#   xell demo/File_organizer.xel                      # Interactive mode
+#   xell demo/File_organizer.xel --help / -h          # Show help
+#   xell demo/File_organizer.xel -test                # Create flat test files only
+#   xell demo/File_organizer.xel --test               # Create flat test files + prompt sort
+#   xell demo/File_organizer.xel -test-recursive [N]  # Create recursive test only (N >= 0, default 2)
+#   xell demo/File_organizer.xel --test-recursive [N] # Create recursive test + prompt sort
+# =============================================================================
+
+# ── Category Definitions ──────────────────────────────────────────────────────
+
+n_category_order = ["Images", "Docs", "Archives", "Audio", "Video", "Code", "Fonts", "System", "Design", "Others"]
+
+n_categories = {
+    "Images":   ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "svg", "webp", "heic", "raw", "cr2", "nef", "arw", "dng"],
+    "Docs":     ["txt", "md", "log", "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "csv", "epub", "mobi", "azw3", "html", "css", "xml", "json", "yaml", "yml", "rtf"],
+    "Archives": ["zip", "rar", "7z", "tar", "gz", "bz2", "tgz", "iso", "dmg", "apk"],
+    "Audio":    ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "aiff"],
+    "Video":    ["mp4", "mkv", "avi", "mov", "flv", "webm", "mpg", "mpeg", "3gp", "wmv"],
+    "Code":     ["cpp", "c", "java", "swift", "kotlin", "cs", "go", "rs", "rb", "pl", "lua", "h", "hpp", "hxx", "hh", "tpp", "inl", "ipp", "py", "pyw", "pyi", "js", "ts", "tsx", "jsx", "php", "sh", "bash", "zsh", "fish", "ps1", "psm1", "psd1", "bat", "cmd", "sql"],
+    "Fonts":    ["ttf", "otf", "woff", "woff2"],
+    "System":   ["exe", "bin", "dll", "deb", "rpm", "dmg", "app", "bak", "tmp", "env", "conf", "ini"],
+    "Design":   ["psd", "ai", "sketch", "xd", "fig", "prproj", "aep", "audproj"],
+    "Others":   ["torrent", "dat"]
+}
+
+# ── Subcategory Order ─────────────────────────────────────────────────────────
+
+n_subcat_order = {
+    "Images":   ["Photos", "Graphics"],
+    "Docs":     ["Text", "Office", "PDF", "Ebooks", "Data", "Web", "Logs"],
+    "Archives": ["Compressed", "DiskImage", "Mobile"],
+    "Audio":    ["Lossless", "Lossy"],
+    "Video":    ["Common", "Web", "Legacy"],
+    "Code":     ["Source", "Headers", "Python", "Web", "Scripts", "Database"],
+    "Fonts":    ["Desktop", "Web"],
+    "System":   ["Executables", "Packages", "Config", "Temp"],
+    "Design":   ["Adobe", "UI_UX"],
+    "Others":   []
+}
+
+# ── Subcategory Extension Maps ────────────────────────────────────────────────
+
+n_subcategories = {
+    "Images": {
+        "Photos":   ["jpg", "jpeg", "heic", "raw", "cr2", "nef", "arw", "dng"],
+        "Graphics": ["png", "gif", "bmp", "tiff", "webp", "svg"]
+    },
+    "Docs": {
+        "Text":   ["txt", "md", "rtf"],
+        "Office": ["doc", "docx", "ppt", "pptx", "xls", "xlsx"],
+        "PDF":    ["pdf"],
+        "Ebooks": ["epub", "mobi", "azw3"],
+        "Data":   ["csv", "xml", "json", "yaml", "yml"],
+        "Web":    ["html", "css"],
+        "Logs":   ["log"]
+    },
+    "Archives": {
+        "Compressed": ["zip", "rar", "7z", "gz", "bz2", "tgz", "tar"],
+        "DiskImage":  ["iso", "dmg"],
+        "Mobile":     ["apk"]
+    },
+    "Audio": {
+        "Lossless": ["wav", "flac", "aiff"],
+        "Lossy":    ["mp3", "aac", "ogg", "m4a", "wma"]
+    },
+    "Video": {
+        "Common": ["mp4", "mkv", "mov", "avi"],
+        "Web":    ["webm", "flv"],
+        "Legacy": ["mpg", "mpeg", "3gp", "wmv"]
+    },
+    "Code": {
+        "Source":   ["cpp", "c", "java", "swift", "kotlin", "cs", "go", "rs", "rb", "pl", "lua"],
+        "Headers":  ["h", "hpp", "hxx", "hh", "tpp", "inl", "ipp"],
+        "Python":   ["py", "pyw", "pyi"],
+        "Web":      ["js", "ts", "tsx", "jsx", "php"],
+        "Scripts":  ["sh", "bash", "zsh", "fish", "ps1", "psm1", "psd1", "bat", "cmd"],
+        "Database": ["sql"]
+    },
+    "Fonts": {
+        "Desktop": ["ttf", "otf"],
+        "Web":     ["woff", "woff2"]
+    },
+    "System": {
+        "Executables": ["exe", "bin", "dll", "app"],
+        "Packages":    ["deb", "rpm"],
+        "Config":      ["conf", "ini", "env"],
+        "Temp":        ["bak", "tmp"]
+    },
+    "Design": {
+        "Adobe": ["psd", "ai", "aep", "audproj", "prproj"],
+        "UI_UX": ["sketch", "xd", "fig"]
+    },
+    "Others": {}
+}
+
+# ── Xell-specific subcategory (nested under Code/) ───────────────────────────
+# Only processed when n_sort_xell = true
+
+n_xell_subcat_order = ["Scripts", "Meta", "Dialect"]
+n_xell_subcat_map = {
+    "Scripts": ["xel", "nxel"],
+    "Meta":    ["xell_meta"],
+    "Dialect": ["xesy"]
+}
+n_xell_all_exts = ["xel", "nxel", "xell_meta", "xesy"]
+
+# ── Global State ──────────────────────────────────────────────────────────────
+
+n_selected    = n_category_order
+n_moved       = []
+n_old_dirs    = []
+n_step        = 1
+n_log_lines   = []
+n_logger_path = ""
+n_logger      = ""
+n_sort_code   = false
+n_sort_xell   = false
+n_use_subcat  = false
+n_removed_dirs = 0
+
+# Static-analysis shim so the interpreter knows __args__ exists
+if false:
+    __args__ = []
+;
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+
+fn n_log(msg):
+    push(n_log_lines, "{n_step}. {msg}")
+    n_step = n_step + 1
+;
+
+fn n_log_plain(msg):
+    push(n_log_lines, msg)
+;
+
+fn n_save_log(path):
+    content = ""
+    for l in n_log_lines:
+        content = "{content}{l}\n"
+    ;
+    write(path, content)
+;
+
+fn n_timestamp():
+    t = env_get("XELL_LOG_TIMESTAMP")
+    if t ne "":
+        give t
+    ;
+    t2 = env_get("DATE")
+    if t2 ne "":
+        give t2
+    ;
+    give "timestamp-unavailable"
+;
+
+fn n_init_logger(base_dir):
+    n_step        = 1
+    n_log_lines   = []
+    n_moved       = []
+    n_old_dirs    = []
+    n_logger_path = "{base_dir}/What_I_did"
+    if not exists(n_logger_path):
+        mkdir(n_logger_path)
+    ;
+    n_logger = "{n_logger_path}/what_i_did.log"
+    n_log_plain("===== Reiko File Organizer Log - {n_timestamp()} =====")
+    n_log_plain("")
+;
+
+fn n_move_log_to_dedicated(source_log_path, dedicated_dir):
+    if not exists(source_log_path) or not is_dir(source_log_path):
+        give
+    ;
+    n_log("Moving log folder to dedicated directory...")
+    n_save_log(n_logger)
+
+    new_logger_path = "{dedicated_dir}/What_I_did"
+    if not exists(new_logger_path):
+        mkdir(new_logger_path)
+    ;
+
+    new_logger = "{new_logger_path}/what_i_did.log"
+    if exists(n_logger):
+        cp(n_logger, new_logger)
+    else:
+        write(new_logger, "")
+    ;
+
+    n_logger_path = new_logger_path
+    n_logger      = new_logger
+    n_log("Log successfully moved to dedicated directory!")
+    rm(source_log_path)
+;
+
+# ── Classification ────────────────────────────────────────────────────────────
+
+fn n_is_cat_dir(name):
+    give contains(n_category_order, name)
+;
+
+fn n_classify_selected(filename):
+    raw = n_ext_raw(filename)
+    if raw eq "":
+        give ""
+    ;
+
+    # Xell extensions — only classify if user opted in AND code sorting is on
+    if n_sort_xell and n_sort_code:
+        for xe in n_xell_all_exts:
+            if raw eq xe:
+                give "Code"
+            ;
+        ;
+    ;
+
+    for cat in n_selected:
+        # Skip Code category if user opted out
+        if cat eq "Code" and not n_sort_code:
+            continue
+        ;
+        exts = n_categories[cat]
+        for x in exts:
+            if raw eq x:
+                give cat
+            ;
+        ;
+    ;
+    give ""
+;
+
+fn n_classify_sub(filename, cat):
+    # Returns subcategory string for a file known to belong to cat.
+    # For Xell files under Code, returns "Xell/Scripts" etc. (nested path).
+    # Returns "Misc" if nothing matches.
+    raw = n_ext_raw(filename)
+    if raw eq "":
+        give "Misc"
+    ;
+
+    # Xell nested subcategory check (Code/Xell/...)
+    if cat eq "Code" and n_sort_xell:
+        for xsub in n_xell_subcat_order:
+            xexts = n_xell_subcat_map[xsub]
+            for xe in xexts:
+                if raw eq xe:
+                    give "Xell/{xsub}"
+                ;
+            ;
+        ;
+    ;
+
+    if not has(n_subcategories, cat):
+        give "Misc"
+    ;
+    if not has(n_subcat_order, cat):
+        give "Misc"
+    ;
+
+    subcat_dict = n_subcategories[cat]
+    order       = n_subcat_order[cat]
+
+    for scat in order:
+        if has(subcat_dict, scat):
+            sexts = subcat_dict[scat]
+            for se in sexts:
+                if raw eq se:
+                    give scat
+                ;
+            ;
+        ;
+    ;
+    give "Misc"
+;
+
+# ── Unique Destination ────────────────────────────────────────────────────────
+
+fn n_unique_dest(dest_dir, filename, src_dir):
+    d0 = "{dest_dir}/{filename}"
+    if not exists(d0):
+        give d0
+    ;
+    p  = basename(src_dir)
+    d1 = "{dest_dir}/{p}_{filename}"
+    if not exists(d1):
+        give d1
+    ;
+    i = 1
+    while true:
+        d2 = "{dest_dir}/{p}_{i}_{filename}"
+        if not exists(d2):
+            give d2
+        ;
+        i = i + 1
+    ;
+;
+
+fn n_rel(path, base):
+    if starts_with(path, "{base}/"):
+        give substr(path, len(base) + 1)
+    ;
+    if path eq base:
+        give ""
+    ;
+    give path
+;
+
+fn n_ext_raw(filename):
+    e = ext(filename)
+    if e eq "":
+        give ""
+    ;
+    if starts_with(e, "."):
+        parts = split(e, ".")
+        if len(parts) gt 1:
+            give parts[1]
+        ;
+    ;
+    give e
+;
+
+# ── Category Selection ────────────────────────────────────────────────────────
+
+fn n_select_all():
+    n_selected = n_category_order
+;
+
+fn n_select_user(input_text):
+    n_selected = []
+    if input_text eq "" or input_text eq "All":
+        n_selected = n_category_order
+        give
+    ;
+    tokens = split(input_text, " ")
+    for t in tokens:
+        if has(n_categories, t) and not contains(n_selected, t):
+            push(n_selected, t)
+        ;
+    ;
+    if len(n_selected) eq 0:
+        n_selected = n_category_order
+    ;
+;
+
+# ── Remember / Recreate Directory Structure ───────────────────────────────────
+
+fn n_remember(base_dir, depth, exclude_dir):
+    n_old_dirs = []
+    ex_name    = ""
+    if exclude_dir ne "":
+        ex_name = basename(exclude_dir)
+    ;
+
+    stack_dirs   = [base_dir]
+    stack_depths = [0]
+
+    while len(stack_dirs) gt 0:
+        last_idx = len(stack_dirs) - 1
+        cur      = stack_dirs[last_idx]
+        cur_depth = stack_depths[last_idx]
+        pop(stack_dirs)
+        pop(stack_depths)
+
+        if cur_depth gt depth:
+            continue
+        ;
+
+        ents = ls(cur)
+        for ent in ents:
+            full = "{cur}/{ent}"
+            if is_dir(full):
+                if ent eq "What_I_did" or ent eq "__xellcache__" or contains(n_category_order, ent) or (ex_name ne "" and ent eq ex_name):
+                    continue
+                ;
+                push(n_old_dirs, full)
+                push(stack_dirs, full)
+                push(stack_depths, cur_depth + 1)
+            ;
+        ;
+    ;
+
+    if len(n_old_dirs) gt 0:
+        n_log("Remembered {len(n_old_dirs)} directories from original structure")
+        for d in n_old_dirs:
+            n_log("  - {d}")
+        ;
+    else:
+        n_log("No subdirectories found to remember")
+    ;
+;
+
+fn n_recreate(source_base, dest_base):
+    n_log("Recreating directory structure in: {dest_base}")
+    for oldd in n_old_dirs:
+        rel = n_rel(oldd, source_base)
+        if rel ne "":
+            nd = "{dest_base}/{rel}"
+            if not exists(nd):
+                mkdir(nd)
+            ;
+            n_log("Recreated: {rel}")
+        ;
+    ;
+;
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+
+fn n_cleanup_sorted():
+    if len(n_moved) eq 0:
+        n_log("No files to clean up")
+        give
+    ;
+    n_log("Cleaning up {len(n_moved)} sorted source files...")
+    c = 0
+    for f in n_moved:
+        if exists(f):
+            rm(f)
+            if not exists(f):
+                c = c + 1
+            else:
+                n_log("Couldn't delete: {f}")
+            ;
+        ;
+    ;
+    n_log("Cleaned up {c} sorted files")
+;
+
+fn n_cleanup_walk(dir_path, keep_root):
+    ents = ls(dir_path)
+    for e in ents:
+        p = "{dir_path}/{e}"
+        if is_dir(p):
+            n_cleanup_walk(p, false)
+        ;
+    ;
+    if not keep_root:
+        now_ents = ls(dir_path)
+        if len(now_ents) eq 0:
+            rm(dir_path)
+            if not exists(dir_path):
+                n_removed_dirs = n_removed_dirs + 1
+            ;
+        ;
+    ;
+;
+
+fn n_cleanup_old_dirs(base_dir):
+    n_log("Cleaning up empty directories...")
+    n_removed_dirs = 0
+    n_cleanup_walk(base_dir, true)
+    if n_removed_dirs gt 0:
+        n_log("Removed {n_removed_dirs} empty directories")
+    else:
+        n_log("No empty directories to remove")
+    ;
+    n_log("Cleanup complete! Your directory is now organized and clean")
+;
+
+# ── Core Sort Function ────────────────────────────────────────────────────────
+
+fn n_sort_files(target_dir, sort_parent, use_copy):
+    op = "copying"
+    if not use_copy:
+        op = "moving"
+    ;
+
+    n_log("I'm starting to sort files in: {target_dir}")
+    if sort_parent ne target_dir:
+        n_log("I'll organize them into: {sort_parent}")
+    ;
+    n_log("I'll be {op} files to keep things organized")
+
+    total = 0
+
+    for cat in n_selected:
+        if cat eq "Code" and not n_sort_code:
+            continue
+        ;
+
+        ents = ls(target_dir)
+        cc   = 0
+
+        # Pre-check: any files of this category exist here?
+        files_exist = false
+        for ent in ents:
+            src0 = "{target_dir}/{ent}"
+            if is_dir(src0):
+                continue
+            ;
+            if n_classify_selected(ent) eq cat:
+                files_exist = true
+                break
+            ;
+        ;
+
+        if not files_exist:
+            n_log("I didn't find any {cat} files here, so I'm skipping this category")
+            continue
+        ;
+
+        for ent in ents:
+            src = "{target_dir}/{ent}"
+            if is_dir(src):
+                continue
+            ;
+            if n_classify_selected(ent) ne cat:
+                continue
+            ;
+
+            # Determine destination path (flat or subcategorized)
+            cat_dest = ""
+            if n_use_subcat:
+                subcat   = n_classify_sub(ent, cat)
+                cat_dest = "{sort_parent}/{cat}/{subcat}"
+            else:
+                cat_dest = "{sort_parent}/{cat}"
+            ;
+
+            if not exists(cat_dest):
+                mkdir(cat_dest)
+                n_log("I'm creating a new directory: {cat_dest}")
+            ;
+
+            dst = "{cat_dest}/{ent}"
+            if exists(dst):
+                dst = n_unique_dest(cat_dest, ent, dirname(src))
+            ;
+
+            # Warn on path-sensitive Xell dialect files
+            if n_sort_xell:
+                raw = n_ext_raw(ent)
+                if raw eq "xesy":
+                    n_log("WARNING: .xesy dialect file is path-sensitive — moving may break scripts that reference it. Verify manually: {ent}")
+                ;
+            ;
+
+            if use_copy:
+                cp(src, dst)
+            else:
+                mv(src, dst)
+                push(n_moved, src)
+            ;
+
+            if exists(dst):
+                cc    = cc + 1
+                total = total + 1
+            else:
+                n_log("I had trouble {op}: {src}")
+            ;
+        ;
+
+        if cc gt 0:
+            if n_use_subcat:
+                n_log("I organized {cc} file(s) into {cat}/ (subcategorized)")
+            else:
+                n_log("I organized {cc} file(s) into {cat}/")
+            ;
+        ;
+    ;
+
+    n_log("Processed {total} file(s) in {target_dir}")
+;
+
+# ── Collect Helper (Mode 3) ───────────────────────────────────────────────────
+
+fn n_collect_copy(source_file, out_dir):
+    fnm     = basename(source_file)
+    src_dir = dirname(source_file)
+    dst     = "{out_dir}/{fnm}"
+    if exists(dst):
+        dst = n_unique_dest(out_dir, fnm, src_dir)
+    ;
+    cp(source_file, dst)
+    give exists(dst)
+;
+
+# ── Mode 1: Single Directory Sort ────────────────────────────────────────────
+
+fn n_mode1(base_dir, use_dedicated, dedicated_dir):
+    n_log("=== MODE 1: Single Directory Sort ===")
+    if use_dedicated:
+        n_log("I'll create a dedicated organized folder for you")
+        n_sort_files(base_dir, dedicated_dir, true)
+    else:
+        n_remember(base_dir, 1, "")
+        n_sort_files(base_dir, base_dir, false)
+        n_cleanup_sorted()
+        n_cleanup_old_dirs(base_dir)
+    ;
+;
+
+# ── Mode 2: Recursive Per-Directory Sort ─────────────────────────────────────
+
+fn n_mode2(base_dir, depth, use_dedicated, dedicated_dir):
+    n_log("=== MODE 2: Recursive Local Sort (Depth: {depth}) ===")
+    if use_dedicated:
+        n_log("I'm recreating your directory structure in a dedicated folder")
+        n_remember(base_dir, depth, dedicated_dir)
+        n_recreate(base_dir, dedicated_dir)
+        n_log("Now I'll sort each directory independently...")
+        n_sort_files(base_dir, dedicated_dir, true)
+        for d in n_old_dirs:
+            rel  = n_rel(d, base_dir)
+            outd = "{dedicated_dir}/{rel}"
+            if not exists(outd):
+                mkdir(outd)
+            ;
+            n_log("Sorting directory: {rel}")
+            n_sort_files(d, outd, true)
+        ;
+    else:
+        n_log("I'll sort each directory in place")
+        n_remember(base_dir, depth, "")
+        n_log("Processing: {base_dir}")
+        n_sort_files(base_dir, base_dir, false)
+        for d in n_old_dirs:
+            n_log("Processing: {d}")
+            n_sort_files(d, d, false)
+        ;
+        n_cleanup_sorted()
+        n_cleanup_old_dirs(base_dir)
+    ;
+;
+
+# ── Mode 3: Recursive Collect & Sort ─────────────────────────────────────────
+
+fn n_mode3(base_dir, depth, use_dedicated, dedicated_dir):
+    n_log("=== MODE 3: Recursive Collect & Sort (Depth: {depth}) ===")
+    n_remember(base_dir, depth, dedicated_dir)
+
+    if use_dedicated:
+        n_log("I'll collect all files directly into your dedicated organized folder")
+        n_log("Scanning subdirectories and collecting files...")
+        collected = 0
+
+        # Collect from base dir
+        base_ents = ls(base_dir)
+        for ent in base_ents:
+            full = "{base_dir}/{ent}"
+            if is_dir(full):
+                continue
+            ;
+            cat = n_classify_selected(ent)
+            if cat eq "":
+                continue
+            ;
+            ok = n_collect_copy(full, dedicated_dir)
+            if ok:
+                collected = collected + 1
+                if mod(collected, 50) eq 0:
+                    n_log("Collected {collected} files so far...")
+                ;
+            ;
+            if not ok:
+                n_log("Failed to collect: {full}")
+            ;
+        ;
+
+        # Collect from remembered subdirectories
+        for d in n_old_dirs:
+            ents = ls(d)
+            for ent in ents:
+                full = "{d}/{ent}"
+                if is_dir(full):
+                    continue
+                ;
+                cat = n_classify_selected(ent)
+                if cat eq "":
+                    continue
+                ;
+                ok = n_collect_copy(full, dedicated_dir)
+                if ok:
+                    collected = collected + 1
+                    if mod(collected, 50) eq 0:
+                        n_log("Collected {collected} files so far...")
+                    ;
+                ;
+                if not ok:
+                    n_log("Failed to collect: {full}")
+                ;
+            ;
+        ;
+
+        n_log("Finished collecting {collected} files to dedicated directory")
+        n_log("Now sorting all collected files in the dedicated directory...")
+        n_sort_files(dedicated_dir, dedicated_dir, false)
+
+    else:
+        n_log("I'll collect all files to the main directory and organize them")
+        n_log("Scanning subdirectories and collecting files...")
+
+        for d in n_old_dirs:
+            ents = ls(d)
+            for ent in ents:
+                full = "{d}/{ent}"
+                if is_dir(full):
+                    continue
+                ;
+                cat = n_classify_selected(ent)
+                if cat eq "":
+                    continue
+                ;
+                dst_name = ent
+                base_dst = "{base_dir}/{dst_name}"
+                if exists(base_dst):
+                    unique   = n_unique_dest(base_dir, ent, d)
+                    dst_name = basename(unique)
+                ;
+                push(n_moved, full)
+                mv(full, "{base_dir}/{dst_name}")
+                if exists("{base_dir}/{dst_name}"):
+                    n_log("Collected: {full}")
+                ;
+                if not exists("{base_dir}/{dst_name}"):
+                    n_log("Failed to collect: {full}")
+                ;
+            ;
+        ;
+
+        n_log("Now sorting all collected files...")
+        n_sort_files(base_dir, base_dir, false)
+        n_cleanup_sorted()
+        n_cleanup_old_dirs(base_dir)
+    ;
+;
+
+# ── Test File Generators ──────────────────────────────────────────────────────
+
+fn n_create_test():
+    file_types = ["Images", "Docs", "Archives", "Audio", "Video", "Code", "Fonts", "System", "Design", "Others"]
+    samples    = ["sample1", "sample2", "sample3", "sample4", "sample5", "sample6", "sample7", "sample8", "sample9", "sample0"]
+    test_dir   = "{cwd()}/test_dir"
+    if exists(test_dir):
+        rm(test_dir)
+    ;
+    mkdir(test_dir)
+
+    for f in file_types:
+        exts = n_categories[f]
+        ei   = 0
+        for ex in exts:
+            if ei ge 3:
+                break
+            ;
+            si = 0
+            for sm in samples:
+                if si ge 3:
+                    break
+                ;
+                write("{test_dir}/{sm}.{ex}", "")
+                si = si + 1
+            ;
+            ei = ei + 1
+        ;
+    ;
+    print("Created test files in {test_dir}")
+;
+
+fn n_create_test_recursive(depth):
+    file_types = ["Images", "Docs", "Code", "Audio", "Video"]
+    test_dir   = "{cwd()}/test_dir_recursive"
+    if exists(test_dir):
+        rm(test_dir)
+    ;
+    mkdir(test_dir)
+
+    ri = 0
+    for f in file_types:
+        if ri ge 2:
+            break
+        ;
+        exts = n_categories[f]
+        if len(exts) gt 0:
+            write("{test_dir}/root_{lower(f)}.{exts[0]}", "")
+        ;
+        ri = ri + 1
+    ;
+
+    if depth ge 1:
+        mkdir("{test_dir}/subdir1")
+        write("{test_dir}/subdir1/sub1_file.py", "")
+        write("{test_dir}/subdir1/sub1_image.png", "")
+        write("{test_dir}/subdir1/sub1_audio.mp3", "")
+    ;
+
+    if depth ge 2:
+        mkdir("{test_dir}/subdir1/subdir2")
+        write("{test_dir}/subdir1/subdir2/deep_doc.pdf", "")
+        write("{test_dir}/subdir1/subdir2/deep_video.mp4", "")
+        mkdir("{test_dir}/another_dir")
+        write("{test_dir}/another_dir/another_script.js", "")
+        write("{test_dir}/another_dir/another_image.jpg", "")
+    ;
+
+    if depth ge 3:
+        mkdir("{test_dir}/subdir1/subdir2/subdir3")
+        write("{test_dir}/subdir1/subdir2/subdir3/very_deep.cpp", "")
+        write("{test_dir}/subdir1/subdir2/subdir3/very_deep_doc.txt", "")
+    ;
+
+    print("Created recursive test structure with depth {depth} in {test_dir}")
+;
+
+# ── Help ──────────────────────────────────────────────────────────────────────
+
+fn n_show_help():
+    print("Reiko File Organizer — Native Xell")
+    print("")
+    print("WHAT THIS SCRIPT DOES")
+    print("  Organizes files into category folders (Images, Docs, Archives, etc.).")
+    print("  It can sort one directory, each subdirectory, or collect then sort.")
+    print("")
+    print("CROSS-PLATFORM NOTE")
+    print("  This script uses Xell built-ins only (no shell-specific commands).")
+    print("  It is designed to run on Linux, macOS, and Windows with the Xell runtime.")
+    print("")
+    print("USAGE")
+    print("  xell demo/File_organizer.xel")
+    print("  xell demo/File_organizer.xel --help")
+    print("  xell demo/File_organizer.xel -test")
+    print("  xell demo/File_organizer.xel --test")
+    print("  xell demo/File_organizer.xel -test-recursive 3")
+    print("  xell demo/File_organizer.xel --test-recursive 2")
+    print("")
+    print("OPTIONS")
+    print("  --help, -h")
+    print("      Show this help text.")
+    print("")
+    print("  -test")
+    print("      Create a flat test dataset only. No sorting is performed.")
+    print("")
+    print("  --test")
+    print("      Create a flat test dataset, then ask if you want to sort it.")
+    print("")
+    print("  -test-recursive [depth]")
+    print("      Create recursive test folders/files only. No sorting is performed.")
+    print("      depth minimum: 0 (default: 2), no maximum limit")
+    print("")
+    print("  --test-recursive [depth]")
+    print("      Create recursive test folders/files, then ask for sort mode.")
+    print("      depth minimum: 0 (default: 2), no maximum limit")
+    print("")
+    print("SORT MODES (interactive and --test-recursive)")
+    print("  1) Single directory")
+    print("     - Sort only files in the target directory.")
+    print("     - Subfolders are not traversed.")
+    print("")
+    print("  2) Recursive per-directory")
+    print("     - Each discovered directory is sorted independently.")
+    print("     - Files stay near their original directory level.")
+    print("")
+    print("  3) Recursive collect-and-sort")
+    print("     - Collect sortable files from subfolders to one location.")
+    print("     - Then run one global sort pass.")
+    print("")
+    print("ORGANIZATION TARGET")
+    print("  1) Clean sort (in-place)")
+    print("     - Move files into category folders in the working tree.")
+    print("     - Remove moved originals from old locations.")
+    print("")
+    print("  2) Dedicated directory")
+    print("     - Copy organized results into a separate output directory.")
+    print("     - Keep original files untouched.")
+    print("")
+    print("OPT-IN FEATURES")
+    print("  Code sorting")
+    print("     - OFF by default due to path-sensitive imports/includes.")
+    print("")
+    print("  Xell file sorting (.xel/.nxel/.xell_meta/.xesy)")
+    print("     - OFF by default.")
+    print("     - .xesy dialect files can be path-sensitive.")
+    print("")
+    print("  Subcategories")
+    print("     - OFF by default.")
+    print("     - Example: Code/Source/, Code/Headers/, Images/Photos/")
+    print("")
+    print("EXAMPLES")
+    print("  1) Show help:")
+    print("       xell demo/File_organizer.xel --help")
+    print("  2) Create quick flat test data:")
+    print("       xell demo/File_organizer.xel -test")
+    print("  3) Create recursive test data at depth 3:")
+    print("       xell demo/File_organizer.xel -test-recursive 3")
+    print("  4) Create recursive data and then sort interactively:")
+    print("       xell demo/File_organizer.xel --test-recursive 2")
+    print("")
+    print("LOGGING")
+    print("  A log is written to: <target>/What_I_did/what_i_did.log")
+    print("")
+;
+
+# ── Args Helpers ──────────────────────────────────────────────────────────────
+
+fn n_get_args():
+    if __args__ eq none:
+        give []
+    ;
+    give __args__
+;
+
+fn n_parse_depth(args, idx, defv):
+    d = defv
+    if len(args) gt idx:
+        tok = args[idx]
+        if not starts_with(tok, "-"):
+            d = int(tok)
+        ;
+    ;
+    if d lt 0:
+        d = 0
+    ;
+    give d
+;
+
+# ── Finish ────────────────────────────────────────────────────────────────────
+
+fn n_finish(use_dedicated, base_dir, dedicated_dir):
+    n_log_plain("")
+    n_log("All done! Your files are beautifully organized!")
+    n_log_plain("===== End of Log =====")
+    if use_dedicated:
+        n_move_log_to_dedicated("{base_dir}/What_I_did", dedicated_dir)
+    ;
+    n_save_log(n_logger)
+    print("")
+    print("Sorting complete! Check the log at: {n_logger}")
+;
+
+# ── Interactive Flow ──────────────────────────────────────────────────────────
+
+fn n_run_interactive():
+    print("Enter directory (leave empty for current directory): ")
+    fp = input()
+    if fp eq "":
+        fp = cwd()
+    ;
+    if fp eq "":
+        print("Invalid directory name")
+        give
+    ;
+    if not exists(fp) or not is_dir(fp):
+        print("Directory does not exist")
+        give
+    ;
+
+    n_init_logger(fp)
+
+    # ── Category selection
+    print("Enter file categories to include (e.g. Images Docs Audio) or leave empty for All: ")
+    fti = input()
+    if fti eq "":
+        fti = "All"
+    ;
+    n_select_user(fti)
+
+    n_log("You've selected these file types to organize:")
+    if fti eq "All":
+        n_log_plain("   - All file types")
+    else:
+        for sc in n_selected:
+            n_log_plain("   - {sc}")
+        ;
+    ;
+    n_log_plain("")
+
+    # ── Code opt-in
+    n_sort_code = false
+    n_sort_xell = false
+    if contains(n_selected, "Code"):
+        print("")
+        print("Sort Code/programming files?")
+        print("WARNING: code files are often path-sensitive (imports, includes, build systems).")
+        print("(y/n) [default: n]: ")
+        ci = input()
+        if ci eq "y" or ci eq "Y":
+            n_sort_code = true
+            n_log("Code sorting: ENABLED (user accepted path-sensitivity risk)")
+
+            # ── Xell opt-in (only shown if code sorting is on)
+            print("Include Xell project files? (.xel, .nxel, .xell_meta, .xesy)")
+            print("WARNING: .xesy dialect files are path-sensitive.")
+            print("(y/n) [default: n]: ")
+            xi = input()
+            if xi eq "y" or xi eq "Y":
+                n_sort_xell = true
+                n_log("Xell file sorting: ENABLED")
+            else:
+                n_sort_xell = false
+                n_log("Xell file sorting: skipped")
+            ;
+        else:
+            n_sort_code = false
+            n_log("Code sorting: skipped")
+        ;
+    ;
+
+    # ── Mode selection
+    print("")
+    print("Select sort mode:")
+    print("  1) Sort only files in target directory (default)")
+    print("  2) Recursive: sort each subdirectory independently")
+    print("  3) Recursive: collect all files to one place and sort")
+    print("Enter mode (1/2/3): ")
+    mt = input()
+    if mt eq "":
+        mt = "1"
+    ;
+    smode = int(mt)
+
+    depth = 2
+    if smode eq 2 or smode eq 3:
+        print("Enter maximum recursion depth (minimum 0, default 2): ")
+        dt = input()
+        if dt eq "":
+            depth = 2
+        else:
+            depth = int(dt)
+        ;
+        if depth lt 0:
+            print("Invalid depth. Using depth=0")
+            depth = 0
+        ;
+    ;
+
+    # ── Dedicated vs in-place
+    print("")
+    print("Sort organization:")
+    print("  1) Clean sort (organize in place, remove sorted files from original locations)")
+    print("  2) Dedicated directory (create organized copy, keep all originals)")
+    print("Enter option (1/2): ")
+    oo = input()
+    if oo eq "":
+        oo = "1"
+    ;
+
+    use_d = false
+    dd    = ""
+    if oo eq "2":
+        use_d = true
+        print("Enter dedicated directory name (leave empty for 'sorted_with_reiko_organizer'): ")
+        dn = input()
+        if dn eq "":
+            dn = "sorted_with_reiko_organizer"
+        ;
+        dd = "{fp}/{dn}"
+        if not exists(dd):
+            mkdir(dd)
+        ;
+    ;
+
+    # ── Subcategory opt-in
+    print("")
+    print("Enable subcategory sorting?")
+    print("Files go into e.g. Code/Source/, Images/Photos/ instead of just Code/, Images/")
+    print("(y/n) [default: n]: ")
+    si = input()
+    if si eq "y" or si eq "Y":
+        n_use_subcat = true
+        n_log("Subcategory sorting: ENABLED")
+    else:
+        n_use_subcat = false
+    ;
+
+    # ── Execute
+    if smode eq 1:
+        n_mode1(fp, use_d, dd)
+    elif smode eq 2:
+        n_mode2(fp, depth, use_d, dd)
+    elif smode eq 3:
+        n_mode3(fp, depth, use_d, dd)
+    else:
+        print("Invalid mode. Using default (Mode 1)")
+        n_mode1(fp, use_d, dd)
+    ;
+
+    n_finish(use_d, fp, dd)
+;
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+fn n_main():
+    print("")
+    print("=== Reiko Native File Organizer ===")
+    print("")
+
+    args = n_get_args()
+
+    if len(args) gt 0 and (args[0] eq "--help" or args[0] eq "-h"):
+        n_show_help()
+        give
+    ;
+
+    if len(args) gt 0 and args[0] eq "-test":
+        n_create_test()
+        give
+    ;
+
+    if len(args) gt 0 and args[0] eq "--test":
+        n_create_test()
+        print("Test files created.")
+        print("Do you want to sort the test files now? (y/n): ")
+        sc = input()
+        if sc eq "y" or sc eq "Y":
+            tp = "{cwd()}/test_dir"
+            n_init_logger(tp)
+            n_select_all()
+            n_sort_code  = false
+            n_sort_xell  = false
+            n_use_subcat = false
+            n_mode1(tp, false, "")
+            n_finish(false, tp, "")
+        else:
+            print("Sorting skipped.")
+        ;
+        give
+    ;
+
+    if len(args) gt 0 and args[0] eq "-test-recursive":
+        d = n_parse_depth(args, 1, 2)
+        n_create_test_recursive(d)
+        give
+    ;
+
+    if len(args) gt 0 and args[0] eq "--test-recursive":
+        d = n_parse_depth(args, 1, 2)
+        n_create_test_recursive(d)
+        print("Recursive test files created.")
+        print("")
+        print("Select test mode:")
+        print("  1) Mode 1: sort root directory only")
+        print("  2) Mode 2: sort each subdirectory independently")
+        print("  3) Mode 3: collect all files to root and sort")
+        print("Enter mode (1/2/3): ")
+        tm = input()
+        if tm eq "":
+            tm = "2"
+        ;
+        if tm eq "1" or tm eq "2" or tm eq "3":
+            tp = "{cwd()}/test_dir_recursive"
+            n_init_logger(tp)
+            n_select_all()
+            n_sort_code  = false
+            n_sort_xell  = false
+            n_use_subcat = false
+            if tm eq "1":
+                n_mode1(tp, false, "")
+            elif tm eq "2":
+                n_mode2(tp, d, false, "")
+            else:
+                n_mode3(tp, d, false, "")
+            ;
+            n_finish(false, tp, "")
+            print("Sorting complete. Check the results!")
+        else:
+            print("Invalid mode. Skipping sort.")
+        ;
+        give
+    ;
+
+    n_run_interactive()
+;
+
+n_main()

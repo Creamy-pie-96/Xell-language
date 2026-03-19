@@ -3,7 +3,7 @@
   "metadata": {
     "title": "Untitled",
     "created": "2026-03-13T00:51:56.440Z",
-    "modified": "2026-03-13T02:43:30.852Z",
+    "modified": "2026-03-19T02:32:50.422Z",
     "kernel": "xell",
     "kernel_version": "1.0"
   },
@@ -16,6 +16,61 @@
         {
           "type": "stdout",
           "text": "/home/zero 10 10 20 30 40\ntrue\n8\ncalled check function\ntrue bool\n<fn check> function\n10"
+        }
+      ],
+      "execution_count": null,
+      "metadata": {}
+    },
+    {
+      "id": "cell-2",
+      "type": "code",
+      "source": "fn testing(a):\n    give true if a is 10 else false\n;\n#x = number(input(\"enter\"))\nx = 11\nprint(\"value is 10\") if testing(x) else print(\"value is not 10\")",
+      "outputs": [
+        {
+          "type": "stdout",
+          "text": "value is not 10"
+        }
+      ],
+      "execution_count": null,
+      "metadata": {}
+    },
+    {
+      "id": "cell-3",
+      "type": "markdown",
+      "source": "# Testing inner function calls",
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {}
+    },
+    {
+      "id": "cell-4",
+      "type": "code",
+      "source": "fn one(a):\n    print(a)\n;\nfn another(b = \"from another\"):\n    one(b)\n    fn inside(a = \"from inside\"):\n        print(\"i am inside\")\n        one(a)\n    ;\n    inside()\n;\nanother()",
+      "outputs": [
+        {
+          "type": "stdout",
+          "text": "from another\ni am inside\nfrom inside"
+        }
+      ],
+      "execution_count": null,
+      "metadata": {}
+    },
+    {
+      "id": "cell-5",
+      "type": "markdown",
+      "source": "# Testing funciton closure",
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {}
+    },
+    {
+      "id": "cell-6",
+      "type": "code",
+      "source": "fn outer(x):\n    fn inner(y):\n        give x + y\n    ;\n    give inner\n;\n\nf = outer (10)\nprint (f(5))   # should print 15",
+      "outputs": [
+        {
+          "type": "stdout",
+          "text": "15"
         }
       ],
       "execution_count": null,

@@ -1,0 +1,32 @@
+# Xell Slicing Demo
+
+# List slicing
+nums = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+print("Original:", nums)
+print("First 5:", nums[:5])
+print("Last 3:", nums[-3:])
+print("Every 2nd:", nums[::2])
+print("Reversed:", nums[::-1])
+print("Middle slice:", nums[3:7])
+
+# String slicing
+text = "XellSlicingFun!"
+print("Original:", text)
+print("First 4:", text[:4])
+print("Last 4:", text[-4:])
+print("Every 2nd:", text[::2])
+print("Reversed:", text[::-1])
+print("Slice [2:8]:", text[2:8])
+
+# Tuple slicing
+tup = (10, 20, 30, 40, 50, 60)
+print("Original:", tup)
+print("First 3:", tup[:3])
+print("Last 2:", tup[-2:])
+print("Reversed:", tup[::-1])
+print("Slice [1:4]:", tup[1:4])
+
+# Edge cases
+print("Empty slice:", nums[5:5])
+print("Out-of-bounds:", nums[-100:100])
+print("Step negative:", nums[7:2:-1])
