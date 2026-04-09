@@ -54,8 +54,26 @@ namespace xterm
     {
         if (row >= 0 && row < rows_ && col >= 0 && col < cols_)
         {
-            grid_[row][col] = cell;
-            grid_[row][col].dirty = true;
+            auto &dst = grid_[row][col];
+            bool changed =
+                dst.ch != cell.ch ||
+                dst.fg != cell.fg ||
+                dst.bg != cell.bg ||
+                dst.bold != cell.bold ||
+                dst.italic != cell.italic ||
+                dst.underline != cell.underline;
+
+            if (changed)
+            {
+                dst = cell;
+                dst.dirty = true;
+            }
+            else if (!cell.dirty)
+            {
+                // Allow callers (renderer) to explicitly clear dirty flags
+                // without forcing a visual rewrite.
+                dst.dirty = false;
+            }
         }
     }
 
@@ -295,6 +313,13 @@ namespace xterm
         for (auto &row : grid_)
             for (auto &cell : row)
                 cell.dirty = true;
+    }
+
+    void ScreenBuffer::clear_dirty_flags()
+    {
+        for (auto &row : grid_)
+            for (auto &cell : row)
+                cell.dirty = false;
     }
 
     // -----------------------------------------------------------------------------

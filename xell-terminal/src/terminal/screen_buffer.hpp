@@ -125,6 +125,9 @@ namespace xterm
         // --- Mark all cells as dirty (force full redraw) ---
         void mark_all_dirty();
 
+        // --- Clear dirty flags after a render pass ---
+        void clear_dirty_flags();
+
         // --- Accessors ---
         int get_rows() const { return rows_; }
         int get_cols() const { return cols_; }

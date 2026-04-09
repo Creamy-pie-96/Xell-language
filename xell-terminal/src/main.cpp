@@ -448,8 +448,9 @@ int main(int argc, char *argv[])
                     SDL_PushEvent(&quit_event);
                     break;
                 }
-                // Sleep a tiny bit to avoid busy-waiting when no data
-                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                // Sleep a bit to avoid busy-waiting when no data.
+                // 8ms keeps interaction responsive while reducing idle CPU wakeups.
+                std::this_thread::sleep_for(std::chrono::milliseconds(8));
             }
         } });
 
@@ -1202,7 +1203,21 @@ int main(int argc, char *argv[])
             {
                 for (int c = 0; c < (int)ideOutput.cells[r].size() && c < term_cols; c++)
                 {
-                    buffer.set_cell(r, c, ideOutput.cells[r][c]);
+                    const xterm::Cell &next = ideOutput.cells[r][c];
+                    xterm::Cell prev = buffer.get_cell(r, c);
+
+                    // Skip redundant writes to preserve dirty-cell wins.
+                    if (prev.ch == next.ch &&
+                        prev.fg == next.fg &&
+                        prev.bg == next.bg &&
+                        prev.bold == next.bold &&
+                        prev.italic == next.italic &&
+                        prev.underline == next.underline)
+                    {
+                        continue;
+                    }
+
+                    buffer.set_cell(r, c, next);
                 }
             }
 
@@ -1251,7 +1266,7 @@ int main(int argc, char *argv[])
         // (SDL_RENDERER_PRESENTVSYNC usually handles this)
         if (!has_new_data.load())
         {
-            SDL_Delay(4); // ~250fps max when idle, saves CPU
+            SDL_Delay(8); // ~125fps max when idle, lowers CPU without hurting UX
         }
         has_new_data.store(false);
     }

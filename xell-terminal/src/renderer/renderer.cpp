@@ -197,11 +197,7 @@ namespace xterm
             {
                 for (int c = 0; c < cols; ++c)
                 {
-                    Cell cell = buffer.get_cell(r, c);
-                    if (cell.dirty)
-                    {
-                        draw_cell(r, c, cell);
-                    }
+                    draw_cell(r, c, buffer.get_cell(r, c));
                 }
             }
         }
@@ -240,15 +236,9 @@ namespace xterm
             }
         }
 
-        // Mark all cells as clean after rendering
-        // (We do a full pass because we want to track dirty state properly)
-        for (int r = 0; r < rows; ++r)
-            for (int c = 0; c < cols; ++c)
-            {
-                Cell cell = buffer.get_cell(r, c);
-                cell.dirty = false;
-                buffer.set_cell(r, c, cell);
-            }
+        // Mark all cells as clean after rendering.
+        // Keep this direct to avoid a costly get/set roundtrip per cell.
+        buffer.clear_dirty_flags();
     }
 
     void Renderer::present()
