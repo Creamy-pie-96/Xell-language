@@ -620,6 +620,8 @@ namespace xterm
                                       : (diagSeverity == 1) ? Color{229, 192, 123} // warning: yellow
                                                             : Color{255, 80, 80};
 
+                    size_t spanIdx = 0;
+
                     // Write code cells with syntax highlighting
                     for (int screenCol = 0; screenCol < codeW; screenCol++)
                     {
@@ -632,15 +634,20 @@ namespace xterm
                             // Safely cast through unsigned to avoid sign-extension.
                             cell.ch = static_cast<char32_t>(static_cast<unsigned char>(line[bufCol]));
 
-                            // Find which span this column belongs to
-                            for (auto &span : spans)
+                            // Advance span cursor as columns move right.
+                            while (spanIdx < spans.size() && bufCol >= spans[spanIdx].endCol)
                             {
+                                ++spanIdx;
+                            }
+
+                            if (spanIdx < spans.size())
+                            {
+                                const auto &span = spans[spanIdx];
                                 if (bufCol >= span.startCol && bufCol < span.endCol)
                                 {
                                     cell.fg = span.fg;
                                     cell.bold = span.bold;
                                     cell.italic = span.italic;
-                                    break;
                                 }
                             }
                         }

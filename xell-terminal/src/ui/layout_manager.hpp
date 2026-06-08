@@ -28,6 +28,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <chrono>
+#include <future>
 #include <regex>
 #include <SDL2/SDL.h>
 #include "../terminal/types.hpp"
@@ -163,6 +164,9 @@ namespace xterm
 
         void tick()
         {
+            // Poll async lint worker first so hasErrors_ and diagnostics are fresh.
+            pollLintWorker();
+
             auto now = Clock::now();
             auto msSinceEdit = std::chrono::duration_cast<std::chrono::milliseconds>(
                                    now - lastEditTime_)
@@ -1361,21 +1365,32 @@ namespace xterm
             int cursorCol = -1;
         };
 
-        ScreenOutput render()
+        const ScreenOutput &render()
         {
-            ScreenOutput out;
-            out.cells.resize(totalRows_);
+            auto &out = frameCache_;
+            if ((int)out.cells.size() != totalRows_)
+                out.cells.resize(totalRows_);
+
             for (auto &row : out.cells)
             {
-                row.resize(totalCols_);
-                for (auto &c : row)
-                {
-                    c.ch = U' ';
-                    c.bg = bgColor_;
-                    c.fg = fgColor_;
-                    c.dirty = true;
-                }
+                if ((int)row.size() != totalCols_)
+                    row.resize(totalCols_);
             }
+
+            Cell clearCell;
+            clearCell.ch = U' ';
+            clearCell.fg = fgColor_;
+            clearCell.bg = bgColor_;
+            clearCell.bold = false;
+            clearCell.italic = false;
+            clearCell.underline = false;
+            clearCell.dirty = true;
+
+            for (auto &row : out.cells)
+                std::fill(row.begin(), row.end(), clearCell);
+
+            out.cursorRow = -1;
+            out.cursorCol = -1;
 
             // ── Sidebar ──────────────────────────────────────────────
             if (showSidebar_)
@@ -1546,20 +1561,70 @@ namespace xterm
             if (fullContent.empty())
                 return;
 
-            // Skip if content hasn't changed
+            // Skip if content hasn't changed since the last completed lint
             if (fullContent == lastLintedContent_)
                 return;
-            lastLintedContent_ = fullContent;
+            // If a lint is currently running, coalesce to the latest content.
+            if (lintInFlight_)
+            {
+                pendingLintContent_ = fullContent;
+                pendingLintFilePath_ = filePath;
+                hasPendingLint_ = true;
+                return;
+            }
 
-            // Pipe buffer content to xell --check-symbols via stdin
-            // stdout = JSON symbols, stderr = diagnostics
+            startLintWorker(fullContent, filePath);
+        }
+
+        void startLintWorker(const std::string &fullContent, const std::string &filePath)
+        {
+            lintInFlight_ = true;
+            lintInFlightContent_ = fullContent;
+
             std::string xellBin = findXellBinary();
-            int exitCode = 0;
-            std::string symbolsJson, diagnosticOutput;
-            captureCommandSplitOutput(
-                xellBin + " --check-symbols", fullContent, exitCode,
-                symbolsJson, diagnosticOutput);
+            lintFuture_ = std::async(std::launch::async, [xellBin, fullContent, filePath]()
+                                     {
+                int exitCode = 0;
+                std::string symbolsJson;
+                std::string diagnosticOutput;
+                captureCommandSplitOutput(
+                    xellBin + " --check-symbols", fullContent, exitCode,
+                    symbolsJson, diagnosticOutput);
 
+                return LintWorkerResult{exitCode, std::move(symbolsJson), std::move(diagnosticOutput), filePath, fullContent}; });
+        }
+
+        void pollLintWorker()
+        {
+            if (!lintInFlight_ || !lintFuture_.valid())
+                return;
+
+            if (lintFuture_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+                return;
+
+            LintWorkerResult result = lintFuture_.get();
+            lintInFlight_ = false;
+            lastLintedContent_ = result.content;
+
+            applyLintResult(result.exitCode, result.symbolsJson, result.diagnosticOutput, result.filePath);
+
+            // If edits happened while lint was running, immediately launch latest request.
+            if (hasPendingLint_)
+            {
+                hasPendingLint_ = false;
+                if (!pendingLintContent_.empty() && pendingLintContent_ != lastLintedContent_)
+                    startLintWorker(pendingLintContent_, pendingLintFilePath_);
+
+                pendingLintContent_.clear();
+                pendingLintFilePath_.clear();
+            }
+        }
+
+        void applyLintResult(int exitCode,
+                             const std::string &symbolsJson,
+                             const std::string &diagnosticOutput,
+                             const std::string &filePath)
+        {
             // Feed AST symbols to autocomplete DB
             if (!symbolsJson.empty())
             {
@@ -1570,15 +1635,12 @@ namespace xterm
                 dashboardPanel_.loadSymbols(symbolsJson, filePath);
             }
 
-            // Parse diagnostics into display lines
-            std::string &output = diagnosticOutput;
-
             // Parse output into diagnostic lines
             std::vector<std::string> lines;
-            if (!output.empty())
+            if (!diagnosticOutput.empty())
             {
                 std::string line;
-                for (char c : output)
+                for (char c : diagnosticOutput)
                 {
                     if (c == '\n')
                     {
@@ -1890,6 +1952,22 @@ namespace xterm
         static constexpr int LINT_DELAY_MS = 500;
         static constexpr int AUTOSAVE_DELAY_MS = 2000;
 
+        struct LintWorkerResult
+        {
+            int exitCode = 0;
+            std::string symbolsJson;
+            std::string diagnosticOutput;
+            std::string filePath;
+            std::string content;
+        };
+
+        bool lintInFlight_ = false;
+        std::future<LintWorkerResult> lintFuture_;
+        std::string lintInFlightContent_;
+        bool hasPendingLint_ = false;
+        std::string pendingLintContent_;
+        std::string pendingLintFilePath_;
+
         // Trace / lifecycle cache (lazy: populated after Ctrl+R run)
         std::string lastTracedFile_;
         std::string traceJsonCache_; // raw JSON from --trace-vars
@@ -1928,6 +2006,9 @@ namespace xterm
         Color bgColor_ = {18, 18, 18};
         Color fgColor_ = {204, 204, 204};
         Color borderColor_ = {51, 51, 51};
+
+        // Retained full-frame buffer to avoid per-frame reallocations.
+        ScreenOutput frameCache_;
 
         void loadColors()
         {
@@ -2621,7 +2702,12 @@ namespace xterm
                 for (int c = 0; c < (int)panel[r].size() && rect.x + c < totalCols_; c++)
                 {
                     if (rect.y + r >= 0 && rect.x + c >= 0)
-                        screen[rect.y + r][rect.x + c] = panel[r][c];
+                    {
+                        auto &dst = screen[rect.y + r][rect.x + c];
+                        const auto &src = panel[r][c];
+                        if (!dst.visual_equals(src) || dst.dirty != src.dirty)
+                            dst = src;
+                    }
                 }
             }
         }

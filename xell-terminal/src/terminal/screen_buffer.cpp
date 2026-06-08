@@ -55,13 +55,7 @@ namespace xterm
         if (row >= 0 && row < rows_ && col >= 0 && col < cols_)
         {
             auto &dst = grid_[row][col];
-            bool changed =
-                dst.ch != cell.ch ||
-                dst.fg != cell.fg ||
-                dst.bg != cell.bg ||
-                dst.bold != cell.bold ||
-                dst.italic != cell.italic ||
-                dst.underline != cell.underline;
+            bool changed = !dst.visual_equals(cell);
 
             if (changed)
             {
@@ -82,6 +76,15 @@ namespace xterm
         if (row >= 0 && row < rows_ && col >= 0 && col < cols_)
             return grid_[row][col];
         return Cell{};
+    }
+
+    const Cell &ScreenBuffer::cell_at(int row, int col) const
+    {
+        if (row >= 0 && row < rows_ && col >= 0 && col < cols_)
+            return grid_[row][col];
+
+        static const Cell kEmptyCell{};
+        return kEmptyCell;
     }
 
     void ScreenBuffer::clear()

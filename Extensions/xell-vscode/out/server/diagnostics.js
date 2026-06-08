@@ -16,8 +16,7 @@ class XellDiagnostics {
         this.pending = new Map();
         this.connection = connection;
     }
-    async validate(text, xellPath) {
-        const key = 'current';
+    async validate(text, xellPath, key = 'current') {
         const prev = this.pending.get(key);
         if (prev)
             prev.abort();
@@ -63,6 +62,7 @@ class XellDiagnostics {
                     proc.kill();
                 }
             });
+            const cleanupAbort = () => signal.removeEventListener('abort', abortHandler);
             proc.on('close', (_code) => {
                 const errorLines = stdout.split('\n').filter(line => {
                     const t = line.trim().toLowerCase();
@@ -80,9 +80,13 @@ class XellDiagnostics {
                 const combined = [stderr.trim(), errorLines.trim()]
                     .filter(s => s.length > 0)
                     .join('\n');
+                cleanupAbort();
                 resolve(combined);
             });
-            proc.on('error', (err) => { reject(err); });
+            proc.on('error', (err) => {
+                cleanupAbort();
+                reject(err);
+            });
             const abortHandler = () => {
                 proc.kill();
                 reject(new Error('Aborted'));

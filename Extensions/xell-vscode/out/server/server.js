@@ -166,26 +166,46 @@ connection.onDidChangeConfiguration(change => {
         globalSettings = (change.settings.xell || defaultSettings);
     }
     (0, dialectMap_1.clearDialectCache)();
-    documents.all().forEach(validateTextDocument);
-});
-documents.onDidClose(e => {
-    documentSettings.delete(e.document.uri);
-    (0, dialectMap_1.invalidateDialect)(e.document.uri);
+    documents.all().forEach(doc => {
+        void validateTextDocument(doc);
+    });
 });
 // ── Diagnostics ──────────────────────────────────────────
 const pendingValidations = new Map();
+const pendingSubprocessValidations = new Map();
 documents.onDidChangeContent(change => {
-    // Debounce: wait 300ms after last keystroke before validating
+    // Stage 1: fast local diagnostics shortly after edits.
     const uri = change.document.uri;
     const prev = pendingValidations.get(uri);
     if (prev)
         clearTimeout(prev);
+    const prevSub = pendingSubprocessValidations.get(uri);
+    if (prevSub)
+        clearTimeout(prevSub);
     pendingValidations.set(uri, setTimeout(() => {
         pendingValidations.delete(uri);
-        validateTextDocument(change.document);
-    }, 300));
+        validateTextDocument(change.document, { includeSubprocess: false });
+    }, 220));
+    // Stage 2: subprocess diagnostics on longer idle window.
+    pendingSubprocessValidations.set(uri, setTimeout(() => {
+        pendingSubprocessValidations.delete(uri);
+        validateTextDocument(change.document, { includeSubprocess: true });
+    }, 850));
 });
-async function validateTextDocument(textDocument) {
+documents.onDidClose(e => {
+    documentSettings.delete(e.document.uri);
+    (0, dialectMap_1.invalidateDialect)(e.document.uri);
+    const pending = pendingValidations.get(e.document.uri);
+    if (pending)
+        clearTimeout(pending);
+    pendingValidations.delete(e.document.uri);
+    const pendingSub = pendingSubprocessValidations.get(e.document.uri);
+    if (pendingSub)
+        clearTimeout(pendingSub);
+    pendingSubprocessValidations.delete(e.document.uri);
+});
+async function validateTextDocument(textDocument, options = { includeSubprocess: true }) {
+    const startVersion = textDocument.version;
     const settings = await getDocumentSettings(textDocument.uri);
     if (!settings.enableLinting) {
         connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
@@ -329,8 +349,8 @@ async function validateTextDocument(textDocument) {
             source: 'xell'
         });
     }
-    // Subprocess diagnostics
-    if (diagnosticsEngine) {
+    // Subprocess diagnostics (stage 2)
+    if (options.includeSubprocess && diagnosticsEngine) {
         // When a dialect is active, translate custom keywords → canonical
         // before sending to `xell --check` (which reads from stdin and has
         // no file context to resolve @convert directives).
@@ -348,8 +368,13 @@ async function validateTextDocument(textDocument) {
                 }
             }
         }
-        const subprocessDiags = await diagnosticsEngine.validate(lintText, resolveXellPath(settings.xellPath));
+        const subprocessDiags = await diagnosticsEngine.validate(lintText, resolveXellPath(settings.xellPath), textDocument.uri);
         diagnostics.push(...subprocessDiags.slice(0, settings.maxNumberOfProblems - diagnostics.length));
+    }
+    // Coalesce stale validations: only publish for latest document version.
+    const latestDoc = documents.get(textDocument.uri);
+    if (!latestDoc || latestDoc.version !== startVersion) {
+        return;
     }
     connection.sendDiagnostics({
         uri: textDocument.uri,
@@ -619,7 +644,9 @@ connection.languages.semanticTokens.on((params) => {
 connection.onNotification('xell/xesyFileChanged', (params) => {
     (0, dialectMap_1.invalidateByXesyPath)(params.path);
     // Re-validate all open documents that might use this mapping
-    documents.all().forEach(validateTextDocument);
+    documents.all().forEach(doc => {
+        void validateTextDocument(doc);
+    });
 });
 // ── Start ────────────────────────────────────────────────
 documents.listen(connection);

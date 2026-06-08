@@ -372,9 +372,15 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: \
  /usr/include/c++/13/bits/atomic_lockfree_defines.h \
  /usr/include/c++/13/backward/auto_ptr.h \
  /usr/include/c++/13/pstl/glue_memory_defs.h /usr/include/c++/13/chrono \
- /usr/include/c++/13/regex /usr/include/c++/13/bitset \
- /usr/include/c++/13/stack /usr/include/c++/13/bits/stl_stack.h \
- /usr/include/c++/13/bits/stl_tree.h /usr/include/c++/13/bits/stl_map.h \
+ /usr/include/c++/13/future /usr/include/c++/13/mutex \
+ /usr/include/c++/13/bits/std_mutex.h \
+ /usr/include/c++/13/bits/unique_lock.h \
+ /usr/include/c++/13/condition_variable \
+ /usr/include/c++/13/bits/atomic_futex.h /usr/include/c++/13/atomic \
+ /usr/include/c++/13/bits/std_thread.h /usr/include/c++/13/regex \
+ /usr/include/c++/13/bitset /usr/include/c++/13/stack \
+ /usr/include/c++/13/bits/stl_stack.h /usr/include/c++/13/bits/stl_tree.h \
+ /usr/include/c++/13/bits/stl_map.h \
  /usr/include/c++/13/bits/regex_constants.h \
  /usr/include/c++/13/bits/regex_error.h \
  /usr/include/c++/13/bits/regex_automaton.h \
@@ -396,11 +402,7 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/../editor/../ui/file_tree.hpp \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/../editor/../ui/panel.hpp \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/repl_panel.hpp \
- /usr/include/c++/13/atomic /usr/include/c++/13/thread \
- /usr/include/c++/13/bits/std_thread.h \
- /usr/include/c++/13/bits/this_thread_sleep.h /usr/include/c++/13/mutex \
- /usr/include/c++/13/bits/std_mutex.h \
- /usr/include/c++/13/bits/unique_lock.h \
+ /usr/include/c++/13/thread /usr/include/c++/13/bits/this_thread_sleep.h \
  /home/DATA/CODE/code/Xell/xell-terminal/src/ui/embedded_terminal.hpp \
  /usr/include/unistd.h /usr/include/x86_64-linux-gnu/bits/posix_opt.h \
  /usr/include/x86_64-linux-gnu/bits/environments.h \

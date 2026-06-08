@@ -1196,7 +1196,7 @@ int main(int argc, char *argv[])
             layout->tick();
 
             // IDE mode: render LayoutManager output into ScreenBuffer
-            auto ideOutput = layout->render();
+            const auto &ideOutput = layout->render();
 
             std::lock_guard<std::mutex> lock(buffer_mutex);
             for (int r = 0; r < (int)ideOutput.cells.size() && r < term_rows; r++)
@@ -1204,15 +1204,10 @@ int main(int argc, char *argv[])
                 for (int c = 0; c < (int)ideOutput.cells[r].size() && c < term_cols; c++)
                 {
                     const xterm::Cell &next = ideOutput.cells[r][c];
-                    xterm::Cell prev = buffer.get_cell(r, c);
+                    const xterm::Cell &prev = buffer.cell_at(r, c);
 
                     // Skip redundant writes to preserve dirty-cell wins.
-                    if (prev.ch == next.ch &&
-                        prev.fg == next.fg &&
-                        prev.bg == next.bg &&
-                        prev.bold == next.bold &&
-                        prev.italic == next.italic &&
-                        prev.underline == next.underline)
+                    if (prev.visual_equals(next))
                     {
                         continue;
                     }

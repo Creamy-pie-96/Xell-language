@@ -66,10 +66,36 @@ namespace xterm
         // The spans cover the entire line (gaps filled with default fg)
         std::vector<ColoredSpan> highlightLine(const std::string &line)
         {
+            const bool startInBlock = inBlockComment_;
+
+            if (line.size() <= MAX_CACHED_LINE_LENGTH)
+            {
+                LineCacheKey key{line, startInBlock};
+                auto it = lineCache_.find(key);
+                if (it != lineCache_.end())
+                {
+                    inBlockComment_ = it->second.endInBlockComment;
+                    return it->second.spans;
+                }
+            }
+
             std::vector<ColoredSpan> spans;
 
+            auto cacheAndReturn = [&](std::vector<ColoredSpan> result)
+            {
+                if (line.size() <= MAX_CACHED_LINE_LENGTH)
+                {
+                    if (lineCache_.size() >= MAX_LINE_CACHE_ENTRIES)
+                        lineCache_.clear();
+
+                    lineCache_[LineCacheKey{line, startInBlock}] =
+                        CachedLineResult{result, inBlockComment_};
+                }
+                return result;
+            };
+
             if (line.empty())
-                return spans;
+                return cacheAndReturn(std::move(spans));
 
             // ── Handle block comments: -->...<-- ──────────────────────────
             // If we're inside a block comment from a previous line
@@ -88,13 +114,13 @@ namespace xterm
                         auto restSpans = highlightSubLine(rest, endCol);
                         spans.insert(spans.end(), restSpans.begin(), restSpans.end());
                     }
-                    return spans;
+                    return cacheAndReturn(std::move(spans));
                 }
                 else
                 {
                     // Entire line is inside block comment
                     spans.push_back({0, (int)line.size(), blockCommentFg_, {0, 0, 0, 0}, false, false});
-                    return spans;
+                    return cacheAndReturn(std::move(spans));
                 }
             }
 
@@ -131,12 +157,13 @@ namespace xterm
                         spans.push_back({(int)startPos, (int)line.size(), blockCommentFg_, {0, 0, 0, 0}, false, false});
                         inBlockComment_ = true;
                     }
-                    return spans;
+                    return cacheAndReturn(std::move(spans));
                 }
             }
 
             // Normal line — delegate to sub-line highlighter
-            return highlightSubLine(line, 0);
+            spans = highlightSubLine(line, 0);
+            return cacheAndReturn(std::move(spans));
         }
 
         // Highlight an entire buffer → one vector of spans per line
@@ -174,6 +201,37 @@ namespace xterm
         CachedStyle methodCallStyle_;
         CachedStyle decoratorStyle_;
         CachedStyle fnDefNameStyle_;
+
+        struct LineCacheKey
+        {
+            std::string line;
+            bool startInBlockComment = false;
+
+            bool operator==(const LineCacheKey &o) const
+            {
+                return startInBlockComment == o.startInBlockComment && line == o.line;
+            }
+        };
+
+        struct LineCacheKeyHash
+        {
+            size_t operator()(const LineCacheKey &k) const
+            {
+                size_t h1 = std::hash<std::string>{}(k.line);
+                size_t h2 = std::hash<bool>{}(k.startInBlockComment);
+                return h1 ^ (h2 + 0x9e3779b97f4a7c15ULL + (h1 << 6) + (h1 >> 2));
+            }
+        };
+
+        struct CachedLineResult
+        {
+            std::vector<ColoredSpan> spans;
+            bool endInBlockComment = false;
+        };
+
+        std::unordered_map<LineCacheKey, CachedLineResult, LineCacheKeyHash> lineCache_;
+        static constexpr size_t MAX_LINE_CACHE_ENTRIES = 2048;
+        static constexpr size_t MAX_CACHED_LINE_LENGTH = 4096;
 
         // ── Highlight a sub-line (no block-comment handling) ─────────────
         std::vector<ColoredSpan> highlightSubLine(const std::string &line, int colOffset) const

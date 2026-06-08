@@ -170,3 +170,39 @@ Expected impact: less CPU/process overhead in editor background.
 2. Build and run tests.
 3. Install with existing installer script.
 4. Report measured deltas and next-phase tasks.
+
+---
+
+## 7) Progress Update (2026-04-09)
+
+### ✅ Phase 1
+
+- Dirty-flag lifecycle fixed and preserved.
+- IDE → `ScreenBuffer` redundant write skipping added.
+- Idle wake pressure reduced.
+
+### ✅ Phase 2 (current pass)
+
+- Retained full-frame buffer added in `LayoutManager` (reused across frames).
+- Per-frame frame-grid reallocation removed from IDE render path.
+- Panel blit now skips unchanged destination cells to reduce copy churn.
+
+### ✅ Phase 3 (current pass)
+
+- Incremental line highlight cache added to `Highlighter`.
+- Cache key includes line text + incoming multiline block-comment state to keep correctness.
+- Bounded cache size to avoid unbounded memory growth.
+
+### ✅ Phase 4 (current pass)
+
+- IDE live lint converted to async worker + poll model.
+- Coalescing added: when edits occur during lint, only latest pending content is linted next.
+- UI thread no longer blocks on `xell --check-symbols` calls.
+
+### ✅ Phase 5 (current pass)
+
+- VS Code server diagnostics now use staged validation:
+  - fast local checks on short debounce,
+  - delayed subprocess checks on longer idle.
+- Per-document subprocess cancellation keys added.
+- Version-coalesced publish added to drop stale diagnostics from older document versions.

@@ -92,6 +92,7 @@ namespace xterm
         void resize(int new_rows, int new_cols);
         void set_cell(int row, int col, const Cell &cell);
         Cell get_cell(int row, int col) const;
+        const Cell &cell_at(int row, int col) const;
         void clear();
         void clear_row(int row);
         void scroll_up(int lines = 1);

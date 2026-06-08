@@ -186,7 +186,7 @@ namespace xterm
             {
                 for (int c = 0; c < cols; ++c)
                 {
-                    draw_cell(screen_row, c, buffer.get_cell(live_row, c));
+                    draw_cell(screen_row, c, buffer.cell_at(live_row, c));
                 }
             }
         }
@@ -197,7 +197,7 @@ namespace xterm
             {
                 for (int c = 0; c < cols; ++c)
                 {
-                    draw_cell(r, c, buffer.get_cell(r, c));
+                    draw_cell(r, c, buffer.cell_at(r, c));
                 }
             }
         }
@@ -205,8 +205,8 @@ namespace xterm
         // Draw cursor
         if (cursor_visible && buffer.cursor_visible && scroll_offset == 0)
         {
-            Cell cell_under = buffer.get_cell(buffer.cursor_row, buffer.cursor_col);
-            draw_cursor(buffer.cursor_row, buffer.cursor_col, cell_under);
+            draw_cursor(buffer.cursor_row, buffer.cursor_col,
+                        buffer.cell_at(buffer.cursor_row, buffer.cursor_col));
         }
 
         // Draw selection overlay

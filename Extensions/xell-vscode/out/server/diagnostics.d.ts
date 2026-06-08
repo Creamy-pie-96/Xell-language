@@ -3,7 +3,7 @@ export declare class XellDiagnostics {
     private connection;
     private pending;
     constructor(connection: Connection);
-    validate(text: string, xellPath: string): Promise<Diagnostic[]>;
+    validate(text: string, xellPath: string, key?: string): Promise<Diagnostic[]>;
     private runXell;
     private parseErrors;
     private createDiagnostic;

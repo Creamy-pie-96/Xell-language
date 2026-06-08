@@ -114,6 +114,16 @@ namespace xterm
             underline = false;
             dirty = true;
         }
+
+        bool visual_equals(const Cell &o) const
+        {
+            return ch == o.ch &&
+                   fg == o.fg &&
+                   bg == o.bg &&
+                   bold == o.bold &&
+                   italic == o.italic &&
+                   underline == o.underline;
+        }
     };
 
     // ─── UTF-8 utilities ─────────────────────────────────────────────────

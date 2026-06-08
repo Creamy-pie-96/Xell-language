@@ -317,6 +317,7 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: /home/DATA/CODE/code/Xell/xell-term
   /usr/include/c++/13/bits/allocated_ptr.h \
   /usr/include/c++/13/bits/allocator.h \
   /usr/include/c++/13/bits/atomic_base.h \
+  /usr/include/c++/13/bits/atomic_futex.h \
   /usr/include/c++/13/bits/atomic_lockfree_defines.h \
   /usr/include/c++/13/bits/basic_ios.h \
   /usr/include/c++/13/bits/basic_ios.tcc \
@@ -435,6 +436,7 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: /home/DATA/CODE/code/Xell/xell-term
   /usr/include/c++/13/cmath \
   /usr/include/c++/13/codecvt \
   /usr/include/c++/13/compare \
+  /usr/include/c++/13/condition_variable \
   /usr/include/c++/13/cstddef \
   /usr/include/c++/13/cstdint \
   /usr/include/c++/13/cstdio \
@@ -457,6 +459,7 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: /home/DATA/CODE/code/Xell/xell-term
   /usr/include/c++/13/filesystem \
   /usr/include/c++/13/fstream \
   /usr/include/c++/13/functional \
+  /usr/include/c++/13/future \
   /usr/include/c++/13/initializer_list \
   /usr/include/c++/13/iomanip \
   /usr/include/c++/13/ios \
@@ -2197,6 +2200,10 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/float.h:
 
+/usr/lib/gcc/x86_64-linux-gnu/13/include/emmintrin.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/13/include/cmpccxaddintrin.h:
+
 /usr/include/SDL2/SDL_gesture.h:
 
 /usr/include/ctype.h:
@@ -2369,6 +2376,10 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/time.h:
 
+/usr/lib/gcc/x86_64-linux-gnu/13/include/enqcmdintrin.h:
+
+/home/DATA/CODE/code/Xell/xell-terminal/src/editor/editor_input.hpp:
+
 /usr/include/x86_64-linux-gnu/bits/select2.h:
 
 /usr/include/c++/13/cmath:
@@ -2429,13 +2440,13 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/c++/13/bits/ios_base.h:
 
+/usr/include/c++/13/condition_variable:
+
 /usr/lib/gcc/x86_64-linux-gnu/13/include/xsavecintrin.h:
 
 /usr/include/c++/13/streambuf:
 
 /usr/include/c++/13/bits/exception.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/13/include/emmintrin.h:
 
 /usr/include/c++/13/bits/basic_ios.tcc:
 
@@ -2444,10 +2455,6 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 /usr/include/c++/13/bits/nested_exception.h:
 
 /usr/include/c++/13/bits/regex_executor.h:
-
-/home/DATA/CODE/code/Xell/xell-terminal/src/editor/editor_input.hpp:
-
-/usr/lib/gcc/x86_64-linux-gnu/13/include/enqcmdintrin.h:
 
 /usr/include/c++/13/bits/basic_ios.h:
 
@@ -2534,6 +2541,8 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 /usr/include/c++/13/bits/locale_facets.tcc:
 
 /usr/include/linux/stat.h:
+
+/usr/include/c++/13/future:
 
 /usr/include/x86_64-linux-gnu/bits/termios-struct.h:
 
@@ -2918,6 +2927,8 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 /usr/include/c++/13/bits/align.h:
 
 /usr/include/c++/13/bits/atomic_base.h:
+
+/usr/include/c++/13/bits/atomic_futex.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/avx512vpopcntdqintrin.h:
 
@@ -3330,5 +3341,3 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 /usr/lib/gcc/x86_64-linux-gnu/13/include/bmiintrin.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/cldemoteintrin.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/13/include/cmpccxaddintrin.h:
