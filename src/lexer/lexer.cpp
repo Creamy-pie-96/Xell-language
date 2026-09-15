@@ -603,7 +603,169 @@ namespace xell
         advance(); // consume closing quote
         return Token(TokenType::STRING, str, startLine);
     }
+    // Helper: convert hex char to int value (-1 if invalid)
+    static int hexVal(char c)
+    {
+        if (c >= '0' && c <= '9')
+            return c - '0';
+        if (c >= 'a' && c <= 'f')
+            return 10 + c - 'a';
+        if (c >= 'A' && c <= 'F')
+            return 10 + c - 'A';
+        return -1;
+    }
 
+    // Helper: encode a Unicode code point as UTF-8
+    static void encodeUtf8(uint32_t cp, std::string &out)
+    {
+        if (cp <= 0x7F)
+        {
+            out += static_cast<char>(cp);
+        }
+        else if (cp <= 0x7FF)
+        {
+            out += static_cast<char>(0xC0 | (cp >> 6));
+            out += static_cast<char>(0x80 | (cp & 0x3F));
+        }
+        else if (cp <= 0xFFFF)
+        {
+            out += static_cast<char>(0xE0 | (cp >> 12));
+            out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            out += static_cast<char>(0x80 | (cp & 0x3F));
+        }
+        else if (cp <= 0x10FFFF)
+        {
+            out += static_cast<char>(0xF0 | (cp >> 18));
+            out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+            out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            out += static_cast<char>(0x80 | (cp & 0x3F));
+        }
+    }
+    Token Lexer::readFString(char quoteChar)
+    {
+        int startLine = line_;
+        advance(); // consume 'f'
+        advance(); // consume opening quote
+
+        std::string result;
+        while (!isAtEnd() && current() != quoteChar)
+        {
+            if (current() == '\\')
+            {
+                // Escape sequence inside the f-string (outside expressions)
+                advance();
+                if (isAtEnd())
+                    throw LexerError("Unterminated escape in f-string", startLine);
+                result += '\\';
+                result += current();
+                advance();
+                continue;
+            }
+
+            if (current() == '{')
+            {
+                // Start of interpolation expression
+                result += '{';
+                advance();
+
+                // Read the expression until matching '}', handling nested braces and strings
+                int braceDepth = 1;
+                while (!isAtEnd() && braceDepth > 0)
+                {
+                    char c = current();
+
+                    if (c == '\\')
+                    {
+                        // Escape sequence inside the expression
+                        result += '\\';
+                        advance();
+                        if (!isAtEnd())
+                        {
+                            result += current();
+                            advance();
+                        }
+                        continue;
+                    }
+
+                    if (c == '"' || c == '\'')
+                    {
+                        // String literal inside the expression
+                        char quote = c;
+                        result += quote;
+                        advance();
+                        while (!isAtEnd() && current() != quote)
+                        {
+                            if (current() == '\\')
+                            {
+                                result += '\\';
+                                advance();
+                                if (!isAtEnd())
+                                {
+                                    result += current();
+                                    advance();
+                                }
+                            }
+                            else
+                            {
+                                result += current();
+                                advance();
+                            }
+                        }
+                        if (!isAtEnd())
+                        {
+                            result += current(); // closing quote
+                            advance();
+                        }
+                        continue;
+                    }
+
+                    if (c == '{')
+                    {
+                        braceDepth++;
+                        result += c;
+                        advance();
+                    }
+                    else if (c == '}')
+                    {
+                        braceDepth--;
+                        if (braceDepth == 0)
+                        {
+                            result += c;
+                            advance();
+                            break;
+                        }
+                        else
+                        {
+                            result += c;
+                            advance();
+                        }
+                    }
+                    else
+                    {
+                        result += c;
+                        advance();
+                    }
+                }
+                if (braceDepth != 0)
+                {
+                    throw LexerError("Unclosed '{' in f-string interpolation", startLine);
+                }
+                continue;
+            }
+
+            // Regular character
+            result += current();
+            advance();
+        }
+
+        if (isAtEnd())
+        {
+            throw LexerError("Unterminated f-string literal", startLine);
+        }
+
+        advance(); // consume closing quote
+        return Token(TokenType::F_STRING, result, startLine);
+    }
     // Raw string: r"..." or r'...' — backslashes are treated as literal characters
     Token Lexer::readRawString(char quoteChar)
     {
@@ -805,6 +967,11 @@ namespace xell
                 if (c == 'b' && (peek(1) == '"' || peek(1) == '\''))
                 {
                     tokens.push_back(readByteString(peek(1)));
+                    continue;
+                }
+                if (c == 'f' && (peek(1) == '"' || peek(1) == '\''))
+                {
+                    tokens.push_back(readFString(peek(1)));
                     continue;
                 }
                 tokens.push_back(readIdentifierOrKeyword());

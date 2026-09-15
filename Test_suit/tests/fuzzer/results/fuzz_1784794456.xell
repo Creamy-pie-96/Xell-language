@@ -1,0 +1,58 @@
+@immutable
+@singleton
+class Cwwsg :
+    fztof = -10
+    frjix = 3
+    fn methodramg(self) :
+    fnndry()
+    (((3 >= 8) >= 10) % ((10 % -4) != (-10 > -4)))
+    give -5
+;
+;
+@notrack
+@profile
+fn flgao() -> bool :
+    if -2 :
+    try :
+    give
+;
+catch e :
+    give
+    vhfix = 1
+;
+;
+else :
+    await (-5 == 10)
+    try :
+    give -1
+    (-6 - -1)
+;
+catch e :
+    ((-2 * (-3 != -3)) * -9)
+    -5
+;
+;
+;
+@track
+fn fwuux(pfomm: string) -> tuple :
+    ((-8 >= (-1 * 6)) >= (-5 == (0 + -9)))
+    give ((-10 + -1) + -2)
+;
+
+rwfnd = flgao()
+fwuux("k2")
+if (-6 % ((-9 + -7) * -4)) :
+    for izzqp in range(2) :
+    give (-6 == (3 % (izzqp % 0)))
+    give
+;
+    await (5 * -4)
+;
+else :
+    @safe_loop loop :
+    vfift = ((-2 >= 6) * 0)
+    vjtnt = -10
+;
+    yield
+;
+print("done")

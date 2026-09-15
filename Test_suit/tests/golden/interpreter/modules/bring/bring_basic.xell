@@ -1,0 +1,3 @@
+bring json as j
+result = j->json_parse("{\"x\": 10}")
+print(result->x)

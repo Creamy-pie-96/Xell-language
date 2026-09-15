@@ -1,0 +1,11 @@
+
+============================================================
+TEST RESULTS: 5 passed, 0 failed, 5 total
+============================================================
+[92m✔[0m golden/interpreter/builtins/json/json_parse_basic.xell  [PASS]
+[92m✔[0m golden/interpreter/modules/bring/bring_basic.xell  [PASS]
+[92m✔[0m golden/regression/break_nested.bug/good_nested.xell  [PASS]
+[92m✔[0m golden/regression/break_nested.bug/break_nested.xell  [PASS]
+[92m✔[0m golden/regression/overload_subtyping.bug/overload_subtyping.xell  [PASS]
+
+[92mAll tests passed![0m

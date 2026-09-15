@@ -1,0 +1,47 @@
+@dataclass
+@singleton
+class Cptvc :
+    fnnyq = -3
+    fjxmv = 9
+    fn methodvanu(self, pcwdw: float) -> frozen_set :
+    yield 10
+    yield
+;
+;
+@notrack
+@track
+fn fecgo(pdcvo: bool) -> float :
+    while 1 :
+    if -7 :
+    give
+    -1
+;
+    fntors()
+;
+;
+@notrack
+async fn fiapd() -> list :
+    if 4 :
+    await -2
+;
+else :
+    yield
+;
+    while 8 :
+    yield
+    try :
+    give (5 >= ((7 < 9) - -3))
+;
+catch e :
+    give (((7 % 5) * 6) != (-1 / 8))
+;
+;
+    loop :
+    continue
+;
+;
+
+fecgo(false)
+rzrdi = fiapd()
+yield (-1 % -4)
+print("done")

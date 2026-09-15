@@ -2944,7 +2944,13 @@ namespace xell
             advance();
             return parsePostfix(std::make_unique<StringLiteral>(std::move(val), ln, true));
         }
-
+        // f-string literal
+        if (check(TokenType::F_STRING)) {
+            std::string val = current().value;
+            int ln = current().line;
+            advance();
+            return parsePostfix(std::make_unique<StringLiteral>(std::move(val), ln, false, true));
+        }
         // Byte string literal (b"..." — raw binary data)
         if (check(TokenType::BYTE_STRING))
         {

@@ -1,0 +1,47 @@
+
+        <!DOCTYPE html>
+        <html><head><title>Xell Test Report</title>
+        <style>body { font-family: sans-serif; } table { border-collapse: collapse; } th, td { border: 1px solid #ddd; padding: 8px; } th { background: #f2f2f2; }</style>
+        </head><body>
+        <h1>Test Report</h1>
+        <table>
+            <tr><th>Test</th><th>Status</th><th>Code Snippet</th><th>Diff</th></tr>
+            
+            <tr>
+                <td>golden/interpreter/builtins/json/json_parse_basic.xell</td>
+                <td style="color:#4CAF50">PASS</td>
+                <td><pre>bring * of json<br>result = json_parse(&quot;{\&quot;a\&quot;: 1, \&quot;b\&quot;: \&quot;hello\&quot;}&quot;)<br>print(result-&gt;a)<br>print(result-&gt;b)</pre></td>
+                <td><pre></pre></td>
+            </tr>
+            
+            <tr>
+                <td>golden/interpreter/modules/bring/bring_basic.xell</td>
+                <td style="color:#4CAF50">PASS</td>
+                <td><pre>bring json as j<br>result = j-&gt;json_parse(&quot;{\&quot;x\&quot;: 10}&quot;)<br>print(result-&gt;x)</pre></td>
+                <td><pre></pre></td>
+            </tr>
+            
+            <tr>
+                <td>golden/regression/break_nested.bug/good_nested.xell</td>
+                <td style="color:#4CAF50">PASS</td>
+                <td><pre><br>@safe_loop <br>loop :<br>    if true :<br>        break<br>    ;<br>;</pre></td>
+                <td><pre></pre></td>
+            </tr>
+            
+            <tr>
+                <td>golden/regression/break_nested.bug/break_nested.xell</td>
+                <td style="color:#4CAF50">PASS</td>
+                <td><pre>@safe_loop <br>loop :<br>    for i in [1] :<br>        break<br>    ;<br>;</pre></td>
+                <td><pre></pre></td>
+            </tr>
+            
+            <tr>
+                <td>golden/regression/overload_subtyping.bug/overload_subtyping.xell</td>
+                <td style="color:#4CAF50">PASS</td>
+                <td><pre>class Animal :<br>    fn speak(self) :<br>        give &quot;animal&quot;<br>    ;<br>;<br><br>class Dog inherits Animal :<br>    fn speak(self) :<br>        give &quot;woof&quot;<br>    ;<br>...</pre></td>
+                <td><pre></pre></td>
+            </tr>
+            
+        </table>
+        </body></html>
+        

@@ -1,0 +1,47 @@
+@profile
+fn fcyeg(pmbaq: bool, ...resttlro) -> frozen_set :
+    vecvq = (9 - -3)
+    await ((-5 > -2) - (vecvq - (vecvq / 0)))
+    give 6
+;
+fn faepf() -> string :
+    if 8 :
+    give -6
+    for ingin in [6, 10] :
+    vapea = (-3 >= -4)
+    (7 - (7 == 4))
+;
+;
+else :
+    loop :
+    (-1 != 2)
+    (((7 == -1) * (-4 < -2)) * (-3 < 0))
+;
+    try :
+    vltrb = 5
+;
+catch e :
+    vnxoz = ((8 > -6) * 6)
+;
+;
+    try :
+    if (-7 / -9) :
+    2
+    -4
+;
+;
+catch e :
+    try :
+    give 1
+;
+catch e :
+    ((9 + -9) == (-8 <= 7))
+    vjtcs = 10
+;
+    yield ((-8 != -2) >= (-9 > vjtcs))
+;
+;
+
+rznhx = fcyeg(true, 6)
+faepf()
+print("done")

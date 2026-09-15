@@ -1,0 +1,23 @@
+class Animal :
+    fn speak(self) :
+        give "animal"
+    ;
+;
+
+class Dog inherits Animal :
+    fn speak(self) :
+        give "woof"
+    ;
+;
+
+fn greet(a : Animal) :
+    give a->speak()
+;
+
+fn greet(d : Dog) :
+    give "dog overload"
+;
+
+d = Dog()
+result = greet(d)
+print(result)

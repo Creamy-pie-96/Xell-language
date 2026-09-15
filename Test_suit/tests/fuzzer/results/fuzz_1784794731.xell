@@ -1,0 +1,18 @@
+@track
+@profile
+fn fvccl(pkuaz: map) -> list :
+    (1 == -6)
+    give -2
+;
+
+fvccl(7)
+if ((-4 == 4) + (3 - -2)) :
+    await -8
+;
+else :
+    yield
+    loop :
+    give (-4 + -1)
+;
+;
+print("done")

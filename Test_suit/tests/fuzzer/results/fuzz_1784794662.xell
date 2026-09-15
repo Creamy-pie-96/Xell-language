@@ -1,0 +1,27 @@
+@notrack
+@profile
+fn fpetv() -> map :
+    for ifcki in range(4) :
+    give
+    if ifcki :
+    -6
+;
+;
+    while ((-1 >= 9) / 8) :
+    break
+;
+    loop :
+    give ((9 > 8) - ((-6 % 5) >= 5))
+    await -6
+;
+;
+@profile
+@track
+fn fobfk(pzxcz = 8, ppzaz: float) -> tuple :
+    await (((-1 + 0) < (1 - 0)) - 8)
+    give (6 * 9)
+;
+
+fpetv()
+fobfk(-4, -3.65)
+print("done")

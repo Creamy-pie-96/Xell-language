@@ -1,0 +1,13 @@
+fn fncxj(phska: bool, pwnwl) -> set :
+    fnozga()
+    give 7
+;
+@notrack
+@profile
+fn ftgnk(plbhk) -> string :
+    yield
+;
+
+fncxj(false, -3)
+ftgnk(3)
+print("done")

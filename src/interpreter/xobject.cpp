@@ -1,6 +1,7 @@
 #include "xobject.hpp"
 #include "../module/xmodule.hpp"
 #include "../lib/errors/error.hpp"
+#include "../builtins/builtin_registry.hpp"
 #include "../xobject/gc.hpp"
 #include <sstream>
 #include <cmath>
@@ -210,6 +211,9 @@ namespace xell
         case XType::MODULE:
             delete static_cast<std::shared_ptr<XModule> *>(payload);
             break;
+        case XType::NATIVE_FN:
+            delete static_cast<XNativeFunction *>(payload);
+            break;
         }
     }
 
@@ -381,7 +385,10 @@ namespace xell
         auto *p = new std::shared_ptr<XModule>(std::move(mod));
         return XObject(allocData(XType::MODULE, p));
     }
-
+    XObject XObject::makeNativeFunction(const std::string &name, BuiltinFn fn) {
+    auto *p = new XNativeFunction{name, std::move(fn)};
+    return XObject(allocData(XType::NATIVE_FN, p));
+}
     // ========================================================================
     // Default constructor → none
     // ========================================================================
@@ -504,6 +511,17 @@ namespace xell
     // Payload access (unchecked — caller must verify type)
     // ========================================================================
 
+    bool XObject::isNativeFn() const {
+    return type() == XType::NATIVE_FN;
+    }
+
+    const XNativeFunction &XObject::asNativeFn() const {
+        return *static_cast<XNativeFunction*>(data_->payload);
+    }
+
+    XNativeFunction &XObject::asNativeFnMut() {
+        return *static_cast<XNativeFunction*>(data_->payload);
+    }
     int64_t XObject::asInt() const
     {
         return *static_cast<int64_t *>(data_->payload);

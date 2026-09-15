@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "/tmp/tmptxukhmsu.xell", line 32, in fxbhd
+[XELL ERROR] Line 2 — TypeError: unsupported operand types for *: int and bool

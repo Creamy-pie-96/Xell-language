@@ -1,0 +1,25 @@
+{
+  "nxel_format": "1.0",
+  "metadata": {
+    "title": "Untitled",
+    "created": "2026-07-23T03:16:47.644Z",
+    "modified": "2026-07-23T06:19:48.472Z",
+    "kernel": "xell",
+    "kernel_version": "1.0"
+  },
+  "cells": [
+    {
+      "id": "cell-1",
+      "type": "code",
+      "source": "x = \"Xell\"\nresult = \"Hello,\"\nprint(f\"{result} + {x}\")",
+      "outputs": [
+        {
+          "type": "stderr",
+          "text": "Execution timed out after 30 seconds"
+        }
+      ],
+      "execution_count": null,
+      "metadata": {}
+    }
+  ]
+}

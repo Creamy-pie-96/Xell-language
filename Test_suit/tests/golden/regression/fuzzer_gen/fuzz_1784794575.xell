@@ -1,0 +1,19 @@
+@profile
+fn fobtx(...restyipa) -> float :
+    yield ((10 / (-1 - -1)) != (-10 + -10))
+    if (9 / 8) :
+    give 10
+    (((3 <= 2) <= (6 % 3)) <= -9)
+;
+    fnssgv(4)
+;
+
+rwoin = fobtx(1)
+for ilyjp in [-3, -2] :
+    ilyjp
+    loop :
+    give (((1 == 10) >= -1) % (-5 / 7))
+    give
+;
+;
+print("done")

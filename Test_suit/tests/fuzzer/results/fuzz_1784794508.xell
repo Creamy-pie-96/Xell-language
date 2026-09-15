@@ -1,0 +1,9 @@
+@notrack
+@profile
+fn ftnwx(pwytg = -1) -> float :
+    yield
+    await (9 * (-1 % -10))
+;
+
+ftnwx(2)
+print("done")

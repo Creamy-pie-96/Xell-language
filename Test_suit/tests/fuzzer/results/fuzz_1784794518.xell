@@ -1,0 +1,19 @@
+fn fvgps() -> float :
+    vdsbw = -8
+    2
+    vkdkw = (1 - vdsbw)
+    give -5
+;
+@notrack
+@track
+async fn fohlo(plcau: frozen_set = 2) -> int :
+    await -8
+    give 3
+;
+
+rrawf = fvgps()
+fohlo(9)
+@safe_loop loop :
+    await (0 - -7)
+;
+print("done")

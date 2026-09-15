@@ -1,0 +1,21 @@
+@immutable
+class Clfdf :
+    fn methodjdry(self, poidh, pswyo) -> tuple :
+    for ivxvw in [7, 6] :
+    await 1
+    if ivxvw :
+    give (ivxvw - ivxvw)
+;
+;
+;
+;
+@notrack
+@profile
+fn fidfv(pipub: int) -> frozen_set :
+    await (((-9 == -10) > 7) + -2)
+    give 4
+;
+
+fidfv(5)
+give
+print("done")

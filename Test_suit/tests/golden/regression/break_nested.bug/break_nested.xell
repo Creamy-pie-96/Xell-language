@@ -1,0 +1,6 @@
+@safe_loop 
+loop :
+    for i in [1] :
+        break
+    ;
+;

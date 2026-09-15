@@ -1,0 +1,37 @@
+fn fyrrn() :
+    yield -4
+    loop :
+    give -6
+    yield -7
+;
+;
+@track
+fn fpmqw(pnyct: map) -> tuple :
+    if (-1 + 5) :
+    try :
+    give
+;
+catch e :
+    vdjne = -9
+;
+;
+    try :
+    await -9
+    if -6 :
+    give
+;
+else :
+    give (((7 + 10) - 7) != (2 + -1))
+;
+;
+catch e :
+    if 10 :
+    (-2 - (8 + -9))
+;
+;
+;
+
+fyrrn()
+fpmqw(-9)
+yield
+print("done")

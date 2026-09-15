@@ -1,0 +1,11 @@
+@track
+@profile
+fn fyluz(pkeej: int, pksfm: string = 4) -> set :
+    await (-10 <= 3)
+    vhpzu = 7
+    yield
+;
+
+rhgae = fyluz(-10, "w8")
+yield 8
+print("done")

@@ -1,0 +1,7 @@
+
+@safe_loop 
+loop :
+    if true :
+        break
+    ;
+;

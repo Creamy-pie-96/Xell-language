@@ -1,0 +1,35 @@
+@immutable
+@dataclass
+class Clqai :
+    fbsjp = 3
+    fn methodhxzh(self, posll: bool) :
+    while (-6 <= (1 * 2)) :
+    fnrfoe(2)
+    fnjgku(7,-6)
+;
+    await 5
+    give -6
+;
+;
+@track
+@profile
+async fn fzera() -> list :
+    vhojw = 3
+    await ((-6 >= 7) == ((vhojw != vhojw) >= 9))
+    try :
+    vbbgv = 8
+    @safe_loop loop :
+    give -2
+;
+;
+catch e :
+    give
+;
+;
+
+fzera()
+@safe_loop loop :
+    await (((-5 - -9) != -9) < -5)
+    break
+;
+print("done")

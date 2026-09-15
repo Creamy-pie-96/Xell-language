@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "/tmp/tmpk8_c0zne.xell", line 35, in fnlsb
+[XELL ERROR] Line 25 — UndefinedVariable: 'fndjxn' is not defined

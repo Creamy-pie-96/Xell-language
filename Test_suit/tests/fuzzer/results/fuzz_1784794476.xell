@@ -1,0 +1,57 @@
+@immutable
+@dataclass
+class Cfppq :
+    fbthd = 8
+    fadvj = 0
+    fn methodtmtz(self) -> map :
+    loop :
+    -5
+    fnprzy(0,-6)
+;
+    try :
+    for ilebu in [-9, 10] :
+    vpooq = ilebu
+    vdztz = (-6 >= 8)
+;
+    try :
+    7
+    -9
+;
+catch e :
+    -4
+;
+;
+catch e :
+    loop :
+    give (((-2 + 0) * (-6 >= -2)) >= 0)
+    vlhdu = (0 / -10)
+;
+;
+    await -5
+;
+;
+@profile
+fn fkscg() :
+    await -7
+    loop :
+    vvbks = 0
+    try :
+    give (3 != (-9 / -3))
+    vjdvm = vvbks
+;
+catch e :
+    vsfud = vvbks
+;
+;
+    ((9 - -3) / ((1 > -9) * (-7 + -3)))
+;
+
+rfwzu = fkscg()
+@safe_loop loop :
+    while (4 < (1 != (6 <= 3))) :
+    vndpv = -3
+    give -9
+;
+    vqrek = 8
+;
+print("done")

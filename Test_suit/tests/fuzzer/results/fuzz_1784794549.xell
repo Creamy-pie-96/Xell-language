@@ -1,0 +1,19 @@
+@notrack
+@profile
+fn fmgea(petfs = 0, pwlgn) -> int :
+    give
+    -6
+    vfbqm = -8
+;
+
+reycp = fmgea(9, -6)
+while 5 :
+    try :
+    (-1 + -1)
+    give
+;
+catch e :
+    -6
+;
+;
+print("done")

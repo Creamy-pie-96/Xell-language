@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "/tmp/tmpef2ce97i.xell", line 12, in fdirw
+[XELL ERROR] Line 3 — TypeError: unsupported operand types for +: int and bool

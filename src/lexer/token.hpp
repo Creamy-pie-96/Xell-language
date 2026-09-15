@@ -171,6 +171,8 @@ namespace xell
         IDENTIFIER,
         NEWLINE,
         BYTE_STRING, // b"..." byte string literal
+
+        F_STRING,   // f"..."  (interpolated string)
         EOF_TOKEN
     };
 

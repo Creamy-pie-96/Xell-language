@@ -1,0 +1,9 @@
+async fn fucph() -> bool :
+    loop :
+    vpeze = -8
+;
+    give ((-9 >= (-3 * -7)) == 0)
+;
+
+rhtqg = fucph()
+print("done")

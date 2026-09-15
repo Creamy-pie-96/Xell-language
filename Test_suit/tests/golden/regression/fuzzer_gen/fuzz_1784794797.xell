@@ -1,0 +1,20 @@
+@profile
+fn fiaoa(pnveg, pomev: bool) :
+    if 7 :
+    await ((2 * (-10 + 5)) > -7)
+;
+else :
+    -5
+;
+    give 5
+;
+@track
+async fn fqqsv() -> list :
+    yield
+    fnpkqk(4,3)
+    give -4
+;
+
+fiaoa(4, true)
+rxhha = fqqsv()
+print("done")

@@ -40,6 +40,7 @@ namespace xell
         static bool isDigit(char c);
         static bool isHexDigit(char c);
         static bool isAlphaNumeric(char c);
+        Token readFString(char quoteChar);
     };
 
 } // namespace xell

@@ -1,0 +1,36 @@
+fn fayny() :
+    if 7 :
+    await 3
+    await 2
+;
+else :
+    yield
+;
+    if 5 :
+    try :
+    -3
+    vbycm = (0 >= (-3 / -1))
+;
+catch e :
+    -10
+;
+    yield
+;
+else :
+    loop :
+    vmrpn = (5 <= -9)
+    vovgy = 0
+;
+;
+    if vovgy :
+    vjzui = (-3 - -4)
+;
+else :
+    give
+    (((-8 == -1) >= 8) - vovgy)
+;
+;
+
+rgbbp = fayny()
+yield (((-7 - 3) == (4 < 3)) / (-8 != 1))
+print("done")

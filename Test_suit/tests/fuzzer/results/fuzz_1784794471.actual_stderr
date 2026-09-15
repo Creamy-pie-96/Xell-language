@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "/tmp/tmp87cqihmo.xell", line 30, in fzera
+[XELL ERROR] Line 18 — TypeError: unsupported operand types for >=: bool and int

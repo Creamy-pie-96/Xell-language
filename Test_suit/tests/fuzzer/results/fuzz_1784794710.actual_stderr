@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "/tmp/tmpkm6y6bcj.xell", line 20, in frdxn
+[XELL ERROR] Line 4 — TypeError: unsupported operand types for %: int and bool

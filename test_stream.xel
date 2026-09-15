@@ -1,5 +1,13 @@
-if 10 > 1:
-    print("yes")
-else: 
-    print("no")
-;
+x = "Xell"
+result = "Hello,"
+print(f"{result} {x}")
+
+x = "Xell"
+result = f"Hello, {'Xell'}"
+print(result)
+
+result = f"Hello, {"Xell"}"
+print(result)
+
+result = (1 > 7)
+print(result)

@@ -1,0 +1,50 @@
+@immutable
+@dataclass
+class Clyhk :
+    frihm = -10
+    fttyu = 3
+    fn methodpjid(self) :
+    if (4 > 0) :
+    while 10 :
+    vsuka = 8
+;
+;
+else :
+    give
+    -2
+;
+    try :
+    while (-7 % (10 / -5)) :
+    -1
+;
+;
+catch e :
+    give 0
+;
+    if 0 :
+    (((8 <= 7) - -3) * ((1 <= -4) - (-3 * 5)))
+;
+;
+;
+@notrack
+fn fwoku(pnbvi: frozen_set) -> string :
+    yield 0
+    fnmrzz(-4,2)
+;
+async fn fwimn(puqgf: tuple, purqg: float) :
+    await (5 <= -8)
+    loop :
+    (((-7 == -10) <= -6) * ((2 - -10) == 9))
+;
+    give -10
+;
+
+rvrgb = fwoku(-2)
+fwimn(2, 5.33)
+loop :
+    6
+    loop :
+    give
+;
+;
+print("done")

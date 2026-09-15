@@ -2339,56 +2339,72 @@ namespace xell
 
     // Helper: recursively check if a block of statements contains a BreakStmt.
     // Does NOT descend into nested function definitions (breaks there don't affect this loop).
-    static bool bodyContainsBreak(const std::vector<StmtPtr> &stmts)
+    // helper: check if a block contains a break that breaks the current loop
+    static bool bodyContainsBreak(const std::vector<StmtPtr> &stmts, bool insideNestedLoop = false)
     {
         for (const auto &s : stmts)
         {
-            if (dynamic_cast<const BreakStmt *>(s.get()))
-                return true;
+            if (auto *b = dynamic_cast<const BreakStmt *>(s.get()))
+            {
+                // only count if not inside a nested loop
+                if (!insideNestedLoop)
+                    return true;
+                continue;
+            }
             if (auto *p = dynamic_cast<const IfStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body))
+                if (bodyContainsBreak(p->body, insideNestedLoop))
                     return true;
-                for (const auto &elif : p->elifs)
-                    if (bodyContainsBreak(elif.body))
+                for (auto &elif : p->elifs)
+                    if (bodyContainsBreak(elif.body, insideNestedLoop))
                         return true;
-                if (bodyContainsBreak(p->elseBody))
+                if (bodyContainsBreak(p->elseBody, insideNestedLoop))
                     return true;
             }
-            if (auto *p = dynamic_cast<const ForStmt *>(s.get()))
-                if (bodyContainsBreak(p->body))
-                    return true;
-            if (auto *p = dynamic_cast<const WhileStmt *>(s.get()))
-                if (bodyContainsBreak(p->body))
-                    return true;
-            if (auto *p = dynamic_cast<const LoopStmt *>(s.get()))
-                if (bodyContainsBreak(p->body))
-                    return true;
-            if (auto *p = dynamic_cast<const DoWhileStmt *>(s.get()))
-                if (bodyContainsBreak(p->body))
-                    return true;
-            if (auto *p = dynamic_cast<const TryCatchStmt *>(s.get()))
+            else if (auto *p = dynamic_cast<const ForStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->tryBody))
+                if (bodyContainsBreak(p->body, true))
+                    return true; // nested loop → ignore breaks inside
+            }
+            else if (auto *p = dynamic_cast<const WhileStmt *>(s.get()))
+            {
+                if (bodyContainsBreak(p->body, true))
+                    return true;
+            }
+            else if (auto *p = dynamic_cast<const LoopStmt *>(s.get()))
+            {
+                if (bodyContainsBreak(p->body, true))
+                    return true;
+            }
+            else if (auto *p = dynamic_cast<const DoWhileStmt *>(s.get()))
+            {
+                if (bodyContainsBreak(p->body, true))
+                    return true;
+            }
+            else if (auto *p = dynamic_cast<const TryCatchStmt *>(s.get()))
+            {
+                if (bodyContainsBreak(p->tryBody, insideNestedLoop))
                     return true;
                 for (const auto &clause : p->catchClauses)
-                    if (bodyContainsBreak(clause.body))
+                    if (bodyContainsBreak(clause.body, insideNestedLoop))
                         return true;
-                if (bodyContainsBreak(p->finallyBody))
+                if (bodyContainsBreak(p->finallyBody, insideNestedLoop))
                     return true;
             }
-            if (auto *p = dynamic_cast<const InCaseStmt *>(s.get()))
+            else if (auto *p = dynamic_cast<const InCaseStmt *>(s.get()))
             {
                 for (const auto &clause : p->clauses)
-                    if (bodyContainsBreak(clause.body))
+                    if (bodyContainsBreak(clause.body, insideNestedLoop))
                         return true;
-                if (bodyContainsBreak(p->elseBody))
+                if (bodyContainsBreak(p->elseBody, insideNestedLoop))
                     return true;
             }
-            if (auto *p = dynamic_cast<const LetStmt *>(s.get()))
-                if (bodyContainsBreak(p->body))
+            else if (auto *p = dynamic_cast<const LetStmt *>(s.get()))
+            {
+                if (bodyContainsBreak(p->body, insideNestedLoop))
                     return true;
-            // Don't descend into FnDef, ClassDef — breaks in those are local
+            }
+            // do NOT descend into functions/classes – breaks there are local
         }
         return false;
     }
@@ -3074,7 +3090,7 @@ namespace xell
                          "module", "", "bring", "bring", node->line);
         }
 
-        // Helper: resolve a module path to an XModule
+        // Helper: resolve a module path to an XModule (user-defined only)
         auto resolveModulePath = [&](const std::vector<std::string> &path, int line) -> std::shared_ptr<XModule>
         {
             if (path.empty())
@@ -3235,7 +3251,7 @@ namespace xell
             importedModules_.push_back(std::move(mod));
         };
 
-        // Helper: bring from builtin module
+        // Helper: bring from builtin module (injects functions directly)
         auto bringFromBuiltin = [&](const std::string &moduleName, const BringPart &part, size_t &aliasIdx)
         {
             const auto &functions = moduleRegistry_.moduleFunctions(moduleName);
@@ -3353,6 +3369,21 @@ namespace xell
             // ── Bare bring: bring X → bring the module itself into scope ──
             for (const auto &item : part.items)
             {
+                // First, handle built-in modules as first-class objects
+                if (moduleRegistry_.isBuiltinModule(item))
+                {
+                    std::string bindName = item;
+                    if (aliasIdx < node->aliases.size())
+                        bindName = node->aliases[aliasIdx++];
+                    auto mod = std::make_shared<XModule>();
+                    mod->name = item;
+                    mod->isBuiltin = true;
+                    XObject modObj = XObject::makeModule(mod);
+                    currentEnv_->define(bindName, std::move(modObj));
+                    continue;
+                }
+
+                // Otherwise, resolve user-defined module
                 XObject obj;
                 if (currentEnv_->has(item))
                 {
@@ -3361,18 +3392,6 @@ namespace xell
                 else if (moduleResolver_.isSessionCached(item))
                 {
                     obj = XObject::makeModule(moduleResolver_.getSessionCached(item));
-                }
-                else if (moduleRegistry_.isBuiltinModule(item))
-                {
-                    // Bare bring of builtin: bring json → inject all functions
-                    const auto &functions = moduleRegistry_.moduleFunctions(item);
-                    for (const auto &fnName : functions)
-                    {
-                        auto it = allBuiltins_.find(fnName);
-                        if (it != allBuiltins_.end())
-                            builtins_[fnName] = it->second;
-                    }
-                    continue;
                 }
                 else
                 {
@@ -3753,12 +3772,14 @@ namespace xell
 
         if (auto *p = dynamic_cast<const StringLiteral *>(expr))
         {
-            // Raw strings skip interpolation
             if (p->isRaw)
                 return XObject::makeString(p->value);
-            // Check for interpolation markers
-            if (p->value.find('{') != std::string::npos)
+            if (p->isFString)
+            {
+                // Interpolate (process {expr})
                 return XObject::makeString(interpolate(p->value, p->line));
+            }
+            // Regular string — no interpolation
             return XObject::makeString(p->value);
         }
 
@@ -4806,9 +4827,31 @@ namespace xell
         // The parser rewrites mod->fn(a, b) as CallExpr("fn", [mod, a, b]) with isMethodCall=true.
         // Only dispatch to module exports when this is actually a method call rewrite,
         // NOT when a module just happens to be the first argument of a regular function call.
+        // ---- Module method call: mod->fn(args) ----
         if (node->isMethodCall && !args.empty() && args[0].isModule())
         {
             const auto &mod = *args[0].asModuleShared();
+
+            // ---- Handle built-in modules ----
+            if (mod.isBuiltin)
+            {
+                if (moduleRegistry_.moduleHasFunction(mod.name, node->callee))
+                {
+                    auto it = allBuiltins_.find(node->callee);
+                    if (it != allBuiltins_.end())
+                    {
+                        // Remove the module object from args
+                        args.erase(args.begin());
+                        // Call the builtin function directly
+                        return it->second(args, node->line);
+                    }
+                }
+                throw AttributeError("built-in module '" + mod.name +
+                                         "' has no function '" + node->callee + "'",
+                                     node->line);
+            }
+
+            // ---- Handle user-defined modules ----
             const XObject *exported = mod.getExport(node->callee);
             if (exported && exported->isFunction())
             {
@@ -4817,8 +4860,12 @@ namespace xell
                 return callUserFn(exported->asFunction(), args, node->line);
             }
             if (exported)
-                throw TypeError("'" + node->callee + "' in module '" + mod.name + "' is not callable", node->line);
-            throw AttributeError("module '" + mod.name + "' has no export '" + node->callee + "'", node->line);
+                throw TypeError("'" + node->callee + "' in module '" + mod.name +
+                                    "' is not callable",
+                                node->line);
+            throw AttributeError("module '" + mod.name + "' has no export '" +
+                                     node->callee + "'",
+                                 node->line);
         }
 
         // ---- Parent method call: parent->method(args) ----
@@ -5079,19 +5126,20 @@ namespace xell
         }
 
         // ---- Module method call (second pass, after Tier 2 check) ----
-        if (node->isMethodCall && !args.empty() && args[0].isModule())
-        {
-            const auto &mod = *args[0].asModuleShared();
-            const XObject *exported = mod.getExport(node->callee);
-            if (exported && exported->isFunction())
-            {
-                args.erase(args.begin());
-                return callUserFn(exported->asFunction(), args, node->line);
-            }
-            if (exported)
-                throw TypeError("'" + node->callee + "' in module '" + mod.name + "' is not callable", node->line);
-            throw AttributeError("module '" + mod.name + "' has no export '" + node->callee + "'", node->line);
-        }
+        // NOTE: ALready checking it so 2nd time is not needed: Only the first one is needed. The second one is a fallback for cases where the module object was discovered after the Tier 2 check, but since args[0].isModule() is already true early on, the first block will always catch it. The second block is redundant and can be removed
+        // if (node->isMethodCall && !args.empty() && args[0].isModule())
+        // {
+        //     const auto &mod = *args[0].asModuleShared();
+        //     const XObject *exported = mod.getExport(node->callee);
+        //     if (exported && exported->isFunction())
+        //     {
+        //         args.erase(args.begin());
+        //         return callUserFn(exported->asFunction(), args, node->line);
+        //     }
+        //     if (exported)
+        //         throw TypeError("'" + node->callee + "' in module '" + mod.name + "' is not callable", node->line);
+        //     throw AttributeError("module '" + mod.name + "' has no export '" + node->callee + "'", node->line);
+        // }
 
         // Look up user-defined function (throws if not found)
         // If the name is not found in the environment, try PATH-based
@@ -5183,6 +5231,13 @@ namespace xell
             throw TypeError("no matching overload for '" + node->callee +
                                 "' with " + std::to_string(args.size()) + " argument(s)",
                             node->line);
+        }
+
+        if (fnObj.isNativeFn())
+        {
+            const auto &native = fnObj.asNativeFn();
+            // Call the native function
+            return native.fn(args, node->line);
         }
 
         return callUserFn(fn, args, node->line, nullptr, namedArgsPtr);

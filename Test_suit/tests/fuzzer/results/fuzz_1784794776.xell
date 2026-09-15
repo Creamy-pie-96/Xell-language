@@ -1,0 +1,8 @@
+fn frxtl(ppvxv: set = 7) -> int :
+    await (6 % -4)
+    yield
+;
+
+riyoy = frxtl(7)
+yield
+print("done")

@@ -66,12 +66,12 @@ namespace xell
         explicit ImaginaryLiteral(double v, int ln = 0) : value(v) { line = ln; }
     };
 
-    struct StringLiteral : Expr
-    {
-        std::string value; // raw content with {interpolation} markers preserved
-        bool isRaw;        // true for r"..." strings — no interpolation
-        explicit StringLiteral(std::string v, int ln = 0, bool raw = false)
-            : value(std::move(v)), isRaw(raw) { line = ln; }
+    struct StringLiteral : Expr {
+        std::string value;
+        bool isRaw;
+        bool isFString;  // true for f"..." strings
+        explicit StringLiteral(std::string v, int ln = 0, bool raw = false, bool fstring = false)
+            : value(std::move(v)), isRaw(raw), isFString(fstring) { line = ln; }
     };
 
     struct BoolLiteral : Expr

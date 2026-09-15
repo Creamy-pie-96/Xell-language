@@ -67,6 +67,7 @@ namespace xell
     struct Stmt;
     struct Expr;
     class Environment;
+    struct XNativeFunction;
 
     // Forward declarations for hash-table-based types (defined after XObject)
     struct XObjectHash;
@@ -129,8 +130,8 @@ namespace xell
         STRUCT_DEF, // struct type definition (XStructDef)
         INSTANCE,   // struct/class instance (XInstance)
         MODULE,     // module object (XModule)
+        NATIVE_FN, 
     };
-
     /// Human-readable type name for error messages
     const char *xtype_name(XType t);
 
@@ -360,6 +361,9 @@ namespace xell
         /// module object
         static XObject makeModule(std::shared_ptr<XModule> mod);
 
+        // factory methode
+        static XObject makeNativeFunction(const std::string &name,
+                                  std::function<XObject(std::vector<XObject>&, int)> fn);
         // ---- Default constructor → none ----
 
         XObject();
@@ -395,6 +399,7 @@ namespace xell
         bool isStructDef() const;
         bool isInstance() const;
         bool isModule() const;
+        bool isNativeFn() const;
 
         // ---- Payload access (unchecked — caller must verify type first) ----
 
@@ -426,6 +431,8 @@ namespace xell
         const XModule &asModule() const;
         XModule &asModuleMut();
         std::shared_ptr<XModule> asModuleShared() const;
+        const XNativeFunction &asNativeFn() const;
+        XNativeFunction &asNativeFnMut();
 
         // ---- Truthiness (for if/while conditions) ----
         //   none → false, bool → its value, number → false if 0.0
@@ -477,6 +484,11 @@ namespace xell
 
         /// Decrement ref count, free if zero
         void release();
+    };
+
+    struct XNativeFunction {
+        std::string name;
+        std::function<XObject(std::vector<XObject>&, int)> fn;
     };
 
     // ========================================================================

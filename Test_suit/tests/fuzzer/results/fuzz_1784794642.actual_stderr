@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "/tmp/tmpygvplool.xell", line 32, in fllei
+[XELL ERROR] Line 6 — TypeError: unsupported operand types for <=: bool and int

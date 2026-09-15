@@ -1,0 +1,13 @@
+fn fjkli() -> tuple :
+    try :
+    fnsluk(-3)
+;
+catch e :
+    -7
+;
+    give 0
+;
+
+rrvtl = fjkli()
+give (-2 + 4)
+print("done")

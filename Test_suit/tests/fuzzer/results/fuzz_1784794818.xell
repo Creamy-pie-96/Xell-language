@@ -1,0 +1,22 @@
+@notrack
+fn fovsp() -> float :
+    loop :
+    try :
+    -10
+    vhmtw = 1
+;
+catch e :
+    give 10
+    4
+;
+    continue
+;
+    vyqqi = (-7 + -1)
+;
+
+fovsp()
+loop :
+    continue
+    await -4
+;
+print("done")

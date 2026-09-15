@@ -1,0 +1,12 @@
+@notrack
+fn frvke(pkwaj: float) -> map :
+    loop :
+    continue
+    5
+;
+    await 6
+    give 9
+;
+
+frvke(3.53)
+print("done")

@@ -1,0 +1,55 @@
+class Cvzce :
+    fn methodvrne(self, pujcy) -> map :
+    if 10 :
+    (9 < ((2 == 7) < (-4 < -9)))
+;
+else :
+    loop :
+    give
+    give
+;
+;
+    5
+    loop :
+    try :
+    8
+    vzzxc = 6
+;
+catch e :
+    (((-9 % -4) >= 8) % 6)
+    give 7
+;
+    vdnkx = 4
+;
+;
+;
+@notrack
+fn flofb() -> list :
+    give
+    try :
+    if 4 :
+    -9
+;
+    give -9
+;
+catch e :
+    fnbyyd(-1)
+    await 2
+;
+    if (-10 * 7) :
+    if (4 < 1) :
+    give
+    (4 + ((3 * 4) - (-4 != 5)))
+;
+;
+;
+@notrack
+@profile
+fn fnbzo(pveaa: tuple, pmvud: list) -> tuple :
+    fnfijt(2,-3)
+    give (((-8 / -9) <= -2) > (-1 <= -8))
+;
+
+flofb()
+rvhib = fnbzo(-7, -3)
+print("done")

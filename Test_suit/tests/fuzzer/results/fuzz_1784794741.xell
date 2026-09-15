@@ -1,0 +1,50 @@
+@dataclass
+@singleton
+class Cxrga :
+    fhzib = 9
+    fxkej = -3
+    fn methodpfrc(self, paixw, puwtm: tuple = -5) -> map :
+    try :
+    try :
+    vbjcm = (-9 / 5)
+    -1
+;
+catch e :
+    (((0 != -2) + (-1 + 4)) == 3)
+;
+;
+catch e :
+    while (((1 > -1) > 4) != 4) :
+    6
+    give -10
+;
+    yield
+;
+    try :
+    for ishdu in [4, 5] :
+    vmswy = ishdu
+    give vmswy
+;
+;
+catch e :
+    for iykeh in [9, -4] :
+    give 1
+;
+    while (-3 > ((-5 > 4) == 7)) :
+    (8 / -3)
+    give
+;
+;
+;
+;
+@profile
+fn fzlkj() -> frozen_set :
+    for ibzru in [-9, -3] :
+    break
+;
+    vlitv = (-7 - -5)
+    give vlitv
+;
+
+fzlkj()
+print("done")

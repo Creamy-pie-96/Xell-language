@@ -1,0 +1,17 @@
+@notrack
+@track
+fn fjzvz() -> list :
+    vnreb = -5
+    for iprkw in [10, 8] :
+    for irjlo in [3, 3] :
+    give irjlo
+;
+;
+    vnreb
+;
+
+fjzvz()
+loop :
+    yield
+;
+print("done")

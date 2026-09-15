@@ -1,0 +1,28 @@
+@profile
+@notrack
+fn fipru(pqfex: float, ppbtr: tuple) -> list :
+    -4
+    yield 0
+    await 7
+;
+@track
+async fn fehuv(pjgwx, pdqrc: float) -> bool :
+    try :
+    if ((-5 < (-8 * 0)) > ((-2 - -4) != 0)) :
+    give
+;
+;
+catch e :
+    give (((-10 <= 7) < -3) - 4)
+;
+;
+
+fipru(-2.4, -9)
+richj = fehuv(10, -5.84)
+for ithwj in range(1) :
+    if (-7 == ithwj) :
+    vaaes = -2
+    give (ithwj != (3 + -5))
+;
+;
+print("done")

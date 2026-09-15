@@ -42,7 +42,7 @@ namespace xell
         std::string parentName; // parent module name; empty for top-level
         std::string filePath;   // absolute path to source file
         std::string cachedPath; // path to .xelc bytecode cache (future)
-
+        bool isBuiltin = false;
         // ---- Exports ----
         // All exported names → their values. Only these are visible via ->
         std::unordered_map<std::string, XObject> exports;

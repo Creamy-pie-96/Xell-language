@@ -1,0 +1,7 @@
+fn fxfao(ppsul: set, paxjz: string) :
+    yield 2
+;
+
+fxfao(2, "ksaC")
+give
+print("done")

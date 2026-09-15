@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "/tmp/tmpjd_htvau.xell", line 10, in fkrqh
+[XELL ERROR] Line 5 — TypeError: unsupported operand types for *: bool and int

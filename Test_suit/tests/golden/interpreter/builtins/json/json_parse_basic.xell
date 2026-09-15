@@ -1,0 +1,4 @@
+bring * of json
+result = json_parse("{\"a\": 1, \"b\": \"hello\"}")
+print(result->a)
+print(result->b)

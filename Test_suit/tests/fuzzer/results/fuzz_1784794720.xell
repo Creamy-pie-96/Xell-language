@@ -1,0 +1,25 @@
+@dataclass
+@singleton
+class Cpikw :
+    async fn methodwspu(self) -> tuple :
+    await (1 != -4)
+    give 6
+;
+;
+fn fsrah() -> set :
+    (((9 == 5) + 7) < 9)
+    give -4
+;
+fn flmat(pantu: map, ...restcutf) -> int :
+    for irqsu in [-1, -6] :
+    for ilacy in range(2) :
+    vbdkn = 5
+;
+;
+    await -1
+    give 1
+;
+
+rutui = fsrah()
+rancy = flmat(-1)
+print("done")
