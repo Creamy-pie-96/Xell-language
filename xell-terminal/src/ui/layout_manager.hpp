@@ -238,6 +238,48 @@ namespace xterm
             return changed;
         }
 
+        // ── Next timeout (for event-driven sleep in main loop) ──────
+        int nextTimeoutMs() const
+        {
+            int timeout = 500;
+            auto now = Clock::now();
+
+            if (lintInFlight_ || (debugState_.active && !debugState_.paused) || replPanel_.isExecuting())
+            {
+                return 16; // poll active background tasks at ~60Hz
+            }
+
+            auto msSinceEdit = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   now - lastEditTime_)
+                                   .count();
+
+            if (acPendingShow_ && focus_ == FocusRegion::Editor)
+            {
+                auto msSinceKey = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                      now - acLastKeyTime_)
+                                      .count();
+                int remain = static_cast<int>(AC_DEBOUNCE_MS - msSinceKey);
+                if (remain < timeout)
+                    timeout = std::max(1, remain);
+            }
+
+            if (lintDirty_)
+            {
+                int remain = static_cast<int>(LINT_DELAY_MS - msSinceEdit);
+                if (remain < timeout)
+                    timeout = std::max(1, remain);
+            }
+
+            if (autoSavePending_ && !hasErrors_)
+            {
+                int remain = static_cast<int>(AUTOSAVE_DELAY_MS - msSinceEdit);
+                if (remain < timeout)
+                    timeout = std::max(1, remain);
+            }
+
+            return timeout;
+        }
+
         // Call this when the editor buffer changes (key input, paste, etc.)
         void notifyBufferChanged()
         {

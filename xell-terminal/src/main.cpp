@@ -428,6 +428,8 @@ int main(int argc, char *argv[])
     std::mutex buffer_mutex;
     std::atomic<bool> running{true};
     std::atomic<bool> has_new_data{false};
+    // Custom user event to wake up event-driven main loop when PTY produces output
+    static constexpr Uint32 SDL_USEREVENT_PTY_DATA = SDL_USEREVENT + 1;
 
     // --- Background thread: read PTY output and feed to VT parser ---
     std::thread reader_thread([&]()
@@ -435,9 +437,14 @@ int main(int argc, char *argv[])
         while (running.load()) {
             std::string data = pty.read();
             if (!data.empty()) {
-                std::lock_guard<std::mutex> lock(buffer_mutex);
-                vt_parser.feed(data);
-                has_new_data.store(true);
+                {
+                    std::lock_guard<std::mutex> lock(buffer_mutex);
+                    vt_parser.feed(data);
+                    has_new_data.store(true);
+                }
+                SDL_Event event;
+                event.type = SDL_USEREVENT_PTY_DATA;
+                SDL_PushEvent(&event);
             } else {
                 // Check if child process exited
                 if (!pty.is_alive()) {
@@ -640,15 +647,36 @@ int main(int argc, char *argv[])
     // --- Main event/render loop ---
     while (running.load())
     {
-        SDL_Event event;
-        while (SDL_PollEvent(&event))
+        // Compute wait timeout until next timer (cursor blink or IDE timer)
+        auto now = std::chrono::steady_clock::now();
+        auto ms_since_blink = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  now - last_blink)
+                                  .count();
+        int wait_timeout_ms = static_cast<int>(std::max<int64_t>(1, CURSOR_BLINK_MS - ms_since_blink));
+        if (appMode == AppMode::IDE && layout)
         {
-            // --- Global events (both modes) ---
-            if (event.type == SDL_QUIT)
+            int layout_timeout = layout->nextTimeoutMs();
+            if (layout_timeout >= 0 && layout_timeout < wait_timeout_ms)
+                wait_timeout_ms = layout_timeout;
+        }
+
+        SDL_Event event;
+        if (SDL_WaitEventTimeout(&event, wait_timeout_ms))
+        {
+            do
             {
-                running.store(false);
-                break;
-            }
+                if (event.type == SDL_USEREVENT_PTY_DATA)
+                {
+                    needs_redraw = true;
+                    continue;
+                }
+
+                // --- Global events (both modes) ---
+                if (event.type == SDL_QUIT)
+                {
+                    running.store(false);
+                    break;
+                }
 
             if (event.type == SDL_WINDOWEVENT)
             {
@@ -1198,6 +1226,7 @@ int main(int argc, char *argv[])
             default:
                 break;
             }
+            } while (SDL_PollEvent(&event));
         }
 
         // --- PTY output notification ---
@@ -1217,10 +1246,10 @@ int main(int argc, char *argv[])
         }
 
         // --- Cursor blink ---
-        auto now = std::chrono::steady_clock::now();
-        auto ms_since_blink = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  now - last_blink)
-                                  .count();
+        now = std::chrono::steady_clock::now();
+        ms_since_blink = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             now - last_blink)
+                             .count();
         if (ms_since_blink >= CURSOR_BLINK_MS)
         {
             cursor_visible = !cursor_visible;
@@ -1306,8 +1335,6 @@ int main(int argc, char *argv[])
 
             renderer.present();
         }
-
-        SDL_Delay(8);
     }
 
     // --- Cleanup ---
