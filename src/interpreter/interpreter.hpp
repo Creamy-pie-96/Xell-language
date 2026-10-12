@@ -302,6 +302,7 @@ namespace xell
         XObject evalSet(const SetLiteral *node);
         XObject evalFrozenSet(const FrozenSetLiteral *node);
         XObject evalShellCmd(const ShellCmdExpr *node);
+        XObject evalShellBlock(const ShellBlock *node);
         XObject evalMap(const MapLiteral *node);
         XObject evalListComprehension(const ListComprehension *node);
         XObject evalSetComprehension(const SetComprehension *node);

@@ -6,6 +6,8 @@
 #include "../parser/parser.hpp"
 #include "../os/path_lookup.hpp"
 #include "../os/os.hpp"
+#include "../shell/shell_adapter.hpp"
+#include "../shell/shell_runner.hpp"
 #include <sstream>
 #include <cmath>
 #include <complex>
@@ -3878,6 +3880,8 @@ namespace xell
             return evalInCaseExpr(p);
         if (auto *p = dynamic_cast<const ShellCmdExpr *>(expr))
             return evalShellCmd(p);
+        if (auto *p = dynamic_cast<const ShellBlock *>(expr))
+            return evalShellBlock(p);
 
         throw NotImplementedError("unknown expression node", expr->line);
     }
@@ -3927,8 +3931,14 @@ namespace xell
             bool isSuccess = false;
             if (left.isNumber())
                 isSuccess = (left.asNumber() == 0.0);
-            else if (left.isMap() && left.asMap().get("exit_code"))
-                isSuccess = (left.asMap().get("exit_code")->asNumber() == 0.0);
+            else if (left.isMap() && (left.asMap().get("code") || left.asMap().get("exit_code")))
+            {
+                const XObject *c = left.asMap().get("code");
+                if (!c) c = left.asMap().get("exit_code");
+                const XObject *sig = left.asMap().get("signal");
+                int sigVal = (sig && sig->isInt()) ? (int)sig->asInt() : 0;
+                isSuccess = (c->asNumber() == 0.0) && (sigVal == 0);
+            }
             else
                 isSuccess = left.truthy();
 
@@ -3950,8 +3960,14 @@ namespace xell
             bool isSuccess = false;
             if (left.isNumber())
                 isSuccess = (left.asNumber() == 0.0);
-            else if (left.isMap() && left.asMap().get("exit_code"))
-                isSuccess = (left.asMap().get("exit_code")->asNumber() == 0.0);
+            else if (left.isMap() && (left.asMap().get("code") || left.asMap().get("exit_code")))
+            {
+                const XObject *c = left.asMap().get("code");
+                if (!c) c = left.asMap().get("exit_code");
+                const XObject *sig = left.asMap().get("signal");
+                int sigVal = (sig && sig->isInt()) ? (int)sig->asInt() : 0;
+                isSuccess = (c->asNumber() == 0.0) && (sigVal == 0);
+            }
             else
                 isSuccess = left.truthy();
 
@@ -6065,6 +6081,136 @@ namespace xell
         }
 
         return XObject::makeList(std::move(lines));
+    }
+
+    XObject Interpreter::evalShellBlock(const ShellBlock *node)
+    {
+        std::string stdinMode = (node->mode == ShellBlockMode::PLAIN) ? "inherit" : "closed";
+        bool check = (node->mode == ShellBlockMode::PLAIN) ? true : false;
+        double timeoutSeconds = 0.0;
+        size_t maxOutputBytes = (node->mode == ShellBlockMode::PLAIN) ? 0 : (16 * 1024 * 1024);
+        std::string cwd = "";
+        std::unordered_map<std::string, std::string> envMap;
+
+        for (const auto &opt : node->options)
+        {
+            XObject val = eval(opt.value.get());
+            if (opt.name == "timeout")
+            {
+                if (!val.isInt() && !val.isFloat())
+                    throw TypeError("timeout option must be a number", opt.line);
+                timeoutSeconds = val.asFloat();
+                if (timeoutSeconds < 0.0)
+                    throw ValueError("timeout option must be non-negative", opt.line);
+            }
+            else if (opt.name == "max_output")
+            {
+                if (!val.isInt())
+                    throw TypeError("max_output option must be an integer", opt.line);
+                int64_t bytes = val.asInt();
+                if (bytes < 0)
+                    throw ValueError("max_output option must be non-negative", opt.line);
+                maxOutputBytes = static_cast<size_t>(bytes);
+            }
+            else if (opt.name == "stdin")
+            {
+                if (!val.isString())
+                    throw TypeError("stdin option must be a string ('closed' or 'inherit')", opt.line);
+                std::string s = val.asString();
+                if (s != "closed" && s != "inherit")
+                    throw ValueError("stdin option must be 'closed' or 'inherit', got '" + s + "'", opt.line);
+                stdinMode = s;
+            }
+            else if (opt.name == "check")
+            {
+                if (!val.isBool())
+                    throw TypeError("check option must be a boolean", opt.line);
+                check = val.asBool();
+            }
+            else if (opt.name == "cwd")
+            {
+                if (!val.isString())
+                    throw TypeError("cwd option must be a string", opt.line);
+                cwd = val.asString();
+                if (access(cwd.c_str(), F_OK) != 0)
+                    throw ProcessError("cwd directory does not exist: " + cwd, opt.line);
+            }
+            else if (opt.name == "env")
+            {
+                if (!val.isMap())
+                    throw TypeError("env option must be a map", opt.line);
+                for (auto it = val.asMap().begin(); it.valid(); it.next())
+                {
+                    std::string k = it.key().asString();
+                    if (k.rfind("XELL_", 0) == 0)
+                        throw ValueError("User env cannot define variables starting with 'XELL_'", opt.line);
+                    envMap[k] = it.value().asString();
+                }
+            }
+        }
+
+        // Assemble script
+        std::string script;
+        for (const auto &seg : node->segments)
+        {
+            script += seg.text;
+        }
+
+        std::string shellPath = ShellAdapter::findShellExecutable();
+        std::string failFast = ShellAdapter::getFailFastPrefix(shellPath);
+        std::string fullScript = failFast + script;
+
+        ProcessOptions popts;
+        popts.stdinMode = stdinMode;
+        popts.captureStdout = (node->mode == ShellBlockMode::CAPTURE);
+        popts.captureStderr = (node->mode == ShellBlockMode::CAPTURE);
+        popts.timeoutSeconds = timeoutSeconds;
+        popts.maxOutputBytes = maxOutputBytes;
+        popts.cwd = cwd;
+        popts.env = std::move(envMap);
+
+        std::vector<std::string> argv = {shellPath, "-c", fullScript};
+        ProcessExecutionResult result = ShellRunner::run(argv, popts, node->line);
+
+        if (result.timedOut)
+        {
+            throw ShellTimeoutError("Shell block timed out after " + std::to_string(timeoutSeconds) + "s",
+                                    node->line, result.stdoutStr, result.stderrStr);
+        }
+
+        if (result.outputLimitExceeded)
+        {
+            throw ShellOutputLimitError("Shell block output limit exceeded (" + std::to_string(maxOutputBytes) + " bytes)",
+                                        node->line, result.stdoutStr, result.stderrStr);
+        }
+
+        if (check && !result.success)
+        {
+            std::string reason = "Shell block failed with exit code " + std::to_string(result.exitCode);
+            if (result.signalNum > 0)
+            {
+                reason = "Shell block killed by signal " + std::to_string(result.signalNum);
+            }
+            throw ShellProcessError(reason, node->line, result.stdoutStr, result.stderrStr,
+                                    result.exitCode, result.signalNum);
+        }
+
+        if (node->mode == ShellBlockMode::CAPTURE)
+        {
+            XMap res;
+            res.set("stdout", XObject::makeString(result.stdoutStr));
+            res.set("stderr", XObject::makeString(result.stderrStr));
+            res.set("code", XObject::makeInt(result.exitCode));
+            res.set("exit_code", XObject::makeInt(result.exitCode));
+            res.set("signal", XObject::makeInt(result.signalNum));
+            res.set("success", XObject::makeBool(result.success));
+            res.set("ok", XObject::makeBool(result.success));
+            return XObject::makeMap(std::move(res));
+        }
+        else
+        {
+            return XObject::makeInt(result.exitCode);
+        }
     }
 
     // ---- Comprehension helpers (shared recursive iteration) ----------------

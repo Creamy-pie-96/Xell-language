@@ -1108,6 +1108,242 @@ void testParserShellBlockChainedMemberAccess()
 }
 
 // ============================================================================
+// RUNTIME TESTS (PHASE 3 & 4)
+// ============================================================================
+
+void testShellBlockPlainSuccess()
+{
+    auto out = runXell(R"(
+        shell { true }
+        print("ok")
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "ok");
+}
+
+void testShellBlockPlainFailureRaises()
+{
+    bool threw = false;
+    try
+    {
+        runXell(R"(
+            shell { exit 42 }
+        )");
+    }
+    catch (const ShellProcessError &e)
+    {
+        threw = true;
+        XASSERT_EQ(e.exitCode, 42);
+    }
+    XASSERT(threw);
+}
+
+void testShellBlockPlainCheckFalse()
+{
+    auto out = runXell(R"(
+        code = shell(check: false) { exit 42 }
+        print(code)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "42");
+}
+
+void testShellBlockCaptureSuccess()
+{
+    auto out = runXell(R"(
+        res = shell->capture() { echo "captured output" }
+        print(res->code)
+        print(res->signal)
+        print(res->success)
+        print(res->ok)
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 5u);
+    XASSERT_EQ(out[0], "0");
+    XASSERT_EQ(out[1], "0");
+    XASSERT_EQ(out[2], "true");
+    XASSERT_EQ(out[3], "true");
+    XASSERT(out[4].find("captured output") != std::string::npos);
+}
+
+void testShellBlockCaptureStderr()
+{
+    auto out = runXell(R"(
+        res = shell->capture() { echo "err output" >&2 }
+        print(res->stderr)
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 2u);
+    XASSERT(out[0].find("err output") != std::string::npos);
+    XASSERT_EQ(out[1], "");
+}
+
+void testShellBlockCaptureNonZeroNoCheck()
+{
+    auto out = runXell(R"(
+        res = shell->capture() { echo "before exit"; exit 7 }
+        print(res->code)
+        print(res->success)
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 3u);
+    XASSERT_EQ(out[0], "7");
+    XASSERT_EQ(out[1], "false");
+    XASSERT(out[2].find("before exit") != std::string::npos);
+}
+
+void testShellBlockCaptureCheckTrueRaises()
+{
+    bool threw = false;
+    try
+    {
+        runXell(R"(
+            shell->capture(check: true) { echo "error message" >&2; exit 5 }
+        )");
+    }
+    catch (const ShellProcessError &e)
+    {
+        threw = true;
+        XASSERT_EQ(e.exitCode, 5);
+        XASSERT(e.stderrStr.find("error message") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+void testShellBlockSignalDeath()
+{
+    auto out = runXell(R"(
+        res = shell->capture() { kill -SEGV $$ }
+        print(res->signal)
+        print(res->success)
+    )");
+    XASSERT_EQ(out.size(), 2u);
+    XASSERT_EQ(out[0], "11");
+    XASSERT_EQ(out[1], "false");
+}
+
+void testShellBlockTimeout()
+{
+    bool threw = false;
+    try
+    {
+        runXell(R"(
+            shell->capture(timeout: 0.2) { sleep 5 }
+        )");
+    }
+    catch (const ShellTimeoutError &e)
+    {
+        threw = true;
+    }
+    XASSERT(threw);
+}
+
+void testShellBlockOutputLimit()
+{
+    bool threw = false;
+    try
+    {
+        runXell(R"(
+            shell->capture(max_output: 50) { yes "output limit test data" }
+        )");
+    }
+    catch (const ShellOutputLimitError &e)
+    {
+        threw = true;
+        XASSERT(!e.stdoutStr.empty());
+    }
+    XASSERT(threw);
+}
+
+void testShellBlockStdinClosedDefault()
+{
+    auto out = runXell(R"(
+        res = shell->capture() { cat }
+        print(res->code)
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 2u);
+    XASSERT_EQ(out[0], "0");
+    XASSERT_EQ(out[1], "");
+}
+
+void testShellBlockCwd()
+{
+    auto out = runXell(R"(
+        res = shell->capture(cwd: "/tmp") { pwd -P }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT(out[0].find("/tmp") != std::string::npos);
+}
+
+void testShellBlockEnv()
+{
+    auto out = runXell(R"(
+        res = shell->capture(env: {"TEST_VAR_XYZ": "custom_val_123"}) { echo $TEST_VAR_XYZ }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT(out[0].find("custom_val_123") != std::string::npos);
+}
+
+void testShellBlockUserEnvXellPrefixRejected()
+{
+    bool threw = false;
+    try
+    {
+        runXell(R"(
+            shell->capture(env: {"XELL_MY_VAR": "bad"}) { echo 1 }
+        )");
+    }
+    catch (const ValueError &e)
+    {
+        threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("XELL_") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+void testShellBlockFailFast()
+{
+    auto out = runXell(R"(
+        res = shell->capture() {
+            false
+            echo "after false"
+        }
+        print(res->code)
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 2u);
+    XASSERT(out[0] != "0");
+    XASSERT(out[1].find("after false") == std::string::npos);
+}
+
+void testShellBlockLossyUtf8()
+{
+    auto out = runXell(R"(
+        res = shell->capture() { printf '\xff\xfe\xfd' }
+        print(res->code)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "0");
+}
+
+void testShellBlockChaining()
+{
+    auto out = runXell(R"(
+        res1 = shell->capture() { true } && shell->capture() { echo "second" }
+        print(res1->stdout)
+        res2 = shell->capture() { false } || shell->capture() { echo "fallback" }
+        print(res2->stdout)
+    )");
+    XASSERT_EQ(out.size(), 2u);
+    XASSERT(out[0].find("second") != std::string::npos);
+    XASSERT(out[1].find("fallback") != std::string::npos);
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -1215,6 +1451,25 @@ int main()
     runTest("shell block parser: interpolation unexpected token", testParserShellBlockInterpolationUnexpectedToken);
     runTest("shell block parser: as expression assignment", testParserShellBlockAsExpressionAssignment);
     runTest("shell block parser: chained member access", testParserShellBlockChainedMemberAccess);
+
+    // Shell block runtime (Phase 3 & 4)
+    runTest("shell block runtime: plain success", testShellBlockPlainSuccess);
+    runTest("shell block runtime: plain failure raises", testShellBlockPlainFailureRaises);
+    runTest("shell block runtime: plain check false returns code", testShellBlockPlainCheckFalse);
+    runTest("shell block runtime: capture success", testShellBlockCaptureSuccess);
+    runTest("shell block runtime: capture stderr", testShellBlockCaptureStderr);
+    runTest("shell block runtime: capture non-zero no check", testShellBlockCaptureNonZeroNoCheck);
+    runTest("shell block runtime: capture check true raises", testShellBlockCaptureCheckTrueRaises);
+    runTest("shell block runtime: signal death", testShellBlockSignalDeath);
+    runTest("shell block runtime: timeout enforcement", testShellBlockTimeout);
+    runTest("shell block runtime: max output enforcement", testShellBlockOutputLimit);
+    runTest("shell block runtime: stdin closed default", testShellBlockStdinClosedDefault);
+    runTest("shell block runtime: cwd option", testShellBlockCwd);
+    runTest("shell block runtime: env option", testShellBlockEnv);
+    runTest("shell block runtime: user env XELL_ prefix rejected", testShellBlockUserEnvXellPrefixRejected);
+    runTest("shell block runtime: fail fast on POSIX", testShellBlockFailFast);
+    runTest("shell block runtime: lossy utf8 decoding", testShellBlockLossyUtf8);
+    runTest("shell block runtime: && and || chaining", testShellBlockChaining);
 
     std::cout << "\n============================================\n";
     std::cout << "  Total: " << (g_passed + g_failed)

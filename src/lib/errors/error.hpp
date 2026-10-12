@@ -209,6 +209,38 @@ namespace xell
             : XellError("ProcessError", message, line) {}
     };
 
+    class ShellProcessError : public ProcessError
+    {
+    public:
+        std::string stdoutStr;
+        std::string stderrStr;
+        int exitCode = -1;
+        int signalNum = 0;
+
+        ShellProcessError(const std::string &message, int line,
+                          std::string out = "", std::string err = "",
+                          int code = -1, int sig = 0)
+            : ProcessError(message, line),
+              stdoutStr(std::move(out)), stderrStr(std::move(err)),
+              exitCode(code), signalNum(sig) {}
+    };
+
+    class ShellTimeoutError : public ShellProcessError
+    {
+    public:
+        ShellTimeoutError(const std::string &message, int line,
+                          std::string out = "", std::string err = "")
+            : ShellProcessError(message, line, std::move(out), std::move(err), -1, 15) {}
+    };
+
+    class ShellOutputLimitError : public ShellProcessError
+    {
+    public:
+        ShellOutputLimitError(const std::string &message, int line,
+                              std::string out = "", std::string err = "")
+            : ShellProcessError(message, line, std::move(out), std::move(err), -1, 9) {}
+    };
+
     // ---- 3i. Conversion errors ----------------------------------------------
 
     /// Failed to convert a value to the expected type (e.g. to_number("abc")).
