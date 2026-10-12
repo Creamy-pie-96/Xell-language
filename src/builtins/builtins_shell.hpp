@@ -26,6 +26,7 @@
 
 #include "builtin_registry.hpp"
 #include "../lib/errors/error.hpp"
+#include "../shell/shell_runner.hpp"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -287,7 +288,25 @@ namespace xell
 #ifdef _WIN32
             std::string result = captureShellCmd("where " + args[0].asString() + " 2>nul");
 #else
-            std::string result = captureShellCmd("which " + args[0].asString() + " 2>/dev/null");
+            ProcessOptions popts;
+            popts.captureStdout = true;
+            popts.captureStderr = false;
+            popts.stdinMode = "closed";
+            std::string result;
+            try
+            {
+                auto res = ShellRunner::run({"which", args[0].asString()}, popts, line);
+                if (res.exitCode == 0)
+                {
+                    result = res.stdoutStr;
+                    while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
+                        result.pop_back();
+                }
+            }
+            catch (...)
+            {
+                return XObject::makeNone();
+            }
 #endif
             if (result.empty())
                 return XObject::makeNone();
@@ -304,7 +323,25 @@ namespace xell
 #ifdef _WIN32
             std::string result = captureShellCmd("where " + args[0].asString() + " 2>nul");
 #else
-            std::string result = captureShellCmd("whereis " + args[0].asString() + " 2>/dev/null");
+            ProcessOptions popts;
+            popts.captureStdout = true;
+            popts.captureStderr = false;
+            popts.stdinMode = "closed";
+            std::string result;
+            try
+            {
+                auto res = ShellRunner::run({"whereis", args[0].asString()}, popts, line);
+                if (res.exitCode == 0)
+                {
+                    result = res.stdoutStr;
+                    while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
+                        result.pop_back();
+                }
+            }
+            catch (...)
+            {
+                return XObject::makeNone();
+            }
 #endif
             if (result.empty())
                 return XObject::makeNone();

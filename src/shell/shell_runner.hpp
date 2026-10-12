@@ -251,6 +251,32 @@ namespace xell
             }
             envp.push_back(nullptr);
 
+            // Resolve executable path via PATH if it doesn't contain a slash
+            std::string executablePath = argv[0];
+            if (executablePath.find('/') == std::string::npos)
+            {
+                const char *pathEnv = std::getenv("PATH");
+                if (pathEnv)
+                {
+                    std::string paths(pathEnv);
+                    size_t pos = 0;
+                    while (pos < paths.size())
+                    {
+                        size_t sep = paths.find(':', pos);
+                        if (sep == std::string::npos)
+                            sep = paths.size();
+                        std::string dir = paths.substr(pos, sep - pos);
+                        std::string full = dir + "/" + executablePath;
+                        if (access(full.c_str(), X_OK) == 0)
+                        {
+                            executablePath = full;
+                            break;
+                        }
+                        pos = sep + 1;
+                    }
+                }
+            }
+
             // Prepare argv
             std::vector<char *> childArgv;
             childArgv.reserve(argv.size() + 1);
@@ -315,7 +341,7 @@ namespace xell
                 }
 
                 // Execute
-                execve(childArgv[0], childArgv.data(), envp.data());
+                execve(executablePath.c_str(), childArgv.data(), envp.data());
 
                 int err = errno;
                 ssize_t w = write(errPipe[1], &err, sizeof(err));
