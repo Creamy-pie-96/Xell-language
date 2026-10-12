@@ -15,6 +15,7 @@
 
 #include "builtin_registry.hpp"
 #include "../lib/errors/error.hpp"
+#include "../shell/shell_runner.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -22,18 +23,39 @@
 #include <sstream>
 #include <filesystem>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
 namespace xell
 {
 
-    // Helper: run archive command and check exit code
+#ifdef _WIN32
+    // Helper: run archive command and check exit code (Windows PowerShell fallback)
     static inline int runArchiveCmd(const std::string &cmd)
     {
-        int ret = system(cmd.c_str());
-#ifdef _WIN32
-        return ret;
-#else
-        return WEXITSTATUS(ret);
+        return system(cmd.c_str());
+    }
 #endif
+
+    // Helper: run archive command via ShellRunner (direct argv, no shell)
+    static inline int runArchiveArgv(const std::vector<std::string> &argv, const std::string &cwd = "", int line = 0)
+    {
+        ProcessOptions popts;
+        popts.captureStdout = true;
+        popts.captureStderr = true;
+        popts.stdinMode = "closed";
+        if (!cwd.empty())
+            popts.cwd = cwd;
+        try
+        {
+            auto res = ShellRunner::run(argv, popts, line);
+            return res.exitCode;
+        }
+        catch (...)
+        {
+            return -1;
+        }
     }
 
     // Helper: check if a tool is available
@@ -41,10 +63,26 @@ namespace xell
     {
 #ifdef _WIN32
         std::string check = "where " + name + " >nul 2>&1";
-#else
-        std::string check = "command -v " + name + " >/dev/null 2>&1";
-#endif
         return system(check.c_str()) == 0;
+#else
+        const char *pathEnv = std::getenv("PATH");
+        if (!pathEnv)
+            return false;
+        std::string paths(pathEnv);
+        size_t pos = 0;
+        while (pos < paths.size())
+        {
+            size_t sep = paths.find(':', pos);
+            if (sep == std::string::npos)
+                sep = paths.size();
+            std::string dir = paths.substr(pos, sep - pos);
+            std::string full = dir + "/" + name;
+            if (access(full.c_str(), X_OK) == 0)
+                return true;
+            pos = sep + 1;
+        }
+        return false;
+#endif
     }
 
     static inline void registerArchiveBuiltins(BuiltinTable &t)
@@ -70,15 +108,19 @@ namespace xell
             // Use PowerShell Compress-Archive
             std::string cmd = "powershell -Command \"Compress-Archive -Path '" +
                               src + "' -DestinationPath '" + dest + "' -Force\" 2>&1";
-#else
-            std::string cmd;
-            if (std::filesystem::is_directory(src))
-                cmd = "cd '" + src + "' && zip -r '" +
-                      std::filesystem::absolute(dest).string() + "' . 2>&1";
-            else
-                cmd = "zip -j '" + dest + "' '" + src + "' 2>&1";
-#endif
             int ret = runArchiveCmd(cmd);
+#else
+            int ret = 0;
+            if (std::filesystem::is_directory(src))
+            {
+                std::string absDest = std::filesystem::absolute(dest).string();
+                ret = runArchiveArgv({"zip", "-r", absDest, "."}, src, line);
+            }
+            else
+            {
+                ret = runArchiveArgv({"zip", "-j", dest, src}, "", line);
+            }
+#endif
             if (ret != 0)
                 throw RuntimeError("zip_archive() failed (exit code " + std::to_string(ret) + ")", line);
             return XObject::makeBool(true);
@@ -112,10 +154,10 @@ namespace xell
 #ifdef _WIN32
             std::string cmd = "powershell -Command \"Expand-Archive -Path '" +
                               src + "' -DestinationPath '" + dest + "' -Force\" 2>&1";
-#else
-            std::string cmd = "unzip -o '" + src + "' -d '" + dest + "' 2>&1";
-#endif
             int ret = runArchiveCmd(cmd);
+#else
+            int ret = runArchiveArgv({"unzip", "-o", src, "-d", dest}, "", line);
+#endif
             if (ret != 0)
                 throw RuntimeError("unzip_archive() failed (exit code " + std::to_string(ret) + ")", line);
             return XObject::makeBool(true);
@@ -153,10 +195,11 @@ namespace xell
 
 #ifdef _WIN32
             std::string cmd = "tar -c" + flag + "f \"" + dest + "\" \"" + src + "\" 2>&1";
-#else
-            std::string cmd = "tar -c" + flag + "f '" + dest + "' '" + src + "' 2>&1";
-#endif
             int ret = runArchiveCmd(cmd);
+#else
+            std::string tarOpt = "-c" + flag + "f";
+            int ret = runArchiveArgv({"tar", tarOpt, dest, src}, "", line);
+#endif
             if (ret != 0)
                 throw RuntimeError("tar_create() failed (exit code " + std::to_string(ret) + ")", line);
             return XObject::makeBool(true);
@@ -189,10 +232,10 @@ namespace xell
 
 #ifdef _WIN32
             std::string cmd = "tar -xf \"" + src + "\" -C \"" + dest + "\" 2>&1";
-#else
-            std::string cmd = "tar -xf '" + src + "' -C '" + dest + "' 2>&1";
-#endif
             int ret = runArchiveCmd(cmd);
+#else
+            int ret = runArchiveArgv({"tar", "-xf", src, "-C", dest}, "", line);
+#endif
             if (ret != 0)
                 throw RuntimeError("tar_extract() failed (exit code " + std::to_string(ret) + ")", line);
             return XObject::makeBool(true);
@@ -218,10 +261,10 @@ namespace xell
             std::string cmd = "powershell -Command \"$bytes = [System.IO.File]::ReadAllBytes('" +
                               path + "'); $ms = New-Object System.IO.MemoryStream; $gz = New-Object System.IO.Compression.GZipStream($ms, [System.IO.Compression.CompressionMode]::Compress); $gz.Write($bytes, 0, $bytes.Length); $gz.Close(); [System.IO.File]::WriteAllBytes('" +
                               path + ".gz', $ms.ToArray())\" 2>&1";
-#else
-            std::string cmd = "gzip -f '" + path + "' 2>&1";
-#endif
             int ret = runArchiveCmd(cmd);
+#else
+            int ret = runArchiveArgv({"gzip", "-f", path}, "", line);
+#endif
             if (ret != 0)
                 throw RuntimeError("gzip_compress() failed", line);
             return XObject::makeString(path + ".gz");
@@ -252,10 +295,10 @@ namespace xell
             std::string cmd = "powershell -Command \"$fs = [System.IO.File]::OpenRead('" +
                               path + "'); $gz = New-Object System.IO.Compression.GZipStream($fs, [System.IO.Compression.CompressionMode]::Decompress); $out = [System.IO.File]::Create('" +
                               outPath + "'); $gz.CopyTo($out); $gz.Close(); $out.Close(); $fs.Close()\" 2>&1";
-#else
-            std::string cmd = "gunzip -f -k '" + path + "' 2>&1";
-#endif
             int ret = runArchiveCmd(cmd);
+#else
+            int ret = runArchiveArgv({"gunzip", "-f", "-k", path}, "", line);
+#endif
             if (ret != 0)
                 throw RuntimeError("gunzip_decompress() failed", line);
             return XObject::makeString(outPath);
@@ -278,8 +321,7 @@ namespace xell
 #ifdef _WIN32
             throw RuntimeError("bzip2_compress() not available on Windows without bzip2", line);
 #else
-            std::string cmd = "bzip2 -f -k '" + path + "' 2>&1";
-            int ret = runArchiveCmd(cmd);
+            int ret = runArchiveArgv({"bzip2", "-f", "-k", path}, "", line);
             if (ret != 0)
                 throw RuntimeError("bzip2_compress() failed", line);
             return XObject::makeString(path + ".bz2");
@@ -309,8 +351,7 @@ namespace xell
 #ifdef _WIN32
             throw RuntimeError("bunzip2_decompress() not available on Windows without bzip2", line);
 #else
-            std::string cmd = "bunzip2 -f -k '" + path + "' 2>&1";
-            int ret = runArchiveCmd(cmd);
+            int ret = runArchiveArgv({"bunzip2", "-f", "-k", path}, "", line);
             if (ret != 0)
                 throw RuntimeError("bunzip2_decompress() failed", line);
             return XObject::makeString(outPath);
@@ -334,8 +375,7 @@ namespace xell
 #ifdef _WIN32
             throw RuntimeError("xz_compress() not available on Windows without xz", line);
 #else
-            std::string cmd = "xz -f -k '" + path + "' 2>&1";
-            int ret = runArchiveCmd(cmd);
+            int ret = runArchiveArgv({"xz", "-f", "-k", path}, "", line);
             if (ret != 0)
                 throw RuntimeError("xz_compress() failed", line);
             return XObject::makeString(path + ".xz");
@@ -365,8 +405,7 @@ namespace xell
 #ifdef _WIN32
             throw RuntimeError("xz_decompress() not available on Windows without xz", line);
 #else
-            std::string cmd = "xz -d -f -k '" + path + "' 2>&1";
-            int ret = runArchiveCmd(cmd);
+            int ret = runArchiveArgv({"xz", "-d", "-f", "-k", path}, "", line);
             if (ret != 0)
                 throw RuntimeError("xz_decompress() failed", line);
             return XObject::makeString(outPath);
