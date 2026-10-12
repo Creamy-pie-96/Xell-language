@@ -1359,6 +1359,9 @@ int main(int argc, char *argv[])
     if (reader_thread.joinable())
         reader_thread.join();
 
+    if (layout)
+        layout.reset();
+
     renderer.shutdown();
 
     std::cout << "[Xell Terminal] Goodbye.\n";

@@ -74,9 +74,9 @@ namespace xterm
         void stop()
         {
             running_.store(false);
+            pty_.kill();
             if (readerThread_.joinable())
                 readerThread_.join();
-            pty_.kill();
         }
 
         bool isRunning() const { return running_.load(); }
@@ -262,7 +262,7 @@ namespace xterm
         {
             while (running_.load())
             {
-                std::string data = pty_.read();
+                std::string data = pty_.read(100);
                 if (!data.empty())
                 {
                     std::lock_guard<std::mutex> lock(mutex_);

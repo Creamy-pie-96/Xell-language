@@ -737,6 +737,9 @@ namespace xterm
 
         ~REPLPanel()
         {
+            if (embeddedTerm_)
+                embeddedTerm_->stop();
+            killRunningProcess();
             if (execThread_.joinable())
                 execThread_.join();
         }
