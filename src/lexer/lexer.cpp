@@ -2,6 +2,7 @@
 #include "../lib/errors/error.hpp"
 #include <cstdint>
 #include <sstream>
+#include <iostream>
 #include <unordered_map>
 
 namespace xell
@@ -87,6 +88,9 @@ namespace xell
             {"ge", TokenType::GE},
             {"le", TokenType::LE},
 
+            // Shell keyword
+            {"shell", TokenType::SHELL},
+
             // Utility
             {"of", TokenType::OF},
         };
@@ -96,7 +100,8 @@ namespace xell
     // ---- Constructor ------------------------------------------------------------
 
     Lexer::Lexer(const std::string &source)
-        : source_(source), pos_(0), line_(1), nestingDepth_(0) {}
+        : source_(source), pos_(0), line_(1), nestingDepth_(0),
+          shellLexState_(ShellLexState::NONE), shellArgsParenDepth_(0) {}
 
     // ---- Character helpers ------------------------------------------------------
 
@@ -766,6 +771,381 @@ namespace xell
         advance(); // consume closing quote
         return Token(TokenType::F_STRING, result, startLine);
     }
+
+    std::string Lexer::readInterpolatedExpr(int exprStartLine)
+    {
+        std::string expr;
+        int braceDepth = 1;
+
+        while (!isAtEnd() && braceDepth > 0)
+        {
+            char c = current();
+
+            // Strings: "...", '...', r"...", r'...', b"...", b'...', f"...", f'...'
+            if ((c == 'r' || c == 'b' || c == 'f') && (peek(1) == '"' || peek(1) == '\''))
+            {
+                expr += c;
+                advance();
+                char q = current();
+                expr += q;
+                advance();
+                while (!isAtEnd() && current() != q)
+                {
+                    if (current() == '\\')
+                    {
+                        expr += current();
+                        advance();
+                        if (!isAtEnd())
+                        {
+                            if (current() == '\n') line_++;
+                            expr += current();
+                            advance();
+                        }
+                        continue;
+                    }
+                    if (current() == '\n') line_++;
+                    expr += current();
+                    advance();
+                }
+                if (isAtEnd())
+                {
+                    throw LexerError("Unclosed quote in '@{' expression", exprStartLine);
+                }
+                expr += current();
+                advance();
+                continue;
+            }
+
+            if (c == '"' || c == '\'')
+            {
+                char q = c;
+                expr += q;
+                advance();
+                while (!isAtEnd() && current() != q)
+                {
+                    if (current() == '\\')
+                    {
+                        expr += current();
+                        advance();
+                        if (!isAtEnd())
+                        {
+                            if (current() == '\n') line_++;
+                            expr += current();
+                            advance();
+                        }
+                        continue;
+                    }
+                    if (current() == '\n') line_++;
+                    expr += current();
+                    advance();
+                }
+                if (isAtEnd())
+                {
+                    throw LexerError("Unclosed quote in '@{' expression", exprStartLine);
+                }
+                expr += current();
+                advance();
+                continue;
+            }
+
+            // Comments
+            if (c == '#')
+            {
+                while (!isAtEnd() && current() != '\n')
+                {
+                    expr += current();
+                    advance();
+                }
+                if (!isAtEnd() && current() == '\n')
+                {
+                    expr += current();
+                    line_++;
+                    advance();
+                }
+                continue;
+            }
+
+            if (c == '{')
+            {
+                braceDepth++;
+                expr += c;
+                advance();
+                continue;
+            }
+
+            if (c == '}')
+            {
+                braceDepth--;
+                if (braceDepth == 0)
+                {
+                    advance(); // consume closing '}' of @{
+                    break;
+                }
+                expr += c;
+                advance();
+                continue;
+            }
+
+            if (c == '\n') line_++;
+            expr += c;
+            advance();
+        }
+
+        if (braceDepth > 0)
+        {
+            throw LexerError("Unclosed '@{' in shell block", exprStartLine);
+        }
+
+        return expr;
+    }
+
+    Token Lexer::readShellBlock()
+    {
+        int startLine = line_;
+        advance(); // consume opening '{'
+
+        int depth = 1;
+        std::vector<ShellSegment> segments;
+        std::string currentText;
+        int cmdSubstDepth = 0;
+        bool inBackticks = false;
+
+        auto flushText = [&]() {
+            if (!currentText.empty())
+            {
+                segments.emplace_back(false, std::move(currentText), startLine, ShellQuoteContext::UNQUOTED);
+                currentText.clear();
+            }
+        };
+
+        while (!isAtEnd() && depth > 0)
+        {
+            char c = current();
+
+            // 1. Single quotes '...'
+            if (c == '\'')
+            {
+                currentText += c;
+                advance();
+                while (!isAtEnd() && current() != '\'')
+                {
+                    if (current() == '\n') line_++;
+                    currentText += current();
+                    advance();
+                }
+                if (isAtEnd())
+                {
+                    throw LexerError("Unclosed shell block", startLine);
+                }
+                currentText += current(); // closing '
+                advance();
+                continue;
+            }
+
+            // 2. Double quotes "..."
+            if (c == '"')
+            {
+                currentText += c;
+                advance();
+                int dqCmdSubstDepth = 0;
+                bool dqBackticks = false;
+
+                while (!isAtEnd() && current() != '"')
+                {
+                    char dc = current();
+                    if (dc == '\\')
+                    {
+                        char next = peek(1);
+                        if (next == '@' && peek(2) == '{')
+                        {
+                            // \@{ inside double quotes -> literal @{
+                            currentText += "@{";
+                            advance(); // backslash
+                            advance(); // at
+                            advance(); // lbrace
+                            continue;
+                        }
+                        currentText += dc;
+                        advance();
+                        if (!isAtEnd())
+                        {
+                            if (current() == '\n') line_++;
+                            currentText += current();
+                            advance();
+                        }
+                        continue;
+                    }
+
+                    if (dc == '$' && peek(1) == '(')
+                    {
+                        dqCmdSubstDepth++;
+                        currentText += "$(";
+                        advance();
+                        advance();
+                        continue;
+                    }
+                    if (dc == ')' && dqCmdSubstDepth > 0)
+                    {
+                        dqCmdSubstDepth--;
+                        currentText += dc;
+                        advance();
+                        continue;
+                    }
+                    if (dc == '`')
+                    {
+                        dqBackticks = !dqBackticks;
+                        currentText += dc;
+                        advance();
+                        continue;
+                    }
+
+                    if (dc == '@' && peek(1) == '{')
+                    {
+                        if (dqCmdSubstDepth > 0 || dqBackticks)
+                        {
+                            throw LexerError("Interpolation inside command substitution is not supported", line_);
+                        }
+                        flushText();
+                        int exprLine = line_;
+                        advance(); // @
+                        advance(); // {
+                        std::string exprSrc = readInterpolatedExpr(exprLine);
+                        segments.emplace_back(true, std::move(exprSrc), exprLine, ShellQuoteContext::DOUBLE_QUOTES);
+                        continue;
+                    }
+
+                    if (dc == '\n') line_++;
+                    currentText += dc;
+                    advance();
+                }
+
+                if (isAtEnd())
+                {
+                    throw LexerError("Unclosed shell block", startLine);
+                }
+                currentText += current(); // closing "
+                advance();
+                continue;
+            }
+
+            // 3. Comments #...\n (outside quotes)
+            if (c == '#')
+            {
+                while (!isAtEnd() && current() != '\n')
+                {
+                    currentText += current();
+                    advance();
+                }
+                if (!isAtEnd() && current() == '\n')
+                {
+                    currentText += current();
+                    line_++;
+                    advance();
+                }
+                continue;
+            }
+
+            // 4. Backslash outside quotes
+            if (c == '\\')
+            {
+                if (peek(1) == '@' && peek(2) == '{')
+                {
+                    // Escaped @{ outside quotes -> literal @{ with balanced depth
+                    currentText += "@{";
+                    depth++;
+                    advance(); // backslash
+                    advance(); // at
+                    advance(); // lbrace
+                    continue;
+                }
+                currentText += c;
+                advance();
+                if (!isAtEnd())
+                {
+                    if (current() == '\n') line_++;
+                    currentText += current();
+                    advance();
+                }
+                continue;
+            }
+
+            // 5. Command substitution outside quotes
+            if (c == '$' && peek(1) == '(')
+            {
+                cmdSubstDepth++;
+                currentText += "$(";
+                advance();
+                advance();
+                continue;
+            }
+            if (c == ')' && cmdSubstDepth > 0)
+            {
+                cmdSubstDepth--;
+                currentText += c;
+                advance();
+                continue;
+            }
+            if (c == '`')
+            {
+                inBackticks = !inBackticks;
+                currentText += c;
+                advance();
+                continue;
+            }
+
+            // 6. Interpolation @{expr} outside quotes
+            if (c == '@' && peek(1) == '{')
+            {
+                if (cmdSubstDepth > 0 || inBackticks)
+                {
+                    throw LexerError("Interpolation inside command substitution is not supported", line_);
+                }
+                flushText();
+                int exprLine = line_;
+                advance(); // @
+                advance(); // {
+                std::string exprSrc = readInterpolatedExpr(exprLine);
+                segments.emplace_back(true, std::move(exprSrc), exprLine, ShellQuoteContext::UNQUOTED);
+                continue;
+            }
+
+            // 7. Braces outside quotes
+            if (c == '{')
+            {
+                depth++;
+                currentText += c;
+                advance();
+                continue;
+            }
+
+            if (c == '}')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    advance(); // consume closing brace
+                    break;
+                }
+                currentText += c;
+                advance();
+                continue;
+            }
+
+            // 8. Normal characters
+            if (c == '\n') line_++;
+            currentText += c;
+            advance();
+        }
+
+        if (depth > 0)
+        {
+            throw LexerError("Unclosed shell block", startLine);
+        }
+
+        flushText();
+        return Token(TokenType::RAW_SHELL_BLOCK, "", startLine, std::move(segments));
+    }
+
     // Raw string: r"..." or r'...' — backslashes are treated as literal characters
     Token Lexer::readRawString(char quoteChar)
     {
@@ -918,6 +1298,19 @@ namespace xell
             char c = current();
             int tokenLine = line_;
 
+            // Reset shellLexState_ if next character is not part of the expected shell block sequence
+            if (c != '\n')
+            {
+                if (shellLexState_ == ShellLexState::AFTER_SHELL && c != '-' && c != '(' && c != '{')
+                    shellLexState_ = ShellLexState::NONE;
+                else if (shellLexState_ == ShellLexState::AFTER_SHELL_ARROW && !isAlpha(c))
+                    shellLexState_ = ShellLexState::NONE;
+                else if (shellLexState_ == ShellLexState::AFTER_SHELL_CAPTURE && c != '(' && c != '{')
+                    shellLexState_ = ShellLexState::NONE;
+                else if (shellLexState_ == ShellLexState::AFTER_SHELL_ARGS && c != '{')
+                    shellLexState_ = ShellLexState::NONE;
+            }
+
             // --- Newline ---
             if (c == '\n')
             {
@@ -974,7 +1367,20 @@ namespace xell
                     tokens.push_back(readFString(peek(1)));
                     continue;
                 }
-                tokens.push_back(readIdentifierOrKeyword());
+                Token tok = readIdentifierOrKeyword();
+                if (tok.type == TokenType::SHELL)
+                {
+                    shellLexState_ = ShellLexState::AFTER_SHELL;
+                }
+                else if (shellLexState_ == ShellLexState::AFTER_SHELL_ARROW && tok.value == "capture")
+                {
+                    shellLexState_ = ShellLexState::AFTER_SHELL_CAPTURE;
+                }
+                else if (shellLexState_ != ShellLexState::IN_SHELL_ARGS)
+                {
+                    shellLexState_ = ShellLexState::NONE;
+                }
+                tokens.push_back(std::move(tok));
                 continue;
             }
 
@@ -1024,6 +1430,10 @@ namespace xell
                     tokens.emplace_back(TokenType::ARROW, "->", tokenLine);
                     advance();
                     advance();
+                    if (shellLexState_ == ShellLexState::AFTER_SHELL)
+                        shellLexState_ = ShellLexState::AFTER_SHELL_ARROW;
+                    else if (shellLexState_ != ShellLexState::IN_SHELL_ARGS)
+                        shellLexState_ = ShellLexState::NONE;
                 }
                 else if (peek(1) == '=')
                 {
@@ -1223,11 +1633,21 @@ namespace xell
                 tokens.emplace_back(TokenType::LPAREN, "(", tokenLine);
                 nestingDepth_++;
                 advance();
+                if (shellLexState_ == ShellLexState::AFTER_SHELL ||
+                    shellLexState_ == ShellLexState::AFTER_SHELL_CAPTURE)
+                {
+                    shellLexState_ = ShellLexState::IN_SHELL_ARGS;
+                    shellArgsParenDepth_ = nestingDepth_;
+                }
                 continue;
             }
             if (c == ')')
             {
                 tokens.emplace_back(TokenType::RPAREN, ")", tokenLine);
+                if (shellLexState_ == ShellLexState::IN_SHELL_ARGS && nestingDepth_ == shellArgsParenDepth_)
+                {
+                    shellLexState_ = ShellLexState::AFTER_SHELL_ARGS;
+                }
                 if (nestingDepth_ > 0)
                     nestingDepth_--;
                 advance();
@@ -1250,6 +1670,14 @@ namespace xell
             }
             if (c == '{')
             {
+                if (shellLexState_ == ShellLexState::AFTER_SHELL ||
+                    shellLexState_ == ShellLexState::AFTER_SHELL_CAPTURE ||
+                    shellLexState_ == ShellLexState::AFTER_SHELL_ARGS)
+                {
+                    shellLexState_ = ShellLexState::NONE;
+                    tokens.push_back(readShellBlock());
+                    continue;
+                }
                 tokens.emplace_back(TokenType::LBRACE, "{", tokenLine);
                 nestingDepth_++;
                 advance();

@@ -41,6 +41,21 @@ namespace xell
         static bool isHexDigit(char c);
         static bool isAlphaNumeric(char c);
         Token readFString(char quoteChar);
+        Token readShellBlock();
+        std::string readInterpolatedExpr(int exprStartLine);
+
+        enum class ShellLexState
+        {
+            NONE,
+            AFTER_SHELL,
+            AFTER_SHELL_ARROW,
+            AFTER_SHELL_CAPTURE,
+            IN_SHELL_ARGS,
+            AFTER_SHELL_ARGS
+        };
+
+        ShellLexState shellLexState_ = ShellLexState::NONE;
+        int shellArgsParenDepth_ = 0;
     };
 
 } // namespace xell

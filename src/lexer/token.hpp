@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace xell
 {
@@ -166,6 +167,8 @@ namespace xell
 
         // Shell command: $cmd args...
         SHELL_CMD,
+        SHELL,            // shell keyword
+        RAW_SHELL_BLOCK,  // raw shell { ... } block
 
         // Special
         IDENTIFIER,
@@ -292,6 +295,8 @@ namespace xell
             {(int)TokenType::RSHIFT_EQUAL, "RSHIFT_EQUAL"},
             {(int)TokenType::TILDE, "TILDE"},
             {(int)TokenType::SHELL_CMD, "SHELL_CMD"},
+            {(int)TokenType::SHELL, "SHELL"},
+            {(int)TokenType::RAW_SHELL_BLOCK, "RAW_SHELL_BLOCK"},
             {(int)TokenType::IDENTIFIER, "IDENTIFIER"},
             {(int)TokenType::NEWLINE, "NEWLINE"},
             {(int)TokenType::BYTE_STRING, "BYTE_STRING"},
@@ -309,14 +314,37 @@ namespace xell
         return "UNKNOWN";
     }
 
+    enum class ShellQuoteContext
+    {
+        UNQUOTED,
+        DOUBLE_QUOTES
+    };
+
+    struct ShellSegment
+    {
+        bool isExpr = false;
+        std::string text;
+        int line = 0;
+        ShellQuoteContext quoteContext = ShellQuoteContext::UNQUOTED;
+
+        ShellSegment() = default;
+        ShellSegment(bool isExpr, std::string text, int line,
+                     ShellQuoteContext quoteContext = ShellQuoteContext::UNQUOTED)
+            : isExpr(isExpr), text(std::move(text)), line(line), quoteContext(quoteContext) {}
+    };
+
     struct Token
     {
         TokenType type;
         std::string value;
         int line;
+        std::vector<ShellSegment> segments;
 
         Token(TokenType type, std::string value, int line)
             : type(type), value(std::move(value)), line(line) {}
+
+        Token(TokenType type, std::string value, int line, std::vector<ShellSegment> segments)
+            : type(type), value(std::move(value)), line(line), segments(std::move(segments)) {}
     };
 
 } // namespace xell

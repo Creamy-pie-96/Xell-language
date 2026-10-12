@@ -610,6 +610,261 @@ void testLexerSingleAmpToken()
 }
 
 // ============================================================================
+// PHASE 1: SHELL BLOCK LEXER TESTS
+// ============================================================================
+
+void testLexerShellBlockPlain()
+{
+    Lexer lexer("shell { echo hello }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[0].type == TokenType::SHELL);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].line, 1);
+    XASSERT_EQ(tokens[1].segments.size(), 1u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " echo hello ");
+}
+
+void testLexerShellBlockCaptureNoArgs()
+{
+    Lexer lexer("shell->capture { echo hello }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 4);
+    XASSERT(tokens[0].type == TokenType::SHELL);
+    XASSERT(tokens[1].type == TokenType::ARROW);
+    XASSERT(tokens[2].type == TokenType::IDENTIFIER);
+    XASSERT_EQ(tokens[2].value, "capture");
+    XASSERT(tokens[3].type == TokenType::RAW_SHELL_BLOCK);
+}
+
+void testLexerShellBlockCaptureWithArgs()
+{
+    Lexer lexer("shell->capture(timeout: 5, cwd: \"/tmp\") { ls }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 10);
+    XASSERT(tokens[0].type == TokenType::SHELL);
+    XASSERT(tokens[1].type == TokenType::ARROW);
+    XASSERT(tokens[2].type == TokenType::IDENTIFIER);
+    XASSERT_EQ(tokens[2].value, "capture");
+    XASSERT(tokens[3].type == TokenType::LPAREN);
+    bool foundBlock = false;
+    for (const auto &tok : tokens)
+    {
+        if (tok.type == TokenType::RAW_SHELL_BLOCK)
+        {
+            foundBlock = true;
+            XASSERT_EQ(tok.segments.size(), 1u);
+            XASSERT_EQ(tok.segments[0].text, " ls ");
+        }
+    }
+    XASSERT(foundBlock);
+}
+
+void testLexerShellBlockPlainWithArgs()
+{
+    Lexer lexer("shell(check: false) { ls }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens[0].type == TokenType::SHELL);
+    XASSERT(tokens[1].type == TokenType::LPAREN);
+    bool foundBlock = false;
+    for (const auto &tok : tokens)
+    {
+        if (tok.type == TokenType::RAW_SHELL_BLOCK)
+        {
+            foundBlock = true;
+            XASSERT_EQ(tok.segments.size(), 1u);
+            XASSERT_EQ(tok.segments[0].text, " ls ");
+        }
+    }
+    XASSERT(foundBlock);
+}
+
+void testLexerShellBlockVarExpansion()
+{
+    Lexer lexer("shell { echo ${var} }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 1u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " echo ${var} ");
+}
+
+void testLexerShellBlockBraceExpansion()
+{
+    Lexer lexer("shell { echo {a,b} }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 1u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " echo {a,b} ");
+}
+
+void testLexerShellBlockFunctionDef()
+{
+    Lexer lexer("shell { f() { echo 1; } }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 1u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " f() { echo 1; } ");
+}
+
+void testLexerShellBlockBracesInQuotes()
+{
+    Lexer lexer("shell { echo '{' and '}' and \"{\" and \"}\" }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 1u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " echo '{' and '}' and \"{\" and \"}\" ");
+}
+
+void testLexerShellBlockComments()
+{
+    Lexer lexer("shell {\n# comment with { and }\necho 1\n}");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 1u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, "\n# comment with { and }\necho 1\n");
+}
+
+void testLexerShellBlockEscapedBraces()
+{
+    Lexer lexer("shell { echo \\{ and \\} }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 1u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " echo \\{ and \\} ");
+}
+
+void testLexerShellBlockAtInSingleQuotes()
+{
+    Lexer lexer("shell { echo '@{literal}' }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 1u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " echo '@{literal}' ");
+}
+
+void testLexerShellBlockEscapedAt()
+{
+    Lexer lexer("shell { echo \\@{literal} }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 1u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " echo @{literal} ");
+}
+
+void testLexerShellBlockDictInInterpolation()
+{
+    Lexer lexer("shell { echo @{{\"a\": 1, \"b\": {2: 3}}} }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 3u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " echo ");
+    XASSERT(tokens[1].segments[1].isExpr);
+    XASSERT_EQ(tokens[1].segments[1].text, "{\"a\": 1, \"b\": {2: 3}}");
+    XASSERT_EQ((int)tokens[1].segments[1].quoteContext, (int)ShellQuoteContext::UNQUOTED);
+    XASSERT(!tokens[1].segments[2].isExpr);
+    XASSERT_EQ(tokens[1].segments[2].text, " ");
+}
+
+void testLexerShellBlockUnclosedBlock()
+{
+    bool threw = false;
+    int errLine = -1;
+    try
+    {
+        Lexer lexer("shell {\n  echo unclosed");
+        lexer.tokenize();
+    }
+    catch (const LexerError &e)
+    {
+        threw = true;
+        errLine = e.line();
+    }
+    XASSERT(threw);
+    XASSERT_EQ(errLine, 1); // Reported at the line of the opening brace
+}
+
+void testLexerShellBlockEmpty()
+{
+    Lexer lexer("shell {}");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT(tokens[1].segments.empty());
+}
+
+void testLexerShellBlockInterleaved()
+{
+    Lexer lexer("shell { cp @{src} @{dest} }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 5u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " cp ");
+    XASSERT(tokens[1].segments[1].isExpr);
+    XASSERT_EQ(tokens[1].segments[1].text, "src");
+    XASSERT_EQ((int)tokens[1].segments[1].quoteContext, (int)ShellQuoteContext::UNQUOTED);
+    XASSERT(!tokens[1].segments[2].isExpr);
+    XASSERT_EQ(tokens[1].segments[2].text, " ");
+    XASSERT(tokens[1].segments[3].isExpr);
+    XASSERT_EQ(tokens[1].segments[3].text, "dest");
+    XASSERT(!tokens[1].segments[4].isExpr);
+    XASSERT_EQ(tokens[1].segments[4].text, " ");
+}
+
+void testLexerShellBlockDoubleQuoteInterpolation()
+{
+    Lexer lexer("shell { echo \"hello @{name}!\" }");
+    auto tokens = lexer.tokenize();
+    XASSERT(tokens.size() >= 2);
+    XASSERT(tokens[1].type == TokenType::RAW_SHELL_BLOCK);
+    XASSERT_EQ(tokens[1].segments.size(), 3u);
+    XASSERT(!tokens[1].segments[0].isExpr);
+    XASSERT_EQ(tokens[1].segments[0].text, " echo \"hello ");
+    XASSERT(tokens[1].segments[1].isExpr);
+    XASSERT_EQ(tokens[1].segments[1].text, "name");
+    XASSERT_EQ((int)tokens[1].segments[1].quoteContext, (int)ShellQuoteContext::DOUBLE_QUOTES);
+    XASSERT(!tokens[1].segments[2].isExpr);
+    XASSERT_EQ(tokens[1].segments[2].text, "!\" ");
+}
+
+void testLexerShellBlockCommandSubstRejection()
+{
+    bool threw = false;
+    try
+    {
+        Lexer lexer("shell { echo \"$(echo @{x})\" }");
+        lexer.tokenize();
+    }
+    catch (const LexerError &e)
+    {
+        threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("command substitution") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -680,6 +935,26 @@ int main()
     runTest("lexer: && token", testLexerAmpAmpToken);
     runTest("lexer: || token", testLexerPipePipeToken);
     runTest("lexer: single & is AMP token", testLexerSingleAmpToken);
+
+    // Shell block lexer (Phase 1)
+    runTest("shell block lexer: plain block", testLexerShellBlockPlain);
+    runTest("shell block lexer: capture no args", testLexerShellBlockCaptureNoArgs);
+    runTest("shell block lexer: capture with args", testLexerShellBlockCaptureWithArgs);
+    runTest("shell block lexer: plain with args", testLexerShellBlockPlainWithArgs);
+    runTest("shell block lexer: variable expansion ${var}", testLexerShellBlockVarExpansion);
+    runTest("shell block lexer: brace expansion {a,b}", testLexerShellBlockBraceExpansion);
+    runTest("shell block lexer: function definition f() { ... }", testLexerShellBlockFunctionDef);
+    runTest("shell block lexer: braces in quotes", testLexerShellBlockBracesInQuotes);
+    runTest("shell block lexer: comments with braces", testLexerShellBlockComments);
+    runTest("shell block lexer: escaped braces \\{ and \\}", testLexerShellBlockEscapedBraces);
+    runTest("shell block lexer: @{ in single quotes is literal", testLexerShellBlockAtInSingleQuotes);
+    runTest("shell block lexer: \\@{ is literal", testLexerShellBlockEscapedAt);
+    runTest("shell block lexer: dict literal in interpolation", testLexerShellBlockDictInInterpolation);
+    runTest("shell block lexer: unclosed block error line", testLexerShellBlockUnclosedBlock);
+    runTest("shell block lexer: empty block", testLexerShellBlockEmpty);
+    runTest("shell block lexer: interleaved segments", testLexerShellBlockInterleaved);
+    runTest("shell block lexer: double quote interpolation", testLexerShellBlockDoubleQuoteInterpolation);
+    runTest("shell block lexer: command substitution rejection", testLexerShellBlockCommandSubstRejection);
 
     std::cout << "\n============================================\n";
     std::cout << "  Total: " << (g_passed + g_failed)

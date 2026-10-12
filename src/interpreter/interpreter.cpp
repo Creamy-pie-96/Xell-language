@@ -3774,7 +3774,7 @@ namespace xell
         {
             if (p->isRaw)
                 return XObject::makeString(p->value);
-            if (p->isFString)
+            if (p->isFString || p->value.find('{') != std::string::npos)
             {
                 // Interpolate (process {expr})
                 return XObject::makeString(interpolate(p->value, p->line));
