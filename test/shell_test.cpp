@@ -1523,6 +1523,20 @@ void testShellBlockPlainErrorReporting()
     XASSERT(threw);
 }
 
+void testNoImplicitPathExecution()
+{
+    bool threw = false;
+    try
+    {
+        runXell("git(\"status\")");
+    }
+    catch (const UndefinedVariableError &)
+    {
+        threw = true;
+    }
+    XASSERT(threw);
+}
+
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -1666,6 +1680,9 @@ int main()
     // Shell block error reporting (Phase 6)
     runTest("shell block error reporting with line", testShellBlockErrorReporting);
     runTest("shell block plain error reporting with line", testShellBlockPlainErrorReporting);
+
+    // Phase 7: Cleanups
+    runTest("external command PATH fallback removed (throws UndefinedVariable)", testNoImplicitPathExecution);
 
     std::cout << "\n============================================\n";
     std::cout << "  Total: " << (g_passed + g_failed)
