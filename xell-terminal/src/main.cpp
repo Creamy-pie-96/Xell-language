@@ -1276,9 +1276,27 @@ int main(int argc, char *argv[])
                 std::lock_guard<std::mutex> lock(buffer_mutex);
                 for (int r = 0; r < (int)ideOutput.cells.size() && r < term_rows; r++)
                 {
-                    for (int c = 0; c < (int)ideOutput.cells[r].size() && c < term_cols; c++)
+                    const auto &nextRow = ideOutput.cells[r];
+                    int rowCols = std::min(term_cols, (int)nextRow.size());
+
+                    // Fast check if entire row is unchanged
+                    bool rowChanged = false;
+                    for (int c = 0; c < rowCols; c++)
                     {
-                        const xterm::Cell &next = ideOutput.cells[r][c];
+                        if (!buffer.cell_at(r, c).visual_equals(nextRow[c]))
+                        {
+                            rowChanged = true;
+                            break;
+                        }
+                    }
+                    if (!rowChanged)
+                    {
+                        continue;
+                    }
+
+                    for (int c = 0; c < rowCols; c++)
+                    {
+                        const xterm::Cell &next = nextRow[c];
                         const xterm::Cell &prev = buffer.cell_at(r, c);
 
                         // Skip redundant writes to preserve dirty-cell wins.

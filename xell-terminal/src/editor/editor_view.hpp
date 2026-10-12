@@ -558,13 +558,9 @@ namespace xterm
             int cursorScreenCol = -1;
         };
 
-        RenderOutput render() const
+        void renderInto(std::vector<std::vector<Cell>> &target, int originX, int originY,
+                        int &cursorScreenRow, int &cursorScreenCol) const
         {
-            RenderOutput out;
-            out.cells.resize(rect_.h);
-            for (auto &row : out.cells)
-                row.resize(rect_.w);
-
             int gutterW = gutterWidth();
             int codeW = rect_.w - gutterW;
             int visibleLines = codeAreaHeight();
@@ -572,13 +568,22 @@ namespace xterm
             int maxVisibleRow = scrollTopLine_ + visibleLines;
             ensureCommentStateUpTo(maxVisibleRow);
 
+            int targetRows = (int)target.size();
+
             for (int screenRow = 0; screenRow < visibleLines; screenRow++)
             {
+                int destY = originY + screenRow;
+                if (destY < 0 || destY >= targetRows)
+                    continue;
+
+                auto &destRow = target[destY];
+                int destCols = (int)destRow.size();
+
                 int bufferRow = scrollTopLine_ + screenRow;
                 bool isCurrentLine = (bufferRow == cursor_.row);
 
                 // ── Gutter (line numbers) ────────────────────────────────
-                renderGutter(out.cells[screenRow], gutterW, bufferRow, isCurrentLine);
+                renderGutter(destRow, originX, gutterW, bufferRow, isCurrentLine);
 
                 // ── Code area ────────────────────────────────────────────
                 if (bufferRow < buffer_.lineCount())
@@ -599,8 +604,12 @@ namespace xterm
                     // Write code cells with syntax highlighting
                     for (int screenCol = 0; screenCol < codeW; screenCol++)
                     {
+                        int destX = originX + gutterW + screenCol;
+                        if (destX < 0 || destX >= destCols)
+                            continue;
+
                         int bufCol = scrollLeftCol_ + screenCol;
-                        auto &cell = out.cells[screenRow][gutterW + screenCol];
+                        auto &cell = destRow[destX];
 
                         if (bufCol < (int)line.size())
                         {
@@ -676,11 +685,15 @@ namespace xterm
                             int screenCol2 = gutterW + ghostStartCol + gi;
                             if (screenCol2 >= gutterW && screenCol2 < rect_.w)
                             {
-                                auto &gc = out.cells[screenRow][screenCol2];
-                                gc.ch = static_cast<char32_t>(static_cast<unsigned char>(ghostText_[gi]));
-                                gc.fg = ghostFg;
-                                gc.italic = true;
-                                gc.dirty = true;
+                                int destX = originX + screenCol2;
+                                if (destX >= 0 && destX < destCols)
+                                {
+                                    auto &gc = destRow[destX];
+                                    gc.ch = static_cast<char32_t>(static_cast<unsigned char>(ghostText_[gi]));
+                                    gc.fg = ghostFg;
+                                    gc.italic = true;
+                                    gc.dirty = true;
+                                }
                             }
                         }
                     }
@@ -690,23 +703,32 @@ namespace xterm
                     // Past end of file — render tilde in gutter, empty code area
                     for (int screenCol = 0; screenCol < codeW; screenCol++)
                     {
-                        auto &cell = out.cells[screenRow][gutterW + screenCol];
-                        cell.ch = U' ';
-                        cell.fg = fgColor_;
-                        cell.bg = bgColor_;
-                        cell.dirty = true;
+                        int destX = originX + gutterW + screenCol;
+                        if (destX >= 0 && destX < destCols)
+                        {
+                            auto &cell = destRow[destX];
+                            cell.ch = U' ';
+                            cell.fg = fgColor_;
+                            cell.bg = bgColor_;
+                            cell.dirty = true;
+                        }
                     }
                 }
             }
 
             // ── Cursor screen position ───────────────────────────────────
-            int cursorScreenRow = cursor_.row - scrollTopLine_;
-            int cursorScreenCol = cursor_.col - scrollLeftCol_ + gutterW;
-            if (cursorScreenRow >= 0 && cursorScreenRow < visibleLines &&
-                cursorScreenCol >= gutterW && cursorScreenCol < rect_.w)
+            int curRow = cursor_.row - scrollTopLine_;
+            int curCol = cursor_.col - scrollLeftCol_ + gutterW;
+            if (curRow >= 0 && curRow < visibleLines &&
+                curCol >= gutterW && curCol < rect_.w)
             {
-                out.cursorScreenRow = cursorScreenRow;
-                out.cursorScreenCol = cursorScreenCol;
+                cursorScreenRow = curRow;
+                cursorScreenCol = curCol;
+            }
+            else
+            {
+                cursorScreenRow = -1;
+                cursorScreenCol = -1;
             }
 
             // ── Scrollbar (rightmost column) ──────────────────────────────
@@ -728,12 +750,17 @@ namespace xterm
 
                     for (int r = 0; r < visibleLines; r++)
                     {
-                        auto &cell = out.cells[r][scrollCol];
-                        bool isThumb = (r >= thumbStart && r < thumbStart + thumbHeight);
-                        cell.ch = isThumb ? U'█' : U'░';
-                        cell.fg = isThumb ? thumbColor : trackColor;
-                        cell.bg = bgColor_;
-                        cell.dirty = true;
+                        int destY = originY + r;
+                        int destX = originX + scrollCol;
+                        if (destY >= 0 && destY < targetRows && destX >= 0 && destX < (int)target[destY].size())
+                        {
+                            auto &cell = target[destY][destX];
+                            bool isThumb = (r >= thumbStart && r < thumbStart + thumbHeight);
+                            cell.ch = isThumb ? U'█' : U'░';
+                            cell.fg = isThumb ? thumbColor : trackColor;
+                            cell.bg = bgColor_;
+                            cell.dirty = true;
+                        }
                     }
                 }
             }
@@ -758,19 +785,36 @@ namespace xterm
                         Color trackColor = {35, 35, 35};
                         Color thumbColor = {100, 100, 100};
 
-                        for (int c = 0; c < trackWidth; c++)
+                        int destY = originY + hBarRow;
+                        if (destY >= 0 && destY < targetRows)
                         {
-                            auto &cell = out.cells[hBarRow][gutterW + c];
-                            bool isThumb = (c >= thumbStart && c < thumbStart + thumbWidth);
-                            cell.ch = isThumb ? U'\u2501' : U'\u2500'; // ━ (thumb) / ─ (track)
-                            cell.fg = isThumb ? thumbColor : trackColor;
-                            cell.bg = bgColor_;
-                            cell.dirty = true;
+                            auto &destRow = target[destY];
+                            for (int c = 0; c < trackWidth; c++)
+                            {
+                                int destX = originX + gutterW + c;
+                                if (destX >= 0 && destX < (int)destRow.size())
+                                {
+                                    auto &cell = destRow[destX];
+                                    bool isThumb = (c >= thumbStart && c < thumbStart + thumbWidth);
+                                    cell.ch = isThumb ? U'\u2501' : U'\u2500'; // ━ (thumb) / ─ (track)
+                                    cell.fg = isThumb ? thumbColor : trackColor;
+                                    cell.bg = bgColor_;
+                                    cell.dirty = true;
+                                }
+                            }
                         }
                     }
                 }
             }
+        }
 
+        RenderOutput render() const
+        {
+            RenderOutput out;
+            out.cells.resize(rect_.h);
+            for (auto &row : out.cells)
+                row.resize(rect_.w);
+            renderInto(out.cells, 0, 0, out.cursorScreenRow, out.cursorScreenCol);
             return out;
         }
 
@@ -1187,7 +1231,7 @@ namespace xterm
             scrollLeftCol_ = std::max(0, scrollLeftCol_);
         }
 
-        void renderGutter(std::vector<Cell> &row, int gutterW, int bufferRow, bool isCurrentLine) const
+        void renderGutter(std::vector<Cell> &row, int originX, int gutterW, int bufferRow, bool isCurrentLine) const
         {
             // Line number with right-alignment
             std::string numStr;
@@ -1210,9 +1254,9 @@ namespace xterm
 
             int numStart = std::max(1, gutterW - 1 - (int)numStr.size()); // right-aligned before separator
 
-            for (int col = 0; col < gutterW; col++)
+            for (int col = 0; col < gutterW && originX + col < (int)row.size(); col++)
             {
-                auto &cell = row[col];
+                auto &cell = row[originX + col];
                 cell.bg = isDebugLine ? Color{60, 50, 20} : gutterBg_; // yellow-tinted bg for debug line
                 cell.dirty = true;
 
@@ -1261,6 +1305,11 @@ namespace xterm
                     cell.fg = gutterFg_;
                 }
             }
+        }
+
+        void renderGutter(std::vector<Cell> &row, int gutterW, int bufferRow, bool isCurrentLine) const
+        {
+            renderGutter(row, 0, gutterW, bufferRow, isCurrentLine);
         }
     };
 

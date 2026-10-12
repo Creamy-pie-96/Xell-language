@@ -462,6 +462,45 @@ namespace xterm
             int cursorScreenCol = -1;
         };
 
+        void renderInto(std::vector<std::vector<Cell>> &target, int originX, int originY,
+                        int &cursorScreenRow, int &cursorScreenCol)
+        {
+            // ── Tab bar (row 0) ──────────────────────────────────────
+            if (showTabBar_ && originY >= 0 && originY < (int)target.size())
+                renderTabBar(target[originY], originX);
+
+            // ── Editor area ──────────────────────────────────────────
+            if (activeTab_ >= 0 && activeView())
+            {
+                int startRow = showTabBar_ ? 1 : 0;
+                int edCurRow = -1;
+                int edCurCol = -1;
+                activeView()->renderInto(target, originX, originY + startRow, edCurRow, edCurCol);
+
+                // Map cursor position
+                if (edCurRow >= 0)
+                {
+                    cursorScreenRow = edCurRow + startRow;
+                    cursorScreenCol = edCurCol;
+                }
+                else
+                {
+                    cursorScreenRow = -1;
+                    cursorScreenCol = -1;
+                }
+            }
+            else
+            {
+                cursorScreenRow = -1;
+                cursorScreenCol = -1;
+            }
+
+            // ── Status bar (last row) ────────────────────────────────
+            int statusRow = originY + totalRows_ - 1;
+            if (statusRow >= 0 && statusRow < (int)target.size())
+                renderStatusBar(target[statusRow], originX);
+        }
+
         FullRenderOutput render()
         {
             FullRenderOutput out;
@@ -469,34 +508,7 @@ namespace xterm
             for (auto &row : out.cells)
                 row.resize(totalCols_);
 
-            // ── Tab bar (row 0) ──────────────────────────────────────
-            if (showTabBar_)
-                renderTabBar(out.cells[0]);
-
-            // ── Editor area ──────────────────────────────────────────
-            if (activeTab_ >= 0 && activeView())
-            {
-                auto editorOut = activeView()->render();
-                int startRow = showTabBar_ ? 1 : 0;
-                for (int r = 0; r < (int)editorOut.cells.size() && startRow + r < totalRows_ - 1; r++)
-                {
-                    for (int c = 0; c < (int)editorOut.cells[r].size() && c < totalCols_; c++)
-                    {
-                        out.cells[startRow + r][c] = editorOut.cells[r][c];
-                    }
-                }
-
-                // Map cursor position
-                if (editorOut.cursorScreenRow >= 0)
-                {
-                    out.cursorScreenRow = editorOut.cursorScreenRow + startRow;
-                    out.cursorScreenCol = editorOut.cursorScreenCol;
-                }
-            }
-
-            // ── Status bar (last row) ────────────────────────────────
-            renderStatusBar(out.cells[totalRows_ - 1]);
-
+            renderInto(out.cells, 0, 0, out.cursorScreenRow, out.cursorScreenCol);
             return out;
         }
 
@@ -887,20 +899,24 @@ namespace xterm
 
         // ── Tab bar rendering ────────────────────────────────────────
 
-        void renderTabBar(std::vector<Cell> &row) const
+        void renderTabBar(std::vector<Cell> &row, int originX = 0) const
         {
+            int maxCols = std::min(totalCols_, (int)row.size() - originX);
+            if (maxCols <= 0) return;
+
             // Fill background
-            for (int c = 0; c < totalCols_; c++)
+            for (int c = 0; c < maxCols; c++)
             {
-                row[c].ch = U' ';
-                row[c].bg = tabBarBg_;
-                row[c].fg = tabInactiveFg_;
-                row[c].dirty = true;
+                auto &cell = row[originX + c];
+                cell.ch = U' ';
+                cell.bg = tabBarBg_;
+                cell.fg = tabInactiveFg_;
+                cell.dirty = true;
             }
 
             // Render each tab
             int col = 0;
-            for (int i = 0; i < (int)tabs_.size() && col < totalCols_; i++)
+            for (int i = 0; i < (int)tabs_.size() && col < maxCols; i++)
             {
                 bool active = (i == activeTab_);
                 auto &tab = tabs_[i];
@@ -934,18 +950,19 @@ namespace xterm
                     size_t si = 0;
                     int c = col;
                     int charIdx = 0;
-                    while (si < label.size() && c < (int)row.size())
+                    while (si < label.size() && c < maxCols)
                     {
-                        row[c].ch = utf8Decode(label, si);
-                        row[c].fg = fg;
-                        row[c].bg = bg;
+                        auto &cell = row[originX + c];
+                        cell.ch = utf8Decode(label, si);
+                        cell.fg = fg;
+                        cell.bg = bg;
                         // If hovering on × region, make those chars red bg
                         if (hoverOnClose && charIdx >= labelLen - 3)
                         {
-                            row[c].bg = {180, 40, 40};
-                            row[c].fg = {255, 255, 255};
+                            cell.bg = {180, 40, 40};
+                            cell.fg = {255, 255, 255};
                         }
-                        row[c].dirty = true;
+                        cell.dirty = true;
                         c++;
                         charIdx++;
                     }
@@ -953,12 +970,13 @@ namespace xterm
                 }
 
                 // Tab separator
-                if (col < totalCols_)
+                if (col < maxCols)
                 {
-                    row[col].ch = U'│';
-                    row[col].fg = tabBorder_;
-                    row[col].bg = tabBarBg_;
-                    row[col].dirty = true;
+                    auto &cell = row[originX + col];
+                    cell.ch = U'│';
+                    cell.fg = tabBorder_;
+                    cell.bg = tabBarBg_;
+                    cell.dirty = true;
                     col++;
                 }
             }
@@ -966,15 +984,19 @@ namespace xterm
 
         // ── Status bar rendering ─────────────────────────────────────
 
-        void renderStatusBar(std::vector<Cell> &row) const
+        void renderStatusBar(std::vector<Cell> &row, int originX = 0) const
         {
+            int maxCols = std::min(totalCols_, (int)row.size() - originX);
+            if (maxCols <= 0) return;
+
             // Fill background
-            for (int c = 0; c < totalCols_; c++)
+            for (int c = 0; c < maxCols; c++)
             {
-                row[c].ch = U' ';
-                row[c].bg = statusBarBg_;
-                row[c].fg = statusBarFg_;
-                row[c].dirty = true;
+                auto &cell = row[originX + c];
+                cell.ch = U' ';
+                cell.bg = statusBarBg_;
+                cell.fg = statusBarFg_;
+                cell.dirty = true;
             }
 
             // Left side: mode + file info
@@ -999,22 +1021,24 @@ namespace xterm
             }
 
             // Write left (UTF-8 aware)
-            utf8Write(row, 0, left, statusBarFg_, statusBarBg_);
+            utf8Write(row, originX, left, statusBarFg_, statusBarBg_);
 
             // Write right (right-aligned, UTF-8 aware)
             int rightLen = utf8Len(right);
-            int rightStart = totalCols_ - rightLen;
-            utf8Write(row, rightStart, right, statusBarFg_, statusBarBg_);
+            int rightStart = originX + maxCols - rightLen;
+            if (rightStart >= originX)
+                utf8Write(row, rightStart, right, statusBarFg_, statusBarBg_);
 
             // Center: transient message
             if (!statusMessage_.empty())
             {
                 int leftLen = utf8Len(left);
                 int msgLen = utf8Len(statusMessage_);
-                int msgStart = (totalCols_ - msgLen) / 2;
-                if (msgStart < leftLen + 2)
-                    msgStart = leftLen + 2;
-                utf8Write(row, msgStart, statusMessage_, statusBarFg_, statusBarBg_);
+                int msgStart = originX + (maxCols - msgLen) / 2;
+                if (msgStart < originX + leftLen + 2)
+                    msgStart = originX + leftLen + 2;
+                if (msgStart < originX + maxCols)
+                    utf8Write(row, msgStart, statusMessage_, statusBarFg_, statusBarBg_);
             }
         }
     };

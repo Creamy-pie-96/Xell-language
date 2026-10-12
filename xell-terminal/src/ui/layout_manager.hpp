@@ -1420,13 +1420,20 @@ namespace xterm
         const ScreenOutput &render()
         {
             auto &out = frameCache_;
+            bool sizeChanged = false;
             if ((int)out.cells.size() != totalRows_)
+            {
                 out.cells.resize(totalRows_);
+                sizeChanged = true;
+            }
 
             for (auto &row : out.cells)
             {
                 if ((int)row.size() != totalCols_)
+                {
                     row.resize(totalCols_);
+                    sizeChanged = true;
+                }
             }
 
             Cell clearCell;
@@ -1438,8 +1445,14 @@ namespace xterm
             clearCell.underline = false;
             clearCell.dirty = true;
 
-            for (auto &row : out.cells)
-                std::fill(row.begin(), row.end(), clearCell);
+            bool overlayActive = showFileContextMenu_ || showGotoLine_ || findReplaceActive_ || acPopup_.isVisible();
+            if (sizeChanged || needsFullClear_ || (wasOverlayActive_ && !overlayActive))
+            {
+                for (auto &row : out.cells)
+                    std::fill(row.begin(), row.end(), clearCell);
+                needsFullClear_ = false;
+            }
+            wasOverlayActive_ = overlayActive;
 
             out.cursorRow = -1;
             out.cursorCol = -1;
@@ -1465,13 +1478,14 @@ namespace xterm
             }
 
             // ── Editor ───────────────────────────────────────────────
-            auto editorOut = editor_.render();
-            blitPanel(out.cells, editorOut.cells, editorRect_);
+            int edCurRow = -1;
+            int edCurCol = -1;
+            editor_.renderInto(out.cells, editorRect_.x, editorRect_.y, edCurRow, edCurCol);
 
-            if (editorOut.cursorScreenRow >= 0 && focus_ == FocusRegion::Editor)
+            if (edCurRow >= 0 && focus_ == FocusRegion::Editor)
             {
-                out.cursorRow = editorRect_.y + editorOut.cursorScreenRow;
-                out.cursorCol = editorRect_.x + editorOut.cursorScreenCol;
+                out.cursorRow = editorRect_.y + edCurRow;
+                out.cursorCol = editorRect_.x + edCurCol;
             }
 
             // ── Bottom panel ─────────────────────────────────────────
@@ -2062,6 +2076,8 @@ namespace xterm
 
         // Retained full-frame buffer to avoid per-frame reallocations.
         ScreenOutput frameCache_;
+        bool needsFullClear_ = true;
+        bool wasOverlayActive_ = false;
 
         void loadColors()
         {
@@ -2325,6 +2341,7 @@ namespace xterm
 
         void recalcLayout()
         {
+            needsFullClear_ = true;
             int contentStartCol = 0;
             int contentWidth = totalCols_;
 
