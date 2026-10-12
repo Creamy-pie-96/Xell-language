@@ -76,7 +76,7 @@ namespace xell
 
     bool Parser::canStartPrimary(TokenType type) const
     {
-        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::BYTE_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS || type == TokenType::YIELD || type == TokenType::AWAIT || type == TokenType::TILDE || type == TokenType::IF || type == TokenType::FOR || type == TokenType::WHILE || type == TokenType::LOOP || type == TokenType::INCASE || type == TokenType::SHELL_CMD;
+        return type == TokenType::NUMBER || type == TokenType::IMAGINARY || type == TokenType::STRING || type == TokenType::RAW_STRING || type == TokenType::BYTE_STRING || type == TokenType::TRUE_KW || type == TokenType::FALSE_KW || type == TokenType::NONE_KW || type == TokenType::IDENTIFIER || type == TokenType::LPAREN || type == TokenType::LBRACKET || type == TokenType::LBRACE || type == TokenType::NOT || type == TokenType::BANG || type == TokenType::MINUS || type == TokenType::PLUS_PLUS || type == TokenType::MINUS_MINUS || type == TokenType::ELLIPSIS || type == TokenType::YIELD || type == TokenType::AWAIT || type == TokenType::TILDE || type == TokenType::IF || type == TokenType::FOR || type == TokenType::WHILE || type == TokenType::LOOP || type == TokenType::INCASE || type == TokenType::SHELL_CMD || type == TokenType::SHELL;
     }
 
     std::unique_ptr<DestructuringPattern> Parser::parseDestructuringPattern(
@@ -319,6 +319,7 @@ namespace xell
             case TokenType::ENUM:
             case TokenType::ASYNC:
             case TokenType::AT:
+            case TokenType::SHELL:
                 return;
             case TokenType::IDENTIFIER:
                 // IDENT = ... is an assignment → new statement
@@ -2996,6 +2997,12 @@ namespace xell
             return parsePostfix(parseShellCmdExpr());
         }
 
+        // Shell block: shell { ... } or shell->capture(...) { ... }
+        if (check(TokenType::SHELL))
+        {
+            return parsePostfix(parseShellBlock());
+        }
+
         // Frozen set literal: ~{expr, expr, ...}
         if (check(TokenType::TILDE) && peekToken(1).type == TokenType::LBRACE)
         {
@@ -3844,6 +3851,100 @@ namespace xell
         }
         skipNewlines();
         return args;
+    }
+
+    ExprPtr Parser::parseShellBlock()
+    {
+        int startLine = current().line;
+        consume(TokenType::SHELL, "Expected 'shell'");
+
+        ShellBlockMode mode = ShellBlockMode::PLAIN;
+
+        // Check optional '->capture'
+        if (check(TokenType::ARROW))
+        {
+            advance(); // consume ->
+            if (check(TokenType::IDENTIFIER) && current().value == "capture")
+            {
+                advance(); // consume "capture"
+                mode = ShellBlockMode::CAPTURE;
+            }
+            else
+            {
+                throw ParseError("Expected 'capture' after 'shell->'", current().line);
+            }
+        }
+
+        std::vector<ShellOption> options;
+        std::unordered_set<std::string> seenOptions;
+
+        // Check optional '(opts)'
+        if (check(TokenType::LPAREN))
+        {
+            advance(); // consume (
+            auto rawArgs = parseArgList();
+            consume(TokenType::RPAREN, "Expected ')' after shell options");
+
+            static const std::unordered_set<std::string> validOptions = {
+                "timeout", "max_output", "stdin", "check", "cwd", "env"
+            };
+
+            for (auto &arg : rawArgs)
+            {
+                auto *named = dynamic_cast<NamedArgExpr *>(arg.get());
+                if (!named)
+                {
+                    throw ParseError("Shell block options must be named arguments (e.g., timeout: 10)", arg->line);
+                }
+
+                if (validOptions.find(named->name) == validOptions.end())
+                {
+                    throw ParseError("Unknown shell block option '" + named->name + "'. Allowed options: timeout, max_output, stdin, check, cwd, env", named->line);
+                }
+
+                if (seenOptions.find(named->name) != seenOptions.end())
+                {
+                    throw ParseError("Duplicate shell block option '" + named->name + "'", named->line);
+                }
+
+                seenOptions.insert(named->name);
+                options.push_back({named->name, std::move(named->value), named->line});
+            }
+        }
+
+        skipNewlines();
+
+        if (!check(TokenType::RAW_SHELL_BLOCK))
+        {
+            throw ParseError("Expected '{' to start shell block", current().line);
+        }
+
+        Token blockTok = advance();
+
+        auto block = std::make_unique<ShellBlock>(mode, startLine);
+        block->options = std::move(options);
+        block->segments = std::move(blockTok.segments);
+
+        // Parse each @{expr} segment at parse time
+        for (const auto &seg : block->segments)
+        {
+            if (seg.isExpr)
+            {
+                Lexer exprLexer(seg.text, seg.line);
+                auto exprTokens = exprLexer.tokenize();
+                Parser exprParser(exprTokens);
+                exprParser.skipNewlines();
+                auto exprNode = exprParser.parseExpression();
+                exprParser.skipNewlines();
+                if (!exprParser.isAtEnd())
+                {
+                    throw ParseError("Unexpected token in @{...} expression: '" + exprParser.current().value + "'", exprParser.current().line);
+                }
+                block->interpolatedExprs.push_back(std::move(exprNode));
+            }
+        }
+
+        return block;
     }
 
     // ---- let EXPR be NAME [, EXPR be NAME]* : BLOCK ; ----

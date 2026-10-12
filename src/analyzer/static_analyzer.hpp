@@ -1091,6 +1091,13 @@ namespace xell
             {
                 checkExpr(spread->operand.get());
             }
+            else if (auto *shellBlock = dynamic_cast<const ShellBlock *>(expr))
+            {
+                for (auto &opt : shellBlock->options)
+                    checkExpr(opt.value.get());
+                for (auto &e : shellBlock->interpolatedExprs)
+                    checkExpr(e.get());
+            }
         }
 
         /// Simple edit-distance based closest match finder

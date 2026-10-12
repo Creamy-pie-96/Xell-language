@@ -98,6 +98,7 @@ namespace xell
         ExprPtr parseSetEntries(int ln);
         ExprPtr parseFrozenSetLiteral(); // ~{expr, expr, ...}
         ExprPtr parseShellCmdExpr();     // $cmd args
+        ExprPtr parseShellBlock();       // shell { ... } or shell->capture(...) { ... }
         std::vector<ExprPtr> parseArgList();
 
         // Destructuring helpers

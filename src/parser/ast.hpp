@@ -5,6 +5,7 @@
 #include <memory>
 #include <utility>
 #include "../common/access_level.hpp"
+#include "../lexer/token.hpp"
 
 namespace xell
 {
@@ -286,6 +287,30 @@ namespace xell
     {
         std::string command; // raw command string (everything after $)
         explicit ShellCmdExpr(std::string cmd, int ln = 0) : command(std::move(cmd)) { line = ln; }
+    };
+
+    enum class ShellBlockMode
+    {
+        PLAIN,
+        CAPTURE
+    };
+
+    struct ShellOption
+    {
+        std::string name;
+        ExprPtr value;
+        int line = 0;
+    };
+
+    struct ShellBlock : Expr
+    {
+        ShellBlockMode mode = ShellBlockMode::PLAIN;
+        std::vector<ShellOption> options;
+        std::vector<ShellSegment> segments;
+        std::vector<ExprPtr> interpolatedExprs;
+
+        explicit ShellBlock(ShellBlockMode m = ShellBlockMode::PLAIN, int ln = 0)
+            : mode(m) { line = ln; }
     };
 
     // Named argument: name: value (used in struct construction)

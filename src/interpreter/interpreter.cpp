@@ -97,6 +97,16 @@ namespace xell
                    (p->start && containsYieldExpr(p->start.get())) ||
                    (p->end && containsYieldExpr(p->end.get())) ||
                    (p->step && containsYieldExpr(p->step.get()));
+        if (auto *p = dynamic_cast<const ShellBlock *>(expr))
+        {
+            for (const auto &opt : p->options)
+                if (containsYieldExpr(opt.value.get()))
+                    return true;
+            for (const auto &e : p->interpolatedExprs)
+                if (containsYieldExpr(e.get()))
+                    return true;
+            return false;
+        }
         return false;
     }
 
@@ -270,6 +280,14 @@ namespace xell
                 collectExprDeps(e.first.get(), deps);
                 collectExprDeps(e.second.get(), deps);
             }
+            return;
+        }
+        if (auto *p = dynamic_cast<const ShellBlock *>(expr))
+        {
+            for (const auto &opt : p->options)
+                collectExprDeps(opt.value.get(), deps);
+            for (const auto &e : p->interpolatedExprs)
+                collectExprDeps(e.get(), deps);
             return;
         }
     }
@@ -447,6 +465,14 @@ namespace xell
             }
             if (p->elseValue)
                 collectRefsExpr(p->elseValue.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const ShellBlock *>(expr))
+        {
+            for (const auto &opt : p->options)
+                collectRefsExpr(opt.value.get(), refs);
+            for (const auto &e : p->interpolatedExprs)
+                collectRefsExpr(e.get(), refs);
             return;
         }
         // Literals, YieldExpr, etc. — nothing to collect

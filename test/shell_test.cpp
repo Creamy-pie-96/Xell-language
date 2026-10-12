@@ -865,6 +865,249 @@ void testLexerShellBlockCommandSubstRejection()
 }
 
 // ============================================================================
+// PARSER TESTS (PHASE 2)
+// ============================================================================
+
+static Program parseXell(const std::string &code)
+{
+    Lexer lexer(code);
+    auto tokens = lexer.tokenize();
+    Parser parser(tokens);
+    return parser.parse();
+}
+
+void testParserShellBlockPlain()
+{
+    auto prog = parseXell("shell { echo \"hello\" }");
+    XASSERT_EQ(prog.statements.size(), 1u);
+    auto *stmt = dynamic_cast<ExprStmt *>(prog.statements[0].get());
+    XASSERT(stmt != nullptr);
+    auto *block = dynamic_cast<ShellBlock *>(stmt->expr.get());
+    XASSERT(block != nullptr);
+    XASSERT(block->mode == ShellBlockMode::PLAIN);
+    XASSERT(block->options.empty());
+    XASSERT_EQ(block->segments.size(), 1u);
+    XASSERT(!block->segments[0].isExpr);
+    XASSERT_EQ(block->segments[0].text, " echo \"hello\" ");
+    XASSERT(block->interpolatedExprs.empty());
+}
+
+void testParserShellBlockCaptureNoArgs()
+{
+    auto prog = parseXell("shell->capture { echo 1 }");
+    XASSERT_EQ(prog.statements.size(), 1u);
+    auto *stmt = dynamic_cast<ExprStmt *>(prog.statements[0].get());
+    XASSERT(stmt != nullptr);
+    auto *block = dynamic_cast<ShellBlock *>(stmt->expr.get());
+    XASSERT(block != nullptr);
+    XASSERT(block->mode == ShellBlockMode::CAPTURE);
+    XASSERT(block->options.empty());
+}
+
+void testParserShellBlockCaptureEmptyArgs()
+{
+    auto prog = parseXell("shell->capture() { echo 1 }");
+    XASSERT_EQ(prog.statements.size(), 1u);
+    auto *stmt = dynamic_cast<ExprStmt *>(prog.statements[0].get());
+    XASSERT(stmt != nullptr);
+    auto *block = dynamic_cast<ShellBlock *>(stmt->expr.get());
+    XASSERT(block != nullptr);
+    XASSERT(block->mode == ShellBlockMode::CAPTURE);
+    XASSERT(block->options.empty());
+}
+
+void testParserShellBlockCaptureWithOptions()
+{
+    auto prog = parseXell("shell->capture(timeout: 10, check: true, stdin: \"closed\") { echo 1 }");
+    XASSERT_EQ(prog.statements.size(), 1u);
+    auto *stmt = dynamic_cast<ExprStmt *>(prog.statements[0].get());
+    XASSERT(stmt != nullptr);
+    auto *block = dynamic_cast<ShellBlock *>(stmt->expr.get());
+    XASSERT(block != nullptr);
+    XASSERT(block->mode == ShellBlockMode::CAPTURE);
+    XASSERT_EQ(block->options.size(), 3u);
+    XASSERT_EQ(block->options[0].name, "timeout");
+    auto *num = dynamic_cast<IntLiteral *>(block->options[0].value.get());
+    XASSERT(num != nullptr && num->value == 10);
+    XASSERT_EQ(block->options[1].name, "check");
+    auto *b = dynamic_cast<BoolLiteral *>(block->options[1].value.get());
+    XASSERT(b != nullptr && b->value == true);
+    XASSERT_EQ(block->options[2].name, "stdin");
+    auto *s = dynamic_cast<StringLiteral *>(block->options[2].value.get());
+    XASSERT(s != nullptr && s->value == "closed");
+}
+
+void testParserShellBlockAllValidOptions()
+{
+    auto prog = parseXell("shell->capture(timeout: 5, max_output: 1024, stdin: \"inherit\", check: false, cwd: \"/tmp\", env: {\"K\": \"V\"}) { ls }");
+    XASSERT_EQ(prog.statements.size(), 1u);
+    auto *stmt = dynamic_cast<ExprStmt *>(prog.statements[0].get());
+    XASSERT(stmt != nullptr);
+    auto *block = dynamic_cast<ShellBlock *>(stmt->expr.get());
+    XASSERT(block != nullptr);
+    XASSERT_EQ(block->options.size(), 6u);
+}
+
+void testParserShellBlockUnknownOptionRejection()
+{
+    bool threw = false;
+    try
+    {
+        parseXell("shell->capture(foo: 123) { echo 1 }");
+    }
+    catch (const ParseError &e)
+    {
+        threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("Unknown shell block option 'foo'") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+void testParserShellBlockDuplicateOptionRejection()
+{
+    bool threw = false;
+    try
+    {
+        parseXell("shell->capture(timeout: 5, timeout: 10) { echo 1 }");
+    }
+    catch (const ParseError &e)
+    {
+        threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("Duplicate shell block option 'timeout'") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+void testParserShellBlockPositionalOptionRejection()
+{
+    bool threw = false;
+    try
+    {
+        parseXell("shell->capture(10) { echo 1 }");
+    }
+    catch (const ParseError &e)
+    {
+        threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("named arguments") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+void testParserShellBlockInvalidMethodRejection()
+{
+    bool threw = false;
+    try
+    {
+        parseXell("shell->exec { echo 1 }");
+    }
+    catch (const ParseError &e)
+    {
+        threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("capture") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+void testParserShellBlockMissingBrace()
+{
+    bool threw = false;
+    try
+    {
+        parseXell("shell;");
+    }
+    catch (const ParseError &e)
+    {
+        threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("Expected '{'") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+void testParserShellBlockWithInterpolations()
+{
+    auto prog = parseXell("shell { echo @{x + 1} and @{name} }");
+    XASSERT_EQ(prog.statements.size(), 1u);
+    auto *stmt = dynamic_cast<ExprStmt *>(prog.statements[0].get());
+    XASSERT(stmt != nullptr);
+    auto *block = dynamic_cast<ShellBlock *>(stmt->expr.get());
+    XASSERT(block != nullptr);
+    XASSERT_EQ(block->interpolatedExprs.size(), 2u);
+
+    auto *bin = dynamic_cast<BinaryExpr *>(block->interpolatedExprs[0].get());
+    XASSERT(bin != nullptr);
+    XASSERT_EQ(bin->op, "+");
+    auto *id = dynamic_cast<Identifier *>(bin->left.get());
+    XASSERT(id != nullptr && id->name == "x");
+    auto *lit = dynamic_cast<IntLiteral *>(bin->right.get());
+    XASSERT(lit != nullptr && lit->value == 1);
+
+    auto *id2 = dynamic_cast<Identifier *>(block->interpolatedExprs[1].get());
+    XASSERT(id2 != nullptr && id2->name == "name");
+}
+
+void testParserShellBlockInterpolationError()
+{
+    bool threw = false;
+    try
+    {
+        parseXell("shell { echo @{1 +} }");
+    }
+    catch (const ParseError &e)
+    {
+        threw = true;
+    }
+    XASSERT(threw);
+}
+
+void testParserShellBlockInterpolationUnexpectedToken()
+{
+    bool threw = false;
+    try
+    {
+        parseXell("shell { echo @{x 123} }");
+    }
+    catch (const ParseError &e)
+    {
+        threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("Unexpected token in @{...} expression") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+void testParserShellBlockAsExpressionAssignment()
+{
+    auto prog = parseXell("res = shell->capture() { ls }");
+    XASSERT_EQ(prog.statements.size(), 1u);
+    auto *assign = dynamic_cast<Assignment *>(prog.statements[0].get());
+    XASSERT(assign != nullptr);
+    XASSERT_EQ(assign->name, "res");
+    auto *block = dynamic_cast<ShellBlock *>(assign->value.get());
+    XASSERT(block != nullptr);
+    XASSERT(block->mode == ShellBlockMode::CAPTURE);
+}
+
+void testParserShellBlockChainedMemberAccess()
+{
+    auto prog = parseXell("out = shell->capture() { ls }->stdout");
+    XASSERT_EQ(prog.statements.size(), 1u);
+    auto *assign = dynamic_cast<Assignment *>(prog.statements[0].get());
+    XASSERT(assign != nullptr);
+    XASSERT_EQ(assign->name, "out");
+    auto *mem = dynamic_cast<MemberAccess *>(assign->value.get());
+    XASSERT(mem != nullptr);
+    XASSERT_EQ(mem->member, "stdout");
+    auto *block = dynamic_cast<ShellBlock *>(mem->object.get());
+    XASSERT(block != nullptr);
+    XASSERT(block->mode == ShellBlockMode::CAPTURE);
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -955,6 +1198,23 @@ int main()
     runTest("shell block lexer: interleaved segments", testLexerShellBlockInterleaved);
     runTest("shell block lexer: double quote interpolation", testLexerShellBlockDoubleQuoteInterpolation);
     runTest("shell block lexer: command substitution rejection", testLexerShellBlockCommandSubstRejection);
+
+    // Shell block parser (Phase 2)
+    runTest("shell block parser: plain block", testParserShellBlockPlain);
+    runTest("shell block parser: capture no args", testParserShellBlockCaptureNoArgs);
+    runTest("shell block parser: capture empty args", testParserShellBlockCaptureEmptyArgs);
+    runTest("shell block parser: capture with options", testParserShellBlockCaptureWithOptions);
+    runTest("shell block parser: all valid options", testParserShellBlockAllValidOptions);
+    runTest("shell block parser: unknown option rejection", testParserShellBlockUnknownOptionRejection);
+    runTest("shell block parser: duplicate option rejection", testParserShellBlockDuplicateOptionRejection);
+    runTest("shell block parser: positional option rejection", testParserShellBlockPositionalOptionRejection);
+    runTest("shell block parser: invalid method rejection", testParserShellBlockInvalidMethodRejection);
+    runTest("shell block parser: missing brace rejection", testParserShellBlockMissingBrace);
+    runTest("shell block parser: with interpolations", testParserShellBlockWithInterpolations);
+    runTest("shell block parser: interpolation error", testParserShellBlockInterpolationError);
+    runTest("shell block parser: interpolation unexpected token", testParserShellBlockInterpolationUnexpectedToken);
+    runTest("shell block parser: as expression assignment", testParserShellBlockAsExpressionAssignment);
+    runTest("shell block parser: chained member access", testParserShellBlockChainedMemberAccess);
 
     std::cout << "\n============================================\n";
     std::cout << "  Total: " << (g_passed + g_failed)

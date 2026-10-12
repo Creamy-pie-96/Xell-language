@@ -10,7 +10,7 @@ namespace xell
     class Lexer
     {
     public:
-        explicit Lexer(const std::string &source);
+        explicit Lexer(const std::string &source, int startLine = 1);
         std::vector<Token> tokenize();
 
     private:
