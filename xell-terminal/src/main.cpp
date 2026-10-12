@@ -465,12 +465,17 @@ int main(int argc, char *argv[])
     int cell_w, cell_h;
     renderer.get_cell_size(cell_w, cell_h);
 
+    // State tracking for event-driven redraws
+    bool needs_redraw = true;
+    std::string last_window_title;
+
     // Input line buffer for detecting :ide / :terminal commands
     std::string commandBuffer;
 
     // Helper: switch to IDE mode
     auto switchToIDE = [&]()
     {
+        needs_redraw = true;
         if (appMode == AppMode::IDE)
         {
             // Already in IDE mode — tell user via PTY echo
@@ -565,6 +570,7 @@ int main(int argc, char *argv[])
         pty.write("\x0c"); // Ctrl+L — clears the terminal and redraws prompt
         // Force full redraw of terminal content
         has_new_data.store(true);
+        needs_redraw = true;
     };
 
     // --- Scrollback state ---
@@ -646,6 +652,7 @@ int main(int argc, char *argv[])
 
             if (event.type == SDL_WINDOWEVENT)
             {
+                needs_redraw = true;
                 if (event.window.event == SDL_WINDOWEVENT_RESIZED ||
                     event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
                 {
@@ -681,6 +688,8 @@ int main(int argc, char *argv[])
             // =================================================================
             if (appMode == AppMode::IDE && layout)
             {
+                needs_redraw = true;
+
                 // Check for :terminal command via Escape key (quick switch back)
                 if (event.type == SDL_KEYDOWN)
                 {
@@ -756,6 +765,8 @@ int main(int argc, char *argv[])
 
             case SDL_KEYDOWN:
             {
+                needs_redraw = true;
+
                 // Dismiss context menu on any keypress
                 context_menu.hide();
 
@@ -943,6 +954,8 @@ int main(int argc, char *argv[])
 
             case SDL_TEXTINPUT:
             {
+                needs_redraw = true;
+
                 // Dismiss context menu
                 context_menu.hide();
 
@@ -968,6 +981,8 @@ int main(int argc, char *argv[])
 
             case SDL_MOUSEWHEEL:
             {
+                needs_redraw = true;
+
                 // Scroll through history
                 context_menu.hide();
                 std::lock_guard<std::mutex> lock(buffer_mutex);
@@ -986,6 +1001,8 @@ int main(int argc, char *argv[])
 
             case SDL_MOUSEBUTTONDOWN:
             {
+                needs_redraw = true;
+
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
                     // Check if clicking on the context menu
@@ -1109,8 +1126,11 @@ int main(int argc, char *argv[])
                 // Update context menu hover
                 if (context_menu.visible)
                 {
+                    int old_hover = context_menu.hover_index;
                     context_menu.hover_index = context_menu.hit_test(
                         event.motion.x, event.motion.y);
+                    if (context_menu.hover_index != old_hover)
+                        needs_redraw = true;
                 }
 
                 // Scrollbar drag
@@ -1125,12 +1145,15 @@ int main(int argc, char *argv[])
                     }
                     if (sb_size > 0 && win_h > 0)
                     {
+                        int old_offset = scroll_offset;
                         float click_ratio = 1.0f - (static_cast<float>(event.motion.y) / win_h);
                         scroll_offset = static_cast<int>(click_ratio * sb_size);
                         if (scroll_offset < 0)
                             scroll_offset = 0;
                         if (scroll_offset > sb_size)
                             scroll_offset = sb_size;
+                        if (scroll_offset != old_offset)
+                            needs_redraw = true;
                     }
                     break;
                 }
@@ -1147,13 +1170,18 @@ int main(int argc, char *argv[])
                         col = term_cols - 1;
                     if (row >= term_rows)
                         row = term_rows - 1;
-                    selection.end = {row, col};
+                    if (selection.end.row != row || selection.end.col != col)
+                    {
+                        selection.end = {row, col};
+                        needs_redraw = true;
+                    }
                 }
                 break;
             }
 
             case SDL_MOUSEBUTTONUP:
             {
+                needs_redraw = true;
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
                     scrollbar_dragging = false;
@@ -1172,10 +1200,20 @@ int main(int argc, char *argv[])
             }
         }
 
+        // --- PTY output notification ---
+        if (has_new_data.exchange(false))
+        {
+            needs_redraw = true;
+        }
+
         // --- Update window title if changed ---
         {
             std::lock_guard<std::mutex> lock(title_mutex);
-            SDL_SetWindowTitle(renderer.get_window(), window_title.c_str());
+            if (window_title != last_window_title)
+            {
+                SDL_SetWindowTitle(renderer.get_window(), window_title.c_str());
+                last_window_title = window_title;
+            }
         }
 
         // --- Cursor blink ---
@@ -1187,83 +1225,89 @@ int main(int argc, char *argv[])
         {
             cursor_visible = !cursor_visible;
             last_blink = now;
+            needs_redraw = true;
         }
 
-        // --- Render ---
+        // --- IDE Mode Timer Ticks ---
         if (appMode == AppMode::IDE && layout)
         {
-            // Tick timers (live lint, autosave)
-            layout->tick();
-
-            // IDE mode: render LayoutManager output into ScreenBuffer
-            const auto &ideOutput = layout->render();
-
-            std::lock_guard<std::mutex> lock(buffer_mutex);
-            for (int r = 0; r < (int)ideOutput.cells.size() && r < term_rows; r++)
+            if (layout->tick())
             {
-                for (int c = 0; c < (int)ideOutput.cells[r].size() && c < term_cols; c++)
+                needs_redraw = true;
+            }
+        }
+
+        // --- Render only when needed ---
+        if (needs_redraw)
+        {
+            needs_redraw = false;
+
+            if (appMode == AppMode::IDE && layout)
+            {
+                // IDE mode: render LayoutManager output into ScreenBuffer
+                const auto &ideOutput = layout->render();
+
+                std::lock_guard<std::mutex> lock(buffer_mutex);
+                for (int r = 0; r < (int)ideOutput.cells.size() && r < term_rows; r++)
                 {
-                    const xterm::Cell &next = ideOutput.cells[r][c];
-                    const xterm::Cell &prev = buffer.cell_at(r, c);
-
-                    // Skip redundant writes to preserve dirty-cell wins.
-                    if (prev.visual_equals(next))
+                    for (int c = 0; c < (int)ideOutput.cells[r].size() && c < term_cols; c++)
                     {
-                        continue;
-                    }
+                        const xterm::Cell &next = ideOutput.cells[r][c];
+                        const xterm::Cell &prev = buffer.cell_at(r, c);
 
-                    buffer.set_cell(r, c, next);
+                        // Skip redundant writes to preserve dirty-cell wins.
+                        if (prev.visual_equals(next))
+                        {
+                            continue;
+                        }
+
+                        buffer.set_cell(r, c, next);
+                    }
+                }
+
+                // Position cursor from IDE
+                bool showCursor = cursor_visible && ideOutput.cursorRow >= 0;
+                if (showCursor)
+                {
+                    buffer.cursor_row = ideOutput.cursorRow;
+                    buffer.cursor_col = ideOutput.cursorCol;
+                }
+                renderer.render(buffer, showCursor, 0, nullptr);
+            }
+            else
+            {
+                // Terminal mode: render PTY output
+                std::lock_guard<std::mutex> lock(buffer_mutex);
+                renderer.render(buffer, cursor_visible, scroll_offset, &selection);
+            }
+
+            // --- Draw context menu (on top of everything, terminal mode only) ---
+            if (appMode == AppMode::TERMINAL && context_menu.visible)
+            {
+                renderer.draw_context_menu(
+                    context_menu.x, context_menu.y,
+                    context_menu.width, context_menu.height,
+                    context_menu.items.size(),
+                    [&](int i) -> const char *
+                    { return context_menu.items[i].label.c_str(); },
+                    context_menu.hover_index);
+            }
+
+            // --- Draw scrollbar (terminal mode only) ---
+            if (appMode == AppMode::TERMINAL)
+            {
+                std::lock_guard<std::mutex> lock(buffer_mutex);
+                int sb_total = buffer.scrollback_size();
+                if (sb_total > 0)
+                {
+                    renderer.draw_scrollbar(term_rows, sb_total, scroll_offset);
                 }
             }
 
-            // Position cursor from IDE
-            bool showCursor = cursor_visible && ideOutput.cursorRow >= 0;
-            if (showCursor)
-            {
-                buffer.cursor_row = ideOutput.cursorRow;
-                buffer.cursor_col = ideOutput.cursorCol;
-            }
-            renderer.render(buffer, showCursor, 0, nullptr);
-        }
-        else
-        {
-            // Terminal mode: render PTY output
-            std::lock_guard<std::mutex> lock(buffer_mutex);
-            renderer.render(buffer, cursor_visible, scroll_offset, &selection);
+            renderer.present();
         }
 
-        // --- Draw context menu (on top of everything, terminal mode only) ---
-        if (appMode == AppMode::TERMINAL && context_menu.visible)
-        {
-            renderer.draw_context_menu(
-                context_menu.x, context_menu.y,
-                context_menu.width, context_menu.height,
-                context_menu.items.size(),
-                [&](int i) -> const char *
-                { return context_menu.items[i].label.c_str(); },
-                context_menu.hover_index);
-        }
-
-        // --- Draw scrollbar (terminal mode only) ---
-        if (appMode == AppMode::TERMINAL)
-        {
-            std::lock_guard<std::mutex> lock(buffer_mutex);
-            int sb_total = buffer.scrollback_size();
-            if (sb_total > 0)
-            {
-                renderer.draw_scrollbar(term_rows, sb_total, scroll_offset);
-            }
-        }
-
-        renderer.present();
-
-        // Cap at ~120fps if vsync isn't doing it
-        // (SDL_RENDERER_PRESENTVSYNC usually handles this)
-        if (!has_new_data.load())
-        {
-            SDL_Delay(8); // ~125fps max when idle, lowers CPU without hurting UX
-        }
-        has_new_data.store(false);
+        SDL_Delay(8);
     }
 
     // --- Cleanup ---

@@ -162,10 +162,13 @@ namespace xterm
 
         // ── Tick (called each frame for timers) ─────────────────────
 
-        void tick()
+        bool tick()
         {
+            bool changed = false;
+
             // Poll async lint worker first so hasErrors_ and diagnostics are fresh.
-            pollLintWorker();
+            if (pollLintWorker())
+                changed = true;
 
             auto now = Clock::now();
             auto msSinceEdit = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -190,12 +193,14 @@ namespace xterm
                     {
                         editor_.save();
                         editor_.setStatusMessage("Auto-saved ✓");
+                        changed = true;
                     }
                 }
             }
 
             // Poll for async code execution results
-            replPanel_.pollAsyncResult();
+            if (replPanel_.pollAsyncResult())
+                changed = true;
 
             // Autocomplete debounce: auto-show popup after typing delay
             if (acPendingShow_ && focus_ == FocusRegion::Editor)
@@ -209,12 +214,14 @@ namespace xterm
                     if (!acModuleName_.empty() || (int)acPrefix_.size() >= AC_MIN_PREFIX)
                     {
                         showAutocomplete();
+                        changed = true;
                     }
                 }
             }
 
             // Poll debug session for state updates
-            pollDebugSession();
+            if (pollDebugSession())
+                changed = true;
 
             // Check if editor had a gutter breakpoint toggle
             int toggledBP = editor_.consumeBreakpointToggle();
@@ -225,7 +232,10 @@ namespace xterm
                     debugClient_.sendAddBreakpoint(toggledBP + 1); // 1-based for interpreter
                 else
                     debugClient_.sendRemoveBreakpoint(toggledBP + 1);
+                changed = true;
             }
+
+            return changed;
         }
 
         // Call this when the editor buffer changes (key input, paste, etc.)
@@ -1594,13 +1604,13 @@ namespace xterm
                 return LintWorkerResult{exitCode, std::move(symbolsJson), std::move(diagnosticOutput), filePath, fullContent}; });
         }
 
-        void pollLintWorker()
+        bool pollLintWorker()
         {
             if (!lintInFlight_ || !lintFuture_.valid())
-                return;
+                return false;
 
             if (lintFuture_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
-                return;
+                return false;
 
             LintWorkerResult result = lintFuture_.get();
             lintInFlight_ = false;
@@ -1618,6 +1628,7 @@ namespace xterm
                 pendingLintContent_.clear();
                 pendingLintFilePath_.clear();
             }
+            return true;
         }
 
         void applyLintResult(int exitCode,
@@ -3144,15 +3155,18 @@ namespace xterm
             editor_.clearDebugLine();
         }
 
-        void pollDebugSession()
+        bool pollDebugSession()
         {
             if (!debugState_.active)
-                return;
+                return false;
+
+            bool changed = false;
 
             // Poll for messages from the interpreter (non-blocking)
             std::string msg = debugClient_.tryRecv();
             while (!msg.empty())
             {
+                changed = true;
                 DebugState newState = DebugClient::parseState(msg);
 
                 if (!newState.active && !newState.paused)
@@ -3161,7 +3175,7 @@ namespace xterm
                     replPanel_.appendTimelineEvent("[session] Debug session ended");
                     endDebugSession();
                     editor_.setStatusMessage("✓ Debug session finished");
-                    return;
+                    return true;
                 }
 
                 if (newState.paused)
@@ -3205,13 +3219,16 @@ namespace xterm
                         replPanel_.appendTimelineEvent("[session] Debug session ended (process exited)");
                         endDebugSession();
                         editor_.setStatusMessage("✓ Debug session finished");
-                        return;
+                        return true;
                     }
                 }
                 replPanel_.appendTimelineEvent("[session] Connection lost");
                 endDebugSession();
                 editor_.setStatusMessage("⚠ Debug connection lost");
+                return true;
             }
+
+            return changed;
         }
 
         void updateCallStackFromJSON(const std::string &json)

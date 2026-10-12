@@ -1127,10 +1127,10 @@ namespace xterm
         }
 
         // Poll for async execution results (called from tick or render)
-        void pollAsyncResult()
+        bool pollAsyncResult()
         {
             if (!resultReady_.load())
-                return;
+                return false;
 
             REPLSession::ExecResult result;
             {
@@ -1206,6 +1206,7 @@ namespace xterm
 
             variables_ = result.variables;
             mergeStaticInfo(); // Enrich runtime vars with static scope/lines info
+            return true;
         }
 
         // ── Inline evaluation (Ctrl+Shift+E) ────────────────────────
