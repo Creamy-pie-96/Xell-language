@@ -21,9 +21,12 @@
 #include <sstream>
 #include <memory>
 #include <filesystem>
+#include <functional>
+#include <unordered_map>
 
 namespace xterm
 {
+    using BufferChangeListener = std::function<void(int startRow, int oldLineCount, int newLineCount)>;
 
     // ─── Cursor position in the buffer ───────────────────────────────────────
 
@@ -68,6 +71,19 @@ namespace xterm
     public:
         TextBuffer() { lines_.push_back(""); }
 
+        // ── Change Listeners ───────────────────────────────────────────
+        int addChangeListener(BufferChangeListener listener)
+        {
+            int id = nextListenerId_++;
+            changeListeners_[id] = std::move(listener);
+            return id;
+        }
+
+        void removeChangeListener(int id)
+        {
+            changeListeners_.erase(id);
+        }
+
         // ── File I/O ────────────────────────────────────────────────────
 
         bool loadFromFile(const std::string &path)
@@ -76,6 +92,7 @@ namespace xterm
             if (!f.is_open())
                 return false;
 
+            int oldTotal = (int)lines_.size();
             lines_.clear();
             std::string line;
             while (std::getline(f, line))
@@ -93,6 +110,7 @@ namespace xterm
             modified_ = false;
             undoStack_.clear();
             redoStack_.clear();
+            notifyChange(0, oldTotal, (int)lines_.size());
             return true;
         }
 
@@ -513,6 +531,19 @@ namespace xterm
         std::vector<EditCommand> redoStack_;
         size_t savedUndoSize_ = 0;
 
+        int nextListenerId_ = 1;
+        std::unordered_map<int, BufferChangeListener> changeListeners_;
+
+        void notifyChange(int startRow, int oldLineCount, int newLineCount)
+        {
+            auto listenersCopy = changeListeners_;
+            for (const auto &[id, fn] : listenersCopy)
+            {
+                if (fn)
+                    fn(startRow, oldLineCount, newLineCount);
+            }
+        }
+
         // ── Internal operations (no undo tracking) ──────────────────────
 
         void doInsert(BufferPos pos, const std::string &text)
@@ -543,6 +574,7 @@ namespace xterm
             {
                 // Single line insert — just splice into the line
                 lines_[pos.row].insert(pos.col, newLines[0]);
+                notifyChange(pos.row, 1, 1);
             }
             else
             {
@@ -558,6 +590,8 @@ namespace xterm
                 // Last new line + tail of original line
                 lines_.insert(lines_.begin() + pos.row + newLines.size() - 1,
                               newLines.back() + tail);
+
+                notifyChange(pos.row, 1, (int)newLines.size());
             }
         }
 
@@ -572,6 +606,7 @@ namespace xterm
             {
                 // Same line — simple erase
                 lines_[from.row].erase(from.col, to.col - from.col);
+                notifyChange(from.row, 1, 1);
             }
             else
             {
@@ -579,11 +614,14 @@ namespace xterm
                 std::string merged = lines_[from.row].substr(0, from.col) +
                                      lines_[to.row].substr(to.col);
 
+                int oldLines = to.row - from.row + 1;
+
                 // Remove lines from from.row+1 to to.row (inclusive)
                 lines_.erase(lines_.begin() + from.row + 1,
                              lines_.begin() + to.row + 1);
 
                 lines_[from.row] = merged;
+                notifyChange(from.row, oldLines, 1);
             }
         }
 

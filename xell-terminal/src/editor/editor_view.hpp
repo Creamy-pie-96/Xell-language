@@ -70,7 +70,19 @@ namespace xterm
             : buffer_(buffer), theme_(theme), highlighter_(theme)
         {
             loadThemeColors();
+            initCache();
         }
+
+        ~EditorView()
+        {
+            if (changeListenerId_ != -1)
+            {
+                buffer_.removeChangeListener(changeListenerId_);
+            }
+        }
+
+        EditorView(const EditorView &) = delete;
+        EditorView &operator=(const EditorView &) = delete;
 
         // ── Layout: set the screen region this editor occupies ───────────
 
@@ -557,46 +569,8 @@ namespace xterm
             int codeW = rect_.w - gutterW;
             int visibleLines = codeAreaHeight();
 
-            // ── Pre-compute block comment state for lines before viewport ──
-            highlighter_.resetMultilineState();
-            for (int i = 0; i < scrollTopLine_ && i < buffer_.lineCount(); ++i)
-            {
-                const auto &preLine = buffer_.getLine(i);
-                // Quick scan for --> and <-- to track block comment state
-                // without full tokenization overhead
-                bool inBC = highlighter_.inBlockComment();
-                size_t pos = 0;
-                while (pos < preLine.size())
-                {
-                    if (inBC)
-                    {
-                        auto endPos = preLine.find("<--", pos);
-                        if (endPos != std::string::npos)
-                        {
-                            inBC = false;
-                            pos = endPos + 3;
-                        }
-                        else
-                        {
-                            break; // rest of line is comment
-                        }
-                    }
-                    else
-                    {
-                        auto startPos = preLine.find("-->", pos);
-                        if (startPos != std::string::npos)
-                        {
-                            inBC = true;
-                            pos = startPos + 3;
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-                }
-                highlighter_.setBlockComment(inBC);
-            }
+            int maxVisibleRow = scrollTopLine_ + visibleLines;
+            ensureCommentStateUpTo(maxVisibleRow);
 
             for (int screenRow = 0; screenRow < visibleLines; screenRow++)
             {
@@ -610,7 +584,7 @@ namespace xterm
                 if (bufferRow < buffer_.lineCount())
                 {
                     const auto &line = buffer_.getLine(bufferRow);
-                    auto spans = highlighter_.highlightLine(line);
+                    const auto &spans = getLineSpans(bufferRow);
 
                     // Check if this line has a diagnostic
                     auto diagIt = diagnosticLines_.find(bufferRow);
@@ -983,6 +957,178 @@ namespace xterm
         Color selectionBg_ = {38, 79, 120};
         Color cursorColor_ = Color::white();
 
+        // ── Syntax highlighting cache ───────────────────────────────────
+        struct LineHighlightCache
+        {
+            bool valid = false;             // spans are computed
+            bool commentStateValid = false; // startInComment and endInComment are computed
+            bool startInComment = false;
+            bool endInComment = false;
+            std::vector<ColoredSpan> spans;
+        };
+
+        mutable std::vector<LineHighlightCache> lineCache_;
+        mutable int firstInvalidCommentRow_ = 0;
+        int changeListenerId_ = -1;
+
+        void initCache()
+        {
+            lineCache_.resize(buffer_.lineCount());
+            firstInvalidCommentRow_ = 0;
+            changeListenerId_ = buffer_.addChangeListener([this](int startRow, int oldLineCount, int newLineCount) {
+                onBufferChanged(startRow, oldLineCount, newLineCount);
+            });
+        }
+
+        static bool scanLineCommentEnd(const std::string &line, bool startInComment)
+        {
+            bool inBC = startInComment;
+            size_t pos = 0;
+            while (pos < line.size())
+            {
+                if (inBC)
+                {
+                    auto endPos = line.find("<--", pos);
+                    if (endPos != std::string::npos)
+                    {
+                        inBC = false;
+                        pos = endPos + 3;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    auto startPos = line.find("-->", pos);
+                    if (startPos != std::string::npos)
+                    {
+                        inBC = true;
+                        pos = startPos + 3;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            return inBC;
+        }
+
+        void onBufferChanged(int startRow, int oldLineCount, int newLineCount)
+        {
+            startRow = std::max(0, startRow);
+            firstInvalidCommentRow_ = std::min(firstInvalidCommentRow_, startRow);
+
+            if (oldLineCount == newLineCount && oldLineCount == 1)
+            {
+                if (startRow < (int)lineCache_.size())
+                {
+                    lineCache_[startRow].valid = false;
+                    lineCache_[startRow].commentStateValid = false;
+                }
+            }
+            else if (newLineCount > oldLineCount)
+            {
+                int diff = newLineCount - oldLineCount;
+                int insertPos = std::min((int)lineCache_.size(), startRow + 1);
+                lineCache_.insert(lineCache_.begin() + insertPos, diff, LineHighlightCache{});
+                for (int i = startRow; i < startRow + newLineCount && i < (int)lineCache_.size(); ++i)
+                {
+                    lineCache_[i].valid = false;
+                    lineCache_[i].commentStateValid = false;
+                }
+                if (startRow + newLineCount < (int)lineCache_.size())
+                {
+                    lineCache_[startRow + newLineCount].commentStateValid = false;
+                }
+            }
+            else if (oldLineCount > newLineCount)
+            {
+                int diff = oldLineCount - newLineCount;
+                int eraseStart = std::min((int)lineCache_.size(), startRow + 1);
+                int eraseEnd = std::min((int)lineCache_.size(), eraseStart + diff);
+                if (eraseStart < eraseEnd)
+                {
+                    lineCache_.erase(lineCache_.begin() + eraseStart, lineCache_.begin() + eraseEnd);
+                }
+                if (startRow < (int)lineCache_.size())
+                {
+                    lineCache_[startRow].valid = false;
+                    lineCache_[startRow].commentStateValid = false;
+                }
+                if (startRow + 1 < (int)lineCache_.size())
+                {
+                    lineCache_[startRow + 1].commentStateValid = false;
+                }
+            }
+
+            if (lineCache_.size() != (size_t)buffer_.lineCount())
+            {
+                lineCache_.resize(buffer_.lineCount());
+            }
+        }
+
+        void ensureCommentStateUpTo(int maxRow) const
+        {
+            if (buffer_.lineCount() == 0)
+                return;
+            if (lineCache_.size() != (size_t)buffer_.lineCount())
+            {
+                lineCache_.resize(buffer_.lineCount());
+                firstInvalidCommentRow_ = 0;
+            }
+
+            int limit = std::min(maxRow, buffer_.lineCount() - 1);
+            int start = std::max(0, firstInvalidCommentRow_);
+            if (start > limit)
+                return;
+
+            for (int i = start; i <= limit; ++i)
+            {
+                bool expectedStart = (i > 0) ? lineCache_[i - 1].endInComment : false;
+                if (!lineCache_[i].commentStateValid || lineCache_[i].startInComment != expectedStart)
+                {
+                    if (lineCache_[i].startInComment != expectedStart)
+                    {
+                        lineCache_[i].valid = false;
+                    }
+                    lineCache_[i].startInComment = expectedStart;
+                    bool newEnd = scanLineCommentEnd(buffer_.getLine(i), expectedStart);
+                    if (lineCache_[i].commentStateValid && lineCache_[i].endInComment != newEnd)
+                    {
+                        if (i + 1 < (int)lineCache_.size())
+                        {
+                            lineCache_[i + 1].commentStateValid = false;
+                        }
+                    }
+                    lineCache_[i].endInComment = newEnd;
+                    lineCache_[i].commentStateValid = true;
+                }
+            }
+            firstInvalidCommentRow_ = limit + 1;
+        }
+
+        const std::vector<ColoredSpan> &getLineSpans(int bufferRow) const
+        {
+            static const std::vector<ColoredSpan> emptySpans;
+            if (bufferRow < 0 || bufferRow >= buffer_.lineCount())
+                return emptySpans;
+
+            ensureCommentStateUpTo(bufferRow);
+
+            auto &entry = lineCache_[bufferRow];
+            if (!entry.valid)
+            {
+                highlighter_.setBlockComment(entry.startInComment);
+                entry.spans = highlighter_.highlightLine(buffer_.getLine(bufferRow));
+                entry.endInComment = highlighter_.inBlockComment();
+                entry.valid = true;
+            }
+            return entry.spans;
+        }
+
         void loadThemeColors()
         {
             bgColor_ = getUIColor(theme_, "editor_bg", bgColor_);
@@ -993,6 +1139,8 @@ namespace xterm
             lineHighlightBg_ = getUIColor(theme_, "line_highlight", lineHighlightBg_);
             selectionBg_ = getUIColor(theme_, "selection_bg", selectionBg_);
             cursorColor_ = getUIColor(theme_, "cursor", cursorColor_);
+            for (auto &entry : lineCache_)
+                entry.valid = false;
         }
 
         void recalcLayout()
