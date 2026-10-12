@@ -161,8 +161,9 @@ namespace xterm
         }
     }
 
-    std::string PTY::read()
+    std::string PTY::read(int timeout_ms)
     {
+        (void)timeout_ms;
         if (!hPipeOut_)
             return {};
 

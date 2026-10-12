@@ -435,7 +435,7 @@ int main(int argc, char *argv[])
     std::thread reader_thread([&]()
                               {
         while (running.load()) {
-            std::string data = pty.read();
+            std::string data = pty.read(100);
             if (!data.empty()) {
                 {
                     std::lock_guard<std::mutex> lock(buffer_mutex);
@@ -455,9 +455,6 @@ int main(int argc, char *argv[])
                     SDL_PushEvent(&quit_event);
                     break;
                 }
-                // Sleep a bit to avoid busy-waiting when no data.
-                // 8ms keeps interaction responsive while reducing idle CPU wakeups.
-                std::this_thread::sleep_for(std::chrono::milliseconds(8));
             }
         } });
 

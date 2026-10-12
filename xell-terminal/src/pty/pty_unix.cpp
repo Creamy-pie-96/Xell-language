@@ -18,6 +18,7 @@
 #include <sys/ioctl.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <cstring>
 #include <cerrno>
 #include <vector>
@@ -110,15 +111,35 @@ namespace xterm
         }
     }
 
-    std::string PTY::read()
+    std::string PTY::read(int timeout_ms)
     {
         if (master_fd_ < 0)
             return {};
 
+        if (timeout_ms != 0)
+        {
+            struct pollfd pfd;
+            pfd.fd = master_fd_;
+            pfd.events = POLLIN;
+            pfd.revents = 0;
+
+            int ret = ::poll(&pfd, 1, timeout_ms);
+            if (ret <= 0)
+            {
+                // Timeout or interrupted by signal
+                return {};
+            }
+
+            if (!(pfd.revents & (POLLIN | POLLHUP | POLLERR)))
+            {
+                return {};
+            }
+        }
+
         char buf[4096];
         std::string result;
 
-        // Non-blocking: read as much as available
+        // Drain available bytes from master_fd
         while (true)
         {
             ssize_t n = ::read(master_fd_, buf, sizeof(buf));
@@ -135,7 +156,7 @@ namespace xterm
             {
                 // n < 0
                 if (errno == EAGAIN || errno == EWOULDBLOCK)
-                    break; // nothing available right now
+                    break; // drained all available bytes
                 if (errno == EINTR)
                     continue;
                 break; // real error

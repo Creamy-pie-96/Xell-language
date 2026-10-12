@@ -36,8 +36,10 @@ namespace xterm
         /// Write data to the PTY (sends keystrokes to the child process).
         void write(const std::string &data);
 
-        /// Non-blocking read from PTY. Returns empty string if nothing available.
-        std::string read();
+        /// Read from PTY with blocking poll() timeout in milliseconds.
+        /// If timeout_ms < 0, blocks indefinitely. If timeout_ms == 0, non-blocking.
+        /// Returns empty string if no data available within timeout.
+        std::string read(int timeout_ms = -1);
 
         /// Notify the PTY of a terminal resize.
         void resize(int rows, int cols);
