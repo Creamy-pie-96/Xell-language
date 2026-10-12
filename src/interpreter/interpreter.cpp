@@ -6141,22 +6141,86 @@ namespace xell
                     throw TypeError("env option must be a map", opt.line);
                 for (auto it = val.asMap().begin(); it.valid(); it.next())
                 {
-                    std::string k = it.key().asString();
+                    std::string k = it.key().isString() ? it.key().asString() : it.key().toString();
                     if (k.rfind("XELL_", 0) == 0)
                         throw ValueError("User env cannot define variables starting with 'XELL_'", opt.line);
-                    envMap[k] = it.value().asString();
+                    envMap[k] = it.value().isString() ? it.value().asString() : it.value().toString();
                 }
             }
         }
 
-        // Assemble script
-        std::string script;
-        for (const auto &seg : node->segments)
+        std::string shellPath = ShellAdapter::findShellExecutable();
+
+        if (!ShellAdapter::isPosixShell(shellPath) && !node->interpolatedExprs.empty())
         {
-            script += seg.text;
+            throw RuntimeError("Shell interpolation @{...} is not supported for shell: " + shellPath, node->line);
         }
 
-        std::string shellPath = ShellAdapter::findShellExecutable();
+        // Assemble script with interpolation
+        std::string script;
+        size_t exprIdx = 0;
+
+        for (const auto &seg : node->segments)
+        {
+            if (!seg.isExpr)
+            {
+                script += seg.text;
+            }
+            else
+            {
+                XObject val = eval(node->interpolatedExprs[exprIdx].get());
+
+                if (val.isMap())
+                {
+                    throw TypeError("Dictionary interpolation inside shell block is not supported", seg.line);
+                }
+
+                if (val.isList())
+                {
+                    const auto &list = val.asList();
+                    std::string expansion;
+                    for (size_t i = 0; i < list.size(); ++i)
+                    {
+                        if (list[i].isMap() || list[i].isList())
+                        {
+                            throw TypeError("Nested containers inside list interpolation are not supported", seg.line);
+                        }
+                        std::string varName = "XELL_" + std::to_string(exprIdx) + "_" + std::to_string(i);
+                        envMap[varName] = list[i].isString() ? list[i].asString() : list[i].toString();
+
+                        if (i > 0)
+                            expansion += " ";
+
+                        if (seg.quoteContext == ShellQuoteContext::UNQUOTED)
+                        {
+                            expansion += "\"$" + varName + "\"";
+                        }
+                        else
+                        {
+                            expansion += "$" + varName;
+                        }
+                    }
+                    script += expansion;
+                }
+                else
+                {
+                    std::string varName = "XELL_" + std::to_string(exprIdx);
+                    envMap[varName] = val.isString() ? val.asString() : val.toString();
+
+                    if (seg.quoteContext == ShellQuoteContext::UNQUOTED)
+                    {
+                        script += "\"$" + varName + "\"";
+                    }
+                    else
+                    {
+                        script += "$" + varName;
+                    }
+                }
+
+                exprIdx++;
+            }
+        }
+
         std::string failFast = ShellAdapter::getFailFastPrefix(shellPath);
         std::string fullScript = failFast + script;
 

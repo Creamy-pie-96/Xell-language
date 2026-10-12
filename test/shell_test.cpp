@@ -1344,6 +1344,130 @@ void testShellBlockChaining()
 }
 
 // ============================================================================
+// INTERPOLATION TESTS (PHASE 5)
+// ============================================================================
+
+void testShellBlockInterpolationScalarUnquoted()
+{
+    auto out = runXell(R"(
+        x = "hello world"
+        res = shell->capture() { echo @{x} }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "hello world\n");
+}
+
+void testShellBlockInterpolationScalarDoubleQuotes()
+{
+    auto out = runXell(R"(
+        x = "world"
+        res = shell->capture() { echo "hello @{x}!" }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "hello world!\n");
+}
+
+void testShellBlockInterpolationSingleQuotesLiteral()
+{
+    auto out = runXell(R"(
+        x = "world"
+        res = shell->capture() { echo '@{x}' }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "@{x}\n");
+}
+
+void testShellBlockInterpolationInjectionSafety()
+{
+    auto out = runXell(R"(
+        malicious = "; echo INJECTED; #"
+        res = shell->capture() { echo @{malicious} }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "; echo INJECTED; #\n");
+}
+
+void testShellBlockInterpolationFilenameInert()
+{
+    auto out = runXell(R"(
+        filename = "; rm -rf ~"
+        res = shell->capture() { echo @{filename} }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "; rm -rf ~\n");
+}
+
+void testShellBlockInterpolationList()
+{
+    auto out = runXell(R"(
+        items = ["foo bar", "baz", "qux"]
+        res = shell->capture() { printf '[%s]\n' @{items} }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "[foo bar]\n[baz]\n[qux]\n");
+}
+
+void testShellBlockInterpolationEmptyList()
+{
+    auto out = runXell(R"(
+        items = []
+        res = shell->capture() { echo start @{items} end }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "start end\n");
+}
+
+void testShellBlockInterpolationDictRejected()
+{
+    bool threw = false;
+    try
+    {
+        runXell(R"(
+            d = {"a": 1}
+            shell { echo @{d} }
+        )");
+    }
+    catch (const TypeError &e)
+    {
+        threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("Dictionary interpolation") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+void testShellBlockInterpolationNumbersAndBools()
+{
+    auto out = runXell(R"(
+        a = 123
+        b = true
+        res = shell->capture() { echo @{a} @{b} }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "123 true\n");
+}
+
+void testShellBlockMultipleInterpolations()
+{
+    auto out = runXell(R"(
+        first = "Alice"
+        last = "Smith"
+        res = shell->capture() { echo @{first} @{last} }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "Alice Smith\n");
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -1470,6 +1594,18 @@ int main()
     runTest("shell block runtime: fail fast on POSIX", testShellBlockFailFast);
     runTest("shell block runtime: lossy utf8 decoding", testShellBlockLossyUtf8);
     runTest("shell block runtime: && and || chaining", testShellBlockChaining);
+
+    // Shell block interpolation (Phase 5)
+    runTest("shell block interpolation: scalar unquoted", testShellBlockInterpolationScalarUnquoted);
+    runTest("shell block interpolation: scalar in double quotes", testShellBlockInterpolationScalarDoubleQuotes);
+    runTest("shell block interpolation: single quotes literal", testShellBlockInterpolationSingleQuotesLiteral);
+    runTest("shell block interpolation: injection safety", testShellBlockInterpolationInjectionSafety);
+    runTest("shell block interpolation: filename containing '; rm -rf ~' inert", testShellBlockInterpolationFilenameInert);
+    runTest("shell block interpolation: list expansion", testShellBlockInterpolationList);
+    runTest("shell block interpolation: empty list expansion", testShellBlockInterpolationEmptyList);
+    runTest("shell block interpolation: dictionary rejected", testShellBlockInterpolationDictRejected);
+    runTest("shell block interpolation: numbers and booleans", testShellBlockInterpolationNumbersAndBools);
+    runTest("shell block interpolation: multiple interpolations", testShellBlockMultipleInterpolations);
 
     std::cout << "\n============================================\n";
     std::cout << "  Total: " << (g_passed + g_failed)
