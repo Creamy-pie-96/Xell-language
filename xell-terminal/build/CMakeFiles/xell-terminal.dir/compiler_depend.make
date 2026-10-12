@@ -914,6 +914,7 @@ CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o: /home/DATA/CODE/code/Xell/x
   /usr/include/linux/falloc.h \
   /usr/include/linux/ioctl.h \
   /usr/include/locale.h \
+  /usr/include/poll.h \
   /usr/include/pty.h \
   /usr/include/signal.h \
   /usr/include/stdc-predef.h \
@@ -946,6 +947,8 @@ CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o: /home/DATA/CODE/code/Xell/x
   /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
   /usr/include/x86_64-linux-gnu/bits/locale.h \
   /usr/include/x86_64-linux-gnu/bits/long-double.h \
+  /usr/include/x86_64-linux-gnu/bits/poll.h \
+  /usr/include/x86_64-linux-gnu/bits/poll2.h \
   /usr/include/x86_64-linux-gnu/bits/posix_opt.h \
   /usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h \
   /usr/include/x86_64-linux-gnu/bits/pthreadtypes.h \
@@ -1042,6 +1045,7 @@ CMakeFiles/xell-terminal.dir/src/pty/pty_unix.cpp.o: /home/DATA/CODE/code/Xell/x
   /usr/include/x86_64-linux-gnu/gnu/stubs.h \
   /usr/include/x86_64-linux-gnu/sys/cdefs.h \
   /usr/include/x86_64-linux-gnu/sys/ioctl.h \
+  /usr/include/x86_64-linux-gnu/sys/poll.h \
   /usr/include/x86_64-linux-gnu/sys/select.h \
   /usr/include/x86_64-linux-gnu/sys/ttydefaults.h \
   /usr/include/x86_64-linux-gnu/sys/types.h \

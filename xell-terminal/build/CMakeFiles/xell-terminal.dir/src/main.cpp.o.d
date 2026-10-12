@@ -305,6 +305,7 @@ CMakeFiles/xell-terminal.dir/src/main.cpp.o: \
  /usr/include/SDL2/SDL_version.h /usr/include/SDL2/SDL_locale.h \
  /usr/include/SDL2/SDL_misc.h \
  /home/DATA/CODE/code/Xell/xell-terminal/src/renderer/renderer.hpp \
+ /usr/include/SDL2/SDL_rect.h \
  /home/DATA/CODE/code/Xell/xell-terminal/src/theme/theme_loader.hpp \
  /usr/include/c++/13/fstream /usr/include/c++/13/istream \
  /usr/include/c++/13/ios /usr/include/c++/13/exception \
