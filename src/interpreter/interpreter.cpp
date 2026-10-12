@@ -4,7 +4,6 @@
 #include "../module/xmodule.hpp"
 #include "../lexer/lexer.hpp"
 #include "../parser/parser.hpp"
-#include "../os/path_lookup.hpp"
 #include "../os/os.hpp"
 #include "../shell/shell_adapter.hpp"
 #include "../shell/shell_runner.hpp"
@@ -5184,46 +5183,7 @@ namespace xell
         // }
 
         // Look up user-defined function (throws if not found)
-        // If the name is not found in the environment, try PATH-based
-        // external command execution (like bash: git, code, python, etc.)
-        XObject fnObj;
-        try
-        {
-            fnObj = currentEnv_->get(node->callee, node->line);
-        }
-        catch (const UndefinedVariableError &)
-        {
-            // PATH-based external command fallback
-            // Guard: never treat Xell keywords as external commands
-            if (!isXellKeyword(node->callee) && isExecutableOnPath(node->callee))
-            {
-                std::string cmd = buildCommandString(node->callee, args);
-                auto result = os::run_capture(cmd);
-
-                // Return the captured output as a string
-                // If the command failed, include stderr in the output
-                if (result.exitCode == 0)
-                {
-                    std::string out = result.stdoutOutput;
-                    // Trim trailing newline
-                    while (!out.empty() && (out.back() == '\n' || out.back() == '\r'))
-                        out.pop_back();
-                    return XObject::makeString(out);
-                }
-                else
-                {
-                    // Command failed — include both stdout and stderr
-                    std::string output = result.stdoutOutput + result.stderrOutput;
-                    while (!output.empty() && (output.back() == '\n' || output.back() == '\r'))
-                        output.pop_back();
-                    if (output.empty())
-                        output = "Command '" + node->callee + "' exited with code " + std::to_string(result.exitCode);
-                    throw RuntimeError(output, node->line);
-                }
-            }
-            // Not an external command — rethrow the original error
-            throw;
-        }
+        XObject fnObj = currentEnv_->get(node->callee, node->line);
 
         // Magic method: __call__ — if the callee is an instance with __call__
         if (fnObj.isInstance())
