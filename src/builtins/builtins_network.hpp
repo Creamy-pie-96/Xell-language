@@ -15,6 +15,7 @@
 
 #include "builtin_registry.hpp"
 #include "../lib/errors/error.hpp"
+#include "../shell/shell_runner.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -42,7 +43,40 @@
 namespace xell
 {
 
-    // Helper: capture output of a shell command
+    // Helper: capture output of an external command via ShellRunner (direct argv, no shell)
+    static inline std::string captureNetArgv(const std::vector<std::string> &argv, int line = 0)
+    {
+        ProcessOptions popts;
+        popts.captureStdout = true;
+        popts.captureStderr = true;
+        popts.stdinMode = "closed";
+        try
+        {
+            auto res = ShellRunner::run(argv, popts, line);
+            std::string result = res.stdoutStr;
+            if (result.empty() && res.exitCode != 0)
+                result = res.stderrStr;
+            while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
+                result.pop_back();
+            return result;
+        }
+        catch (...)
+        {
+            return "";
+        }
+    }
+
+    static inline std::vector<std::string> splitWords(const std::string &s)
+    {
+        std::vector<std::string> words;
+        std::istringstream iss(s);
+        std::string w;
+        while (iss >> w)
+            words.push_back(w);
+        return words;
+    }
+
+    // Helper: capture output of a shell command (Windows fallback)
     static inline std::string captureNetCmd(const std::string &cmd)
     {
         std::string result;
@@ -53,21 +87,36 @@ namespace xell
         while (fgets(buf, sizeof(buf), fp))
             result += buf;
         pclose(fp);
-        // Trim trailing newline
         while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
             result.pop_back();
         return result;
     }
 
-    // Helper: check if an external command exists
+    // Helper: check if an external command exists on PATH (no shell)
     static inline bool hasCmd(const std::string &name)
     {
 #ifdef _WIN32
         std::string check = "where " + name + " >nul 2>&1";
-#else
-        std::string check = "command -v " + name + " >/dev/null 2>&1";
-#endif
         return system(check.c_str()) == 0;
+#else
+        const char *pathEnv = std::getenv("PATH");
+        if (!pathEnv)
+            return false;
+        std::string paths(pathEnv);
+        size_t pos = 0;
+        while (pos < paths.size())
+        {
+            size_t sep = paths.find(':', pos);
+            if (sep == std::string::npos)
+                sep = paths.size();
+            std::string dir = paths.substr(pos, sep - pos);
+            std::string full = dir + "/" + name;
+            if (access(full.c_str(), X_OK) == 0)
+                return true;
+            pos = sep + 1;
+        }
+        return false;
+#endif
     }
 
     static inline void registerNetworkBuiltins(BuiltinTable &t)
@@ -91,10 +140,10 @@ namespace xell
             std::string host = args[0].asString();
 #ifdef _WIN32
             std::string cmd = "ping -n " + std::to_string(count) + " " + host + " 2>&1";
-#else
-            std::string cmd = "ping -c " + std::to_string(count) + " " + host + " 2>&1";
-#endif
             return XObject::makeString(captureNetCmd(cmd));
+#else
+            return XObject::makeString(captureNetArgv({"ping", "-c", std::to_string(count), host}, line));
+#endif
         };
 
         // =================================================================
@@ -108,17 +157,28 @@ namespace xell
                 throw TypeError("http_get() expects a string URL", line);
             std::string url = args[0].asString();
 
-            // Build curl command
+#ifdef _WIN32
             std::string cmd = "curl -s -w '\\n%{http_code}' -D -";
-            // Add custom headers
             if (args.size() == 2 && args[1].isMap())
             {
                 for (auto it = args[1].asMap().begin(); it.valid(); it.next())
                     cmd += " -H '" + it.key().asString() + ": " + it.value().asString() + "'";
             }
             cmd += " '" + url + "' 2>/dev/null";
-
             std::string raw = captureNetCmd(cmd);
+#else
+            std::vector<std::string> argv = {"curl", "-s", "-w", "\n%{http_code}", "-D", "-"};
+            if (args.size() == 2 && args[1].isMap())
+            {
+                for (auto it = args[1].asMap().begin(); it.valid(); it.next())
+                {
+                    argv.push_back("-H");
+                    argv.push_back(it.key().asString() + ": " + it.value().asString());
+                }
+            }
+            argv.push_back(url);
+            std::string raw = captureNetArgv(argv, line);
+#endif
 
             // Parse response: headers\r\n\r\nbody\nstatus_code
             XMap result;
@@ -185,9 +245,8 @@ namespace xell
             std::string url = args[0].asString();
             std::string body = args[1].asString();
 
+#ifdef _WIN32
             std::string cmd = "curl -s -w '\\n%{http_code}' -X POST";
-
-            // Content-Type default
             bool hasContentType = false;
             if (args.size() == 3 && args[2].isMap())
             {
@@ -202,10 +261,33 @@ namespace xell
             }
             if (!hasContentType)
                 cmd += " -H 'Content-Type: application/json'";
-
             cmd += " -d '" + body + "' '" + url + "' 2>/dev/null";
-
             std::string raw = captureNetCmd(cmd);
+#else
+            std::vector<std::string> argv = {"curl", "-s", "-w", "\n%{http_code}", "-X", "POST"};
+            bool hasContentType = false;
+            if (args.size() == 3 && args[2].isMap())
+            {
+                for (auto it = args[2].asMap().begin(); it.valid(); it.next())
+                {
+                    argv.push_back("-H");
+                    argv.push_back(it.key().asString() + ": " + it.value().asString());
+                    std::string lower = it.key().asString();
+                    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+                    if (lower == "content-type")
+                        hasContentType = true;
+                }
+            }
+            if (!hasContentType)
+            {
+                argv.push_back("-H");
+                argv.push_back("Content-Type: application/json");
+            }
+            argv.push_back("-d");
+            argv.push_back(body);
+            argv.push_back(url);
+            std::string raw = captureNetArgv(argv, line);
+#endif
 
             // Parse: body\nstatus_code
             XMap result;
@@ -247,16 +329,30 @@ namespace xell
 
             std::string url = args[0].asString();
             std::string body = args[1].asString();
+#ifdef _WIN32
             std::string cmd = "curl -s -w '\\n%{http_code}' -X PUT";
-
             if (args.size() == 3 && args[2].isMap())
             {
                 for (auto it = args[2].asMap().begin(); it.valid(); it.next())
                     cmd += " -H '" + it.key().asString() + ": " + it.value().asString() + "'";
             }
             cmd += " -d '" + body + "' '" + url + "' 2>/dev/null";
-
             std::string raw = captureNetCmd(cmd);
+#else
+            std::vector<std::string> argv = {"curl", "-s", "-w", "\n%{http_code}", "-X", "PUT"};
+            if (args.size() == 3 && args[2].isMap())
+            {
+                for (auto it = args[2].asMap().begin(); it.valid(); it.next())
+                {
+                    argv.push_back("-H");
+                    argv.push_back(it.key().asString() + ": " + it.value().asString());
+                }
+            }
+            argv.push_back("-d");
+            argv.push_back(body);
+            argv.push_back(url);
+            std::string raw = captureNetArgv(argv, line);
+#endif
             XMap result;
             auto lastNl = raw.rfind('\n');
             if (lastNl != std::string::npos)
@@ -290,16 +386,28 @@ namespace xell
                 throw TypeError("http_delete() URL must be a string", line);
 
             std::string url = args[0].asString();
+#ifdef _WIN32
             std::string cmd = "curl -s -w '\\n%{http_code}' -X DELETE";
-
             if (args.size() == 2 && args[1].isMap())
             {
                 for (auto it = args[1].asMap().begin(); it.valid(); it.next())
                     cmd += " -H '" + it.key().asString() + ": " + it.value().asString() + "'";
             }
             cmd += " '" + url + "' 2>/dev/null";
-
             std::string raw = captureNetCmd(cmd);
+#else
+            std::vector<std::string> argv = {"curl", "-s", "-w", "\n%{http_code}", "-X", "DELETE"};
+            if (args.size() == 2 && args[1].isMap())
+            {
+                for (auto it = args[1].asMap().begin(); it.valid(); it.next())
+                {
+                    argv.push_back("-H");
+                    argv.push_back(it.key().asString() + ": " + it.value().asString());
+                }
+            }
+            argv.push_back(url);
+            std::string raw = captureNetArgv(argv, line);
+#endif
             XMap result;
             auto lastNl = raw.rfind('\n');
             if (lastNl != std::string::npos)
@@ -337,16 +445,42 @@ namespace xell
 
 #ifdef _WIN32
             std::string cmd = "curl -sL -o \"" + path + "\" \"" + url + "\" 2>&1";
-#else
-            std::string cmd;
-            if (hasCmd("curl"))
-                cmd = "curl -sL -o '" + path + "' '" + url + "' 2>&1";
-            else if (hasCmd("wget"))
-                cmd = "wget -q -O '" + path + "' '" + url + "' 2>&1";
-            else
-                throw RuntimeError("download() requires curl or wget", line);
-#endif
             int ret = system(cmd.c_str());
+#else
+            int ret = -1;
+            ProcessOptions popts;
+            popts.captureStdout = false;
+            popts.captureStderr = true;
+            popts.stdinMode = "closed";
+            if (hasCmd("curl"))
+            {
+                try
+                {
+                    auto res = ShellRunner::run({"curl", "-sL", "-o", path, url}, popts, line);
+                    ret = res.exitCode;
+                }
+                catch (...)
+                {
+                    ret = -1;
+                }
+            }
+            else if (hasCmd("wget"))
+            {
+                try
+                {
+                    auto res = ShellRunner::run({"wget", "-q", "-O", path, url}, popts, line);
+                    ret = res.exitCode;
+                }
+                catch (...)
+                {
+                    ret = -1;
+                }
+            }
+            else
+            {
+                throw RuntimeError("download() requires curl or wget", line);
+            }
+#endif
             if (ret != 0)
                 throw RuntimeError("download() failed: " + url, line);
             return XObject::makeBool(true);
@@ -427,7 +561,11 @@ namespace xell
                 throw ArityError("nslookup", 1, (int)args.size(), line);
             if (!args[0].isString())
                 throw TypeError("nslookup() expects a string hostname", line);
-            return XObject::makeString(captureNetCmd("nslookup " + args[0].asString() + " 2>/dev/null"));
+#ifdef _WIN32
+            return XObject::makeString(captureNetCmd("nslookup " + args[0].asString() + " 2>nul"));
+#else
+            return XObject::makeString(captureNetArgv({"nslookup", args[0].asString()}, line));
+#endif
         };
 
         // =================================================================
@@ -442,7 +580,7 @@ namespace xell
 #ifdef _WIN32
             return XObject::makeString(captureNetCmd("nslookup " + args[0].asString() + " 2>nul"));
 #else
-            return XObject::makeString(captureNetCmd("host " + args[0].asString() + " 2>/dev/null"));
+            return XObject::makeString(captureNetArgv({"host", args[0].asString()}, line));
 #endif
         };
 
@@ -455,7 +593,11 @@ namespace xell
                 throw ArityError("whois", 1, (int)args.size(), line);
             if (!args[0].isString())
                 throw TypeError("whois() expects a string domain", line);
-            return XObject::makeString(captureNetCmd("whois " + args[0].asString() + " 2>/dev/null"));
+#ifdef _WIN32
+            return XObject::makeString(captureNetCmd("whois " + args[0].asString() + " 2>nul"));
+#else
+            return XObject::makeString(captureNetArgv({"whois", args[0].asString()}, line));
+#endif
         };
 
         // =================================================================
@@ -472,9 +614,9 @@ namespace xell
 #else
             // Try traceroute, fallback to tracepath
             if (hasCmd("traceroute"))
-                return XObject::makeString(captureNetCmd("traceroute -m 15 " + args[0].asString() + " 2>&1"));
+                return XObject::makeString(captureNetArgv({"traceroute", "-m", "15", args[0].asString()}, line));
             else if (hasCmd("tracepath"))
-                return XObject::makeString(captureNetCmd("tracepath " + args[0].asString() + " 2>&1"));
+                return XObject::makeString(captureNetArgv({"tracepath", args[0].asString()}, line));
             else
                 throw RuntimeError("traceroute() requires traceroute or tracepath", line);
 #endif
@@ -491,9 +633,9 @@ namespace xell
             return XObject::makeString(captureNetCmd("netstat -an 2>&1"));
 #else
             if (hasCmd("netstat"))
-                return XObject::makeString(captureNetCmd("netstat -tuln 2>/dev/null"));
+                return XObject::makeString(captureNetArgv({"netstat", "-tuln"}, line));
             else if (hasCmd("ss"))
-                return XObject::makeString(captureNetCmd("ss -tuln 2>/dev/null"));
+                return XObject::makeString(captureNetArgv({"ss", "-tuln"}, line));
             else
                 throw RuntimeError("netstat() requires netstat or ss", line);
 #endif
@@ -509,7 +651,7 @@ namespace xell
 #ifdef _WIN32
             return XObject::makeString(captureNetCmd("netstat -an 2>&1"));
 #else
-            return XObject::makeString(captureNetCmd("ss -tuln 2>/dev/null"));
+            return XObject::makeString(captureNetArgv({"ss", "-tuln"}, line));
 #endif
         };
 
@@ -524,9 +666,9 @@ namespace xell
             return XObject::makeString(captureNetCmd("ipconfig 2>&1"));
 #else
             if (hasCmd("ifconfig"))
-                return XObject::makeString(captureNetCmd("ifconfig 2>/dev/null"));
+                return XObject::makeString(captureNetArgv({"ifconfig"}, line));
             else
-                return XObject::makeString(captureNetCmd("ip addr 2>/dev/null"));
+                return XObject::makeString(captureNetArgv({"ip", "addr"}, line));
 #endif
         };
 
@@ -542,7 +684,10 @@ namespace xell
 #ifdef _WIN32
             return XObject::makeString(captureNetCmd("ipconfig 2>&1"));
 #else
-            return XObject::makeString(captureNetCmd("ip " + args[0].asString() + " 2>/dev/null"));
+            std::vector<std::string> argv = {"ip"};
+            auto words = splitWords(args[0].asString());
+            argv.insert(argv.end(), words.begin(), words.end());
+            return XObject::makeString(captureNetArgv(argv, line));
 #endif
         };
 
@@ -557,9 +702,9 @@ namespace xell
             return XObject::makeString(captureNetCmd("route print 2>&1"));
 #else
             if (hasCmd("route"))
-                return XObject::makeString(captureNetCmd("route -n 2>/dev/null"));
+                return XObject::makeString(captureNetArgv({"route", "-n"}, line));
             else
-                return XObject::makeString(captureNetCmd("ip route 2>/dev/null"));
+                return XObject::makeString(captureNetArgv({"ip", "route"}, line));
 #endif
         };
 
@@ -575,7 +720,10 @@ namespace xell
 #ifdef _WIN32
             throw RuntimeError("iptables() is not available on Windows", line);
 #else
-            return XObject::makeString(captureNetCmd("iptables " + args[0].asString() + " 2>&1"));
+            std::vector<std::string> argv = {"iptables"};
+            auto words = splitWords(args[0].asString());
+            argv.insert(argv.end(), words.begin(), words.end());
+            return XObject::makeString(captureNetArgv(argv, line));
 #endif
         };
 
@@ -591,7 +739,10 @@ namespace xell
 #ifdef _WIN32
             throw RuntimeError("ufw() is not available on Windows", line);
 #else
-            return XObject::makeString(captureNetCmd("ufw " + args[0].asString() + " 2>&1"));
+            std::vector<std::string> argv = {"ufw"};
+            auto words = splitWords(args[0].asString());
+            argv.insert(argv.end(), words.begin(), words.end());
+            return XObject::makeString(captureNetArgv(argv, line));
 #endif
         };
 
@@ -735,8 +886,7 @@ namespace xell
 #else
             if (!hasCmd("rsync"))
                 throw RuntimeError("rsync() requires rsync to be installed", line);
-            std::string cmd = "rsync -avz '" + args[0].asString() + "' '" + args[1].asString() + "' 2>&1";
-            return XObject::makeString(captureNetCmd(cmd));
+            return XObject::makeString(captureNetArgv({"rsync", "-avz", args[0].asString(), args[1].asString()}, line));
 #endif
         };
 
@@ -806,11 +956,19 @@ namespace xell
                 throw ArityError("public_ip", 0, (int)args.size(), line);
 
             // Try multiple services
-            std::string ip = captureNetCmd("curl -s --max-time 5 ifconfig.me 2>/dev/null");
+#ifdef _WIN32
+            std::string ip = captureNetCmd("curl -s --max-time 5 ifconfig.me 2>nul");
             if (ip.empty())
-                ip = captureNetCmd("curl -s --max-time 5 api.ipify.org 2>/dev/null");
+                ip = captureNetCmd("curl -s --max-time 5 api.ipify.org 2>nul");
             if (ip.empty())
-                ip = captureNetCmd("curl -s --max-time 5 icanhazip.com 2>/dev/null");
+                ip = captureNetCmd("curl -s --max-time 5 icanhazip.com 2>nul");
+#else
+            std::string ip = captureNetArgv({"curl", "-s", "--max-time", "5", "ifconfig.me"}, line);
+            if (ip.empty())
+                ip = captureNetArgv({"curl", "-s", "--max-time", "5", "api.ipify.org"}, line);
+            if (ip.empty())
+                ip = captureNetArgv({"curl", "-s", "--max-time", "5", "icanhazip.com"}, line);
+#endif
             if (ip.empty())
                 throw RuntimeError("public_ip() could not determine public IP (requires internet + curl)", line);
             return XObject::makeString(ip);
