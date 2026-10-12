@@ -6250,13 +6250,53 @@ namespace xell
 
         if (check && !result.success)
         {
+            int linesInPrefix = 0;
+            for (char ch : failFast)
+            {
+                if (ch == '\n')
+                    linesInPrefix++;
+            }
+
+            int shellLine = -1;
+            std::regex re(R"((?:line\s+|:\s*)(\d+):)");
+            std::smatch match;
+            if (std::regex_search(result.stderrStr, match, re))
+            {
+                try
+                {
+                    int reported = std::stoi(match[1].str());
+                    int adjusted = reported - linesInPrefix;
+                    if (adjusted >= 1)
+                        shellLine = adjusted;
+                }
+                catch (...)
+                {
+                }
+            }
+
             std::string reason = "Shell block failed with exit code " + std::to_string(result.exitCode);
             if (result.signalNum > 0)
             {
                 reason = "Shell block killed by signal " + std::to_string(result.signalNum);
             }
+            if (shellLine > 0)
+            {
+                reason += " (shell line " + std::to_string(shellLine) + ")";
+            }
+            if (!result.stderrStr.empty())
+            {
+                size_t newlinePos = result.stderrStr.find('\n');
+                std::string firstErr = (newlinePos == std::string::npos) ? result.stderrStr : result.stderrStr.substr(0, newlinePos);
+                size_t start = firstErr.find_first_not_of(" \t\r\n");
+                size_t end = firstErr.find_last_not_of(" \t\r\n");
+                if (start != std::string::npos && end != std::string::npos)
+                {
+                    firstErr = firstErr.substr(start, end - start + 1);
+                    reason += ": " + firstErr;
+                }
+            }
             throw ShellProcessError(reason, node->line, result.stdoutStr, result.stderrStr,
-                                    result.exitCode, result.signalNum);
+                                    result.exitCode, result.signalNum, shellLine);
         }
 
         if (node->mode == ShellBlockMode::CAPTURE)

@@ -216,13 +216,14 @@ namespace xell
         std::string stderrStr;
         int exitCode = -1;
         int signalNum = 0;
+        int shellLine = -1;
 
         ShellProcessError(const std::string &message, int line,
                           std::string out = "", std::string err = "",
-                          int code = -1, int sig = 0)
+                          int code = -1, int sig = 0, int shLine = -1)
             : ProcessError(message, line),
               stdoutStr(std::move(out)), stderrStr(std::move(err)),
-              exitCode(code), signalNum(sig) {}
+              exitCode(code), signalNum(sig), shellLine(shLine) {}
     };
 
     class ShellTimeoutError : public ShellProcessError

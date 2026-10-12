@@ -1468,6 +1468,62 @@ void testShellBlockMultipleInterpolations()
 }
 
 // ============================================================================
+// ERROR AND DIAGNOSTICS TESTS (PHASE 6)
+// ============================================================================
+
+void testShellBlockErrorReporting()
+{
+    bool threw = false;
+    try
+    {
+        runXell(R"(
+            shell->capture(check: true) {
+                echo "start"
+                nonexistent_command_12345
+            }
+        )");
+    }
+    catch (const ShellProcessError &e)
+    {
+        threw = true;
+        // In this multi-line script, line 2 is where shell block is located
+        XASSERT_EQ(e.line(), 2);
+        XASSERT(e.exitCode != 0);
+        XASSERT(!e.stderrStr.empty());
+        // Shell line should be extracted best-effort (second command line in block)
+        XASSERT(e.shellLine >= 1);
+        std::string msg = e.what();
+        XASSERT(msg.find("Shell block failed") != std::string::npos);
+        XASSERT(msg.find("shell line") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+void testShellBlockPlainErrorReporting()
+{
+    bool threw = false;
+    try
+    {
+        runXell(R"(
+            x = 10
+            shell {
+                exit 13
+            }
+        )");
+    }
+    catch (const ShellProcessError &e)
+    {
+        threw = true;
+        // shell block is on line 3
+        XASSERT_EQ(e.line(), 3);
+        XASSERT_EQ(e.exitCode, 13);
+        std::string msg = e.what();
+        XASSERT(msg.find("Shell block failed with exit code 13") != std::string::npos);
+    }
+    XASSERT(threw);
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -1606,6 +1662,10 @@ int main()
     runTest("shell block interpolation: dictionary rejected", testShellBlockInterpolationDictRejected);
     runTest("shell block interpolation: numbers and booleans", testShellBlockInterpolationNumbersAndBools);
     runTest("shell block interpolation: multiple interpolations", testShellBlockMultipleInterpolations);
+
+    // Shell block error reporting (Phase 6)
+    runTest("shell block error reporting with line", testShellBlockErrorReporting);
+    runTest("shell block plain error reporting with line", testShellBlockPlainErrorReporting);
 
     std::cout << "\n============================================\n";
     std::cout << "  Total: " << (g_passed + g_failed)
