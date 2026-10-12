@@ -13,6 +13,8 @@
 #include <unordered_map>
 #include <functional>
 
+#include <SDL2/SDL_rect.h>
+
 struct SDL_Window;
 struct SDL_Renderer;
 struct _TTF_Font;
@@ -82,39 +84,55 @@ namespace xterm
         int cell_h_ = 0; // cell height in pixels
         int font_size_ = 0;
 
-        // Glyph texture cache to avoid re-rendering the same character repeatedly
-        struct GlyphKey
+        // Offscreen canvas texture for dirty-cell tracking
+        SDL_Texture *canvas_texture_ = nullptr;
+        int canvas_w_ = 0;
+        int canvas_h_ = 0;
+        int last_scroll_offset_ = 0;
+
+        // Single atlas texture for batched glyph rendering
+        SDL_Texture *glyph_atlas_ = nullptr;
+        int atlas_x_ = 0;
+        int atlas_y_ = 0;
+        int atlas_row_h_ = 0;
+        static constexpr int ATLAS_WIDTH = 2048;
+        static constexpr int ATLAS_HEIGHT = 2048;
+
+        struct AtlasKey
         {
             char32_t ch;
-            uint8_t fg_r, fg_g, fg_b;
             bool bold;
-            bool operator==(const GlyphKey &o) const
+            bool operator==(const AtlasKey &o) const
             {
-                return ch == o.ch && fg_r == o.fg_r && fg_g == o.fg_g &&
-                       fg_b == o.fg_b && bold == o.bold;
+                return ch == o.ch && bold == o.bold;
             }
         };
 
-        struct GlyphKeyHash
+        struct AtlasKeyHash
         {
-            size_t operator()(const GlyphKey &k) const
+            size_t operator()(const AtlasKey &k) const
             {
-                size_t h = std::hash<char32_t>{}(k.ch);
-                h ^= std::hash<uint8_t>{}(k.fg_r) << 1;
-                h ^= std::hash<uint8_t>{}(k.fg_g) << 2;
-                h ^= std::hash<uint8_t>{}(k.fg_b) << 3;
-                h ^= std::hash<bool>{}(k.bold) << 4;
-                return h;
+                return std::hash<char32_t>{}(k.ch) ^ (std::hash<bool>{}(k.bold) << 1);
             }
         };
 
-        std::unordered_map<GlyphKey, SDL_Texture *, GlyphKeyHash> glyph_cache_;
+        struct AtlasGlyph
+        {
+            SDL_Rect src_rect;
+            int tex_w;
+            int tex_h;
+        };
 
+        std::unordered_map<AtlasKey, AtlasGlyph, AtlasKeyHash> atlas_map_;
+        Color current_atlas_fg_ = {255, 255, 255, 255};
+
+        void init_glyph_atlas();
+        const AtlasGlyph *get_atlas_glyph(char32_t ch, bool bold);
+        void clear_glyph_atlas();
+        void draw_glyph(int row, int col, char32_t ch, Color fg, bool bold);
         void draw_cell(int row, int col, const Cell &cell);
         void draw_cursor(int row, int col, const Cell &cell);
         void draw_scrollback_line(int screen_row, const std::vector<Cell> &line);
-        SDL_Texture *get_glyph_texture(char32_t ch, Color fg, bool bold);
-        void clear_glyph_cache();
     };
 
 } // namespace xterm

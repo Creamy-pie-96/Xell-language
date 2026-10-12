@@ -120,7 +120,13 @@ namespace xterm
 
     void Renderer::shutdown()
     {
-        clear_glyph_cache();
+        clear_glyph_atlas();
+
+        if (canvas_texture_)
+        {
+            SDL_DestroyTexture(canvas_texture_);
+            canvas_texture_ = nullptr;
+        }
 
         if (font_)
         {
@@ -152,35 +158,51 @@ namespace xterm
     void Renderer::render(ScreenBuffer &buffer, bool cursor_visible, int scroll_offset,
                           const TextSelection *selection)
     {
-        // Clear the entire window to the default background
-        SDL_SetRenderDrawColor(renderer_,
-                               Color::default_bg().r, Color::default_bg().g,
-                               Color::default_bg().b, 255);
-        SDL_RenderClear(renderer_);
+        int win_w = 0, win_h = 0;
+        SDL_GetWindowSize(window_, &win_w, &win_h);
+
+        bool canvas_recreated = false;
+        if (!canvas_texture_ || canvas_w_ != win_w || canvas_h_ != win_h)
+        {
+            if (canvas_texture_)
+                SDL_DestroyTexture(canvas_texture_);
+            canvas_texture_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_ARGB8888,
+                                                SDL_TEXTUREACCESS_TARGET, win_w, win_h);
+            canvas_w_ = win_w;
+            canvas_h_ = win_h;
+            canvas_recreated = true;
+            buffer.mark_all_dirty();
+        }
 
         int rows = buffer.get_rows();
         int cols = buffer.get_cols();
 
+        if (last_scroll_offset_ > 0 && scroll_offset == 0)
+        {
+            buffer.mark_all_dirty();
+        }
+        last_scroll_offset_ = scroll_offset;
+
         if (scroll_offset > 0)
         {
-            // We're scrolled back into the scrollback buffer.
-            // Draw scrollback lines for the top portion, and live lines for the rest.
+            // Scrolling in history: draw directly into canvas_texture_
+            SDL_SetRenderTarget(renderer_, canvas_texture_);
+            SDL_SetRenderDrawColor(renderer_,
+                                   Color::default_bg().r, Color::default_bg().g,
+                                   Color::default_bg().b, 255);
+            SDL_RenderClear(renderer_);
+
             int sb_size = buffer.scrollback_size();
-            int sb_start = sb_size - scroll_offset; // first scrollback line to show
+            int sb_start = sb_size - scroll_offset;
             if (sb_start < 0)
                 sb_start = 0;
 
             int screen_row = 0;
-
-            // Draw scrollback lines
             for (int sb_idx = sb_start; sb_idx < sb_size && screen_row < rows; ++sb_idx, ++screen_row)
             {
                 draw_scrollback_line(screen_row, buffer.scrollback_line(sb_idx));
             }
 
-            // Draw live grid lines for any remaining rows
-            int live_start = (scroll_offset > sb_size) ? 0 : (scroll_offset - (sb_size - sb_start));
-            // Actually, simpler approach: just show the top (rows - remaining) lines from live
             int live_row = 0;
             for (; screen_row < rows && live_row < rows; ++screen_row, ++live_row)
             {
@@ -189,27 +211,114 @@ namespace xterm
                     draw_cell(screen_row, c, buffer.cell_at(live_row, c));
                 }
             }
+            SDL_SetRenderTarget(renderer_, nullptr);
         }
         else
         {
-            // Normal view — draw the live grid
-            for (int r = 0; r < rows; ++r)
+            // Live view: damage-region and dirty-cell tracking
+            bool has_dirty = canvas_recreated;
+            if (!has_dirty)
             {
-                for (int c = 0; c < cols; ++c)
+                for (int r = 0; r < rows; ++r)
                 {
-                    draw_cell(r, c, buffer.cell_at(r, c));
+                    for (int c = 0; c < cols; ++c)
+                    {
+                        if (buffer.cell_at(r, c).dirty)
+                        {
+                            has_dirty = true;
+                            break;
+                        }
+                    }
+                    if (has_dirty)
+                        break;
                 }
+            }
+
+            if (has_dirty)
+            {
+                SDL_SetRenderTarget(renderer_, canvas_texture_);
+
+                if (canvas_recreated)
+                {
+                    SDL_SetRenderDrawColor(renderer_,
+                                           Color::default_bg().r, Color::default_bg().g,
+                                           Color::default_bg().b, 255);
+                    SDL_RenderClear(renderer_);
+                }
+
+                // 1. Draw backgrounds as merged runs for dirty cells
+                for (int r = 0; r < rows; ++r)
+                {
+                    int c = 0;
+                    while (c < cols)
+                    {
+                        if (!buffer.cell_at(r, c).dirty)
+                        {
+                            c++;
+                            continue;
+                        }
+
+                        Color bg = buffer.cell_at(r, c).bg;
+                        int start_c = c;
+                        while (c < cols && buffer.cell_at(r, c).dirty)
+                        {
+                            const auto &next = buffer.cell_at(r, c);
+                            if (next.bg.r != bg.r || next.bg.g != bg.g ||
+                                next.bg.b != bg.b || next.bg.a != bg.a)
+                                break;
+                            c++;
+                        }
+
+                        SDL_Rect run_rect = {
+                            start_c * cell_w_,
+                            r * cell_h_,
+                            (c - start_c) * cell_w_,
+                            cell_h_};
+                        SDL_SetRenderDrawColor(renderer_, bg.r, bg.g, bg.b, bg.a);
+                        SDL_RenderFillRect(renderer_, &run_rect);
+                    }
+                }
+
+                // 2. Draw glyphs and underlines for dirty cells
+                for (int r = 0; r < rows; ++r)
+                {
+                    for (int c = 0; c < cols; ++c)
+                    {
+                        const auto &cell = buffer.cell_at(r, c);
+                        if (!cell.dirty)
+                            continue;
+
+                        if (cell.ch != U' ' && cell.ch != 0)
+                        {
+                            draw_glyph(r, c, cell.ch, cell.fg, cell.bold);
+                        }
+
+                        if (cell.underline)
+                        {
+                            int x = c * cell_w_;
+                            int uy = r * cell_h_ + cell_h_ - 2;
+                            SDL_SetRenderDrawColor(renderer_, cell.fg.r, cell.fg.g, cell.fg.b, cell.fg.a);
+                            SDL_RenderDrawLine(renderer_, x, uy, x + cell_w_ - 1, uy);
+                        }
+                    }
+                }
+
+                SDL_SetRenderTarget(renderer_, nullptr);
+                buffer.clear_dirty_flags();
             }
         }
 
-        // Draw cursor
+        // Copy up-to-date canvas texture to window
+        SDL_RenderCopy(renderer_, canvas_texture_, nullptr, nullptr);
+
+        // Draw cursor overlay on window backbuffer
         if (cursor_visible && buffer.cursor_visible && scroll_offset == 0)
         {
             draw_cursor(buffer.cursor_row, buffer.cursor_col,
                         buffer.cell_at(buffer.cursor_row, buffer.cursor_col));
         }
 
-        // Draw selection overlay
+        // Draw selection overlay on window backbuffer
         if (selection && selection->has_selection)
         {
             SelectionPoint lo, hi;
@@ -235,10 +344,6 @@ namespace xterm
                 SDL_RenderFillRect(renderer_, &sel_rect);
             }
         }
-
-        // Mark all cells as clean after rendering.
-        // Keep this direct to avoid a costly get/set roundtrip per cell.
-        buffer.clear_dirty_flags();
     }
 
     void Renderer::present()
@@ -283,20 +388,7 @@ namespace xterm
         // Draw character (skip spaces for performance)
         if (cell.ch != U' ' && cell.ch != 0)
         {
-            SDL_Texture *tex = get_glyph_texture(cell.ch, cell.fg, cell.bold);
-            if (tex)
-            {
-                int tex_w, tex_h;
-                SDL_QueryTexture(tex, nullptr, nullptr, &tex_w, &tex_h);
-
-                // Center the glyph in the cell
-                SDL_Rect dst = {
-                    x + (cell_w_ - tex_w) / 2,
-                    y + (cell_h_ - tex_h) / 2,
-                    tex_w,
-                    tex_h};
-                SDL_RenderCopy(renderer_, tex, nullptr, &dst);
-            }
+            draw_glyph(row, col, cell.ch, cell.fg, cell.bold);
         }
 
         // Draw underline if set
@@ -328,17 +420,7 @@ namespace xterm
         if (cell.ch != U' ' && cell.ch != 0)
         {
             Color inverse_fg = Color::default_bg(); // dark color on white cursor
-            SDL_Texture *tex = get_glyph_texture(cell.ch, inverse_fg, cell.bold);
-            if (tex)
-            {
-                int tex_w, tex_h;
-                SDL_QueryTexture(tex, nullptr, nullptr, &tex_w, &tex_h);
-                SDL_Rect dst = {
-                    x + (cell_w_ - tex_w) / 2,
-                    y + (cell_h_ - tex_h) / 2,
-                    tex_w, tex_h};
-                SDL_RenderCopy(renderer_, tex, nullptr, &dst);
-            }
+            draw_glyph(row, col, cell.ch, inverse_fg, cell.bold);
         }
     }
 
@@ -352,40 +434,69 @@ namespace xterm
         {
             draw_cell(screen_row, c, line[c]);
         }
-        // Fill remaining columns with blank cells if line is shorter
-        // (handled by draw_cell defaulting to empty)
     }
 
     // =============================================================================
-    // Glyph texture cache
+    // Glyph atlas management & rendering
     // =============================================================================
 
-    SDL_Texture *Renderer::get_glyph_texture(char32_t ch, Color fg, bool bold)
+    void Renderer::init_glyph_atlas()
     {
-        GlyphKey key = {ch, fg.r, fg.g, fg.b, bold};
+        if (glyph_atlas_)
+            return;
 
-        auto it = glyph_cache_.find(key);
-        if (it != glyph_cache_.end())
-            return it->second;
-
-        // Render the glyph
-        TTF_Font *f = bold ? font_bold_ : font_;
-        if (bold && f == font_)
+        glyph_atlas_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_ARGB8888,
+                                         SDL_TEXTUREACCESS_STATIC, ATLAS_WIDTH, ATLAS_HEIGHT);
+        if (glyph_atlas_)
         {
-            TTF_SetFontStyle(f, TTF_STYLE_BOLD);
+            SDL_SetTextureBlendMode(glyph_atlas_, SDL_BLENDMODE_BLEND);
+            std::vector<uint32_t> blank(ATLAS_WIDTH * ATLAS_HEIGHT, 0);
+            SDL_UpdateTexture(glyph_atlas_, nullptr, blank.data(), ATLAS_WIDTH * sizeof(uint32_t));
         }
 
-        SDL_Color sdl_color = {fg.r, fg.g, fg.b, fg.a};
+        atlas_x_ = 0;
+        atlas_y_ = 0;
+        atlas_row_h_ = 0;
+        atlas_map_.clear();
+    }
 
-        // For basic ASCII, use the fast path with RenderGlyph
+    void Renderer::clear_glyph_atlas()
+    {
+        if (glyph_atlas_)
+        {
+            SDL_DestroyTexture(glyph_atlas_);
+            glyph_atlas_ = nullptr;
+        }
+        atlas_map_.clear();
+        atlas_x_ = 0;
+        atlas_y_ = 0;
+        atlas_row_h_ = 0;
+    }
+
+    const Renderer::AtlasGlyph *Renderer::get_atlas_glyph(char32_t ch, bool bold)
+    {
+        if (!glyph_atlas_)
+            init_glyph_atlas();
+        if (!glyph_atlas_)
+            return nullptr;
+
+        AtlasKey key = {ch, bold};
+        auto it = atlas_map_.find(key);
+        if (it != atlas_map_.end())
+            return &it->second;
+
+        TTF_Font *f = bold ? font_bold_ : font_;
+        if (bold && f == font_)
+            TTF_SetFontStyle(f, TTF_STYLE_BOLD);
+
+        SDL_Color white = {255, 255, 255, 255};
         SDL_Surface *surface = nullptr;
         if (ch <= 0xFFFF)
         {
-            surface = TTF_RenderGlyph_Blended(f, static_cast<Uint16>(ch), sdl_color);
+            surface = TTF_RenderGlyph_Blended(f, static_cast<Uint16>(ch), white);
         }
         else
         {
-            // For characters beyond BMP, render as UTF-8 string
             char utf8[5] = {};
             if (ch <= 0x7F)
             {
@@ -409,43 +520,68 @@ namespace xterm
                 utf8[2] = static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
                 utf8[3] = static_cast<char>(0x80 | (ch & 0x3F));
             }
-            surface = TTF_RenderUTF8_Blended(f, utf8, sdl_color);
+            surface = TTF_RenderUTF8_Blended(f, utf8, white);
         }
 
-        // Reset font style if we changed it
         if (bold && f == font_)
-        {
             TTF_SetFontStyle(f, TTF_STYLE_NORMAL);
-        }
 
         if (!surface)
-        {
-            glyph_cache_[key] = nullptr;
             return nullptr;
-        }
 
-        SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer_, surface);
+        SDL_Surface *formatted = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_ARGB8888, 0);
         SDL_FreeSurface(surface);
+        if (!formatted)
+            return nullptr;
 
-        glyph_cache_[key] = texture;
-
-        // Evict old entries if cache gets too large (prevent memory bloat)
-        if (glyph_cache_.size() > 8192)
+        if (atlas_x_ + formatted->w > ATLAS_WIDTH)
         {
-            clear_glyph_cache();
+            atlas_x_ = 0;
+            atlas_y_ += atlas_row_h_ + 1;
+            atlas_row_h_ = 0;
         }
 
-        return texture;
+        if (atlas_y_ + formatted->h > ATLAS_HEIGHT)
+        {
+            clear_glyph_atlas();
+            init_glyph_atlas();
+        }
+
+        SDL_Rect slot = {atlas_x_, atlas_y_, formatted->w, formatted->h};
+        SDL_UpdateTexture(glyph_atlas_, &slot, formatted->pixels, formatted->pitch);
+
+        AtlasGlyph glyph = {slot, formatted->w, formatted->h};
+        atlas_map_[key] = glyph;
+
+        atlas_x_ += formatted->w + 1;
+        atlas_row_h_ = std::max(atlas_row_h_, formatted->h);
+
+        SDL_FreeSurface(formatted);
+        return &atlas_map_[key];
     }
 
-    void Renderer::clear_glyph_cache()
+    void Renderer::draw_glyph(int row, int col, char32_t ch, Color fg, bool bold)
     {
-        for (auto &[key, tex] : glyph_cache_)
+        const AtlasGlyph *glyph = get_atlas_glyph(ch, bold);
+        if (!glyph)
+            return;
+
+        if (current_atlas_fg_.r != fg.r || current_atlas_fg_.g != fg.g ||
+            current_atlas_fg_.b != fg.b || current_atlas_fg_.a != fg.a)
         {
-            if (tex)
-                SDL_DestroyTexture(tex);
+            SDL_SetTextureColorMod(glyph_atlas_, fg.r, fg.g, fg.b);
+            SDL_SetTextureAlphaMod(glyph_atlas_, fg.a);
+            current_atlas_fg_ = fg;
         }
-        glyph_cache_.clear();
+
+        int x = col * cell_w_;
+        int y = row * cell_h_;
+        SDL_Rect dst = {
+            x + (cell_w_ - glyph->tex_w) / 2,
+            y + (cell_h_ - glyph->tex_h) / 2,
+            glyph->tex_w,
+            glyph->tex_h};
+        SDL_RenderCopy(renderer_, glyph_atlas_, &glyph->src_rect, &dst);
     }
 
     // =============================================================================
