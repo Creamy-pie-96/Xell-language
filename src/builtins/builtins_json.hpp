@@ -33,6 +33,7 @@
 #include <cmath>
 #include <algorithm>
 #include <functional>
+#include <unordered_set>
 
 namespace xell
 {
@@ -460,9 +461,11 @@ namespace xell
             return result;
         }
 
-        inline std::string stringifyValue(const XObject &obj, int indent, int depth, bool pretty);
+        inline std::string stringifyValue(const XObject &obj, int indent, int depth, bool pretty,
+                                           std::unordered_set<const void *> &visited, int line);
 
-        inline std::string stringifyMap(const XMap &map, int indent, int depth, bool pretty)
+        inline std::string stringifyMap(const XMap &map, int indent, int depth, bool pretty,
+                                         std::unordered_set<const void *> &visited, int line)
         {
             if (map.size() == 0)
                 return "{}";
@@ -494,7 +497,7 @@ namespace xell
                     result += "\"" + escapeJsonString(it.key().toString()) + "\"";
                 }
                 result += pretty ? ": " : ":";
-                result += stringifyValue(it.value(), indent, depth + 1, pretty);
+                result += stringifyValue(it.value(), indent, depth + 1, pretty, visited, line);
             }
             if (pretty)
                 result += "\n" + closePad;
@@ -502,7 +505,8 @@ namespace xell
             return result;
         }
 
-        inline std::string stringifyList(const std::vector<XObject> &list, int indent, int depth, bool pretty)
+        inline std::string stringifyList(const std::vector<XObject> &list, int indent, int depth, bool pretty,
+                                          std::unordered_set<const void *> &visited, int line)
         {
             if (list.empty())
                 return "[]";
@@ -521,7 +525,7 @@ namespace xell
                 }
                 if (pretty)
                     result += pad;
-                result += stringifyValue(list[i], indent, depth + 1, pretty);
+                result += stringifyValue(list[i], indent, depth + 1, pretty, visited, line);
             }
             if (pretty)
                 result += "\n" + closePad;
@@ -529,8 +533,24 @@ namespace xell
             return result;
         }
 
-        inline std::string stringifyValue(const XObject &obj, int indent, int depth, bool pretty)
+        inline std::string stringifyValue(const XObject &obj, int indent, int depth, bool pretty,
+                                           std::unordered_set<const void *> &visited, int line)
         {
+            bool isContainer = obj.isList() || obj.isTuple() || obj.isMap() || obj.isSet() || obj.isFrozenSet() || obj.isInstance();
+            if (isContainer)
+            {
+                if (visited.count(obj.rawData()))
+                {
+                    throw ValueError("circular reference", line);
+                }
+                visited.insert(obj.rawData());
+            }
+            struct Guard {
+                std::unordered_set<const void *> &s;
+                const void *p;
+                ~Guard() { if (p) s.erase(p); }
+            } guard{visited, isContainer ? obj.rawData() : nullptr};
+
             switch (obj.type())
             {
             case XType::NONE:
@@ -552,22 +572,22 @@ namespace xell
             case XType::STRING:
                 return "\"" + escapeJsonString(obj.asString()) + "\"";
             case XType::LIST:
-                return stringifyList(obj.asList(), indent, depth, pretty);
+                return stringifyList(obj.asList(), indent, depth, pretty, visited, line);
             case XType::TUPLE:
             {
                 // Tuples → JSON arrays
                 const auto &t = obj.asTuple();
                 std::vector<XObject> vec(t.begin(), t.end());
-                return stringifyList(vec, indent, depth, pretty);
+                return stringifyList(vec, indent, depth, pretty, visited, line);
             }
             case XType::MAP:
-                return stringifyMap(obj.asMap(), indent, depth, pretty);
+                return stringifyMap(obj.asMap(), indent, depth, pretty, visited, line);
             case XType::SET:
             case XType::FROZEN_SET:
             {
                 // Sets → JSON arrays
                 auto elems = obj.isSet() ? obj.asSet().elements() : obj.asFrozenSet().elements();
-                return stringifyList(elems, indent, depth, pretty);
+                return stringifyList(elems, indent, depth, pretty, visited, line);
             }
             default:
                 // Functions, generators, etc → serialize as string representation
@@ -1647,8 +1667,9 @@ namespace xell
         {
             if (args.size() != 1)
                 throw ArityError("json_stringify", 1, (int)args.size(), line);
+            std::unordered_set<const void *> visited;
             return XObject::makeString(
-                json_internal::stringifyValue(args[0], 0, 0, false));
+                json_internal::stringifyValue(args[0], 0, 0, false, visited, line));
         };
 
         // ---- json_pretty(val, indent=2) → string ---------------------------
@@ -1663,8 +1684,9 @@ namespace xell
                     throw TypeError("json_pretty() indent must be an integer", line);
                 indent = (int)args[1].asInt();
             }
+            std::unordered_set<const void *> visited;
             return XObject::makeString(
-                json_internal::stringifyValue(args[0], indent, 0, true));
+                json_internal::stringifyValue(args[0], indent, 0, true, visited, line));
         };
 
         // ---- json_read(path) → XObject -------------------------------------
@@ -1692,7 +1714,8 @@ namespace xell
                 throw ArityError("json_write", 2, (int)args.size(), line);
             if (!args[0].isString())
                 throw TypeError("json_write() first argument must be a file path string", line);
-            std::string json = json_internal::stringifyValue(args[1], 2, 0, true);
+            std::unordered_set<const void *> visited;
+            std::string json = json_internal::stringifyValue(args[1], 2, 0, true, visited, line);
             std::ofstream file(args[0].asString());
             if (!file.is_open())
                 throw IOError("json_write(): cannot open file: " + args[0].asString(), line);
