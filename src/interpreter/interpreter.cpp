@@ -4048,9 +4048,27 @@ namespace xell
 
         // Equality / inequality (any types)
         if (op == "==")
-            return XObject::makeBool(left.equals(right));
+        {
+            try
+            {
+                return XObject::makeBool(left.equals(right));
+            }
+            catch (const ValueError &ve)
+            {
+                throw ValueError(ve.detail(), node->line);
+            }
+        }
         if (op == "!=")
-            return XObject::makeBool(!left.equals(right));
+        {
+            try
+            {
+                return XObject::makeBool(!left.equals(right));
+            }
+            catch (const ValueError &ve)
+            {
+                throw ValueError(ve.detail(), node->line);
+            }
+        }
 
         // Instance-of check: obj is ClassName
         if (op == "is" || op == "is not")
@@ -4066,7 +4084,14 @@ namespace xell
             else
             {
                 // Fallback: treat as equality for non-instance operands
-                result = left.equals(right);
+                try
+                {
+                    result = left.equals(right);
+                }
+                catch (const ValueError &ve)
+                {
+                    throw ValueError(ve.detail(), node->line);
+                }
             }
             return XObject::makeBool(negate ? !result : result);
         }
@@ -4085,19 +4110,33 @@ namespace xell
             else if (right.isList())
             {
                 for (const auto &elem : right.asList())
-                    if (elem.equals(left))
+                    try
                     {
-                        found = true;
-                        break;
+                        if (elem.equals(left))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    catch (const ValueError &ve)
+                    {
+                        throw ValueError(ve.detail(), node->line);
                     }
             }
             else if (right.isTuple())
             {
                 for (const auto &elem : right.asTuple())
-                    if (elem.equals(left))
+                    try
                     {
-                        found = true;
-                        break;
+                        if (elem.equals(left))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    catch (const ValueError &ve)
+                    {
+                        throw ValueError(ve.detail(), node->line);
                     }
             }
 

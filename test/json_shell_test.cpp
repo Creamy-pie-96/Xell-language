@@ -277,6 +277,23 @@ print(s)
     runTest("json_stringify: arity error", []()
             { XASSERT(expectError<std::exception>("json_stringify()")); });
 
+    runTest("json_stringify: circular reference raises ValueError", []()
+            {
+                try
+                {
+                    runXell(R"(
+l = []
+push(l, l)
+json_stringify(l)
+)");
+                    XASSERT(false);
+                }
+                catch (const ValueError &ve)
+                {
+                    XASSERT(std::string(ve.what()).find("circular reference") != std::string::npos);
+                }
+            });
+
     // ---- json_pretty ----
     runTest("json_pretty: produces indented output", []()
             {

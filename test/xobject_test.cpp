@@ -15,6 +15,7 @@
 
 #include "../src/interpreter/xobject.hpp"
 #include "../src/parser/ast.hpp"
+#include "../src/lib/errors/error.hpp"
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -555,6 +556,13 @@ static void testToString()
             {
         auto fn = XObject::makeFunction("greet", {"name"}, nullptr);
         XASSERT_EQ(fn.toString(), std::string("<fn greet>")); });
+
+    runTest("cyclic list toString → \"[[...]]\"", []()
+            {
+        auto l = XObject::makeList();
+        l.asListMut().push_back(l);
+        XASSERT_EQ(l.toString(), std::string("[[...]]"));
+        l.asListMut().clear(); });
 }
 
 // ============================================================================
@@ -649,6 +657,24 @@ static void testEquality()
         XASSERT(!a.equals(b)); // different objects
         auto c = a; // copy → same object
         XASSERT(a.equals(c)); });
+
+    runTest("cyclic structure equality throws ValueError", []()
+            {
+        auto a = XObject::makeList();
+        a.asListMut().push_back(a);
+        auto b = XObject::makeList();
+        b.asListMut().push_back(b);
+        try
+        {
+            a.equals(b);
+            XASSERT(false);
+        }
+        catch (const ValueError &ve)
+        {
+            XASSERT(std::string(ve.what()).find("circular reference") != std::string::npos);
+        }
+        a.asListMut().clear();
+        b.asListMut().clear(); });
 }
 
 // ============================================================================
@@ -735,6 +761,17 @@ static void testClone()
         auto a = XObject::makeList(std::move(elems));
         auto b = a.clone();
         XASSERT(a.equals(b)); });
+
+    runTest("clone cyclic list preserves cycle", []()
+            {
+        auto a = XObject::makeList();
+        a.asListMut().push_back(a);
+        auto b = a.clone();
+        XASSERT_EQ(b.toString(), std::string("[[...]]"));
+        XASSERT(a.rawData() != b.rawData());
+        XASSERT(b.asList()[0].rawData() == b.rawData());
+        a.asListMut().clear();
+        b.asListMut().clear(); });
 }
 
 // ============================================================================

@@ -58,7 +58,7 @@ namespace xell
             // Util
             builtins_.insert({"assert", "format"});
             // Collection
-            builtins_.insert({"len", "push", "pop", "keys", "values", "range", "set",
+            builtins_.insert({"len", "clone", "push", "pop", "keys", "values", "range", "set",
                               "has", "add", "remove", "contains", "to_set", "to_tuple",
                               "to_list", "union_set", "intersect", "diff"});
             // Math
