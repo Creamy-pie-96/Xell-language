@@ -1098,6 +1098,14 @@ namespace xell
                 for (auto &e : shellBlock->interpolatedExprs)
                     checkExpr(e.get());
             }
+            else if (auto *fstr = dynamic_cast<const FStringExpr *>(expr))
+            {
+                for (auto &part : fstr->parts)
+                {
+                    if (part.isExpr && part.expr)
+                        checkExpr(part.expr.get());
+                }
+            }
         }
 
         /// Simple edit-distance based closest match finder

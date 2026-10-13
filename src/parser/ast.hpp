@@ -75,6 +75,38 @@ namespace xell
             : value(std::move(v)), isRaw(raw), isFString(fstring) { line = ln; }
     };
 
+    struct FStringPart
+    {
+        bool isExpr = false;
+        std::string text;
+        ExprPtr expr;
+        std::string formatSpec;
+
+        FStringPart() = default;
+        static FStringPart makeLiteral(std::string t)
+        {
+            FStringPart p;
+            p.isExpr = false;
+            p.text = std::move(t);
+            return p;
+        }
+        static FStringPart makeExpr(ExprPtr e, std::string fmt = "")
+        {
+            FStringPart p;
+            p.isExpr = true;
+            p.expr = std::move(e);
+            p.formatSpec = std::move(fmt);
+            return p;
+        }
+    };
+
+    struct FStringExpr : Expr
+    {
+        std::vector<FStringPart> parts;
+        explicit FStringExpr(std::vector<FStringPart> p, int ln = 0)
+            : parts(std::move(p)) { line = ln; }
+    };
+
     struct BoolLiteral : Expr
     {
         bool value;
