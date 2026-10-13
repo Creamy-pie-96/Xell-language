@@ -2377,96 +2377,305 @@ namespace xell
     // Infinite loop statement:  loop : BLOCK ;
     // ============================================================
 
-    // Helper: recursively check if a block of statements contains a BreakStmt.
-    // Does NOT descend into nested function definitions (breaks there don't affect this loop).
-    // helper: check if a block contains a break that breaks the current loop
-    static bool bodyContainsBreak(const std::vector<StmtPtr> &stmts, bool insideNestedLoop = false)
+    // ============================================================
+    // @safe_loop analysis
+    // ============================================================
+    // Heuristic static check: verifies whether the loop body contains a reachable
+    // break, return (give), or throw statement belonging to this loop.
+    // Note: this is a heuristic, not a termination proof.
+
+    enum class ConstBool
     {
+        Unknown,
+        True,
+        False
+    };
+
+    static ConstBool evalConstCondition(const Expr *expr)
+    {
+        if (!expr)
+            return ConstBool::Unknown;
+
+        if (auto *b = dynamic_cast<const BoolLiteral *>(expr))
+            return b->value ? ConstBool::True : ConstBool::False;
+
+        if (auto *i = dynamic_cast<const IntLiteral *>(expr))
+            return i->value != 0 ? ConstBool::True : ConstBool::False;
+
+        if (auto *f = dynamic_cast<const FloatLiteral *>(expr))
+            return f->value != 0.0 ? ConstBool::True : ConstBool::False;
+
+        if (auto *s = dynamic_cast<const StringLiteral *>(expr))
+            return !s->value.empty() ? ConstBool::True : ConstBool::False;
+
+        if (dynamic_cast<const NoneLiteral *>(expr))
+            return ConstBool::False;
+
+        if (auto *u = dynamic_cast<const UnaryExpr *>(expr))
+        {
+            if (u->op == "!" || u->op == "not")
+            {
+                ConstBool inner = evalConstCondition(u->operand.get());
+                if (inner == ConstBool::True)
+                    return ConstBool::False;
+                if (inner == ConstBool::False)
+                    return ConstBool::True;
+            }
+            return ConstBool::Unknown;
+        }
+
+        if (auto *bin = dynamic_cast<const BinaryExpr *>(expr))
+        {
+            if (bin->op == "&&" || bin->op == "and")
+            {
+                ConstBool l = evalConstCondition(bin->left.get());
+                ConstBool r = evalConstCondition(bin->right.get());
+                if (l == ConstBool::False || r == ConstBool::False)
+                    return ConstBool::False;
+                if (l == ConstBool::True && r == ConstBool::True)
+                    return ConstBool::True;
+                return ConstBool::Unknown;
+            }
+            if (bin->op == "||" || bin->op == "or")
+            {
+                ConstBool l = evalConstCondition(bin->left.get());
+                ConstBool r = evalConstCondition(bin->right.get());
+                if (l == ConstBool::True || r == ConstBool::True)
+                    return ConstBool::True;
+                if (l == ConstBool::False && r == ConstBool::False)
+                    return ConstBool::False;
+                return ConstBool::Unknown;
+            }
+
+            auto *li = dynamic_cast<const IntLiteral *>(bin->left.get());
+            auto *ri = dynamic_cast<const IntLiteral *>(bin->right.get());
+            if (li && ri)
+            {
+                int64_t lv = li->value;
+                int64_t rv = ri->value;
+                if (bin->op == "==") return lv == rv ? ConstBool::True : ConstBool::False;
+                if (bin->op == "!=") return lv != rv ? ConstBool::True : ConstBool::False;
+                if (bin->op == "<")  return lv < rv  ? ConstBool::True : ConstBool::False;
+                if (bin->op == "<=") return lv <= rv ? ConstBool::True : ConstBool::False;
+                if (bin->op == ">")  return lv > rv  ? ConstBool::True : ConstBool::False;
+                if (bin->op == ">=") return lv >= rv ? ConstBool::True : ConstBool::False;
+            }
+
+            auto *lb = dynamic_cast<const BoolLiteral *>(bin->left.get());
+            auto *rb = dynamic_cast<const BoolLiteral *>(bin->right.get());
+            if (lb && rb)
+            {
+                if (bin->op == "==") return lb->value == rb->value ? ConstBool::True : ConstBool::False;
+                if (bin->op == "!=") return lb->value != rb->value ? ConstBool::True : ConstBool::False;
+            }
+
+            auto *ls = dynamic_cast<const StringLiteral *>(bin->left.get());
+            auto *rs = dynamic_cast<const StringLiteral *>(bin->right.get());
+            if (ls && rs)
+            {
+                if (bin->op == "==") return ls->value == rs->value ? ConstBool::True : ConstBool::False;
+                if (bin->op == "!=") return ls->value != rs->value ? ConstBool::True : ConstBool::False;
+            }
+        }
+
+        if (auto *cc = dynamic_cast<const ChainedComparisonExpr *>(expr))
+        {
+            if (cc->operands.size() == 2 && cc->ops.size() == 1)
+            {
+                auto *li = dynamic_cast<const IntLiteral *>(cc->operands[0].get());
+                auto *ri = dynamic_cast<const IntLiteral *>(cc->operands[1].get());
+                if (li && ri)
+                {
+                    int64_t lv = li->value;
+                    int64_t rv = ri->value;
+                    const auto &op = cc->ops[0];
+                    if (op == "==") return lv == rv ? ConstBool::True : ConstBool::False;
+                    if (op == "!=") return lv != rv ? ConstBool::True : ConstBool::False;
+                    if (op == "<")  return lv < rv  ? ConstBool::True : ConstBool::False;
+                    if (op == "<=") return lv <= rv ? ConstBool::True : ConstBool::False;
+                    if (op == ">")  return lv > rv  ? ConstBool::True : ConstBool::False;
+                    if (op == ">=") return lv >= rv ? ConstBool::True : ConstBool::False;
+                }
+            }
+        }
+
+        return ConstBool::Unknown;
+    }
+
+    struct SafeLoopAnalysisResult
+    {
+        bool hasReachableExit = false;
+        bool unconditionalExit = false;
+    };
+
+    static SafeLoopAnalysisResult analyzeSafeLoopStmts(const std::vector<StmtPtr> &stmts)
+    {
+        SafeLoopAnalysisResult result;
         for (const auto &s : stmts)
         {
-            if (auto *b = dynamic_cast<const BreakStmt *>(s.get()))
+            if (result.unconditionalExit)
             {
-                // only count if not inside a nested loop
-                if (!insideNestedLoop)
-                    return true;
-                continue;
+                // Code after an unconditional break/return/throw is unreachable.
+                break;
             }
-            if (auto *p = dynamic_cast<const IfStmt *>(s.get()))
+
+            if (dynamic_cast<const BreakStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body, insideNestedLoop))
-                    return true;
-                for (auto &elif : p->elifs)
-                    if (bodyContainsBreak(elif.body, insideNestedLoop))
-                        return true;
-                if (bodyContainsBreak(p->elseBody, insideNestedLoop))
-                    return true;
+                result.hasReachableExit = true;
+                result.unconditionalExit = true;
             }
-            else if (auto *p = dynamic_cast<const ForStmt *>(s.get()))
+            else if (dynamic_cast<const GiveStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body, true))
-                    return true; // nested loop → ignore breaks inside
+                result.hasReachableExit = true;
+                result.unconditionalExit = true;
             }
-            else if (auto *p = dynamic_cast<const WhileStmt *>(s.get()))
+            else if (dynamic_cast<const ThrowStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body, true))
-                    return true;
+                result.hasReachableExit = true;
+                result.unconditionalExit = true;
             }
-            else if (auto *p = dynamic_cast<const LoopStmt *>(s.get()))
+            else if (auto *p = dynamic_cast<const IfStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body, true))
-                    return true;
-            }
-            else if (auto *p = dynamic_cast<const DoWhileStmt *>(s.get()))
-            {
-                if (bodyContainsBreak(p->body, true))
-                    return true;
+                ConstBool ifCond = evalConstCondition(p->condition.get());
+                bool anyBranchReachable = false;
+                bool allReachableBranchesExit = true;
+                bool definitelyExhaustive = false;
+
+                if (ifCond != ConstBool::False)
+                {
+                    anyBranchReachable = true;
+                    auto ifRes = analyzeSafeLoopStmts(p->body);
+                    if (ifRes.hasReachableExit)
+                        result.hasReachableExit = true;
+                    if (!ifRes.unconditionalExit)
+                        allReachableBranchesExit = false;
+                    if (ifCond == ConstBool::True)
+                        definitelyExhaustive = true;
+                }
+
+                if (ifCond != ConstBool::True)
+                {
+                    for (const auto &elif : p->elifs)
+                    {
+                        ConstBool elifCond = evalConstCondition(elif.condition.get());
+                        if (elifCond != ConstBool::False)
+                        {
+                            anyBranchReachable = true;
+                            auto elifRes = analyzeSafeLoopStmts(elif.body);
+                            if (elifRes.hasReachableExit)
+                                result.hasReachableExit = true;
+                            if (!elifRes.unconditionalExit)
+                                allReachableBranchesExit = false;
+                            if (elifCond == ConstBool::True)
+                            {
+                                definitelyExhaustive = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!definitelyExhaustive)
+                    {
+                        if (!p->elseBody.empty())
+                        {
+                            anyBranchReachable = true;
+                            auto elseRes = analyzeSafeLoopStmts(p->elseBody);
+                            if (elseRes.hasReachableExit)
+                                result.hasReachableExit = true;
+                            if (!elseRes.unconditionalExit)
+                                allReachableBranchesExit = false;
+                            definitelyExhaustive = true;
+                        }
+                        else
+                        {
+                            allReachableBranchesExit = false;
+                        }
+                    }
+                }
+
+                if (anyBranchReachable && definitelyExhaustive && allReachableBranchesExit)
+                {
+                    result.unconditionalExit = true;
+                }
             }
             else if (auto *p = dynamic_cast<const TryCatchStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->tryBody, insideNestedLoop))
-                    return true;
-                for (const auto &clause : p->catchClauses)
-                    if (bodyContainsBreak(clause.body, insideNestedLoop))
-                        return true;
-                if (bodyContainsBreak(p->finallyBody, insideNestedLoop))
-                    return true;
+                auto tryRes = analyzeSafeLoopStmts(p->tryBody);
+                if (tryRes.hasReachableExit)
+                    result.hasReachableExit = true;
+                if (!p->finallyBody.empty())
+                {
+                    auto finRes = analyzeSafeLoopStmts(p->finallyBody);
+                    if (finRes.hasReachableExit)
+                        result.hasReachableExit = true;
+                    if (finRes.unconditionalExit)
+                        result.unconditionalExit = true;
+                }
             }
             else if (auto *p = dynamic_cast<const InCaseStmt *>(s.get()))
             {
                 for (const auto &clause : p->clauses)
-                    if (bodyContainsBreak(clause.body, insideNestedLoop))
-                        return true;
-                if (bodyContainsBreak(p->elseBody, insideNestedLoop))
-                    return true;
+                {
+                    auto cRes = analyzeSafeLoopStmts(clause.body);
+                    if (cRes.hasReachableExit)
+                        result.hasReachableExit = true;
+                }
+                if (!p->elseBody.empty())
+                {
+                    auto elseRes = analyzeSafeLoopStmts(p->elseBody);
+                    if (elseRes.hasReachableExit)
+                        result.hasReachableExit = true;
+                }
             }
             else if (auto *p = dynamic_cast<const LetStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body, insideNestedLoop))
-                    return true;
+                auto letRes = analyzeSafeLoopStmts(p->body);
+                if (letRes.hasReachableExit)
+                    result.hasReachableExit = true;
+                if (letRes.unconditionalExit)
+                    result.unconditionalExit = true;
             }
-            // do NOT descend into functions/classes – breaks there are local
+            // Nested loops (ForStmt, WhileStmt, LoopStmt, DoWhileStmt) and
+            // function/class definitions are intentionally not descended into.
         }
-        return false;
+        return result;
     }
 
     void Interpreter::execLoop(const LoopStmt *node)
     {
-        // @safe_loop: check at runtime that the body contains a break
-        if (node->safeLoop && !bodyContainsBreak(node->body))
+        // (a) Static check: the loop body must contain a reachable break, return or throw
+        // belonging to THIS loop. Comment: this is a heuristic, not a termination proof.
+        if (node->safeLoop)
         {
-            throw RuntimeError("@safe_loop: loop body does not contain a 'break' statement; "
-                               "this would cause an infinite loop",
-                               node->line);
+            auto analysis = analyzeSafeLoopStmts(node->body);
+            if (!analysis.hasReachableExit)
+            {
+                throw RuntimeError("@safe_loop: loop body does not contain a reachable 'break', 'return', or 'throw' statement belonging to this loop; "
+                                   "this would cause an infinite loop",
+                                   node->line);
+            }
         }
 
         Environment loopEnv(currentEnv_);
         auto *savedEnv = currentEnv_;
         currentEnv_ = &loopEnv;
 
+        int64_t iterCount = 0;
         try
         {
             while (true)
             {
+                // (b) Runtime guard: check max_iterations if specified
+                if (node->safeLoop && node->maxIterations >= 0 && iterCount >= node->maxIterations)
+                {
+                    std::string loc = sourceFile_.empty() ? ("line " + std::to_string(node->line))
+                                                          : (sourceFile_ + ":" + std::to_string(node->line));
+                    throw RuntimeError("@safe_loop: exceeded maximum iterations (" +
+                                           std::to_string(node->maxIterations) + ") in " + loc,
+                                       node->line);
+                }
+                iterCount++;
+
                 try
                 {
                     for (const auto &stmt : node->body)

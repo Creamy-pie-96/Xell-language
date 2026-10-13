@@ -453,6 +453,7 @@ namespace xell
     {
         std::vector<StmtPtr> body;
         bool safeLoop = false; // @safe_loop decorator applied
+        int64_t maxIterations = -1; // -1 = no limit (default)
         LoopStmt(std::vector<StmtPtr> body, bool safe = false, int ln = 0)
             : body(std::move(body)), safeLoop(safe) { line = ln; }
     };

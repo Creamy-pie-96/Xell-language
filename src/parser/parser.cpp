@@ -1865,6 +1865,7 @@ namespace xell
     {
         int ln = current().line;
         std::vector<std::string> decorators;
+        int64_t safeLoopMaxIter = -1;
 
         // Collect all @decorator tokens
         while (check(TokenType::AT))
@@ -1873,8 +1874,37 @@ namespace xell
             // Accept IDENTIFIER or keyword tokens that can serve as decorator names
             if (check(TokenType::IDENTIFIER))
             {
-                decorators.push_back(current().value);
+                std::string decName = current().value;
+                decorators.push_back(decName);
                 advance();
+
+                if (decName == "safe_loop")
+                {
+                    skipNewlines();
+                    if (check(TokenType::LPAREN))
+                    {
+                        advance(); // consume (
+                        skipNewlines();
+                        if (check(TokenType::IDENTIFIER) && current().value == "max_iterations")
+                        {
+                            advance();
+                            skipNewlines();
+                            consume(TokenType::EQUAL, "Expected '=' after 'max_iterations'");
+                            skipNewlines();
+                        }
+                        if (!check(TokenType::NUMBER))
+                            throw ParseError("Expected integer number for max_iterations in @safe_loop", current().line);
+                        safeLoopMaxIter = std::stoll(current().value);
+                        advance();
+                        skipNewlines();
+                        consume(TokenType::RPAREN, "Expected ')' after max_iterations in @safe_loop");
+                    }
+                    else if (check(TokenType::NUMBER))
+                    {
+                        safeLoopMaxIter = std::stoll(current().value);
+                        advance();
+                    }
+                }
             }
             else if (check(TokenType::IMMUTABLE))
             {
@@ -2158,6 +2188,7 @@ namespace xell
             auto loopStmt = parseLoopStmt();
             auto loopDef = std::unique_ptr<LoopStmt>(static_cast<LoopStmt *>(loopStmt.release()));
             loopDef->safeLoop = hasSafeLoop;
+            loopDef->maxIterations = safeLoopMaxIter;
             return loopDef;
         }
 

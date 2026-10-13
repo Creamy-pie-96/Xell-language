@@ -521,6 +521,175 @@ void testSafeLoopBreakInIf()
     XASSERT_EQ(out[0], "5");
 }
 
+void testSafeLoopBugsRepro()
+{
+    // Bugs.md reproduction: break inside a nested for loop should not satisfy outer @safe_loop
+    XASSERT_THROWS_MSG(
+        runXell(R"XEL(
+            @safe_loop
+            loop:
+                print("yo")
+                for i in [1, 3]:
+                    print(i)
+                    break
+                ;
+            ;
+        )XEL"),
+        "@safe_loop");
+}
+
+void testSafeLoopNestedWhileNoBreak()
+{
+    // Break inside nested while should not satisfy outer @safe_loop
+    XASSERT_THROWS_MSG(
+        runXell(R"XEL(
+            @safe_loop
+            loop:
+                while true:
+                    break
+                ;
+            ;
+        )XEL"),
+        "@safe_loop");
+}
+
+void testSafeLoopFnDefNoBreak()
+{
+    // Return inside a function defined in loop should not satisfy outer @safe_loop
+    XASSERT_THROWS_MSG(
+        runXell(R"XEL(
+            @safe_loop
+            loop:
+                fn f():
+                    give 10
+                ;
+            ;
+        )XEL"),
+        "@safe_loop");
+}
+
+void testSafeLoopConstFalseIf()
+{
+    // Break inside constant-false condition must be rejected
+    XASSERT_THROWS_MSG(
+        runXell(R"XEL(
+            @safe_loop
+            loop:
+                if false:
+                    break
+                ;
+            ;
+        )XEL"),
+        "@safe_loop");
+
+    XASSERT_THROWS_MSG(
+        runXell(R"XEL(
+            @safe_loop
+            loop:
+                if 1 == 2:
+                    break
+                ;
+            ;
+        )XEL"),
+        "@safe_loop");
+}
+
+void testSafeLoopConstFalseIfWithElseBreak()
+{
+    // Break in reachable else branch should be accepted
+    auto out = runXell(R"XEL(
+        @safe_loop
+        loop:
+            if false:
+                x = 1
+            else:
+                break
+            ;
+        ;
+        print("ok")
+    )XEL");
+    XASSERT_EQ(out[0], "ok");
+}
+
+void testSafeLoopWithGive()
+{
+    // Return (give) belonging directly to loop body should be accepted
+    auto out = runXell(R"XEL(
+        fn test_loop():
+            @safe_loop
+            loop:
+                give 42
+            ;
+        ;
+        print(test_loop())
+    )XEL");
+    XASSERT_EQ(out[0], "42");
+}
+
+void testSafeLoopWithThrow()
+{
+    // Throw in loop body should be accepted as exit
+    auto out = runXell(R"XEL(
+        try:
+            @safe_loop
+            loop:
+                throw "stop"
+            ;
+        ; catch e:
+            print("caught")
+        ;
+    )XEL");
+    XASSERT_EQ(out[0], "caught");
+}
+
+void testSafeLoopMaxIterationsExceeded()
+{
+    // @safe_loop(5) exceeding 5 iterations should throw RuntimeError
+    XASSERT_THROWS_MSG(
+        runXell(R"XEL(
+            i = 0
+            @safe_loop(5)
+            loop:
+                i = i + 1
+                if i > 10:
+                    break
+                ;
+            ;
+        )XEL"),
+        "exceeded maximum iterations (5)");
+
+    // Named parameter @safe_loop(max_iterations=3)
+    XASSERT_THROWS_MSG(
+        runXell(R"XEL(
+            i = 0
+            @safe_loop(max_iterations=3)
+            loop:
+                i = i + 1
+                if i > 10:
+                    break
+                ;
+            ;
+        )XEL"),
+        "exceeded maximum iterations (3)");
+}
+
+void testSafeLoopMaxIterationsWithinLimit()
+{
+    // Loop terminates within limit
+    auto out = runXell(R"XEL(
+        i = 0
+        @safe_loop(5)
+        loop:
+            i = i + 1
+            if i == 3:
+                break
+            ;
+        ;
+        print(i)
+    )XEL");
+    XASSERT_EQ(out[0], "3");
+}
+
 // ============================================================================
 // MIXED / COMPLEX TESTS
 // ============================================================================
@@ -673,6 +842,15 @@ int main()
     runTest("safe_loop - with break", testSafeLoopWithBreak);
     runTest("safe_loop - without break", testSafeLoopWithoutBreak);
     runTest("safe_loop - break in if", testSafeLoopBreakInIf);
+    runTest("safe_loop - bugs repro", testSafeLoopBugsRepro);
+    runTest("safe_loop - nested while no break", testSafeLoopNestedWhileNoBreak);
+    runTest("safe_loop - fn def no break", testSafeLoopFnDefNoBreak);
+    runTest("safe_loop - const false if", testSafeLoopConstFalseIf);
+    runTest("safe_loop - const false if with else break", testSafeLoopConstFalseIfWithElseBreak);
+    runTest("safe_loop - with give", testSafeLoopWithGive);
+    runTest("safe_loop - with throw", testSafeLoopWithThrow);
+    runTest("safe_loop - max iterations exceeded", testSafeLoopMaxIterationsExceeded);
+    runTest("safe_loop - max iterations within limit", testSafeLoopMaxIterationsWithinLimit);
 
     std::cout << "\n=== Mixed / Complex tests ===\n";
     runTest("if expr inside for expr", testIfExprInsideForExpr);
