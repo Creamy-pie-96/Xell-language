@@ -436,8 +436,6 @@ namespace xell
                         str = dedentString(str);
                     return Token(TokenType::STRING, str, startLine);
                 }
-                if (current() == '\n')
-                    line_++;
                 str += current();
                 advance();
             }
@@ -818,13 +816,11 @@ namespace xell
                         advance();
                         if (!isAtEnd())
                         {
-                            if (current() == '\n') line_++;
                             expr += current();
                             advance();
                         }
                         continue;
                     }
-                    if (current() == '\n') line_++;
                     expr += current();
                     advance();
                 }
@@ -850,13 +846,11 @@ namespace xell
                         advance();
                         if (!isAtEnd())
                         {
-                            if (current() == '\n') line_++;
                             expr += current();
                             advance();
                         }
                         continue;
                     }
-                    if (current() == '\n') line_++;
                     expr += current();
                     advance();
                 }
@@ -880,7 +874,6 @@ namespace xell
                 if (!isAtEnd() && current() == '\n')
                 {
                     expr += current();
-                    line_++;
                     advance();
                 }
                 continue;
@@ -907,7 +900,6 @@ namespace xell
                 continue;
             }
 
-            if (c == '\n') line_++;
             expr += c;
             advance();
         }
@@ -950,7 +942,6 @@ namespace xell
                 advance();
                 while (!isAtEnd() && current() != '\'')
                 {
-                    if (current() == '\n') line_++;
                     currentText += current();
                     advance();
                 }
@@ -990,7 +981,6 @@ namespace xell
                         advance();
                         if (!isAtEnd())
                         {
-                            if (current() == '\n') line_++;
                             currentText += current();
                             advance();
                         }
@@ -1035,7 +1025,6 @@ namespace xell
                         continue;
                     }
 
-                    if (dc == '\n') line_++;
                     currentText += dc;
                     advance();
                 }
@@ -1060,7 +1049,6 @@ namespace xell
                 if (!isAtEnd() && current() == '\n')
                 {
                     currentText += current();
-                    line_++;
                     advance();
                 }
                 continue;
@@ -1083,7 +1071,6 @@ namespace xell
                 advance();
                 if (!isAtEnd())
                 {
-                    if (current() == '\n') line_++;
                     currentText += current();
                     advance();
                 }
@@ -1153,7 +1140,6 @@ namespace xell
             }
 
             // 8. Normal characters
-            if (c == '\n') line_++;
             currentText += c;
             advance();
         }

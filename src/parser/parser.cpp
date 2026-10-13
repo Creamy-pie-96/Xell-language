@@ -3859,13 +3859,15 @@ namespace xell
                 auto operand = parseExpression();
                 return std::make_unique<SpreadExpr>(std::move(operand), sln);
             }
-            // Check for named argument: identifier COLON expr
-            if (check(TokenType::IDENTIFIER) && peekToken(1).type == TokenType::COLON)
+            // Check for named argument: identifier COLON expr OR identifier EQUAL expr
+            if (check(TokenType::IDENTIFIER) &&
+                (peekToken(1).type == TokenType::COLON || peekToken(1).type == TokenType::EQUAL))
             {
                 int sln = current().line;
                 std::string name = current().value;
                 advance(); // consume identifier
-                advance(); // consume colon
+                advance(); // consume colon or =
+                skipNewlines();
                 auto val = parseExpression();
                 return std::make_unique<NamedArgExpr>(std::move(name), std::move(val), sln);
             }
@@ -3875,11 +3877,15 @@ namespace xell
         if (!check(TokenType::RPAREN))
         {
             args.push_back(parseOneArg());
+            skipNewlines();
             while (check(TokenType::COMMA))
             {
                 advance();
                 skipNewlines();
+                if (check(TokenType::RPAREN))
+                    break;
                 args.push_back(parseOneArg());
+                skipNewlines();
             }
         }
         skipNewlines();
@@ -3912,10 +3918,13 @@ namespace xell
         std::unordered_set<std::string> seenOptions;
 
         // Check optional '(opts)'
+        skipNewlines();
         if (check(TokenType::LPAREN))
         {
             advance(); // consume (
+            skipNewlines();
             auto rawArgs = parseArgList();
+            skipNewlines();
             consume(TokenType::RPAREN, "Expected ')' after shell options");
 
             static const std::unordered_set<std::string> validOptions = {
@@ -3927,7 +3936,7 @@ namespace xell
                 auto *named = dynamic_cast<NamedArgExpr *>(arg.get());
                 if (!named)
                 {
-                    throw ParseError("Shell block options must be named arguments (e.g., timeout: 10)", arg->line);
+                    throw ParseError("Shell block options must be named arguments (e.g., timeout: 10 or timeout=10)", arg->line);
                 }
 
                 if (validOptions.find(named->name) == validOptions.end())
