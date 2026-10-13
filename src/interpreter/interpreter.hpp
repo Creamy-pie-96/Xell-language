@@ -146,7 +146,7 @@ namespace xell
         ModuleRegistry moduleRegistry_;
         ModuleResolver moduleResolver_;
         int callDepth_ = 0;
-        static constexpr int MAX_CALL_DEPTH = 512;
+        static constexpr int MAX_CALL_DEPTH = 1000;
         std::string sourceFile_;                        // current file path (for bring resolution)
         std::unordered_set<std::string> importedFiles_; // circular-import guard
         std::vector<std::string> cliArgs_;              // CLI arguments (for __args__ dunder)
