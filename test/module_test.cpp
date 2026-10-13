@@ -766,6 +766,40 @@ static void testModuleDefinition()
         )");
         XASSERT_EQ(out[0], "public"); });
 
+    runTest("module with exported decorated function", []()
+            {
+        auto out = runXell(R"(
+            module mymod:
+                fn double_it(f):
+                    fn wrapper(x):
+                        give f(x) * 2
+                    ;
+                    give wrapper
+                ;
+                export @double_it fn compute(x):
+                    give x + 1
+                ;
+            ;
+            bring compute of mymod
+            print(compute(5))
+        )");
+        XASSERT_EQ(out[0], "12"); });
+
+    runTest("module with exported decorated class", []()
+            {
+        auto out = runXell(R"(
+            module mymod:
+                export @dataclass class Point:
+                    x = 0
+                    y = 0
+                ;
+            ;
+            bring Point of mymod
+            p = Point(10, 20)
+            print(p->x, p->y)
+        )");
+        XASSERT_EQ(out[0], "10 20"); });
+
     runTest("explicit export hides non-exported names", []()
             {
         try

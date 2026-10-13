@@ -1324,6 +1324,11 @@ namespace xell
                         defineModuleExport(mod->name, imm->name);
                     else if (auto *cls = dynamic_cast<const ClassDef *>(exp->declaration.get()))
                         defineModuleExport(mod->name, cls->name);
+                    else if (auto *decCls = dynamic_cast<const DecoratedClassDef *>(exp->declaration.get()))
+                    {
+                        if (auto *cls2 = dynamic_cast<const ClassDef *>(decCls->classDef.get()))
+                            defineModuleExport(mod->name, cls2->name);
+                    }
                     else if (auto *st = dynamic_cast<const StructDef *>(exp->declaration.get()))
                         defineModuleExport(mod->name, st->name);
                     else if (auto *en = dynamic_cast<const EnumDef *>(exp->declaration.get()))
@@ -1415,6 +1420,11 @@ namespace xell
                         defineModuleExport(bindName, imm->name, imm->line, "variable", srcFile);
                     else if (auto *cls = dynamic_cast<const ClassDef *>(exp->declaration.get()))
                         defineModuleExport(bindName, cls->name, cls->line, "class", srcFile);
+                    else if (auto *decCls = dynamic_cast<const DecoratedClassDef *>(exp->declaration.get()))
+                    {
+                        if (auto *cls2 = dynamic_cast<const ClassDef *>(decCls->classDef.get()))
+                            defineModuleExport(bindName, cls2->name, cls2->line, "class", srcFile);
+                    }
                     else if (auto *st = dynamic_cast<const StructDef *>(exp->declaration.get()))
                         defineModuleExport(bindName, st->name, st->line, "struct", srcFile);
                     else if (auto *en = dynamic_cast<const EnumDef *>(exp->declaration.get()))

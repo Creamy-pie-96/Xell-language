@@ -343,6 +343,8 @@ namespace xell
         }
         if (auto *p = dynamic_cast<const CallExpr *>(expr))
         {
+            if (!p->isMethodCall)
+                refs.insert(p->callee);
             for (const auto &a : p->args)
                 collectRefsExpr(a.get(), refs);
             return;
@@ -3678,8 +3680,11 @@ namespace xell
                 exportedNames_.insert(e->name);
             else if (auto *m = dynamic_cast<const ModuleDef *>(node->declaration.get()))
                 exportedNames_.insert(m->name);
+            else if (auto *df = dynamic_cast<const DecoratedFnDef *>(node->declaration.get()))
+                exportedNames_.insert(df->fnDef->name);
+            else if (auto *dc = dynamic_cast<const DecoratedClassDef *>(node->declaration.get()))
+                exportedNames_.insert(dc->classDef->name);
         }
-        // TODO: support export for decorated defs when needed
     }
 
     // ========================================================================

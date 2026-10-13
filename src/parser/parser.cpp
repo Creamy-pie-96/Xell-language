@@ -2444,6 +2444,8 @@ namespace xell
             decl = parseFnDef();
         else if (nextType == TokenType::CLASS)
             decl = parseClassDef();
+        else if (nextType == TokenType::AT)
+            decl = parseDecoratedFnDef();
         else if (nextType == TokenType::ABSTRACT)
         {
             advance();
