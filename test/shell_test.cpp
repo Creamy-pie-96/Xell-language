@@ -1530,9 +1530,12 @@ void testNoImplicitPathExecution()
     {
         runXell("git(\"status\")");
     }
-    catch (const UndefinedVariableError &)
+    catch (const UndefinedFunctionError &e)
     {
         threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("undefined function 'git'") != std::string::npos);
+        XASSERT(msg.find("shell { git ... }") != std::string::npos);
     }
     XASSERT(threw);
 }

@@ -5183,7 +5183,15 @@ namespace xell
         // }
 
         // Look up user-defined function (throws if not found)
-        XObject fnObj = currentEnv_->get(node->callee, node->line);
+        XObject fnObj;
+        try
+        {
+            fnObj = currentEnv_->get(node->callee, node->line);
+        }
+        catch (const UndefinedVariableError &)
+        {
+            throw UndefinedFunctionError(node->callee, node->line);
+        }
 
         // Magic method: __call__ — if the callee is an instance with __call__
         if (fnObj.isInstance())
