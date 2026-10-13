@@ -99,6 +99,9 @@ namespace xell
 
     // ---- Constructor ------------------------------------------------------------
 
+    Lexer::Lexer(const std::string &source)
+        : Lexer(source, 1) {}
+
     Lexer::Lexer(const std::string &source, int startLine)
         : source_(source), pos_(0), line_(startLine), nestingDepth_(0),
           shellLexState_(ShellLexState::NONE), shellArgsParenDepth_(0) {}
