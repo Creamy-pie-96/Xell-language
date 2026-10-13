@@ -110,6 +110,9 @@ namespace xell
 
         // Comprehension helpers
         std::vector<CompClause> parseCompClauses();
+
+        // F-string parsing helper
+        std::unique_ptr<FStringExpr> parseFString(const std::string &raw, int line);
     };
 
 } // namespace xell

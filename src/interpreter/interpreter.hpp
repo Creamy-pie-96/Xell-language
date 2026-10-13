@@ -320,6 +320,7 @@ namespace xell
         XObject evalYield(const YieldExpr *node);
         XObject evalAwait(const AwaitExpr *node);
         XObject evalBytes(const BytesLiteral *node);
+        XObject evalFString(const FStringExpr *node);
 
         // ---- Helpers -------------------------------------------------------
 

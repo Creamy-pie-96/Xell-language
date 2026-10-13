@@ -2950,7 +2950,7 @@ namespace xell
             std::string val = current().value;
             int ln = current().line;
             advance();
-            return parsePostfix(std::make_unique<StringLiteral>(std::move(val), ln, false, true));
+            return parsePostfix(parseFString(val, ln));
         }
         // Byte string literal (b"..." — raw binary data)
         if (check(TokenType::BYTE_STRING))
@@ -4067,6 +4067,149 @@ namespace xell
             throw ParseError("Expected at least one 'for' clause in comprehension", current().line);
 
         return clauses;
+    }
+
+    std::unique_ptr<FStringExpr> Parser::parseFString(const std::string &raw, int line)
+    {
+        std::vector<FStringPart> parts;
+        std::string currentLiteral;
+        size_t i = 0;
+
+        auto splitFormatSpec = [](const std::string &text)
+        {
+            std::pair<std::string, std::string> res{text, ""};
+            int parenDepth = 0;
+            int bracketDepth = 0;
+            int braceDepth = 0;
+            bool inString = false;
+            char quote = '\0';
+            bool escaped = false;
+
+            for (size_t idx = 0; idx < text.size(); idx++)
+            {
+                char c = text[idx];
+                if (inString)
+                {
+                    if (escaped)
+                        escaped = false;
+                    else if (c == '\\')
+                        escaped = true;
+                    else if (c == quote)
+                    {
+                        inString = false;
+                        quote = '\0';
+                    }
+                    continue;
+                }
+                if (c == '\'' || c == '"')
+                {
+                    inString = true;
+                    quote = c;
+                    continue;
+                }
+                if (c == '(') parenDepth++;
+                else if (c == ')') parenDepth--;
+                else if (c == '[') bracketDepth++;
+                else if (c == ']') bracketDepth--;
+                else if (c == '{') braceDepth++;
+                else if (c == '}') braceDepth--;
+                else if (c == ':' && parenDepth == 0 && bracketDepth == 0 && braceDepth == 0)
+                {
+                    res.first = text.substr(0, idx);
+                    res.second = text.substr(idx + 1);
+                    break;
+                }
+            }
+            return res;
+        };
+
+        while (i < raw.size())
+        {
+            if (i + 1 < raw.size() && raw[i] == '{' && raw[i + 1] == '{')
+            {
+                currentLiteral += '{';
+                i += 2;
+                continue;
+            }
+            if (i + 1 < raw.size() && raw[i] == '}' && raw[i + 1] == '}')
+            {
+                currentLiteral += '}';
+                i += 2;
+                continue;
+            }
+            if (raw[i] == '{')
+            {
+                if (!currentLiteral.empty())
+                {
+                    parts.push_back(FStringPart::makeLiteral(std::move(currentLiteral)));
+                    currentLiteral.clear();
+                }
+
+                // Find matching closing brace
+                size_t depth = 1;
+                size_t j = i + 1;
+                bool inStr = false;
+                char q = '\0';
+                bool esc = false;
+
+                while (j < raw.size() && depth > 0)
+                {
+                    char c = raw[j];
+                    if (inStr)
+                    {
+                        if (esc) esc = false;
+                        else if (c == '\\') esc = true;
+                        else if (c == q) { inStr = false; q = '\0'; }
+                        j++;
+                        continue;
+                    }
+                    if (c == '\'' || c == '"')
+                    {
+                        inStr = true;
+                        q = c;
+                        j++;
+                        continue;
+                    }
+                    if (c == '{') depth++;
+                    else if (c == '}') depth--;
+                    j++;
+                }
+
+                if (depth != 0)
+                {
+                    throw ParseError("Unclosed '{' in f-string expression", line);
+                }
+
+                std::string exprText = raw.substr(i + 1, j - i - 2);
+                auto [exprOnly, formatSpec] = splitFormatSpec(exprText);
+
+                // Lex and parse expression ONCE at parse time
+                Lexer exprLexer(exprOnly);
+                auto exprTokens = exprLexer.tokenize();
+                Parser exprParser(exprTokens);
+                auto exprProg = exprParser.parse();
+
+                if (exprProg.statements.empty())
+                    throw ParseError("Empty expression in f-string", line);
+                auto *es = dynamic_cast<ExprStmt *>(exprProg.statements[0].get());
+                if (!es)
+                    throw ParseError("Expected expression in f-string", line);
+
+                parts.push_back(FStringPart::makeExpr(std::move(es->expr), formatSpec));
+                i = j;
+                continue;
+            }
+
+            currentLiteral += raw[i];
+            i++;
+        }
+
+        if (!currentLiteral.empty())
+        {
+            parts.push_back(FStringPart::makeLiteral(std::move(currentLiteral)));
+        }
+
+        return std::make_unique<FStringExpr>(std::move(parts), line);
     }
 
 } // namespace xell

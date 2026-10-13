@@ -669,6 +669,13 @@ namespace xell
 
             if (current() == '{')
             {
+                if (peek() == '{')
+                {
+                    result += "{{";
+                    advance();
+                    advance();
+                    continue;
+                }
                 // Start of interpolation expression
                 result += '{';
                 advance();
@@ -755,6 +762,20 @@ namespace xell
                 {
                     throw LexerError("Unclosed '{' in f-string interpolation", startLine);
                 }
+                continue;
+            }
+
+            if (current() == '}')
+            {
+                if (peek() == '}')
+                {
+                    result += "}}";
+                    advance();
+                    advance();
+                    continue;
+                }
+                result += '}';
+                advance();
                 continue;
             }
 

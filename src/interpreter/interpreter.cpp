@@ -108,6 +108,13 @@ namespace xell
                     return true;
             return false;
         }
+        if (auto *p = dynamic_cast<const FStringExpr *>(expr))
+        {
+            for (const auto &part : p->parts)
+                if (part.isExpr && containsYieldExpr(part.expr.get()))
+                    return true;
+            return false;
+        }
         return false;
     }
 
@@ -289,6 +296,13 @@ namespace xell
                 collectExprDeps(opt.value.get(), deps);
             for (const auto &e : p->interpolatedExprs)
                 collectExprDeps(e.get(), deps);
+            return;
+        }
+        if (auto *p = dynamic_cast<const FStringExpr *>(expr))
+        {
+            for (const auto &part : p->parts)
+                if (part.isExpr)
+                    collectExprDeps(part.expr.get(), deps);
             return;
         }
     }
@@ -474,6 +488,13 @@ namespace xell
                 collectRefsExpr(opt.value.get(), refs);
             for (const auto &e : p->interpolatedExprs)
                 collectRefsExpr(e.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const FStringExpr *>(expr))
+        {
+            for (const auto &part : p->parts)
+                if (part.isExpr)
+                    collectRefsExpr(part.expr.get(), refs);
             return;
         }
         // Literals, YieldExpr, etc. — nothing to collect
@@ -3865,6 +3886,8 @@ namespace xell
             return evalAwait(p);
         if (auto *p = dynamic_cast<const BytesLiteral *>(expr))
             return evalBytes(p);
+        if (auto *p = dynamic_cast<const FStringExpr *>(expr))
+            return evalFString(p);
 
         // Expression-mode constructs
         if (auto *p = dynamic_cast<const IfExpr *>(expr))
@@ -6459,6 +6482,47 @@ namespace xell
     {
         // The lexer stores the raw byte content (with escape sequences processed)
         return XObject::makeBytes(node->bytes);
+    }
+
+    // ---- F-string expression: f"..." -------------------------------------
+
+    XObject Interpreter::evalFString(const FStringExpr *node)
+    {
+        std::string result;
+        for (const auto &part : node->parts)
+        {
+            if (!part.isExpr)
+            {
+                result += part.text;
+                continue;
+            }
+
+            XObject val = eval(part.expr.get());
+            if (!part.formatSpec.empty())
+            {
+                result += applyFormatSpec(val, part.formatSpec, node->line);
+                continue;
+            }
+
+            // Check for __str__ or __print__ magic method on instances
+            if (val.isInstance())
+            {
+                XObject magicResult;
+                std::vector<XObject> noArgs;
+                if (callMagicMethod(val, "__str__", noArgs, node->line, magicResult))
+                {
+                    result += magicResult.toString();
+                    continue;
+                }
+                if (callMagicMethod(val, "__print__", noArgs, node->line, magicResult))
+                {
+                    result += magicResult.toString();
+                    continue;
+                }
+            }
+            result += val.toString();
+        }
+        return XObject::makeString(result);
     }
 
     // ---- Yield expression (for generators) --------------------------------
