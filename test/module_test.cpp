@@ -29,6 +29,8 @@
 #include "../src/lexer/lexer.hpp"
 #include "../src/parser/parser.hpp"
 #include "../src/common/dialect_convert.hpp"
+#include "../src/common/json.hpp"
+#include "../src/module/module_resolver.hpp"
 #include "../src/interpreter/interpreter.hpp"
 
 using namespace xell;
@@ -1793,6 +1795,62 @@ static void testDialectReader()
     XASSERT(mapping.find("ignored_empty") == mapping.end());
 }
 
+static void testModuleMetadataReader()
+{
+    std::cout << "\n── Module metadata reader tests ──\n";
+    std::string testDir = g_testDir + "/meta_test";
+    std::filesystem::create_directories(testDir);
+
+    // 1. Standard .xell_meta
+    {
+        std::ofstream f(testDir + "/.xell_meta");
+        f << "{\n"
+          << "  \"xell_meta_version\": 1,\n"
+          << "  \"directory\": \".\",\n"
+          << "  \"modules\": {\n"
+          << "    \"alpha\": {\n"
+          << "      \"file\": \"alpha.xel\",\n"
+          << "      \"hash\": \"abc\",\n"
+          << "      \"exports\": [\"helper\"]\n"
+          << "    },\n"
+          << "    \"beta\": {\n"
+          << "      \"file\": \"beta.xel\",\n"
+          << "      \"hash\": \"def\"\n"
+          << "    }\n"
+          << "  }\n"
+          << "}\n";
+    }
+    auto map1 = ModuleResolver::readMetaIndex(testDir);
+    XASSERT_EQ(map1["alpha"], std::string("alpha.xel"));
+    XASSERT_EQ(map1["beta"], std::string("beta.xel"));
+
+    // 2. Test with properties in non-standard order (hash before file)
+    {
+        std::ofstream f(testDir + "/.xell_meta");
+        f << "{\n"
+          << "  \"xell_meta_version\": 1,\n"
+          << "  \"directory\": \".\",\n"
+          << "  \"modules\": {\n"
+          << "    \"reordered\": {\n"
+          << "      \"hash\": \"12345\",\n"
+          << "      \"file\": \"reordered.xel\",\n"
+          << "      \"exports\": [\"foo\"]\n"
+          << "    }\n"
+          << "  }\n"
+          << "}\n";
+    }
+    auto map2 = ModuleResolver::readMetaIndex(testDir);
+    XASSERT_EQ(map2["reordered"], std::string("reordered.xel"));
+
+    // 3. Invalid JSON should return empty map
+    {
+        std::ofstream f(testDir + "/.xell_meta");
+        f << "{ invalid json ...";
+    }
+    auto map3 = ModuleResolver::readMetaIndex(testDir);
+    XASSERT(map3.empty());
+}
+
 int main()
 {
     setupTestDir();
@@ -1828,6 +1886,7 @@ int main()
     testFileBasedResolution();
     testModuleCaching();
     testDialectReader();
+    testModuleMetadataReader();
 
     cleanupTestDir();
 

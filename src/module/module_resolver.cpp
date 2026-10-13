@@ -1,4 +1,5 @@
 #include "module_resolver.hpp"
+#include "../common/json.hpp"
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
@@ -107,14 +108,11 @@ namespace xell
     }
 
     // ====================================================================
-    // .xell_meta fast-path reader (simple JSON parser)
+    // .xell_meta fast-path reader (JSON parser)
     // ====================================================================
     //
     // Reads .xell_meta JSON and extracts the "modules" mapping:
     //   module_name → filename (relative to the directory)
-    //
-    // This is a lightweight parser — just enough to extract the mapping.
-    // Uses regex to parse the simple expected format.
 
     std::unordered_map<std::string, std::string>
     ModuleResolver::readMetaIndex(const std::string &dirPath)
@@ -133,28 +131,27 @@ namespace xell
         std::string content((std::istreambuf_iterator<char>(f)),
                             std::istreambuf_iterator<char>());
 
-        // Simple extraction: find "module_name": { "file": "filename.xell", ... }
-        // Uses a regex to find module entries in the JSON.
-        // Pattern: "NAME" : { "file" : "VALUE"
-        std::string pat = "\"(\\w+)\"\\s*:\\s*\\{\\s*\"file\"\\s*:\\s*\"([^\"]+)\"";
-        std::regex entryRe(pat);
-        auto begin = std::sregex_iterator(content.begin(), content.end(), entryRe);
-        auto end = std::sregex_iterator();
-
-        // But we need to only match inside "modules" block, not top-level keys
-        // Find the "modules" block start
-        auto modulesPos = content.find("\"modules\"");
-        if (modulesPos == std::string::npos)
-            return result;
-
-        std::string modulesBlock = content.substr(modulesPos);
-        begin = std::sregex_iterator(modulesBlock.begin(), modulesBlock.end(), entryRe);
-
-        for (auto it = begin; it != end; ++it)
+        try
         {
-            std::string modName = (*it)[1].str();
-            std::string fileName = (*it)[2].str();
-            result[modName] = fileName;
+            auto root = xell::json::parse(content);
+            if (!root.isObject())
+                return result;
+
+            if (root.has("modules") && root["modules"].isObject())
+            {
+                const auto &mods = root["modules"].asObject();
+                for (const auto &pair : mods)
+                {
+                    if (pair.second.isObject() && pair.second.has("file") && pair.second["file"].isString())
+                    {
+                        result[pair.first] = pair.second["file"].asString();
+                    }
+                }
+            }
+        }
+        catch (const xell::json::ParseError &)
+        {
+            return result;
         }
 
         return result;

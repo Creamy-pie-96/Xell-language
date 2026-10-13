@@ -1443,8 +1443,7 @@ static int makeModule(int argc, char *argv[])
     for (auto &[dir, dirFileList] : dirFiles)
     {
         // In update mode, load existing .xell_meta to preserve unchanged entries
-        // Key: module_name → raw JSON fragment (the whole "name": { ... } block)
-        std::map<std::string, std::string> preservedModules;
+        std::map<std::string, xell::json::Value> preservedModules;
         std::set<std::string> skippedFiles;
         std::set<std::string> changedFiles;
 
@@ -1453,60 +1452,23 @@ static int makeModule(int argc, char *argv[])
             fs::path metaPath = fs::path(dir) / ".xell_meta";
             if (fs::exists(metaPath))
             {
-                // Read existing .xell_meta and extract module entries
                 std::ifstream mf(metaPath);
                 std::string existingMeta((std::istreambuf_iterator<char>(mf)),
                                          std::istreambuf_iterator<char>());
 
-                // Extract each module's JSON entry from the existing metadata.
-                // Format: "module_name": { "file": "...", ... }
-                // We find the "modules" section and extract entries with brace-matching.
-                auto modulesPos = existingMeta.find("\"modules\"");
-                if (modulesPos != std::string::npos)
+                try
                 {
-                    auto braceStart = existingMeta.find('{', modulesPos + 9);
-                    if (braceStart != std::string::npos)
+                    auto root = xell::json::parse(existingMeta);
+                    if (root.isObject() && root.has("modules") && root["modules"].isObject())
                     {
-                        size_t pos = braceStart + 1;
-                        while (pos < existingMeta.size())
+                        for (const auto &pair : root["modules"].asObject())
                         {
-                            // Find next quoted module name
-                            auto nameStart = existingMeta.find('"', pos);
-                            if (nameStart == std::string::npos || existingMeta[nameStart - 1] == '}')
-                                break;
-                            auto nameEnd = existingMeta.find('"', nameStart + 1);
-                            if (nameEnd == std::string::npos)
-                                break;
-                            std::string modName = existingMeta.substr(nameStart + 1, nameEnd - nameStart - 1);
-
-                            // Skip past the colon to the opening brace
-                            auto objStart = existingMeta.find('{', nameEnd);
-                            if (objStart == std::string::npos)
-                                break;
-
-                            // Brace-match to find the end of this module's JSON object
-                            int depth = 1;
-                            size_t objEnd = objStart + 1;
-                            while (objEnd < existingMeta.size() && depth > 0)
-                            {
-                                if (existingMeta[objEnd] == '{')
-                                    depth++;
-                                else if (existingMeta[objEnd] == '}')
-                                    depth--;
-                                objEnd++;
-                            }
-
-                            // Extract the full fragment: "module_name": { ... }
-                            std::string fragment = existingMeta.substr(nameStart - 4, objEnd - (nameStart - 4));
-                            // Clean up — ensure it starts with proper indentation
-                            auto firstQuote = fragment.find('"');
-                            if (firstQuote != std::string::npos)
-                                fragment = "    " + fragment.substr(firstQuote);
-                            preservedModules[modName] = fragment;
-
-                            pos = objEnd;
+                            preservedModules[pair.first] = pair.second;
                         }
                     }
+                }
+                catch (const xell::json::ParseError &)
+                {
                 }
             }
         }
@@ -1615,26 +1577,17 @@ static int makeModule(int argc, char *argv[])
         // (skip any module whose file was changed — those get fresh entries)
         if (updateMode && !skippedFiles.empty())
         {
-            for (auto &[modName, fragment] : preservedModules)
+            for (auto &[modName, modVal] : preservedModules)
             {
                 // Check if this module came from a changed file
-                // by looking for "file": "xxx" in the fragment
-                bool fromChangedFile = false;
-                for (auto &cf : changedFiles)
-                {
-                    if (fragment.find("\"" + cf + "\"") != std::string::npos)
-                    {
-                        fromChangedFile = true;
-                        break;
-                    }
-                }
-                if (fromChangedFile)
+                std::string modFile = modVal.getString("file");
+                if (changedFiles.count(modFile) > 0)
                     continue;
 
                 if (!firstModule)
                     meta << ",\n";
                 firstModule = false;
-                meta << fragment;
+                meta << "    \"" << modName << "\": " << xell::json::stringify(modVal, 4);
             }
         }
 

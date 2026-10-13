@@ -143,6 +143,7 @@ namespace json
             if (!isObject()) return false;
             return asObject().find(key) != asObject().end();
         }
+        bool has(const std::string &key) const { return contains(key); }
 
         std::string getString(const std::string &key, const std::string &def = "") const
         {
