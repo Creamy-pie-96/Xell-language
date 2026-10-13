@@ -6597,7 +6597,6 @@ namespace xell
             res.set("exit_code", XObject::makeInt(result.exitCode));
             res.set("signal", XObject::makeInt(result.signalNum));
             res.set("success", XObject::makeBool(result.success));
-            res.set("ok", XObject::makeBool(result.success));
             return XObject::makeMap(std::move(res));
         }
         else
@@ -7973,6 +7972,15 @@ namespace xell
             errInst.fields["type"] = XObject::makeString(category);
             errInst.fields["line"] = XObject::makeInt(e.line());
             errInst.fields["traceback"] = XObject::makeList(std::move(tracebackList));
+
+            if (const auto *spe = dynamic_cast<const ShellProcessError *>(&e))
+            {
+                errInst.fields["stdout"] = XObject::makeString(spe->stdoutStr);
+                errInst.fields["stderr"] = XObject::makeString(spe->stderrStr);
+                errInst.fields["code"] = XObject::makeInt(spe->exitCode);
+                errInst.fields["exit_code"] = XObject::makeInt(spe->exitCode);
+                errInst.fields["signal"] = XObject::makeInt(spe->signalNum);
+            }
 
             catchEnv.define(matched->varName, XObject::makeInstance(std::move(errInst)));
 
