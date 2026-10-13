@@ -6388,7 +6388,7 @@ namespace xell
             {
                 if (!val.isInt() && !val.isFloat())
                     throw TypeError("timeout option must be a number", opt.line);
-                timeoutSeconds = val.asFloat();
+                timeoutSeconds = val.asNumber();
                 if (timeoutSeconds < 0.0)
                     throw ValueError("timeout option must be non-negative", opt.line);
             }

@@ -948,6 +948,52 @@ void testParserShellBlockAllValidOptions()
     XASSERT_EQ(block->options.size(), 6u);
 }
 
+void testParserShellBlockMultilineOptions()
+{
+    auto prog = parseXell(R"(
+        result = shell->capture(
+            timeout=30,
+            max_output=16777216,
+            stdin="closed",
+            check=false,
+            cwd="/tmp",
+            env={"GREETING": "hi"},
+        )
+        {
+            echo "$GREETING"
+        }
+    )");
+    XASSERT_EQ(prog.statements.size(), 1u);
+    auto *stmt = dynamic_cast<Assignment *>(prog.statements[0].get());
+    XASSERT(stmt != nullptr);
+    auto *block = dynamic_cast<ShellBlock *>(stmt->value.get());
+    XASSERT(block != nullptr);
+    XASSERT_EQ(block->options.size(), 6u);
+    XASSERT_EQ(block->options[0].name, "timeout");
+    XASSERT_EQ(block->options[1].name, "max_output");
+    XASSERT_EQ(block->options[2].name, "stdin");
+    XASSERT_EQ(block->options[3].name, "check");
+    XASSERT_EQ(block->options[4].name, "cwd");
+    XASSERT_EQ(block->options[5].name, "env");
+
+    auto out = runXell(R"(
+        res = shell->capture(
+            timeout=10,
+            max_output=1048576,
+            stdin="closed",
+            check=false,
+            cwd="/tmp",
+            env={"CUSTOM_VAR": "multiline_ok"}
+        )
+        {
+            echo "$CUSTOM_VAR"
+        }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT(out[0].find("multiline_ok") != std::string::npos);
+}
+
 void testParserShellBlockUnknownOptionRejection()
 {
     bool threw = false;
@@ -1638,6 +1684,7 @@ int main()
     runTest("shell block parser: capture empty args", testParserShellBlockCaptureEmptyArgs);
     runTest("shell block parser: capture with options", testParserShellBlockCaptureWithOptions);
     runTest("shell block parser: all valid options", testParserShellBlockAllValidOptions);
+    runTest("shell block parser: multiline options", testParserShellBlockMultilineOptions);
     runTest("shell block parser: unknown option rejection", testParserShellBlockUnknownOptionRejection);
     runTest("shell block parser: duplicate option rejection", testParserShellBlockDuplicateOptionRejection);
     runTest("shell block parser: positional option rejection", testParserShellBlockPositionalOptionRejection);
