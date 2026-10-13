@@ -3333,6 +3333,24 @@ static void testGeneratorLazyForLoop()
             ";\n"
             "print(\"done\")\n");
         XASSERT_EQ(out[0], std::string("done")); });
+
+    runTest("generator abandonment: drop generator suspended at yield", []()
+            {
+        auto out = runXell(
+            "fn gen():\n"
+            "  yield 100\n"
+            "  yield 200\n"
+            ";\n"
+            "fn run():\n"
+            "  g = gen()\n"
+            "  v = next(g)\n"
+            "  print(v)\n"
+            ";\n"
+            "run()\n"
+            "print(\"ok\")\n");
+        XASSERT_EQ(out.size(), 2u);
+        XASSERT_EQ(out[0], std::string("100"));
+        XASSERT_EQ(out[1], std::string("ok")); });
 }
 
 // =====================================================================

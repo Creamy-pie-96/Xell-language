@@ -138,15 +138,23 @@ namespace xell
     // GeneratorState destructor — defined here because XObject is now complete
     GeneratorState::~GeneratorState()
     {
+        cancelled = true;
         if (worker.joinable())
         {
-            // If generator is abandoned, we need to let it finish
+            if (worker.get_id() != std::this_thread::get_id())
             {
-                std::lock_guard<std::mutex> lk(mtx);
-                phase = DONE; // signal generator to exit
+                // If generator is abandoned, we need to let it finish
+                {
+                    std::lock_guard<std::mutex> lk(mtx);
+                    phase = DONE; // signal generator to exit
+                }
+                cv.notify_all();
+                worker.join();
             }
-            cv.notify_all();
-            worker.join();
+            else
+            {
+                worker.detach();
+            }
         }
         delete yieldedValue;
     }
