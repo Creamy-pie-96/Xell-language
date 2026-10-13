@@ -709,6 +709,42 @@ static void testRecursion()
                   "  infinite()\n"
                   ";\n"
                   "infinite()")); });
+
+    runTest("direct recursion limit 1000", []()
+            { XASSERT(expectError<RecursionError>(
+                  "fn f():\n"
+                  "  f()\n"
+                  ";\n"
+                  "f()")); });
+
+    runTest("mutual recursion limit 1000", []()
+            { XASSERT(expectError<RecursionError>(
+                  "fn a():\n"
+                  "  b()\n"
+                  ";\n"
+                  "fn b():\n"
+                  "  a()\n"
+                  ";\n"
+                  "a()")); });
+
+    runTest("callback recursion limit 1000", []()
+            { XASSERT(expectError<RecursionError>(
+                  "fn f(x):\n"
+                  "  map([x], f)\n"
+                  ";\n"
+                  "f(1)")); });
+
+    runTest("generator thread recursion limit 1000", []()
+            { XASSERT(expectError<RecursionError>(
+                  "fn g():\n"
+                  "  fn rec():\n"
+                  "    rec()\n"
+                  "  ;\n"
+                  "  rec()\n"
+                  "  yield 1\n"
+                  ";\n"
+                  "gen = g()\n"
+                  "next(gen)")); });
 }
 
 // ============================================================================
