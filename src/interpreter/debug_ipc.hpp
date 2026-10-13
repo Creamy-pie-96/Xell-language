@@ -43,6 +43,7 @@
 //                     client.send("{\"cmd\":\"continue\"}\n");
 //
 
+#include "../common/json.hpp"
 #include <string>
 #include <functional>
 #include <atomic>
@@ -218,93 +219,58 @@ namespace xell
             DebugMessage msg;
             msg.raw = json;
 
-            auto getString = [&](const std::string &key) -> std::string
+            try
             {
-                std::string search = "\"" + key + "\"";
-                auto pos = json.find(search);
-                if (pos == std::string::npos)
-                    return "";
-                pos = json.find(':', pos + search.size());
-                if (pos == std::string::npos)
-                    return "";
-                pos = json.find('"', pos + 1);
-                if (pos == std::string::npos)
-                    return "";
-                pos++;
-                auto end = json.find('"', pos);
-                if (end == std::string::npos)
-                    return "";
-                return json.substr(pos, end - pos);
-            };
+                auto root = xell::json::parse(json);
+                if (!root.isObject())
+                    return msg;
 
-            auto getInt = [&](const std::string &key) -> int
-            {
-                std::string search = "\"" + key + "\"";
-                auto pos = json.find(search);
-                if (pos == std::string::npos)
-                    return -1;
-                pos = json.find(':', pos + search.size());
-                if (pos == std::string::npos)
-                    return -1;
-                pos++;
-                while (pos < json.size() && json[pos] == ' ')
-                    pos++;
-                if (pos >= json.size())
-                    return -1;
-                int val = 0;
-                bool neg = false;
-                if (json[pos] == '-')
+                std::string cmd = root.getString("cmd");
+                if (cmd == "continue")
+                    msg.cmd = DebugCmd::Continue;
+                else if (cmd == "step_over")
+                    msg.cmd = DebugCmd::StepOver;
+                else if (cmd == "step_into")
+                    msg.cmd = DebugCmd::StepInto;
+                else if (cmd == "step_out")
+                    msg.cmd = DebugCmd::StepOut;
+                else if (cmd == "stop")
+                    msg.cmd = DebugCmd::Stop;
+                else if (cmd == "add_breakpoint")
                 {
-                    neg = true;
-                    pos++;
+                    msg.cmd = DebugCmd::AddBreakpoint;
+                    msg.line = static_cast<int>(root.getInt("line", -1));
+                    msg.type = root.getString("type");
+                    msg.name = root.getString("name");
                 }
-                while (pos < json.size() && json[pos] >= '0' && json[pos] <= '9')
-                    val = val * 10 + (json[pos++] - '0');
-                return neg ? -val : val;
-            };
-
-            std::string cmd = getString("cmd");
-            if (cmd == "continue")
-                msg.cmd = DebugCmd::Continue;
-            else if (cmd == "step_over")
-                msg.cmd = DebugCmd::StepOver;
-            else if (cmd == "step_into")
-                msg.cmd = DebugCmd::StepInto;
-            else if (cmd == "step_out")
-                msg.cmd = DebugCmd::StepOut;
-            else if (cmd == "stop")
-                msg.cmd = DebugCmd::Stop;
-            else if (cmd == "add_breakpoint")
-            {
-                msg.cmd = DebugCmd::AddBreakpoint;
-                msg.line = getInt("line");
-                msg.type = getString("type");
-                msg.name = getString("name");
+                else if (cmd == "remove_breakpoint")
+                {
+                    msg.cmd = DebugCmd::RemoveBreakpoint;
+                    msg.line = static_cast<int>(root.getInt("line", -1));
+                }
+                else if (cmd == "add_watch")
+                {
+                    msg.cmd = DebugCmd::AddWatch;
+                    msg.expr = root.getString("expr");
+                }
+                else if (cmd == "remove_watch")
+                {
+                    msg.cmd = DebugCmd::RemoveWatch;
+                    msg.expr = root.getString("expr");
+                }
+                else if (cmd == "jump_to")
+                {
+                    msg.cmd = DebugCmd::JumpTo;
+                    msg.sequence = static_cast<int>(root.getInt("sequence", -1));
+                }
+                else if (cmd == "eval")
+                {
+                    msg.cmd = DebugCmd::Eval;
+                    msg.expr = root.getString("expr");
+                }
             }
-            else if (cmd == "remove_breakpoint")
+            catch (const xell::json::ParseError &)
             {
-                msg.cmd = DebugCmd::RemoveBreakpoint;
-                msg.line = getInt("line");
-            }
-            else if (cmd == "add_watch")
-            {
-                msg.cmd = DebugCmd::AddWatch;
-                msg.expr = getString("expr");
-            }
-            else if (cmd == "remove_watch")
-            {
-                msg.cmd = DebugCmd::RemoveWatch;
-                msg.expr = getString("expr");
-            }
-            else if (cmd == "jump_to")
-            {
-                msg.cmd = DebugCmd::JumpTo;
-                msg.sequence = getInt("sequence");
-            }
-            else if (cmd == "eval")
-            {
-                msg.cmd = DebugCmd::Eval;
-                msg.expr = getString("expr");
             }
 
             return msg;
