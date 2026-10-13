@@ -1237,10 +1237,6 @@ namespace xell
             if (args.size() != 1)
                 throw ArityError("json_stringify", 1, (int)args.size(), line);
             std::unordered_set<const void *> visited;
-<<<<<<< HEAD
-            return XObject::makeString(
-                json_internal::stringifyValue(args[0], 0, 0, false, visited, line));
-=======
             try
             {
                 json::Value v = json_internal::xobjectToJson(args[0], visited, line);
@@ -1250,7 +1246,6 @@ namespace xell
             {
                 throw ValueError(e.what(), line);
             }
->>>>>>> fix/item7-json
         };
 
         // ---- json_pretty(val, indent=2) → string ---------------------------
@@ -1266,10 +1261,6 @@ namespace xell
                 indent = (int)args[1].asInt();
             }
             std::unordered_set<const void *> visited;
-<<<<<<< HEAD
-            return XObject::makeString(
-                json_internal::stringifyValue(args[0], indent, 0, true, visited, line));
-=======
             try
             {
                 json::Value v = json_internal::xobjectToJson(args[0], visited, line);
@@ -1279,7 +1270,6 @@ namespace xell
             {
                 throw ValueError(e.what(), line);
             }
->>>>>>> fix/item7-json
         };
 
         // ---- json_read(path) → XObject -------------------------------------
@@ -1313,9 +1303,6 @@ namespace xell
             if (!args[0].isString())
                 throw TypeError("json_write() first argument must be a file path string", line);
             std::unordered_set<const void *> visited;
-<<<<<<< HEAD
-            std::string json = json_internal::stringifyValue(args[1], 2, 0, true, visited, line);
-=======
             std::string jsonStr;
             try
             {
@@ -1326,7 +1313,6 @@ namespace xell
             {
                 throw ValueError(e.what(), line);
             }
->>>>>>> fix/item7-json
             std::ofstream file(args[0].asString());
             if (!file.is_open())
                 throw IOError("json_write(): cannot open file: " + args[0].asString(), line);
