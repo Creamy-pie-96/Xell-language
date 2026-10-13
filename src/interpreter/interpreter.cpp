@@ -699,42 +699,53 @@ namespace xell
 
         globalEnv_.define("__file__", XObject::makeString(sourceFile_));
 
-        for (const auto &stmt : program.statements)
+        try
         {
-            exec(stmt.get());
-
-            // Evaluate dirty watches after each top-level statement
-            if (trace_ && trace_->enabled && trace_->hasDirtyWatches())
+            for (const auto &stmt : program.statements)
             {
-                auto &watches = trace_->watches();
-                for (size_t wi = 0; wi < watches.size(); ++wi)
+                exec(stmt.get());
+
+                // Evaluate dirty watches after each top-level statement
+                if (trace_ && trace_->enabled && trace_->hasDirtyWatches())
                 {
-                    auto &w = watches[wi];
-                    if (!w.dirty)
-                        continue;
-                    w.dirty = false;
-                    if (w.parsed)
+                    auto &watches = trace_->watches();
+                    for (size_t wi = 0; wi < watches.size(); ++wi)
                     {
-                        try
+                        auto &w = watches[wi];
+                        if (!w.dirty)
+                            continue;
+                        w.dirty = false;
+                        if (w.parsed)
                         {
-                            XObject val = eval(w.parsed);
-                            bool nowTrue = val.truthy();
-                            if (nowTrue && !w.lastValue)
+                            try
                             {
-                                trace_->emit(TraceEvent::WATCH_TRIGGERED,
-                                             stmt->line, w.expression,
-                                             "", val.toString(),
-                                             "", "watch", stmt->line);
+                                XObject val = eval(w.parsed);
+                                bool nowTrue = val.truthy();
+                                if (nowTrue && !w.lastValue)
+                                {
+                                    trace_->emit(TraceEvent::WATCH_TRIGGERED,
+                                                 stmt->line, w.expression,
+                                                 "", val.toString(),
+                                                 "", "watch", stmt->line);
+                                }
+                                w.lastValue = nowTrue;
                             }
-                            w.lastValue = nowTrue;
-                        }
-                        catch (...)
-                        {
-                            // Watch expression failed — ignore silently
+                            catch (...)
+                            {
+                                // Watch expression failed — ignore silently
+                            }
                         }
                     }
                 }
             }
+        }
+        catch (const BreakSignal &bs)
+        {
+            throw RuntimeError("break outside of loop", bs.line);
+        }
+        catch (const ContinueSignal &cs)
+        {
+            throw RuntimeError("continue outside of loop", cs.line);
         }
     }
 
@@ -1467,12 +1478,12 @@ namespace xell
             if (p->value)
             {
                 XObject val = eval(p->value.get());
-                throw BreakSignal{std::move(val), true};
+                throw BreakSignal{std::move(val), true, p->line};
             }
-            throw BreakSignal{};
+            throw BreakSignal{{}, false, p->line};
         }
         if (auto *p = dynamic_cast<const ContinueStmt *>(stmt))
-            throw ContinueSignal{};
+            throw ContinueSignal{p->line};
         if (auto *p = dynamic_cast<const ExprStmt *>(stmt))
             return execExprStmt(p);
         if (auto *p = dynamic_cast<const BringStmt *>(stmt))
@@ -5451,6 +5462,40 @@ namespace xell
         {
             result = std::move(sig.value);
         }
+        catch (const BreakSignal &bs)
+        {
+            if (!tracebackCaptured_)
+            {
+                lastTraceback_ = callStack_;
+                tracebackCaptured_ = true;
+            }
+            if (!callStack_.empty())
+                callStack_.pop_back();
+            currentEnv_ = savedEnv;
+            callDepth_--;
+            if (trace_ && trace_->enabled)
+                trace_->popCallStack();
+            if (debugFnRestore)
+                trace_->enabled = debugFnPrevEnabled;
+            throw RuntimeError("break outside of loop", bs.line);
+        }
+        catch (const ContinueSignal &cs)
+        {
+            if (!tracebackCaptured_)
+            {
+                lastTraceback_ = callStack_;
+                tracebackCaptured_ = true;
+            }
+            if (!callStack_.empty())
+                callStack_.pop_back();
+            currentEnv_ = savedEnv;
+            callDepth_--;
+            if (trace_ && trace_->enabled)
+                trace_->popCallStack();
+            if (debugFnRestore)
+                trace_->enabled = debugFnPrevEnabled;
+            throw RuntimeError("continue outside of loop", cs.line);
+        }
         catch (...)
         {
             // Snapshot the call stack for traceback BEFORE unwinding
@@ -7500,6 +7545,12 @@ namespace xell
                 std::lock_guard<std::mutex> lk(stateRaw->mtx);
                 delete stateRaw->yieldedValue;
                 stateRaw->yieldedValue = new XObject(sig.value.clone());
+            } catch (const BreakSignal &bs) {
+                std::lock_guard<std::mutex> lk(stateRaw->mtx);
+                stateRaw->error = std::make_exception_ptr(RuntimeError("break outside of loop", bs.line));
+            } catch (const ContinueSignal &cs) {
+                std::lock_guard<std::mutex> lk(stateRaw->mtx);
+                stateRaw->error = std::make_exception_ptr(RuntimeError("continue outside of loop", cs.line));
             } catch (...) {
                 std::lock_guard<std::mutex> lk(stateRaw->mtx);
                 stateRaw->error = std::current_exception();

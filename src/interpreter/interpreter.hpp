@@ -47,9 +47,11 @@ namespace xell
     {
         XObject value;         // value carried out of expression-mode loops
         bool hasValue = false; // true when break VALUE was used
+        int line = 0;
     };
     struct ContinueSignal
     {
+        int line = 0;
     };
 
     // ---- Control-flow signal for yield (generators) -------------------------

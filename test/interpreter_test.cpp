@@ -1302,6 +1302,70 @@ static void testBreakContinue()
             ";\n"
             "print(found)");
         XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("top-level break raises RuntimeError", []()
+            {
+        try
+        {
+            runXell("break\n");
+            XASSERT(false);
+        }
+        catch (const RuntimeError &e)
+        {
+            XASSERT(std::string(e.what()).find("break outside of loop") != std::string::npos);
+            XASSERT_EQ(e.line(), 1);
+        } });
+
+    runTest("top-level continue raises RuntimeError", []()
+            {
+        try
+        {
+            runXell("continue\n");
+            XASSERT(false);
+        }
+        catch (const RuntimeError &e)
+        {
+            XASSERT(std::string(e.what()).find("continue outside of loop") != std::string::npos);
+            XASSERT_EQ(e.line(), 1);
+        } });
+
+    runTest("break inside function called from loop raises RuntimeError at function boundary", []()
+            {
+        try
+        {
+            runXell(
+                "fn bad():\n"
+                "  break\n"
+                ";\n"
+                "for i in [1, 2, 3]:\n"
+                "  bad()\n"
+                ";\n");
+            XASSERT(false);
+        }
+        catch (const RuntimeError &e)
+        {
+            XASSERT(std::string(e.what()).find("break outside of loop") != std::string::npos);
+            XASSERT_EQ(e.line(), 2);
+        } });
+
+    runTest("continue inside function called from loop raises RuntimeError at function boundary", []()
+            {
+        try
+        {
+            runXell(
+                "fn bad():\n"
+                "  continue\n"
+                ";\n"
+                "for i in [1, 2, 3]:\n"
+                "  bad()\n"
+                ";\n");
+            XASSERT(false);
+        }
+        catch (const RuntimeError &e)
+        {
+            XASSERT(std::string(e.what()).find("continue outside of loop") != std::string::npos);
+            XASSERT_EQ(e.line(), 2);
+        } });
 }
 
 // ============================================================================
