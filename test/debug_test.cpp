@@ -2000,6 +2000,23 @@ static void testDebugIPC_MessageParsing()
         std::string json = "{\"cmd\":\"step_over\"}";
         auto msg = DebugIPC::parseCommand(json);
         XASSERT_EQ(msg.raw, json); });
+
+    runTest("parseCommand: escaped strings in eval", []()
+            {
+        std::string json = "{\"cmd\":\"eval\",\"expr\":\"print(\\\"hello\\\\nworld\\\")\"}";
+        auto msg = DebugIPC::parseCommand(json);
+        XASSERT(msg.cmd == DebugCmd::Eval);
+        XASSERT_EQ(msg.expr, "print(\"hello\\nworld\")"); });
+
+    runTest("parseCommand: invalid json returns unknown", []()
+            {
+        auto msg = DebugIPC::parseCommand("{ invalid json");
+        XASSERT(msg.cmd == DebugCmd::Unknown); });
+
+    runTest("parseCommand: whitespace and newline tolerance", []()
+            {
+        auto msg = DebugIPC::parseCommand("  {\n  \"cmd\" :  \"continue\"  \n}  ");
+        XASSERT(msg.cmd == DebugCmd::Continue); });
 }
 
 // ============================================================================

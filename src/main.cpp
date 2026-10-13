@@ -96,122 +96,10 @@ static void printHelp()
 // The functions below are main.cpp-specific wrappers that call std::exit(1)
 // on errors (appropriate for CLI commands but not for the interpreter).
 
-/// CLI version of parseXesyFile that exits on error.
+/// CLI version of parseXesyFile using dialect::parseXesyFile.
 static std::map<std::string, std::string> parseXesyFile(const std::string &path)
 {
-    std::map<std::string, std::string> mapping;
-    std::ifstream f(path);
-    if (!f.is_open())
-    {
-        std::cerr << "Error: Cannot open mapping file '" << path << "'\n";
-        std::exit(1);
-    }
-
-    std::string content((std::istreambuf_iterator<char>(f)),
-                        std::istreambuf_iterator<char>());
-
-    // Simple state-machine JSON parser for flat objects
-    // Handles nested _meta object by brace-counting to skip it
-    size_t pos = content.find('{');
-    if (pos == std::string::npos)
-    {
-        std::cerr << "Error: Invalid .xesy file (no opening '{') in '" << path << "'\n";
-        std::exit(1);
-    }
-    pos++; // skip opening brace
-
-    auto skipWhitespace = [&]()
-    {
-        while (pos < content.size() && std::isspace(content[pos]))
-            pos++;
-    };
-
-    auto readString = [&]() -> std::string
-    {
-        if (pos >= content.size() || content[pos] != '"')
-            return "";
-        pos++; // skip opening quote
-        std::string result;
-        while (pos < content.size() && content[pos] != '"')
-        {
-            if (content[pos] == '\\' && pos + 1 < content.size())
-            {
-                pos++;
-                switch (content[pos])
-                {
-                case 'n':
-                    result += '\n';
-                    break;
-                case 't':
-                    result += '\t';
-                    break;
-                case '\\':
-                    result += '\\';
-                    break;
-                case '"':
-                    result += '"';
-                    break;
-                default:
-                    result += content[pos];
-                    break;
-                }
-            }
-            else
-            {
-                result += content[pos];
-            }
-            pos++;
-        }
-        if (pos < content.size())
-            pos++; // skip closing quote
-        return result;
-    };
-
-    while (pos < content.size())
-    {
-        skipWhitespace();
-        if (pos >= content.size() || content[pos] == '}')
-            break;
-        if (content[pos] == ',')
-        {
-            pos++;
-            continue;
-        }
-
-        // Read key
-        std::string key = readString();
-        skipWhitespace();
-        if (pos < content.size() && content[pos] == ':')
-            pos++; // skip colon
-        skipWhitespace();
-
-        // If value is an object (like _meta), skip it by brace-matching
-        if (pos < content.size() && content[pos] == '{')
-        {
-            int depth = 1;
-            pos++; // skip opening brace
-            while (pos < content.size() && depth > 0)
-            {
-                if (content[pos] == '{')
-                    depth++;
-                else if (content[pos] == '}')
-                    depth--;
-                pos++;
-            }
-            continue;
-        }
-
-        // Read value
-        std::string value = readString();
-
-        // Only add non-empty mappings, skip _meta
-        if (!key.empty() && !value.empty() && key != "_meta")
-        {
-            mapping[key] = value;
-        }
-    }
-
-    return mapping;
+    return dialect::parseXesyFile(path);
 }
 
 /// Invert a mapping: canonical→custom becomes custom→canonical
@@ -1290,107 +1178,27 @@ static int runKernel()
         if (line.empty())
             continue;
 
-        // Minimal JSON parsing (no external lib dependency)
-        // Expected input: {"action":"execute","cell_id":"...","code":"..."}
-        //                 {"action":"reset"}
-        //                 {"action":"shutdown"}
-
-        // Extract action
-        auto extractField = [&](const std::string &json, const std::string &key) -> std::string
+        xell::json::Value req;
+        try
         {
-            std::string search = "\"" + key + "\"";
-            auto pos = json.find(search);
-            if (pos == std::string::npos)
-                return "";
-            // Find the colon after the key
-            pos = json.find(':', pos + search.size());
-            if (pos == std::string::npos)
-                return "";
-            pos++; // skip colon
-            // Skip whitespace
-            while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t'))
-                pos++;
-            if (pos >= json.size())
-                return "";
-            if (json[pos] == '"')
-            {
-                // String value — parse with escape handling
-                pos++; // skip opening quote
-                std::string result;
-                while (pos < json.size() && json[pos] != '"')
-                {
-                    if (json[pos] == '\\' && pos + 1 < json.size())
-                    {
-                        pos++;
-                        switch (json[pos])
-                        {
-                        case 'n':
-                            result += '\n';
-                            break;
-                        case 't':
-                            result += '\t';
-                            break;
-                        case '\\':
-                            result += '\\';
-                            break;
-                        case '"':
-                            result += '"';
-                            break;
-                        default:
-                            result += '\\';
-                            result += json[pos];
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        result += json[pos];
-                    }
-                    pos++;
-                }
-                return result;
-            }
-            // Number or other
-            auto end = json.find_first_of(",}", pos);
-            return json.substr(pos, end - pos);
-        };
-
-        // JSON escape helper
-        auto jsonEscape = [](const std::string &s) -> std::string
+            req = xell::json::parse(line);
+        }
+        catch (const xell::json::ParseError &e)
         {
-            std::string out;
-            out.reserve(s.size() + 16);
-            for (char c : s)
-            {
-                switch (c)
-                {
-                case '"':
-                    out += "\\\"";
-                    break;
-                case '\\':
-                    out += "\\\\";
-                    break;
-                case '\n':
-                    out += "\\n";
-                    break;
-                case '\r':
-                    out += "\\r";
-                    break;
-                case '\t':
-                    out += "\\t";
-                    break;
-                default:
-                    out += c;
-                }
-            }
-            return out;
-        };
+            xell::json::Object errResp;
+            errResp["status"] = "error";
+            errResp["stderr"] = std::string("JSON parse error: ") + e.what();
+            std::cout << xell::json::stringify(errResp) << std::endl;
+            continue;
+        }
 
-        std::string action = extractField(line, "action");
+        std::string action = req.getString("action");
 
         if (action == "shutdown")
         {
-            std::cout << "{\"status\":\"shutdown\"}" << std::endl;
+            xell::json::Object resp;
+            resp["status"] = "shutdown";
+            std::cout << xell::json::stringify(resp) << std::endl;
             break;
         }
 
@@ -1398,14 +1206,17 @@ static int runKernel()
         {
             interpreter.reset();
             executionCount = 0;
-            std::cout << "{\"status\":\"ok\",\"message\":\"Kernel reset\"}" << std::endl;
+            xell::json::Object resp;
+            resp["message"] = "Kernel reset";
+            resp["status"] = "ok";
+            std::cout << xell::json::stringify(resp) << std::endl;
             continue;
         }
 
         if (action == "execute")
         {
-            std::string cellId = extractField(line, "cell_id");
-            std::string code = extractField(line, "code");
+            std::string cellId = req.getString("cell_id");
+            std::string code = req.getString("code");
             executionCount++;
 
             std::string stdoutStr;
@@ -1443,18 +1254,22 @@ static int runKernel()
                 status = "error";
             }
 
-            std::cout << "{\"cell_id\":\"" << jsonEscape(cellId) << "\""
-                      << ",\"status\":\"" << status << "\""
-                      << ",\"stdout\":\"" << jsonEscape(stdoutStr) << "\""
-                      << ",\"stderr\":\"" << jsonEscape(stderrStr) << "\""
-                      << ",\"result\":\"" << jsonEscape(resultStr) << "\""
-                      << ",\"execution_count\":" << executionCount
-                      << "}" << std::endl;
+            xell::json::Object resp;
+            resp["cell_id"] = cellId;
+            resp["execution_count"] = executionCount;
+            resp["result"] = resultStr;
+            resp["status"] = status;
+            resp["stderr"] = stderrStr;
+            resp["stdout"] = stdoutStr;
+            std::cout << xell::json::stringify(resp) << std::endl;
             continue;
         }
 
         // Unknown action
-        std::cout << "{\"status\":\"error\",\"stderr\":\"Unknown action: " << action << "\"}" << std::endl;
+        xell::json::Object resp;
+        resp["status"] = "error";
+        resp["stderr"] = "Unknown action: " + action;
+        std::cout << xell::json::stringify(resp) << std::endl;
     }
 
     return 0;
@@ -1628,8 +1443,7 @@ static int makeModule(int argc, char *argv[])
     for (auto &[dir, dirFileList] : dirFiles)
     {
         // In update mode, load existing .xell_meta to preserve unchanged entries
-        // Key: module_name → raw JSON fragment (the whole "name": { ... } block)
-        std::map<std::string, std::string> preservedModules;
+        std::map<std::string, xell::json::Value> preservedModules;
         std::set<std::string> skippedFiles;
         std::set<std::string> changedFiles;
 
@@ -1638,60 +1452,23 @@ static int makeModule(int argc, char *argv[])
             fs::path metaPath = fs::path(dir) / ".xell_meta";
             if (fs::exists(metaPath))
             {
-                // Read existing .xell_meta and extract module entries
                 std::ifstream mf(metaPath);
                 std::string existingMeta((std::istreambuf_iterator<char>(mf)),
                                          std::istreambuf_iterator<char>());
 
-                // Extract each module's JSON entry from the existing metadata.
-                // Format: "module_name": { "file": "...", ... }
-                // We find the "modules" section and extract entries with brace-matching.
-                auto modulesPos = existingMeta.find("\"modules\"");
-                if (modulesPos != std::string::npos)
+                try
                 {
-                    auto braceStart = existingMeta.find('{', modulesPos + 9);
-                    if (braceStart != std::string::npos)
+                    auto root = xell::json::parse(existingMeta);
+                    if (root.isObject() && root.has("modules") && root["modules"].isObject())
                     {
-                        size_t pos = braceStart + 1;
-                        while (pos < existingMeta.size())
+                        for (const auto &pair : root["modules"].asObject())
                         {
-                            // Find next quoted module name
-                            auto nameStart = existingMeta.find('"', pos);
-                            if (nameStart == std::string::npos || existingMeta[nameStart - 1] == '}')
-                                break;
-                            auto nameEnd = existingMeta.find('"', nameStart + 1);
-                            if (nameEnd == std::string::npos)
-                                break;
-                            std::string modName = existingMeta.substr(nameStart + 1, nameEnd - nameStart - 1);
-
-                            // Skip past the colon to the opening brace
-                            auto objStart = existingMeta.find('{', nameEnd);
-                            if (objStart == std::string::npos)
-                                break;
-
-                            // Brace-match to find the end of this module's JSON object
-                            int depth = 1;
-                            size_t objEnd = objStart + 1;
-                            while (objEnd < existingMeta.size() && depth > 0)
-                            {
-                                if (existingMeta[objEnd] == '{')
-                                    depth++;
-                                else if (existingMeta[objEnd] == '}')
-                                    depth--;
-                                objEnd++;
-                            }
-
-                            // Extract the full fragment: "module_name": { ... }
-                            std::string fragment = existingMeta.substr(nameStart - 4, objEnd - (nameStart - 4));
-                            // Clean up — ensure it starts with proper indentation
-                            auto firstQuote = fragment.find('"');
-                            if (firstQuote != std::string::npos)
-                                fragment = "    " + fragment.substr(firstQuote);
-                            preservedModules[modName] = fragment;
-
-                            pos = objEnd;
+                            preservedModules[pair.first] = pair.second;
                         }
                     }
+                }
+                catch (const xell::json::ParseError &)
+                {
                 }
             }
         }
@@ -1800,26 +1577,17 @@ static int makeModule(int argc, char *argv[])
         // (skip any module whose file was changed — those get fresh entries)
         if (updateMode && !skippedFiles.empty())
         {
-            for (auto &[modName, fragment] : preservedModules)
+            for (auto &[modName, modVal] : preservedModules)
             {
                 // Check if this module came from a changed file
-                // by looking for "file": "xxx" in the fragment
-                bool fromChangedFile = false;
-                for (auto &cf : changedFiles)
-                {
-                    if (fragment.find("\"" + cf + "\"") != std::string::npos)
-                    {
-                        fromChangedFile = true;
-                        break;
-                    }
-                }
-                if (fromChangedFile)
+                std::string modFile = modVal.getString("file");
+                if (changedFiles.count(modFile) > 0)
                     continue;
 
                 if (!firstModule)
                     meta << ",\n";
                 firstModule = false;
-                meta << fragment;
+                meta << "    \"" << modName << "\": " << xell::json::stringify(modVal, 4);
             }
         }
 

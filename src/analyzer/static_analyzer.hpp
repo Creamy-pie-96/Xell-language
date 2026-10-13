@@ -15,6 +15,7 @@
 #include "../parser/ast.hpp"
 #include "../lexer/lexer.hpp"
 #include "../parser/parser.hpp"
+#include "../common/json.hpp"
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -1259,12 +1260,23 @@ namespace xell
             std::string content((std::istreambuf_iterator<char>(f)),
                                 std::istreambuf_iterator<char>());
 
-            // Quick regex search: "module_name" : { "file": "filename.xel"
-            // This avoids a full JSON parser dependency
-            std::regex pat("\"" + moduleName + "\"\\s*:\\s*\\{\\s*\"file\"\\s*:\\s*\"([^\"]+)\"");
-            std::smatch match;
-            if (std::regex_search(content, match, pat))
-                return match[1].str();
+            try
+            {
+                auto root = xell::json::parse(content);
+                if (root.isObject() && root.has("modules") && root["modules"].isObject())
+                {
+                    const auto &mods = root["modules"].asObject();
+                    auto it = mods.find(moduleName);
+                    if (it != mods.end() && it->second.isObject() && it->second.has("file") && it->second["file"].isString())
+                    {
+                        return it->second["file"].asString();
+                    }
+                }
+            }
+            catch (const xell::json::ParseError &)
+            {
+                return "";
+            }
 
             return "";
         }
