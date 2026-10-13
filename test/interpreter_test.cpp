@@ -709,6 +709,42 @@ static void testRecursion()
                   "  infinite()\n"
                   ";\n"
                   "infinite()")); });
+
+    runTest("direct recursion limit 1000", []()
+            { XASSERT(expectError<RecursionError>(
+                  "fn f():\n"
+                  "  f()\n"
+                  ";\n"
+                  "f()")); });
+
+    runTest("mutual recursion limit 1000", []()
+            { XASSERT(expectError<RecursionError>(
+                  "fn a():\n"
+                  "  b()\n"
+                  ";\n"
+                  "fn b():\n"
+                  "  a()\n"
+                  ";\n"
+                  "a()")); });
+
+    runTest("callback recursion limit 1000", []()
+            { XASSERT(expectError<RecursionError>(
+                  "fn f(x):\n"
+                  "  map([x], f)\n"
+                  ";\n"
+                  "f(1)")); });
+
+    runTest("generator thread recursion limit 1000", []()
+            { XASSERT(expectError<RecursionError>(
+                  "fn g():\n"
+                  "  fn rec():\n"
+                  "    rec()\n"
+                  "  ;\n"
+                  "  rec()\n"
+                  "  yield 1\n"
+                  ";\n"
+                  "gen = g()\n"
+                  "next(gen)")); });
 }
 
 // ============================================================================
@@ -1136,6 +1172,56 @@ static void testInterpolation()
         XASSERT_EQ(out[0], std::string("plain string")); });
 }
 
+static void testFStrings()
+{
+    std::cout << "\n===== F-Strings =====\n";
+
+    runTest("f-string variable interpolation", []()
+            {
+        auto out = runXell("name = \"World\"\nprint(f\"Hello, {name}!\")");
+        XASSERT_EQ(out[0], std::string("Hello, World!")); });
+
+    runTest("f-string expression interpolation", []()
+            {
+        auto out = runXell("x = 5\nprint(f\"x squared is {x * x}\")");
+        XASSERT_EQ(out[0], std::string("x squared is 25")); });
+
+    runTest("f-string {{ and }} escapes", []()
+            {
+        auto out = runXell("x = 42\nprint(f\"{{literal}} {x} {{}} }}}}\")");
+        XASSERT_EQ(out[0], std::string("{literal} 42 {} }}")); });
+
+    runTest("f-string format specifier", []()
+            {
+        auto out = runXell("x = 12.3456\nprint(f\"val: {x:.2f}\")");
+        XASSERT_EQ(out[0], std::string("val: 12.35")); });
+
+    runTest("f-string custom object __str__", []()
+            {
+        auto out = runXell(
+            "class Dog:\n"
+            "  fn __str__(self):\n"
+            "    give \"bark\"\n"
+            "  ;\n"
+            ";\n"
+            "d = Dog()\n"
+            "print(f\"dog: {d}\")");
+        XASSERT_EQ(out[0], std::string("dog: bark")); });
+
+    runTest("f-string 100000 iteration loop", []()
+            {
+        auto out = runXell(
+            "fn loop_test():\n"
+            "  last = \"\"\n"
+            "  for i in range(100000):\n"
+            "    last = f\"iter_{i}\"\n"
+            "  ;\n"
+            "  give last\n"
+            ";\n"
+            "print(loop_test())");
+        XASSERT_EQ(out[0], std::string("iter_99999")); });
+}
+
 // ============================================================================
 // Section: Break & Continue
 // ============================================================================
@@ -1302,6 +1388,70 @@ static void testBreakContinue()
             ";\n"
             "print(found)");
         XASSERT_EQ(out[0], std::string("true")); });
+
+    runTest("top-level break raises RuntimeError", []()
+            {
+        try
+        {
+            runXell("break\n");
+            XASSERT(false);
+        }
+        catch (const RuntimeError &e)
+        {
+            XASSERT(std::string(e.what()).find("break outside of loop") != std::string::npos);
+            XASSERT_EQ(e.line(), 1);
+        } });
+
+    runTest("top-level continue raises RuntimeError", []()
+            {
+        try
+        {
+            runXell("continue\n");
+            XASSERT(false);
+        }
+        catch (const RuntimeError &e)
+        {
+            XASSERT(std::string(e.what()).find("continue outside of loop") != std::string::npos);
+            XASSERT_EQ(e.line(), 1);
+        } });
+
+    runTest("break inside function called from loop raises RuntimeError at function boundary", []()
+            {
+        try
+        {
+            runXell(
+                "fn bad():\n"
+                "  break\n"
+                ";\n"
+                "for i in [1, 2, 3]:\n"
+                "  bad()\n"
+                ";\n");
+            XASSERT(false);
+        }
+        catch (const RuntimeError &e)
+        {
+            XASSERT(std::string(e.what()).find("break outside of loop") != std::string::npos);
+            XASSERT_EQ(e.line(), 2);
+        } });
+
+    runTest("continue inside function called from loop raises RuntimeError at function boundary", []()
+            {
+        try
+        {
+            runXell(
+                "fn bad():\n"
+                "  continue\n"
+                ";\n"
+                "for i in [1, 2, 3]:\n"
+                "  bad()\n"
+                ";\n");
+            XASSERT(false);
+        }
+        catch (const RuntimeError &e)
+        {
+            XASSERT(std::string(e.what()).find("continue outside of loop") != std::string::npos);
+            XASSERT_EQ(e.line(), 2);
+        } });
 }
 
 // ============================================================================
@@ -3333,6 +3483,24 @@ static void testGeneratorLazyForLoop()
             ";\n"
             "print(\"done\")\n");
         XASSERT_EQ(out[0], std::string("done")); });
+
+    runTest("generator abandonment: drop generator suspended at yield", []()
+            {
+        auto out = runXell(
+            "fn gen():\n"
+            "  yield 100\n"
+            "  yield 200\n"
+            ";\n"
+            "fn run():\n"
+            "  g = gen()\n"
+            "  v = next(g)\n"
+            "  print(v)\n"
+            ";\n"
+            "run()\n"
+            "print(\"ok\")\n");
+        XASSERT_EQ(out.size(), 2u);
+        XASSERT_EQ(out[0], std::string("100"));
+        XASSERT_EQ(out[1], std::string("ok")); });
 }
 
 // =====================================================================
@@ -4958,6 +5126,7 @@ int main()
     testErrors();
     testComplexPrograms();
     testInterpolation();
+    testFStrings();
     testBreakContinue();
 
     // New feature tests

@@ -1865,6 +1865,7 @@ namespace xell
     {
         int ln = current().line;
         std::vector<std::string> decorators;
+        int64_t safeLoopMaxIter = -1;
 
         // Collect all @decorator tokens
         while (check(TokenType::AT))
@@ -1873,8 +1874,37 @@ namespace xell
             // Accept IDENTIFIER or keyword tokens that can serve as decorator names
             if (check(TokenType::IDENTIFIER))
             {
-                decorators.push_back(current().value);
+                std::string decName = current().value;
+                decorators.push_back(decName);
                 advance();
+
+                if (decName == "safe_loop")
+                {
+                    skipNewlines();
+                    if (check(TokenType::LPAREN))
+                    {
+                        advance(); // consume (
+                        skipNewlines();
+                        if (check(TokenType::IDENTIFIER) && current().value == "max_iterations")
+                        {
+                            advance();
+                            skipNewlines();
+                            consume(TokenType::EQUAL, "Expected '=' after 'max_iterations'");
+                            skipNewlines();
+                        }
+                        if (!check(TokenType::NUMBER))
+                            throw ParseError("Expected integer number for max_iterations in @safe_loop", current().line);
+                        safeLoopMaxIter = std::stoll(current().value);
+                        advance();
+                        skipNewlines();
+                        consume(TokenType::RPAREN, "Expected ')' after max_iterations in @safe_loop");
+                    }
+                    else if (check(TokenType::NUMBER))
+                    {
+                        safeLoopMaxIter = std::stoll(current().value);
+                        advance();
+                    }
+                }
             }
             else if (check(TokenType::IMMUTABLE))
             {
@@ -2158,6 +2188,7 @@ namespace xell
             auto loopStmt = parseLoopStmt();
             auto loopDef = std::unique_ptr<LoopStmt>(static_cast<LoopStmt *>(loopStmt.release()));
             loopDef->safeLoop = hasSafeLoop;
+            loopDef->maxIterations = safeLoopMaxIter;
             return loopDef;
         }
 
@@ -2444,6 +2475,8 @@ namespace xell
             decl = parseFnDef();
         else if (nextType == TokenType::CLASS)
             decl = parseClassDef();
+        else if (nextType == TokenType::AT)
+            decl = parseDecoratedFnDef();
         else if (nextType == TokenType::ABSTRACT)
         {
             advance();
@@ -2950,7 +2983,7 @@ namespace xell
             std::string val = current().value;
             int ln = current().line;
             advance();
-            return parsePostfix(std::make_unique<StringLiteral>(std::move(val), ln, false, true));
+            return parsePostfix(parseFString(val, ln));
         }
         // Byte string literal (b"..." — raw binary data)
         if (check(TokenType::BYTE_STRING))
@@ -3826,13 +3859,15 @@ namespace xell
                 auto operand = parseExpression();
                 return std::make_unique<SpreadExpr>(std::move(operand), sln);
             }
-            // Check for named argument: identifier COLON expr
-            if (check(TokenType::IDENTIFIER) && peekToken(1).type == TokenType::COLON)
+            // Check for named argument: identifier COLON expr OR identifier EQUAL expr
+            if (check(TokenType::IDENTIFIER) &&
+                (peekToken(1).type == TokenType::COLON || peekToken(1).type == TokenType::EQUAL))
             {
                 int sln = current().line;
                 std::string name = current().value;
                 advance(); // consume identifier
-                advance(); // consume colon
+                advance(); // consume colon or =
+                skipNewlines();
                 auto val = parseExpression();
                 return std::make_unique<NamedArgExpr>(std::move(name), std::move(val), sln);
             }
@@ -3842,11 +3877,15 @@ namespace xell
         if (!check(TokenType::RPAREN))
         {
             args.push_back(parseOneArg());
+            skipNewlines();
             while (check(TokenType::COMMA))
             {
                 advance();
                 skipNewlines();
+                if (check(TokenType::RPAREN))
+                    break;
                 args.push_back(parseOneArg());
+                skipNewlines();
             }
         }
         skipNewlines();
@@ -3879,10 +3918,13 @@ namespace xell
         std::unordered_set<std::string> seenOptions;
 
         // Check optional '(opts)'
+        skipNewlines();
         if (check(TokenType::LPAREN))
         {
             advance(); // consume (
+            skipNewlines();
             auto rawArgs = parseArgList();
+            skipNewlines();
             consume(TokenType::RPAREN, "Expected ')' after shell options");
 
             static const std::unordered_set<std::string> validOptions = {
@@ -3894,7 +3936,7 @@ namespace xell
                 auto *named = dynamic_cast<NamedArgExpr *>(arg.get());
                 if (!named)
                 {
-                    throw ParseError("Shell block options must be named arguments (e.g., timeout: 10)", arg->line);
+                    throw ParseError("Shell block options must be named arguments (e.g., timeout: 10 or timeout=10)", arg->line);
                 }
 
                 if (validOptions.find(named->name) == validOptions.end())
@@ -4067,6 +4109,149 @@ namespace xell
             throw ParseError("Expected at least one 'for' clause in comprehension", current().line);
 
         return clauses;
+    }
+
+    std::unique_ptr<FStringExpr> Parser::parseFString(const std::string &raw, int line)
+    {
+        std::vector<FStringPart> parts;
+        std::string currentLiteral;
+        size_t i = 0;
+
+        auto splitFormatSpec = [](const std::string &text)
+        {
+            std::pair<std::string, std::string> res{text, ""};
+            int parenDepth = 0;
+            int bracketDepth = 0;
+            int braceDepth = 0;
+            bool inString = false;
+            char quote = '\0';
+            bool escaped = false;
+
+            for (size_t idx = 0; idx < text.size(); idx++)
+            {
+                char c = text[idx];
+                if (inString)
+                {
+                    if (escaped)
+                        escaped = false;
+                    else if (c == '\\')
+                        escaped = true;
+                    else if (c == quote)
+                    {
+                        inString = false;
+                        quote = '\0';
+                    }
+                    continue;
+                }
+                if (c == '\'' || c == '"')
+                {
+                    inString = true;
+                    quote = c;
+                    continue;
+                }
+                if (c == '(') parenDepth++;
+                else if (c == ')') parenDepth--;
+                else if (c == '[') bracketDepth++;
+                else if (c == ']') bracketDepth--;
+                else if (c == '{') braceDepth++;
+                else if (c == '}') braceDepth--;
+                else if (c == ':' && parenDepth == 0 && bracketDepth == 0 && braceDepth == 0)
+                {
+                    res.first = text.substr(0, idx);
+                    res.second = text.substr(idx + 1);
+                    break;
+                }
+            }
+            return res;
+        };
+
+        while (i < raw.size())
+        {
+            if (i + 1 < raw.size() && raw[i] == '{' && raw[i + 1] == '{')
+            {
+                currentLiteral += '{';
+                i += 2;
+                continue;
+            }
+            if (i + 1 < raw.size() && raw[i] == '}' && raw[i + 1] == '}')
+            {
+                currentLiteral += '}';
+                i += 2;
+                continue;
+            }
+            if (raw[i] == '{')
+            {
+                if (!currentLiteral.empty())
+                {
+                    parts.push_back(FStringPart::makeLiteral(std::move(currentLiteral)));
+                    currentLiteral.clear();
+                }
+
+                // Find matching closing brace
+                size_t depth = 1;
+                size_t j = i + 1;
+                bool inStr = false;
+                char q = '\0';
+                bool esc = false;
+
+                while (j < raw.size() && depth > 0)
+                {
+                    char c = raw[j];
+                    if (inStr)
+                    {
+                        if (esc) esc = false;
+                        else if (c == '\\') esc = true;
+                        else if (c == q) { inStr = false; q = '\0'; }
+                        j++;
+                        continue;
+                    }
+                    if (c == '\'' || c == '"')
+                    {
+                        inStr = true;
+                        q = c;
+                        j++;
+                        continue;
+                    }
+                    if (c == '{') depth++;
+                    else if (c == '}') depth--;
+                    j++;
+                }
+
+                if (depth != 0)
+                {
+                    throw ParseError("Unclosed '{' in f-string expression", line);
+                }
+
+                std::string exprText = raw.substr(i + 1, j - i - 2);
+                auto [exprOnly, formatSpec] = splitFormatSpec(exprText);
+
+                // Lex and parse expression ONCE at parse time
+                Lexer exprLexer(exprOnly);
+                auto exprTokens = exprLexer.tokenize();
+                Parser exprParser(exprTokens);
+                auto exprProg = exprParser.parse();
+
+                if (exprProg.statements.empty())
+                    throw ParseError("Empty expression in f-string", line);
+                auto *es = dynamic_cast<ExprStmt *>(exprProg.statements[0].get());
+                if (!es)
+                    throw ParseError("Expected expression in f-string", line);
+
+                parts.push_back(FStringPart::makeExpr(std::move(es->expr), formatSpec));
+                i = j;
+                continue;
+            }
+
+            currentLiteral += raw[i];
+            i++;
+        }
+
+        if (!currentLiteral.empty())
+        {
+            parts.push_back(FStringPart::makeLiteral(std::move(currentLiteral)));
+        }
+
+        return std::make_unique<FStringExpr>(std::move(parts), line);
     }
 
 } // namespace xell

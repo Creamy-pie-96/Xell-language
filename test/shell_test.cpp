@@ -948,6 +948,52 @@ void testParserShellBlockAllValidOptions()
     XASSERT_EQ(block->options.size(), 6u);
 }
 
+void testParserShellBlockMultilineOptions()
+{
+    auto prog = parseXell(R"(
+        result = shell->capture(
+            timeout=30,
+            max_output=16777216,
+            stdin="closed",
+            check=false,
+            cwd="/tmp",
+            env={"GREETING": "hi"},
+        )
+        {
+            echo "$GREETING"
+        }
+    )");
+    XASSERT_EQ(prog.statements.size(), 1u);
+    auto *stmt = dynamic_cast<Assignment *>(prog.statements[0].get());
+    XASSERT(stmt != nullptr);
+    auto *block = dynamic_cast<ShellBlock *>(stmt->value.get());
+    XASSERT(block != nullptr);
+    XASSERT_EQ(block->options.size(), 6u);
+    XASSERT_EQ(block->options[0].name, "timeout");
+    XASSERT_EQ(block->options[1].name, "max_output");
+    XASSERT_EQ(block->options[2].name, "stdin");
+    XASSERT_EQ(block->options[3].name, "check");
+    XASSERT_EQ(block->options[4].name, "cwd");
+    XASSERT_EQ(block->options[5].name, "env");
+
+    auto out = runXell(R"(
+        res = shell->capture(
+            timeout=10,
+            max_output=1048576,
+            stdin="closed",
+            check=false,
+            cwd="/tmp",
+            env={"CUSTOM_VAR": "multiline_ok"}
+        )
+        {
+            echo "$CUSTOM_VAR"
+        }
+        print(res->stdout)
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT(out[0].find("multiline_ok") != std::string::npos);
+}
+
 void testParserShellBlockUnknownOptionRejection()
 {
     bool threw = false;
@@ -1155,15 +1201,13 @@ void testShellBlockCaptureSuccess()
         print(res->code)
         print(res->signal)
         print(res->success)
-        print(res->ok)
         print(res->stdout)
     )");
-    XASSERT_EQ(out.size(), 5u);
+    XASSERT_EQ(out.size(), 4u);
     XASSERT_EQ(out[0], "0");
     XASSERT_EQ(out[1], "0");
     XASSERT_EQ(out[2], "true");
-    XASSERT_EQ(out[3], "true");
-    XASSERT(out[4].find("captured output") != std::string::npos);
+    XASSERT(out[3].find("captured output") != std::string::npos);
 }
 
 void testShellBlockCaptureStderr()
@@ -1220,6 +1264,15 @@ void testShellBlockSignalDeath()
     XASSERT_EQ(out.size(), 2u);
     XASSERT_EQ(out[0], "11");
     XASSERT_EQ(out[1], "false");
+
+    auto out2 = runXell(R"(
+        res = shell->capture { kill -9 $$ }
+        print(res->signal)
+        print(res->success)
+    )");
+    XASSERT_EQ(out2.size(), 2u);
+    XASSERT_EQ(out2[0], "9");
+    XASSERT_EQ(out2[1], "false");
 }
 
 void testShellBlockTimeout()
@@ -1236,6 +1289,20 @@ void testShellBlockTimeout()
         threw = true;
     }
     XASSERT(threw);
+
+    auto out = runXell(R"(
+        try :
+            shell->capture(timeout: 1) { sleep 1000 & sleep 1000 }
+            print("FAILED")
+        ;
+        catch e :
+            print(e->type)
+        ;
+    )");
+    XASSERT_EQ(out.size(), 1u);
+    XASSERT_EQ(out[0], "ProcessError");
+    int ret = std::system("pgrep -a sleep > /dev/null 2>&1");
+    XASSERT(ret != 0);
 }
 
 void testShellBlockOutputLimit()
@@ -1253,6 +1320,20 @@ void testShellBlockOutputLimit()
         XASSERT(!e.stdoutStr.empty());
     }
     XASSERT(threw);
+
+    auto out = runXell(R"(
+        try :
+            shell->capture(max_output: 1000) { yes }
+            print("FAILED")
+        ;
+        catch e :
+            print(e->type)
+            print(str(size(e->stdout) > 0))
+        ;
+    )");
+    XASSERT_EQ(out.size(), 2u);
+    XASSERT_EQ(out[0], "ProcessError");
+    XASSERT_EQ(out[1], "true");
 }
 
 void testShellBlockStdinClosedDefault()
@@ -1530,9 +1611,12 @@ void testNoImplicitPathExecution()
     {
         runXell("git(\"status\")");
     }
-    catch (const UndefinedVariableError &)
+    catch (const UndefinedFunctionError &e)
     {
         threw = true;
+        std::string msg = e.what();
+        XASSERT(msg.find("undefined function 'git'") != std::string::npos);
+        XASSERT(msg.find("shell { git ... }") != std::string::npos);
     }
     XASSERT(threw);
 }
@@ -1635,6 +1719,7 @@ int main()
     runTest("shell block parser: capture empty args", testParserShellBlockCaptureEmptyArgs);
     runTest("shell block parser: capture with options", testParserShellBlockCaptureWithOptions);
     runTest("shell block parser: all valid options", testParserShellBlockAllValidOptions);
+    runTest("shell block parser: multiline options", testParserShellBlockMultilineOptions);
     runTest("shell block parser: unknown option rejection", testParserShellBlockUnknownOptionRejection);
     runTest("shell block parser: duplicate option rejection", testParserShellBlockDuplicateOptionRejection);
     runTest("shell block parser: positional option rejection", testParserShellBlockPositionalOptionRejection);

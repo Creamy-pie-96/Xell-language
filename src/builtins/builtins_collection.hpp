@@ -33,6 +33,13 @@ namespace xell
             throw TypeError("len() expects a string, list, tuple, set, frozen_set, or map", line);
         };
 
+        t["clone"] = [](std::vector<XObject> &args, int line) -> XObject
+        {
+            if (args.size() != 1)
+                throw ArityError("clone", 1, (int)args.size(), line);
+            return args[0].clone();
+        };
+
         t["push"] = [](std::vector<XObject> &args, int line) -> XObject
         {
             if (args.size() != 2)

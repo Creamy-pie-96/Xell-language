@@ -47,9 +47,11 @@ namespace xell
     {
         XObject value;         // value carried out of expression-mode loops
         bool hasValue = false; // true when break VALUE was used
+        int line = 0;
     };
     struct ContinueSignal
     {
+        int line = 0;
     };
 
     // ---- Control-flow signal for yield (generators) -------------------------
@@ -144,7 +146,7 @@ namespace xell
         ModuleRegistry moduleRegistry_;
         ModuleResolver moduleResolver_;
         int callDepth_ = 0;
-        static constexpr int MAX_CALL_DEPTH = 512;
+        static constexpr int MAX_CALL_DEPTH = 1000;
         std::string sourceFile_;                        // current file path (for bring resolution)
         std::unordered_set<std::string> importedFiles_; // circular-import guard
         std::vector<std::string> cliArgs_;              // CLI arguments (for __args__ dunder)
@@ -320,6 +322,7 @@ namespace xell
         XObject evalYield(const YieldExpr *node);
         XObject evalAwait(const AwaitExpr *node);
         XObject evalBytes(const BytesLiteral *node);
+        XObject evalFString(const FStringExpr *node);
 
         // ---- Helpers -------------------------------------------------------
 

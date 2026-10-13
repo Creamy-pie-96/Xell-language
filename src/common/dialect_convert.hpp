@@ -20,6 +20,7 @@
 #include <iostream>
 #include <algorithm>
 #include <filesystem>
+#include "json.hpp"
 
 namespace dialect
 {
@@ -35,8 +36,8 @@ namespace dialect
 
     // ── .xesy File Parsing ───────────────────────────────────
 
-    /// Minimal JSON parser: reads a flat { "key": "value", ... } object.
-    /// Skips the special "_meta" key.  Returns canonical→custom map.
+    /// Parse a .xesy mapping file using standalone xell::json::parse.
+    /// Skips the special "_meta" key and non-string values. Returns canonical→custom map.
     inline std::map<std::string, std::string> parseXesyFile(const std::string &path)
     {
         std::map<std::string, std::string> mapping;
@@ -50,96 +51,23 @@ namespace dialect
         std::string content((std::istreambuf_iterator<char>(f)),
                             std::istreambuf_iterator<char>());
 
-        size_t pos = content.find('{');
-        if (pos == std::string::npos)
-            return mapping;
-        pos++;
-
-        auto skipWhitespace = [&]()
+        try
         {
-            while (pos < content.size() && std::isspace(content[pos]))
-                pos++;
-        };
-
-        auto readString = [&]() -> std::string
-        {
-            if (pos >= content.size() || content[pos] != '"')
-                return "";
-            pos++;
-            std::string result;
-            while (pos < content.size() && content[pos] != '"')
+            xell::json::Value val = xell::json::parse(content);
+            if (val.isObject())
             {
-                if (content[pos] == '\\' && pos + 1 < content.size())
+                for (const auto &[key, v] : val.asObject())
                 {
-                    pos++;
-                    switch (content[pos])
+                    if (key != "_meta" && v.isString() && !key.empty() && !v.asString().empty())
                     {
-                    case 'n':
-                        result += '\n';
-                        break;
-                    case 't':
-                        result += '\t';
-                        break;
-                    case '\\':
-                        result += '\\';
-                        break;
-                    case '"':
-                        result += '"';
-                        break;
-                    default:
-                        result += content[pos];
-                        break;
+                        mapping[key] = v.asString();
                     }
                 }
-                else
-                {
-                    result += content[pos];
-                }
-                pos++;
             }
-            if (pos < content.size())
-                pos++;
-            return result;
-        };
-
-        while (pos < content.size())
+        }
+        catch (const xell::json::ParseError &e)
         {
-            skipWhitespace();
-            if (pos >= content.size() || content[pos] == '}')
-                break;
-            if (content[pos] == ',')
-            {
-                pos++;
-                continue;
-            }
-
-            std::string key = readString();
-            skipWhitespace();
-            if (pos < content.size() && content[pos] == ':')
-                pos++;
-            skipWhitespace();
-
-            if (pos < content.size() && content[pos] == '{')
-            {
-                int depth = 1;
-                pos++;
-                while (pos < content.size() && depth > 0)
-                {
-                    if (content[pos] == '{')
-                        depth++;
-                    else if (content[pos] == '}')
-                        depth--;
-                    pos++;
-                }
-                continue;
-            }
-
-            std::string value = readString();
-
-            if (!key.empty() && !value.empty() && key != "_meta")
-            {
-                mapping[key] = value;
-            }
+            std::cerr << "Error: Failed to parse mapping file '" << path << "': " << e.what() << "\n";
         }
 
         return mapping;

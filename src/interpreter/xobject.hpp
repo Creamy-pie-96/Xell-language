@@ -45,6 +45,8 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <unordered_set>
+#include <unordered_map>
 
 // Modular hash algorithms and ordered hash table
 #include "../hash/hash_algorithm.hpp"
@@ -238,6 +240,7 @@ namespace xell
         std::exception_ptr error;        // captures exceptions from generator body
         std::thread worker;
         bool started = false;
+        std::atomic<bool> cancelled{false};
 
         ~GeneratorState();
     };
@@ -444,14 +447,28 @@ namespace xell
         // ---- Deep clone (creates independent copy of payload) ----
 
         XObject clone() const;
+        XObject clone(std::unordered_map<const void *, XObject> &memo) const;
 
         // ---- Conversion to string (for print / interpolation) ----
 
         std::string toString() const;
+        std::string toString(std::unordered_set<const void *> &visited) const;
 
         // ---- Comparison ----
 
+        struct PairPointerHash
+        {
+            size_t operator()(const std::pair<const void *, const void *> &p) const
+            {
+                size_t h1 = std::hash<const void *>{}(p.first);
+                size_t h2 = std::hash<const void *>{}(p.second);
+                return h1 ^ (h2 * 0x9e3779b97f4a7c15ULL + (h1 << 6) + (h1 >> 2));
+            }
+        };
+        using VisitedEqualsSet = std::unordered_set<std::pair<const void *, const void *>, PairPointerHash>;
+
         bool equals(const XObject &other) const;
+        bool equals(const XObject &other, VisitedEqualsSet &visited) const;
 
         // ---- Debug: ref count (for testing) ----
 

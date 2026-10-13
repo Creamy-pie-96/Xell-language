@@ -230,6 +230,30 @@ int main()
     runTest("json_parse: invalid JSON throws", []()
             { XASSERT(expectError<std::exception>("json_parse(r\"{invalid}\")")); });
 
+    runTest("json_parse: surrogate pair decode", []()
+            {
+        auto out = runXell(R"(print(json_parse("\"\\uD83D\\uDE00\"")))");
+        XASSERT_EQ(out[0], std::string("\xF0\x9F\x98\x80")); });
+
+    runTest("json_parse: lone surrogate throws", []()
+            { XASSERT(expectError<std::exception>("json_parse(r\"\"\\uD83D\"\")")); });
+
+    runTest("json_parse: strict numbers reject leading zero", []()
+            { XASSERT(expectError<std::exception>("json_parse(\"01\")")); });
+
+    runTest("json_parse: strict numbers reject decimal without digit", []()
+            { XASSERT(expectError<std::exception>("json_parse(\"1.\")")); });
+
+    runTest("json_parse: strict numbers reject exponent without digit", []()
+            { XASSERT(expectError<std::exception>("json_parse(\"1e\")")); });
+
+    runTest("json_parse: depth limit exceeded throws", []()
+            {
+        std::string deeplyNested;
+        for (int i = 0; i < 600; ++i) deeplyNested += "[";
+        for (int i = 0; i < 600; ++i) deeplyNested += "]";
+        XASSERT(expectError<std::exception>("json_parse(\"" + deeplyNested + "\")")); });
+
     runTest("json_parse: arity error", []()
             { XASSERT(expectError<std::exception>("json_parse()")); });
 
@@ -274,8 +298,41 @@ print(s)
         XASSERT(out[0].find("\"a\"") != std::string::npos);
         XASSERT(out[0].find("1") != std::string::npos); });
 
+    runTest("json_stringify: sorted keys", []()
+            {
+        auto out = runXell(R"(
+m = {"z": 1, "a": 2, "m": 3}
+print(json_stringify(m))
+)");
+        XASSERT_EQ(out[0], "{\"a\":2,\"m\":3,\"z\":1}"); });
+
+    runTest("json_stringify: reject NaN", []()
+            {
+        XASSERT(expectError<std::exception>("x = float(\"nan\")\njson_stringify(x)")); });
+
+    runTest("json_stringify: reject Infinity", []()
+            {
+        XASSERT(expectError<std::exception>("x = float(\"inf\")\njson_stringify(x)")); });
+
     runTest("json_stringify: arity error", []()
             { XASSERT(expectError<std::exception>("json_stringify()")); });
+
+    runTest("json_stringify: circular reference raises ValueError", []()
+            {
+                try
+                {
+                    runXell(R"(
+l = []
+push(l, l)
+json_stringify(l)
+)");
+                    XASSERT(false);
+                }
+                catch (const ValueError &ve)
+                {
+                    XASSERT(std::string(ve.what()).find("circular reference") != std::string::npos);
+                }
+            });
 
     // ---- json_pretty ----
     runTest("json_pretty: produces indented output", []()

@@ -15,6 +15,7 @@
 #include "../parser/ast.hpp"
 #include "../lexer/lexer.hpp"
 #include "../parser/parser.hpp"
+#include "../common/json.hpp"
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -58,7 +59,7 @@ namespace xell
             // Util
             builtins_.insert({"assert", "format"});
             // Collection
-            builtins_.insert({"len", "push", "pop", "keys", "values", "range", "set",
+            builtins_.insert({"len", "clone", "push", "pop", "keys", "values", "range", "set",
                               "has", "add", "remove", "contains", "to_set", "to_tuple",
                               "to_list", "union_set", "intersect", "diff"});
             // Math
@@ -1098,6 +1099,14 @@ namespace xell
                 for (auto &e : shellBlock->interpolatedExprs)
                     checkExpr(e.get());
             }
+            else if (auto *fstr = dynamic_cast<const FStringExpr *>(expr))
+            {
+                for (auto &part : fstr->parts)
+                {
+                    if (part.isExpr && part.expr)
+                        checkExpr(part.expr.get());
+                }
+            }
         }
 
         /// Simple edit-distance based closest match finder
@@ -1251,12 +1260,23 @@ namespace xell
             std::string content((std::istreambuf_iterator<char>(f)),
                                 std::istreambuf_iterator<char>());
 
-            // Quick regex search: "module_name" : { "file": "filename.xel"
-            // This avoids a full JSON parser dependency
-            std::regex pat("\"" + moduleName + "\"\\s*:\\s*\\{\\s*\"file\"\\s*:\\s*\"([^\"]+)\"");
-            std::smatch match;
-            if (std::regex_search(content, match, pat))
-                return match[1].str();
+            try
+            {
+                auto root = xell::json::parse(content);
+                if (root.isObject() && root.has("modules") && root["modules"].isObject())
+                {
+                    const auto &mods = root["modules"].asObject();
+                    auto it = mods.find(moduleName);
+                    if (it != mods.end() && it->second.isObject() && it->second.has("file") && it->second["file"].isString())
+                    {
+                        return it->second["file"].asString();
+                    }
+                }
+            }
+            catch (const xell::json::ParseError &)
+            {
+                return "";
+            }
 
             return "";
         }
@@ -1324,6 +1344,11 @@ namespace xell
                         defineModuleExport(mod->name, imm->name);
                     else if (auto *cls = dynamic_cast<const ClassDef *>(exp->declaration.get()))
                         defineModuleExport(mod->name, cls->name);
+                    else if (auto *decCls = dynamic_cast<const DecoratedClassDef *>(exp->declaration.get()))
+                    {
+                        if (auto *cls2 = dynamic_cast<const ClassDef *>(decCls->classDef.get()))
+                            defineModuleExport(mod->name, cls2->name);
+                    }
                     else if (auto *st = dynamic_cast<const StructDef *>(exp->declaration.get()))
                         defineModuleExport(mod->name, st->name);
                     else if (auto *en = dynamic_cast<const EnumDef *>(exp->declaration.get()))
@@ -1415,6 +1440,11 @@ namespace xell
                         defineModuleExport(bindName, imm->name, imm->line, "variable", srcFile);
                     else if (auto *cls = dynamic_cast<const ClassDef *>(exp->declaration.get()))
                         defineModuleExport(bindName, cls->name, cls->line, "class", srcFile);
+                    else if (auto *decCls = dynamic_cast<const DecoratedClassDef *>(exp->declaration.get()))
+                    {
+                        if (auto *cls2 = dynamic_cast<const ClassDef *>(decCls->classDef.get()))
+                            defineModuleExport(bindName, cls2->name, cls2->line, "class", srcFile);
+                    }
                     else if (auto *st = dynamic_cast<const StructDef *>(exp->declaration.get()))
                         defineModuleExport(bindName, st->name, st->line, "struct", srcFile);
                     else if (auto *en = dynamic_cast<const EnumDef *>(exp->declaration.get()))

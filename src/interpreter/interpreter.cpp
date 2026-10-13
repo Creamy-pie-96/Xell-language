@@ -108,6 +108,13 @@ namespace xell
                     return true;
             return false;
         }
+        if (auto *p = dynamic_cast<const FStringExpr *>(expr))
+        {
+            for (const auto &part : p->parts)
+                if (part.isExpr && containsYieldExpr(part.expr.get()))
+                    return true;
+            return false;
+        }
         return false;
     }
 
@@ -291,6 +298,13 @@ namespace xell
                 collectExprDeps(e.get(), deps);
             return;
         }
+        if (auto *p = dynamic_cast<const FStringExpr *>(expr))
+        {
+            for (const auto &part : p->parts)
+                if (part.isExpr)
+                    collectExprDeps(part.expr.get(), deps);
+            return;
+        }
     }
 
     // ========================================================================
@@ -343,6 +357,8 @@ namespace xell
         }
         if (auto *p = dynamic_cast<const CallExpr *>(expr))
         {
+            if (!p->isMethodCall)
+                refs.insert(p->callee);
             for (const auto &a : p->args)
                 collectRefsExpr(a.get(), refs);
             return;
@@ -474,6 +490,13 @@ namespace xell
                 collectRefsExpr(opt.value.get(), refs);
             for (const auto &e : p->interpolatedExprs)
                 collectRefsExpr(e.get(), refs);
+            return;
+        }
+        if (auto *p = dynamic_cast<const FStringExpr *>(expr))
+        {
+            for (const auto &part : p->parts)
+                if (part.isExpr)
+                    collectRefsExpr(part.expr.get(), refs);
             return;
         }
         // Literals, YieldExpr, etc. — nothing to collect
@@ -699,42 +722,53 @@ namespace xell
 
         globalEnv_.define("__file__", XObject::makeString(sourceFile_));
 
-        for (const auto &stmt : program.statements)
+        try
         {
-            exec(stmt.get());
-
-            // Evaluate dirty watches after each top-level statement
-            if (trace_ && trace_->enabled && trace_->hasDirtyWatches())
+            for (const auto &stmt : program.statements)
             {
-                auto &watches = trace_->watches();
-                for (size_t wi = 0; wi < watches.size(); ++wi)
+                exec(stmt.get());
+
+                // Evaluate dirty watches after each top-level statement
+                if (trace_ && trace_->enabled && trace_->hasDirtyWatches())
                 {
-                    auto &w = watches[wi];
-                    if (!w.dirty)
-                        continue;
-                    w.dirty = false;
-                    if (w.parsed)
+                    auto &watches = trace_->watches();
+                    for (size_t wi = 0; wi < watches.size(); ++wi)
                     {
-                        try
+                        auto &w = watches[wi];
+                        if (!w.dirty)
+                            continue;
+                        w.dirty = false;
+                        if (w.parsed)
                         {
-                            XObject val = eval(w.parsed);
-                            bool nowTrue = val.truthy();
-                            if (nowTrue && !w.lastValue)
+                            try
                             {
-                                trace_->emit(TraceEvent::WATCH_TRIGGERED,
-                                             stmt->line, w.expression,
-                                             "", val.toString(),
-                                             "", "watch", stmt->line);
+                                XObject val = eval(w.parsed);
+                                bool nowTrue = val.truthy();
+                                if (nowTrue && !w.lastValue)
+                                {
+                                    trace_->emit(TraceEvent::WATCH_TRIGGERED,
+                                                 stmt->line, w.expression,
+                                                 "", val.toString(),
+                                                 "", "watch", stmt->line);
+                                }
+                                w.lastValue = nowTrue;
                             }
-                            w.lastValue = nowTrue;
-                        }
-                        catch (...)
-                        {
-                            // Watch expression failed — ignore silently
+                            catch (...)
+                            {
+                                // Watch expression failed — ignore silently
+                            }
                         }
                     }
                 }
             }
+        }
+        catch (const BreakSignal &bs)
+        {
+            throw RuntimeError("break outside of loop", bs.line);
+        }
+        catch (const ContinueSignal &cs)
+        {
+            throw RuntimeError("continue outside of loop", cs.line);
         }
     }
 
@@ -1467,12 +1501,12 @@ namespace xell
             if (p->value)
             {
                 XObject val = eval(p->value.get());
-                throw BreakSignal{std::move(val), true};
+                throw BreakSignal{std::move(val), true, p->line};
             }
-            throw BreakSignal{};
+            throw BreakSignal{{}, false, p->line};
         }
         if (auto *p = dynamic_cast<const ContinueStmt *>(stmt))
-            throw ContinueSignal{};
+            throw ContinueSignal{p->line};
         if (auto *p = dynamic_cast<const ExprStmt *>(stmt))
             return execExprStmt(p);
         if (auto *p = dynamic_cast<const BringStmt *>(stmt))
@@ -2364,96 +2398,305 @@ namespace xell
     // Infinite loop statement:  loop : BLOCK ;
     // ============================================================
 
-    // Helper: recursively check if a block of statements contains a BreakStmt.
-    // Does NOT descend into nested function definitions (breaks there don't affect this loop).
-    // helper: check if a block contains a break that breaks the current loop
-    static bool bodyContainsBreak(const std::vector<StmtPtr> &stmts, bool insideNestedLoop = false)
+    // ============================================================
+    // @safe_loop analysis
+    // ============================================================
+    // Heuristic static check: verifies whether the loop body contains a reachable
+    // break, return (give), or throw statement belonging to this loop.
+    // Note: this is a heuristic, not a termination proof.
+
+    enum class ConstBool
     {
+        Unknown,
+        True,
+        False
+    };
+
+    static ConstBool evalConstCondition(const Expr *expr)
+    {
+        if (!expr)
+            return ConstBool::Unknown;
+
+        if (auto *b = dynamic_cast<const BoolLiteral *>(expr))
+            return b->value ? ConstBool::True : ConstBool::False;
+
+        if (auto *i = dynamic_cast<const IntLiteral *>(expr))
+            return i->value != 0 ? ConstBool::True : ConstBool::False;
+
+        if (auto *f = dynamic_cast<const FloatLiteral *>(expr))
+            return f->value != 0.0 ? ConstBool::True : ConstBool::False;
+
+        if (auto *s = dynamic_cast<const StringLiteral *>(expr))
+            return !s->value.empty() ? ConstBool::True : ConstBool::False;
+
+        if (dynamic_cast<const NoneLiteral *>(expr))
+            return ConstBool::False;
+
+        if (auto *u = dynamic_cast<const UnaryExpr *>(expr))
+        {
+            if (u->op == "!" || u->op == "not")
+            {
+                ConstBool inner = evalConstCondition(u->operand.get());
+                if (inner == ConstBool::True)
+                    return ConstBool::False;
+                if (inner == ConstBool::False)
+                    return ConstBool::True;
+            }
+            return ConstBool::Unknown;
+        }
+
+        if (auto *bin = dynamic_cast<const BinaryExpr *>(expr))
+        {
+            if (bin->op == "&&" || bin->op == "and")
+            {
+                ConstBool l = evalConstCondition(bin->left.get());
+                ConstBool r = evalConstCondition(bin->right.get());
+                if (l == ConstBool::False || r == ConstBool::False)
+                    return ConstBool::False;
+                if (l == ConstBool::True && r == ConstBool::True)
+                    return ConstBool::True;
+                return ConstBool::Unknown;
+            }
+            if (bin->op == "||" || bin->op == "or")
+            {
+                ConstBool l = evalConstCondition(bin->left.get());
+                ConstBool r = evalConstCondition(bin->right.get());
+                if (l == ConstBool::True || r == ConstBool::True)
+                    return ConstBool::True;
+                if (l == ConstBool::False && r == ConstBool::False)
+                    return ConstBool::False;
+                return ConstBool::Unknown;
+            }
+
+            auto *li = dynamic_cast<const IntLiteral *>(bin->left.get());
+            auto *ri = dynamic_cast<const IntLiteral *>(bin->right.get());
+            if (li && ri)
+            {
+                int64_t lv = li->value;
+                int64_t rv = ri->value;
+                if (bin->op == "==") return lv == rv ? ConstBool::True : ConstBool::False;
+                if (bin->op == "!=") return lv != rv ? ConstBool::True : ConstBool::False;
+                if (bin->op == "<")  return lv < rv  ? ConstBool::True : ConstBool::False;
+                if (bin->op == "<=") return lv <= rv ? ConstBool::True : ConstBool::False;
+                if (bin->op == ">")  return lv > rv  ? ConstBool::True : ConstBool::False;
+                if (bin->op == ">=") return lv >= rv ? ConstBool::True : ConstBool::False;
+            }
+
+            auto *lb = dynamic_cast<const BoolLiteral *>(bin->left.get());
+            auto *rb = dynamic_cast<const BoolLiteral *>(bin->right.get());
+            if (lb && rb)
+            {
+                if (bin->op == "==") return lb->value == rb->value ? ConstBool::True : ConstBool::False;
+                if (bin->op == "!=") return lb->value != rb->value ? ConstBool::True : ConstBool::False;
+            }
+
+            auto *ls = dynamic_cast<const StringLiteral *>(bin->left.get());
+            auto *rs = dynamic_cast<const StringLiteral *>(bin->right.get());
+            if (ls && rs)
+            {
+                if (bin->op == "==") return ls->value == rs->value ? ConstBool::True : ConstBool::False;
+                if (bin->op == "!=") return ls->value != rs->value ? ConstBool::True : ConstBool::False;
+            }
+        }
+
+        if (auto *cc = dynamic_cast<const ChainedComparisonExpr *>(expr))
+        {
+            if (cc->operands.size() == 2 && cc->ops.size() == 1)
+            {
+                auto *li = dynamic_cast<const IntLiteral *>(cc->operands[0].get());
+                auto *ri = dynamic_cast<const IntLiteral *>(cc->operands[1].get());
+                if (li && ri)
+                {
+                    int64_t lv = li->value;
+                    int64_t rv = ri->value;
+                    const auto &op = cc->ops[0];
+                    if (op == "==") return lv == rv ? ConstBool::True : ConstBool::False;
+                    if (op == "!=") return lv != rv ? ConstBool::True : ConstBool::False;
+                    if (op == "<")  return lv < rv  ? ConstBool::True : ConstBool::False;
+                    if (op == "<=") return lv <= rv ? ConstBool::True : ConstBool::False;
+                    if (op == ">")  return lv > rv  ? ConstBool::True : ConstBool::False;
+                    if (op == ">=") return lv >= rv ? ConstBool::True : ConstBool::False;
+                }
+            }
+        }
+
+        return ConstBool::Unknown;
+    }
+
+    struct SafeLoopAnalysisResult
+    {
+        bool hasReachableExit = false;
+        bool unconditionalExit = false;
+    };
+
+    static SafeLoopAnalysisResult analyzeSafeLoopStmts(const std::vector<StmtPtr> &stmts)
+    {
+        SafeLoopAnalysisResult result;
         for (const auto &s : stmts)
         {
-            if (auto *b = dynamic_cast<const BreakStmt *>(s.get()))
+            if (result.unconditionalExit)
             {
-                // only count if not inside a nested loop
-                if (!insideNestedLoop)
-                    return true;
-                continue;
+                // Code after an unconditional break/return/throw is unreachable.
+                break;
             }
-            if (auto *p = dynamic_cast<const IfStmt *>(s.get()))
+
+            if (dynamic_cast<const BreakStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body, insideNestedLoop))
-                    return true;
-                for (auto &elif : p->elifs)
-                    if (bodyContainsBreak(elif.body, insideNestedLoop))
-                        return true;
-                if (bodyContainsBreak(p->elseBody, insideNestedLoop))
-                    return true;
+                result.hasReachableExit = true;
+                result.unconditionalExit = true;
             }
-            else if (auto *p = dynamic_cast<const ForStmt *>(s.get()))
+            else if (dynamic_cast<const GiveStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body, true))
-                    return true; // nested loop → ignore breaks inside
+                result.hasReachableExit = true;
+                result.unconditionalExit = true;
             }
-            else if (auto *p = dynamic_cast<const WhileStmt *>(s.get()))
+            else if (dynamic_cast<const ThrowStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body, true))
-                    return true;
+                result.hasReachableExit = true;
+                result.unconditionalExit = true;
             }
-            else if (auto *p = dynamic_cast<const LoopStmt *>(s.get()))
+            else if (auto *p = dynamic_cast<const IfStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body, true))
-                    return true;
-            }
-            else if (auto *p = dynamic_cast<const DoWhileStmt *>(s.get()))
-            {
-                if (bodyContainsBreak(p->body, true))
-                    return true;
+                ConstBool ifCond = evalConstCondition(p->condition.get());
+                bool anyBranchReachable = false;
+                bool allReachableBranchesExit = true;
+                bool definitelyExhaustive = false;
+
+                if (ifCond != ConstBool::False)
+                {
+                    anyBranchReachable = true;
+                    auto ifRes = analyzeSafeLoopStmts(p->body);
+                    if (ifRes.hasReachableExit)
+                        result.hasReachableExit = true;
+                    if (!ifRes.unconditionalExit)
+                        allReachableBranchesExit = false;
+                    if (ifCond == ConstBool::True)
+                        definitelyExhaustive = true;
+                }
+
+                if (ifCond != ConstBool::True)
+                {
+                    for (const auto &elif : p->elifs)
+                    {
+                        ConstBool elifCond = evalConstCondition(elif.condition.get());
+                        if (elifCond != ConstBool::False)
+                        {
+                            anyBranchReachable = true;
+                            auto elifRes = analyzeSafeLoopStmts(elif.body);
+                            if (elifRes.hasReachableExit)
+                                result.hasReachableExit = true;
+                            if (!elifRes.unconditionalExit)
+                                allReachableBranchesExit = false;
+                            if (elifCond == ConstBool::True)
+                            {
+                                definitelyExhaustive = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!definitelyExhaustive)
+                    {
+                        if (!p->elseBody.empty())
+                        {
+                            anyBranchReachable = true;
+                            auto elseRes = analyzeSafeLoopStmts(p->elseBody);
+                            if (elseRes.hasReachableExit)
+                                result.hasReachableExit = true;
+                            if (!elseRes.unconditionalExit)
+                                allReachableBranchesExit = false;
+                            definitelyExhaustive = true;
+                        }
+                        else
+                        {
+                            allReachableBranchesExit = false;
+                        }
+                    }
+                }
+
+                if (anyBranchReachable && definitelyExhaustive && allReachableBranchesExit)
+                {
+                    result.unconditionalExit = true;
+                }
             }
             else if (auto *p = dynamic_cast<const TryCatchStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->tryBody, insideNestedLoop))
-                    return true;
-                for (const auto &clause : p->catchClauses)
-                    if (bodyContainsBreak(clause.body, insideNestedLoop))
-                        return true;
-                if (bodyContainsBreak(p->finallyBody, insideNestedLoop))
-                    return true;
+                auto tryRes = analyzeSafeLoopStmts(p->tryBody);
+                if (tryRes.hasReachableExit)
+                    result.hasReachableExit = true;
+                if (!p->finallyBody.empty())
+                {
+                    auto finRes = analyzeSafeLoopStmts(p->finallyBody);
+                    if (finRes.hasReachableExit)
+                        result.hasReachableExit = true;
+                    if (finRes.unconditionalExit)
+                        result.unconditionalExit = true;
+                }
             }
             else if (auto *p = dynamic_cast<const InCaseStmt *>(s.get()))
             {
                 for (const auto &clause : p->clauses)
-                    if (bodyContainsBreak(clause.body, insideNestedLoop))
-                        return true;
-                if (bodyContainsBreak(p->elseBody, insideNestedLoop))
-                    return true;
+                {
+                    auto cRes = analyzeSafeLoopStmts(clause.body);
+                    if (cRes.hasReachableExit)
+                        result.hasReachableExit = true;
+                }
+                if (!p->elseBody.empty())
+                {
+                    auto elseRes = analyzeSafeLoopStmts(p->elseBody);
+                    if (elseRes.hasReachableExit)
+                        result.hasReachableExit = true;
+                }
             }
             else if (auto *p = dynamic_cast<const LetStmt *>(s.get()))
             {
-                if (bodyContainsBreak(p->body, insideNestedLoop))
-                    return true;
+                auto letRes = analyzeSafeLoopStmts(p->body);
+                if (letRes.hasReachableExit)
+                    result.hasReachableExit = true;
+                if (letRes.unconditionalExit)
+                    result.unconditionalExit = true;
             }
-            // do NOT descend into functions/classes – breaks there are local
+            // Nested loops (ForStmt, WhileStmt, LoopStmt, DoWhileStmt) and
+            // function/class definitions are intentionally not descended into.
         }
-        return false;
+        return result;
     }
 
     void Interpreter::execLoop(const LoopStmt *node)
     {
-        // @safe_loop: check at runtime that the body contains a break
-        if (node->safeLoop && !bodyContainsBreak(node->body))
+        // (a) Static check: the loop body must contain a reachable break, return or throw
+        // belonging to THIS loop. Comment: this is a heuristic, not a termination proof.
+        if (node->safeLoop)
         {
-            throw RuntimeError("@safe_loop: loop body does not contain a 'break' statement; "
-                               "this would cause an infinite loop",
-                               node->line);
+            auto analysis = analyzeSafeLoopStmts(node->body);
+            if (!analysis.hasReachableExit)
+            {
+                throw RuntimeError("@safe_loop: loop body does not contain a reachable 'break', 'return', or 'throw' statement belonging to this loop; "
+                                   "this would cause an infinite loop",
+                                   node->line);
+            }
         }
 
         Environment loopEnv(currentEnv_);
         auto *savedEnv = currentEnv_;
         currentEnv_ = &loopEnv;
 
+        int64_t iterCount = 0;
         try
         {
             while (true)
             {
+                // (b) Runtime guard: check max_iterations if specified
+                if (node->safeLoop && node->maxIterations >= 0 && iterCount >= node->maxIterations)
+                {
+                    std::string loc = sourceFile_.empty() ? ("line " + std::to_string(node->line))
+                                                          : (sourceFile_ + ":" + std::to_string(node->line));
+                    throw RuntimeError("@safe_loop: exceeded maximum iterations (" +
+                                           std::to_string(node->maxIterations) + ") in " + loc,
+                                       node->line);
+                }
+                iterCount++;
+
                 try
                 {
                     for (const auto &stmt : node->body)
@@ -3667,8 +3910,11 @@ namespace xell
                 exportedNames_.insert(e->name);
             else if (auto *m = dynamic_cast<const ModuleDef *>(node->declaration.get()))
                 exportedNames_.insert(m->name);
+            else if (auto *df = dynamic_cast<const DecoratedFnDef *>(node->declaration.get()))
+                exportedNames_.insert(df->fnDef->name);
+            else if (auto *dc = dynamic_cast<const DecoratedClassDef *>(node->declaration.get()))
+                exportedNames_.insert(dc->classDef->name);
         }
-        // TODO: support export for decorated defs when needed
     }
 
     // ========================================================================
@@ -3865,6 +4111,8 @@ namespace xell
             return evalAwait(p);
         if (auto *p = dynamic_cast<const BytesLiteral *>(expr))
             return evalBytes(p);
+        if (auto *p = dynamic_cast<const FStringExpr *>(expr))
+            return evalFString(p);
 
         // Expression-mode constructs
         if (auto *p = dynamic_cast<const IfExpr *>(expr))
@@ -4048,9 +4296,27 @@ namespace xell
 
         // Equality / inequality (any types)
         if (op == "==")
-            return XObject::makeBool(left.equals(right));
+        {
+            try
+            {
+                return XObject::makeBool(left.equals(right));
+            }
+            catch (const ValueError &ve)
+            {
+                throw ValueError(ve.detail(), node->line);
+            }
+        }
         if (op == "!=")
-            return XObject::makeBool(!left.equals(right));
+        {
+            try
+            {
+                return XObject::makeBool(!left.equals(right));
+            }
+            catch (const ValueError &ve)
+            {
+                throw ValueError(ve.detail(), node->line);
+            }
+        }
 
         // Instance-of check: obj is ClassName
         if (op == "is" || op == "is not")
@@ -4066,7 +4332,14 @@ namespace xell
             else
             {
                 // Fallback: treat as equality for non-instance operands
-                result = left.equals(right);
+                try
+                {
+                    result = left.equals(right);
+                }
+                catch (const ValueError &ve)
+                {
+                    throw ValueError(ve.detail(), node->line);
+                }
             }
             return XObject::makeBool(negate ? !result : result);
         }
@@ -4085,19 +4358,33 @@ namespace xell
             else if (right.isList())
             {
                 for (const auto &elem : right.asList())
-                    if (elem.equals(left))
+                    try
                     {
-                        found = true;
-                        break;
+                        if (elem.equals(left))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    catch (const ValueError &ve)
+                    {
+                        throw ValueError(ve.detail(), node->line);
                     }
             }
             else if (right.isTuple())
             {
                 for (const auto &elem : right.asTuple())
-                    if (elem.equals(left))
+                    try
                     {
-                        found = true;
-                        break;
+                        if (elem.equals(left))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    catch (const ValueError &ve)
+                    {
+                        throw ValueError(ve.detail(), node->line);
                     }
             }
 
@@ -5183,7 +5470,15 @@ namespace xell
         // }
 
         // Look up user-defined function (throws if not found)
-        XObject fnObj = currentEnv_->get(node->callee, node->line);
+        XObject fnObj;
+        try
+        {
+            fnObj = currentEnv_->get(node->callee, node->line);
+        }
+        catch (const UndefinedVariableError &)
+        {
+            throw UndefinedFunctionError(node->callee, node->line);
+        }
 
         // Magic method: __call__ — if the callee is an instance with __call__
         if (fnObj.isInstance())
@@ -5450,6 +5745,40 @@ namespace xell
         catch (GiveSignal &sig)
         {
             result = std::move(sig.value);
+        }
+        catch (const BreakSignal &bs)
+        {
+            if (!tracebackCaptured_)
+            {
+                lastTraceback_ = callStack_;
+                tracebackCaptured_ = true;
+            }
+            if (!callStack_.empty())
+                callStack_.pop_back();
+            currentEnv_ = savedEnv;
+            callDepth_--;
+            if (trace_ && trace_->enabled)
+                trace_->popCallStack();
+            if (debugFnRestore)
+                trace_->enabled = debugFnPrevEnabled;
+            throw RuntimeError("break outside of loop", bs.line);
+        }
+        catch (const ContinueSignal &cs)
+        {
+            if (!tracebackCaptured_)
+            {
+                lastTraceback_ = callStack_;
+                tracebackCaptured_ = true;
+            }
+            if (!callStack_.empty())
+                callStack_.pop_back();
+            currentEnv_ = savedEnv;
+            callDepth_--;
+            if (trace_ && trace_->enabled)
+                trace_->popCallStack();
+            if (debugFnRestore)
+                trace_->enabled = debugFnPrevEnabled;
+            throw RuntimeError("continue outside of loop", cs.line);
         }
         catch (...)
         {
@@ -6059,7 +6388,7 @@ namespace xell
             {
                 if (!val.isInt() && !val.isFloat())
                     throw TypeError("timeout option must be a number", opt.line);
-                timeoutSeconds = val.asFloat();
+                timeoutSeconds = val.asNumber();
                 if (timeoutSeconds < 0.0)
                     throw ValueError("timeout option must be non-negative", opt.line);
             }
@@ -6268,7 +6597,6 @@ namespace xell
             res.set("exit_code", XObject::makeInt(result.exitCode));
             res.set("signal", XObject::makeInt(result.signalNum));
             res.set("success", XObject::makeBool(result.success));
-            res.set("ok", XObject::makeBool(result.success));
             return XObject::makeMap(std::move(res));
         }
         else
@@ -6461,6 +6789,47 @@ namespace xell
         return XObject::makeBytes(node->bytes);
     }
 
+    // ---- F-string expression: f"..." -------------------------------------
+
+    XObject Interpreter::evalFString(const FStringExpr *node)
+    {
+        std::string result;
+        for (const auto &part : node->parts)
+        {
+            if (!part.isExpr)
+            {
+                result += part.text;
+                continue;
+            }
+
+            XObject val = eval(part.expr.get());
+            if (!part.formatSpec.empty())
+            {
+                result += applyFormatSpec(val, part.formatSpec, node->line);
+                continue;
+            }
+
+            // Check for __str__ or __print__ magic method on instances
+            if (val.isInstance())
+            {
+                XObject magicResult;
+                std::vector<XObject> noArgs;
+                if (callMagicMethod(val, "__str__", noArgs, node->line, magicResult))
+                {
+                    result += magicResult.toString();
+                    continue;
+                }
+                if (callMagicMethod(val, "__print__", noArgs, node->line, magicResult))
+                {
+                    result += magicResult.toString();
+                    continue;
+                }
+            }
+            result += val.toString();
+        }
+        return XObject::makeString(result);
+    }
+
     // ---- Yield expression (for generators) --------------------------------
 
     XObject Interpreter::evalYield(const YieldExpr *node)
@@ -6484,11 +6853,11 @@ namespace xell
         {
             std::unique_lock<std::mutex> lk(gs->mtx);
             gs->cv.wait(lk, [gs]
-                        { return gs->phase == GeneratorState::RUNNING || gs->phase == GeneratorState::DONE; });
+                        { return gs->cancelled || gs->phase == GeneratorState::RUNNING || gs->phase == GeneratorState::DONE; });
         }
 
-        // If DONE was signaled, the generator is being abandoned
-        if (gs->phase == GeneratorState::DONE)
+        // If cancelled or DONE was signaled, the generator is being abandoned
+        if (gs->cancelled || gs->phase == GeneratorState::DONE)
             throw GiveSignal{XObject::makeNone()}; // unwind the generator
 
         return XObject::makeNone(); // yield always "returns" none to the generator body
@@ -7475,10 +7844,10 @@ namespace xell
             {
                 std::unique_lock<std::mutex> lk(stateRaw->mtx);
                 stateRaw->cv.wait(lk, [stateRaw] {
-                    return stateRaw->phase == GeneratorState::RUNNING || stateRaw->phase == GeneratorState::DONE;
+                    return stateRaw->cancelled || stateRaw->phase == GeneratorState::RUNNING || stateRaw->phase == GeneratorState::DONE;
                 });
             }
-            if (stateRaw->phase == GeneratorState::DONE) return;
+            if (stateRaw->cancelled || stateRaw->phase == GeneratorState::DONE) return;
 
             // Create a mini-interpreter for the generator body
             Interpreter genInterp;
@@ -7500,6 +7869,12 @@ namespace xell
                 std::lock_guard<std::mutex> lk(stateRaw->mtx);
                 delete stateRaw->yieldedValue;
                 stateRaw->yieldedValue = new XObject(sig.value.clone());
+            } catch (const BreakSignal &bs) {
+                std::lock_guard<std::mutex> lk(stateRaw->mtx);
+                stateRaw->error = std::make_exception_ptr(RuntimeError("break outside of loop", bs.line));
+            } catch (const ContinueSignal &cs) {
+                std::lock_guard<std::mutex> lk(stateRaw->mtx);
+                stateRaw->error = std::make_exception_ptr(RuntimeError("continue outside of loop", cs.line));
             } catch (...) {
                 std::lock_guard<std::mutex> lk(stateRaw->mtx);
                 stateRaw->error = std::current_exception();
@@ -7597,6 +7972,15 @@ namespace xell
             errInst.fields["type"] = XObject::makeString(category);
             errInst.fields["line"] = XObject::makeInt(e.line());
             errInst.fields["traceback"] = XObject::makeList(std::move(tracebackList));
+
+            if (const auto *spe = dynamic_cast<const ShellProcessError *>(&e))
+            {
+                errInst.fields["stdout"] = XObject::makeString(spe->stdoutStr);
+                errInst.fields["stderr"] = XObject::makeString(spe->stderrStr);
+                errInst.fields["code"] = XObject::makeInt(spe->exitCode);
+                errInst.fields["exit_code"] = XObject::makeInt(spe->exitCode);
+                errInst.fields["signal"] = XObject::makeInt(spe->signalNum);
+            }
 
             catchEnv.define(matched->varName, XObject::makeInstance(std::move(errInst)));
 

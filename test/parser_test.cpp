@@ -1091,6 +1091,23 @@ void test_parse_string_interpolation_preserved()
     XASSERT_EQ(str->value, std::string("Hello, {name}! Port: {port}"));
 }
 
+void test_parse_fstring_ast()
+{
+    auto prog = parseSource("msg = f\"literal {{brace}} {name} end\"");
+    auto *assign = firstStmt<Assignment>(prog);
+    auto *fstr = asExpr<FStringExpr>(assign->value.get());
+    XASSERT(fstr != nullptr);
+    XASSERT_EQ(fstr->parts.size(), (size_t)3);
+    XASSERT_EQ(fstr->parts[0].isExpr, false);
+    XASSERT_EQ(fstr->parts[0].text, std::string("literal {brace} "));
+    XASSERT_EQ(fstr->parts[1].isExpr, true);
+    auto *ident = dynamic_cast<Identifier *>(fstr->parts[1].expr.get());
+    XASSERT(ident != nullptr);
+    XASSERT_EQ(ident->name, std::string("name"));
+    XASSERT_EQ(fstr->parts[2].isExpr, false);
+    XASSERT_EQ(fstr->parts[2].text, std::string(" end"));
+}
+
 void test_parse_full_program()
 {
     auto prog = parseSource(
@@ -1254,6 +1271,7 @@ int main()
     runTest("parse: nested if/for", test_parse_nested_if_for);
     runTest("parse: comments ignored", test_parse_comments_ignored);
     runTest("parse: string interpolation", test_parse_string_interpolation_preserved);
+    runTest("parse: fstring dedicated AST", test_parse_fstring_ast);
     runTest("parse: full program", test_parse_full_program);
 
     // Summary

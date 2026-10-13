@@ -24,6 +24,7 @@
 
 #include "builtin_registry.hpp"
 #include "../lib/errors/error.hpp"
+#include "../common/json.hpp"
 #include <string>
 #include <vector>
 #include <fstream>
@@ -33,545 +34,133 @@
 #include <cmath>
 #include <algorithm>
 #include <functional>
+#include <unordered_set>
 
 namespace xell
 {
 
     // =========================================================================
-    //  Internal: Full recursive descent JSON parser
+    //  Internal: JSON converters and data format parsers
     // =========================================================================
 
     namespace json_internal
     {
 
-        struct JsonParser
+        inline XObject jsonToXObject(const json::Value &val)
         {
-            std::string src;
-            size_t pos;
-            int errLine; // Xell line number for error reporting
-
-            JsonParser(const std::string &s, int line) : src(s), pos(0), errLine(line) {}
-
-            // -- Whitespace ---------------------------------------------------
-            void skipWhitespace()
+            switch (val.type())
             {
-                while (pos < src.size() && (src[pos] == ' ' || src[pos] == '\t' ||
-                                            src[pos] == '\n' || src[pos] == '\r'))
-                    ++pos;
+            case json::Type::Null:
+                return XObject::makeNone();
+            case json::Type::Bool:
+                return XObject::makeBool(val.asBool());
+            case json::Type::Int:
+                return XObject::makeInt(val.asInt());
+            case json::Type::Float:
+                return XObject::makeFloat(val.asFloat());
+            case json::Type::String:
+                return XObject::makeString(val.asString());
+            case json::Type::Array:
+            {
+                std::vector<XObject> list;
+                list.reserve(val.asArray().size());
+                for (const auto &elem : val.asArray())
+                {
+                    list.push_back(jsonToXObject(elem));
+                }
+                return XObject::makeList(std::move(list));
             }
-
-            // -- Peek / Advance -----------------------------------------------
-            char peek()
+            case json::Type::Object:
             {
-                skipWhitespace();
-                if (pos >= src.size())
-                    throw RuntimeError("json_parse: unexpected end of input", errLine);
-                return src[pos];
-            }
-
-            char advance()
-            {
-                skipWhitespace();
-                if (pos >= src.size())
-                    throw RuntimeError("json_parse: unexpected end of input", errLine);
-                return src[pos++];
-            }
-
-            void expect(char c)
-            {
-                char got = advance();
-                if (got != c)
-                {
-                    std::string msg = "json_parse: expected '";
-                    msg += c;
-                    msg += "', got '";
-                    msg += got;
-                    msg += "' at position ";
-                    msg += std::to_string(pos - 1);
-                    throw RuntimeError(msg, errLine);
-                }
-            }
-
-            // -- Parse value --------------------------------------------------
-            XObject parseValue()
-            {
-                char c = peek();
-                if (c == '"')
-                    return parseString();
-                if (c == '{')
-                    return parseObject();
-                if (c == '[')
-                    return parseArray();
-                if (c == 't' || c == 'f')
-                    return parseBool();
-                if (c == 'n')
-                    return parseNull();
-                if (c == '-' || (c >= '0' && c <= '9'))
-                    return parseNumber();
-                std::string msg = "json_parse: unexpected character '";
-                msg += c;
-                msg += "' at position ";
-                msg += std::to_string(pos);
-                throw RuntimeError(msg, errLine);
-            }
-
-            // -- String with escape handling ----------------------------------
-            XObject parseString()
-            {
-                return XObject::makeString(parseRawString());
-            }
-
-            std::string parseRawString()
-            {
-                expect('"');
-                std::string result;
-                while (pos < src.size() && src[pos] != '"')
-                {
-                    if (src[pos] == '\\')
-                    {
-                        ++pos;
-                        if (pos >= src.size())
-                            throw RuntimeError("json_parse: unterminated string escape", errLine);
-                        switch (src[pos])
-                        {
-                        case '"':
-                            result += '"';
-                            break;
-                        case '\\':
-                            result += '\\';
-                            break;
-                        case '/':
-                            result += '/';
-                            break;
-                        case 'b':
-                            result += '\b';
-                            break;
-                        case 'f':
-                            result += '\f';
-                            break;
-                        case 'n':
-                            result += '\n';
-                            break;
-                        case 'r':
-                            result += '\r';
-                            break;
-                        case 't':
-                            result += '\t';
-                            break;
-                        case 'u':
-                        {
-                            // \uXXXX — 4 hex digits → Unicode code point
-                            if (pos + 4 >= src.size())
-                                throw RuntimeError("json_parse: incomplete \\u escape", errLine);
-                            std::string hex = src.substr(pos + 1, 4);
-                            uint32_t cp = 0;
-                            for (char h : hex)
-                            {
-                                cp <<= 4;
-                                if (h >= '0' && h <= '9')
-                                    cp |= (h - '0');
-                                else if (h >= 'a' && h <= 'f')
-                                    cp |= (h - 'a' + 10);
-                                else if (h >= 'A' && h <= 'F')
-                                    cp |= (h - 'A' + 10);
-                                else
-                                    throw RuntimeError("json_parse: invalid \\u hex digit", errLine);
-                            }
-                            // Handle surrogate pairs
-                            if (cp >= 0xD800 && cp <= 0xDBFF)
-                            {
-                                // High surrogate — expect low surrogate
-                                pos += 4;
-                                if (pos + 1 < src.size() && src[pos + 1] == '\\' &&
-                                    pos + 2 < src.size() && src[pos + 2] == 'u')
-                                {
-                                    pos += 2; // skip \u
-                                    if (pos + 4 >= src.size())
-                                        throw RuntimeError("json_parse: incomplete surrogate pair", errLine);
-                                    std::string hex2 = src.substr(pos + 1, 4);
-                                    uint32_t low = 0;
-                                    for (char h : hex2)
-                                    {
-                                        low <<= 4;
-                                        if (h >= '0' && h <= '9')
-                                            low |= (h - '0');
-                                        else if (h >= 'a' && h <= 'f')
-                                            low |= (h - 'a' + 10);
-                                        else if (h >= 'A' && h <= 'F')
-                                            low |= (h - 'A' + 10);
-                                        else
-                                            throw RuntimeError("json_parse: invalid surrogate pair hex", errLine);
-                                    }
-                                    cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
-                                    pos += 4;
-                                }
-                                else
-                                {
-                                    throw RuntimeError("json_parse: lone high surrogate", errLine);
-                                }
-                            }
-                            else
-                            {
-                                pos += 4;
-                            }
-                            // Encode UTF-8
-                            if (cp < 0x80)
-                            {
-                                result += (char)cp;
-                            }
-                            else if (cp < 0x800)
-                            {
-                                result += (char)(0xC0 | (cp >> 6));
-                                result += (char)(0x80 | (cp & 0x3F));
-                            }
-                            else if (cp < 0x10000)
-                            {
-                                result += (char)(0xE0 | (cp >> 12));
-                                result += (char)(0x80 | ((cp >> 6) & 0x3F));
-                                result += (char)(0x80 | (cp & 0x3F));
-                            }
-                            else
-                            {
-                                result += (char)(0xF0 | (cp >> 18));
-                                result += (char)(0x80 | ((cp >> 12) & 0x3F));
-                                result += (char)(0x80 | ((cp >> 6) & 0x3F));
-                                result += (char)(0x80 | (cp & 0x3F));
-                            }
-                            break;
-                        }
-                        default:
-                            throw RuntimeError("json_parse: unknown escape '\\" +
-                                                   std::string(1, src[pos]) + "'",
-                                               errLine);
-                        }
-                        ++pos;
-                    }
-                    else
-                    {
-                        result += src[pos++];
-                    }
-                }
-                if (pos >= src.size())
-                    throw RuntimeError("json_parse: unterminated string", errLine);
-                ++pos; // skip closing quote
-                return result;
-            }
-
-            // -- Number -------------------------------------------------------
-            XObject parseNumber()
-            {
-                skipWhitespace();
-                size_t start = pos;
-                bool isFloat = false;
-
-                if (pos < src.size() && src[pos] == '-')
-                    ++pos;
-
-                // Integer part
-                if (pos < src.size() && src[pos] == '0')
-                {
-                    ++pos;
-                }
-                else if (pos < src.size() && src[pos] >= '1' && src[pos] <= '9')
-                {
-                    while (pos < src.size() && src[pos] >= '0' && src[pos] <= '9')
-                        ++pos;
-                }
-                else
-                {
-                    throw RuntimeError("json_parse: invalid number at position " +
-                                           std::to_string(pos),
-                                       errLine);
-                }
-
-                // Fractional part
-                if (pos < src.size() && src[pos] == '.')
-                {
-                    isFloat = true;
-                    ++pos;
-                    if (pos >= src.size() || src[pos] < '0' || src[pos] > '9')
-                        throw RuntimeError("json_parse: expected digit after decimal point", errLine);
-                    while (pos < src.size() && src[pos] >= '0' && src[pos] <= '9')
-                        ++pos;
-                }
-
-                // Exponent part
-                if (pos < src.size() && (src[pos] == 'e' || src[pos] == 'E'))
-                {
-                    isFloat = true;
-                    ++pos;
-                    if (pos < src.size() && (src[pos] == '+' || src[pos] == '-'))
-                        ++pos;
-                    if (pos >= src.size() || src[pos] < '0' || src[pos] > '9')
-                        throw RuntimeError("json_parse: expected digit in exponent", errLine);
-                    while (pos < src.size() && src[pos] >= '0' && src[pos] <= '9')
-                        ++pos;
-                }
-
-                std::string numStr = src.substr(start, pos - start);
-                if (isFloat)
-                {
-                    double val = std::stod(numStr);
-                    return XObject::makeFloat(val);
-                }
-                else
-                {
-                    // Try int64_t first; fall back to double for very large numbers
-                    try
-                    {
-                        int64_t val = std::stoll(numStr);
-                        return XObject::makeInt(val);
-                    }
-                    catch (...)
-                    {
-                        double val = std::stod(numStr);
-                        return XObject::makeFloat(val);
-                    }
-                }
-            }
-
-            // -- Boolean ------------------------------------------------------
-            XObject parseBool()
-            {
-                skipWhitespace();
-                if (src.compare(pos, 4, "true") == 0)
-                {
-                    pos += 4;
-                    return XObject::makeBool(true);
-                }
-                if (src.compare(pos, 5, "false") == 0)
-                {
-                    pos += 5;
-                    return XObject::makeBool(false);
-                }
-                throw RuntimeError("json_parse: expected 'true' or 'false'", errLine);
-            }
-
-            // -- Null ---------------------------------------------------------
-            XObject parseNull()
-            {
-                skipWhitespace();
-                if (src.compare(pos, 4, "null") == 0)
-                {
-                    pos += 4;
-                    return XObject::makeNone();
-                }
-                throw RuntimeError("json_parse: expected 'null'", errLine);
-            }
-
-            // -- Array --------------------------------------------------------
-            XObject parseArray()
-            {
-                expect('[');
-                std::vector<XObject> elements;
-                if (peek() == ']')
-                {
-                    advance(); // skip ]
-                    return XObject::makeList(std::move(elements));
-                }
-                elements.push_back(parseValue());
-                while (peek() == ',')
-                {
-                    advance(); // skip ,
-                    elements.push_back(parseValue());
-                }
-                expect(']');
-                return XObject::makeList(std::move(elements));
-            }
-
-            // -- Object -------------------------------------------------------
-            XObject parseObject()
-            {
-                expect('{');
                 XMap map;
-                if (peek() == '}')
+                for (const auto &[k, v] : val.asObject())
                 {
-                    advance(); // skip }
-                    return XObject::makeMap(std::move(map));
+                    map.set(k, jsonToXObject(v));
                 }
-                // First key-value pair
-                {
-                    std::string key = parseRawString();
-                    expect(':');
-                    XObject val = parseValue();
-                    map.set(key, std::move(val));
-                }
-                while (peek() == ',')
-                {
-                    advance(); // skip ,
-                    std::string key = parseRawString();
-                    expect(':');
-                    XObject val = parseValue();
-                    map.set(key, std::move(val));
-                }
-                expect('}');
                 return XObject::makeMap(std::move(map));
             }
-        };
-
-        // =====================================================================
-        //  JSON Stringify — XObject → JSON string
-        // =====================================================================
-
-        inline std::string escapeJsonString(const std::string &s)
-        {
-            std::string result;
-            result.reserve(s.size() + 8);
-            for (char c : s)
-            {
-                switch (c)
-                {
-                case '"':
-                    result += "\\\"";
-                    break;
-                case '\\':
-                    result += "\\\\";
-                    break;
-                case '\b':
-                    result += "\\b";
-                    break;
-                case '\f':
-                    result += "\\f";
-                    break;
-                case '\n':
-                    result += "\\n";
-                    break;
-                case '\r':
-                    result += "\\r";
-                    break;
-                case '\t':
-                    result += "\\t";
-                    break;
-                default:
-                    if ((unsigned char)c < 0x20)
-                    {
-                        // Control character — \u00XX
-                        char buf[8];
-                        snprintf(buf, sizeof(buf), "\\u%04x", (unsigned char)c);
-                        result += buf;
-                    }
-                    else
-                    {
-                        result += c;
-                    }
-                    break;
-                }
             }
-            return result;
+            return XObject::makeNone();
         }
 
-        inline std::string stringifyValue(const XObject &obj, int indent, int depth, bool pretty);
-
-        inline std::string stringifyMap(const XMap &map, int indent, int depth, bool pretty)
+        inline json::Value xobjectToJson(const XObject &obj, std::unordered_set<const void *> &visited, int line)
         {
-            if (map.size() == 0)
-                return "{}";
-            std::string result = "{";
-            if (pretty)
-                result += "\n";
-            std::string pad(pretty ? (depth + 1) * indent : 0, ' ');
-            std::string closePad(pretty ? depth * indent : 0, ' ');
-            bool first = true;
-            for (auto it = map.begin(); it.valid(); it.next())
+            bool isContainer = obj.isList() || obj.isTuple() || obj.isMap() || obj.isSet() || obj.isFrozenSet() || obj.isInstance();
+            if (isContainer)
             {
-                if (!first)
+                if (visited.count(obj.rawData()))
                 {
-                    result += ",";
-                    if (pretty)
-                        result += "\n";
+                    throw ValueError("circular reference", line);
                 }
-                first = false;
-                if (pretty)
-                    result += pad;
-                // Key: must be a string for valid JSON
-                if (it.key().isString())
-                {
-                    result += "\"" + escapeJsonString(it.key().asString()) + "\"";
-                }
-                else
-                {
-                    // Non-string key: stringify it and quote
-                    result += "\"" + escapeJsonString(it.key().toString()) + "\"";
-                }
-                result += pretty ? ": " : ":";
-                result += stringifyValue(it.value(), indent, depth + 1, pretty);
+                visited.insert(obj.rawData());
             }
-            if (pretty)
-                result += "\n" + closePad;
-            result += "}";
-            return result;
-        }
+            struct Guard {
+                std::unordered_set<const void *> &s;
+                const void *p;
+                ~Guard() { if (p) s.erase(p); }
+            } guard{visited, isContainer ? obj.rawData() : nullptr};
 
-        inline std::string stringifyList(const std::vector<XObject> &list, int indent, int depth, bool pretty)
-        {
-            if (list.empty())
-                return "[]";
-            std::string result = "[";
-            if (pretty)
-                result += "\n";
-            std::string pad(pretty ? (depth + 1) * indent : 0, ' ');
-            std::string closePad(pretty ? depth * indent : 0, ' ');
-            for (size_t i = 0; i < list.size(); ++i)
-            {
-                if (i > 0)
-                {
-                    result += ",";
-                    if (pretty)
-                        result += "\n";
-                }
-                if (pretty)
-                    result += pad;
-                result += stringifyValue(list[i], indent, depth + 1, pretty);
-            }
-            if (pretty)
-                result += "\n" + closePad;
-            result += "]";
-            return result;
-        }
-
-        inline std::string stringifyValue(const XObject &obj, int indent, int depth, bool pretty)
-        {
             switch (obj.type())
             {
             case XType::NONE:
-                return "null";
+                return json::Value(nullptr);
             case XType::BOOL:
-                return obj.asBool() ? "true" : "false";
+                return json::Value(obj.asBool());
             case XType::INT:
-                return std::to_string(obj.asInt());
+                return json::Value(obj.asInt());
             case XType::FLOAT:
             {
-                double v = obj.asFloat();
-                if (std::isinf(v) || std::isnan(v))
-                    return "null"; // JSON has no inf/nan
-                // Avoid trailing zeros but keep it a valid number
-                char buf[64];
-                snprintf(buf, sizeof(buf), "%.17g", v);
-                return buf;
+                double d = obj.asFloat();
+                if (std::isnan(d) || std::isinf(d))
+                {
+                    throw ValueError("Cannot serialize NaN or Infinity to JSON", line);
+                }
+                return json::Value(d);
             }
             case XType::STRING:
-                return "\"" + escapeJsonString(obj.asString()) + "\"";
+                return json::Value(obj.asString());
             case XType::LIST:
-                return stringifyList(obj.asList(), indent, depth, pretty);
+            {
+                json::Array arr;
+                for (const auto &elem : obj.asList())
+                {
+                    arr.push_back(xobjectToJson(elem, visited, line));
+                }
+                return json::Value(std::move(arr));
+            }
             case XType::TUPLE:
             {
-                // Tuples → JSON arrays
-                const auto &t = obj.asTuple();
-                std::vector<XObject> vec(t.begin(), t.end());
-                return stringifyList(vec, indent, depth, pretty);
+                json::Array arr;
+                for (const auto &elem : obj.asTuple())
+                {
+                    arr.push_back(xobjectToJson(elem, visited, line));
+                }
+                return json::Value(std::move(arr));
             }
             case XType::MAP:
-                return stringifyMap(obj.asMap(), indent, depth, pretty);
+            {
+                json::Object map;
+                const auto &m = obj.asMap();
+                for (auto it = m.begin(); it.valid(); it.next())
+                {
+                    std::string key = it.key().isString() ? it.key().asString() : it.key().toString();
+                    map[key] = xobjectToJson(it.value(), visited, line);
+                }
+                return json::Value(std::move(map));
+            }
             case XType::SET:
             case XType::FROZEN_SET:
             {
-                // Sets → JSON arrays
+                json::Array arr;
                 auto elems = obj.isSet() ? obj.asSet().elements() : obj.asFrozenSet().elements();
-                return stringifyList(elems, indent, depth, pretty);
+                for (const auto &elem : elems)
+                {
+                    arr.push_back(xobjectToJson(elem, visited, line));
+                }
+                return json::Value(std::move(arr));
             }
             default:
-                // Functions, generators, etc → serialize as string representation
-                return "\"" + escapeJsonString(obj.toString()) + "\"";
+                return json::Value(obj.toString());
             }
         }
 
@@ -1631,15 +1220,15 @@ namespace xell
                 throw ArityError("json_parse", 1, (int)args.size(), line);
             if (!args[0].isString())
                 throw TypeError("json_parse() expects a JSON string", line);
-            json_internal::JsonParser parser(args[0].asString(), line);
-            XObject result = parser.parseValue();
-            // Ensure no trailing non-whitespace
-            parser.skipWhitespace();
-            if (parser.pos < parser.src.size())
-                throw RuntimeError("json_parse: unexpected trailing content at position " +
-                                       std::to_string(parser.pos),
-                                   line);
-            return result;
+            try
+            {
+                json::Value val = json::parse(args[0].asString());
+                return json_internal::jsonToXObject(val);
+            }
+            catch (const json::ParseError &e)
+            {
+                throw RuntimeError("json_parse: " + std::string(e.what()), line);
+            }
         };
 
         // ---- json_stringify(val) → string ----------------------------------
@@ -1647,8 +1236,16 @@ namespace xell
         {
             if (args.size() != 1)
                 throw ArityError("json_stringify", 1, (int)args.size(), line);
-            return XObject::makeString(
-                json_internal::stringifyValue(args[0], 0, 0, false));
+            std::unordered_set<const void *> visited;
+            try
+            {
+                json::Value v = json_internal::xobjectToJson(args[0], visited, line);
+                return XObject::makeString(json::stringify(v, 0));
+            }
+            catch (const std::invalid_argument &e)
+            {
+                throw ValueError(e.what(), line);
+            }
         };
 
         // ---- json_pretty(val, indent=2) → string ---------------------------
@@ -1663,8 +1260,16 @@ namespace xell
                     throw TypeError("json_pretty() indent must be an integer", line);
                 indent = (int)args[1].asInt();
             }
-            return XObject::makeString(
-                json_internal::stringifyValue(args[0], indent, 0, true));
+            std::unordered_set<const void *> visited;
+            try
+            {
+                json::Value v = json_internal::xobjectToJson(args[0], visited, line);
+                return XObject::makeString(json::stringify(v, indent));
+            }
+            catch (const std::invalid_argument &e)
+            {
+                throw ValueError(e.what(), line);
+            }
         };
 
         // ---- json_read(path) → XObject -------------------------------------
@@ -1679,10 +1284,15 @@ namespace xell
                 throw FileNotFoundError(args[0].asString(), line);
             std::ostringstream ss;
             ss << file.rdbuf();
-            json_internal::JsonParser parser(ss.str(), line);
-            XObject result = parser.parseValue();
-            parser.skipWhitespace();
-            return result;
+            try
+            {
+                json::Value val = json::parse(ss.str());
+                return json_internal::jsonToXObject(val);
+            }
+            catch (const json::ParseError &e)
+            {
+                throw RuntimeError("json_read: " + std::string(e.what()), line);
+            }
         };
 
         // ---- json_write(path, val) → none ----------------------------------
@@ -1692,11 +1302,21 @@ namespace xell
                 throw ArityError("json_write", 2, (int)args.size(), line);
             if (!args[0].isString())
                 throw TypeError("json_write() first argument must be a file path string", line);
-            std::string json = json_internal::stringifyValue(args[1], 2, 0, true);
+            std::unordered_set<const void *> visited;
+            std::string jsonStr;
+            try
+            {
+                json::Value v = json_internal::xobjectToJson(args[1], visited, line);
+                jsonStr = json::stringify(v, 2);
+            }
+            catch (const std::invalid_argument &e)
+            {
+                throw ValueError(e.what(), line);
+            }
             std::ofstream file(args[0].asString());
             if (!file.is_open())
                 throw IOError("json_write(): cannot open file: " + args[0].asString(), line);
-            file << json << "\n";
+            file << jsonStr << "\n";
             return XObject::makeNone();
         };
 

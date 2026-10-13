@@ -93,15 +93,19 @@ namespace xell
         UndefinedVariableError(const std::string &name, int line)
             : XellError("UndefinedVariable",
                         "'" + name + "' is not defined", line) {}
+
+    protected:
+        UndefinedVariableError(const std::string &category, const std::string &message, int line)
+            : XellError(category, message, line) {}
     };
 
     /// Function called that doesn't exist.
-    class UndefinedFunctionError : public XellError
+    class UndefinedFunctionError : public UndefinedVariableError
     {
     public:
         UndefinedFunctionError(const std::string &name, int line)
-            : XellError("UndefinedFunction",
-                        "'" + name + "' is not defined", line) {}
+            : UndefinedVariableError("UndefinedFunction",
+                        "undefined function '" + name + "' (hint: use shell { " + name + " ... })", line) {}
     };
 
     // ---- 3c. Collection access ----------------------------------------------

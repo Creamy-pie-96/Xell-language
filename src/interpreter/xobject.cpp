@@ -138,15 +138,23 @@ namespace xell
     // GeneratorState destructor — defined here because XObject is now complete
     GeneratorState::~GeneratorState()
     {
+        cancelled = true;
         if (worker.joinable())
         {
-            // If generator is abandoned, we need to let it finish
+            if (worker.get_id() != std::this_thread::get_id())
             {
-                std::lock_guard<std::mutex> lk(mtx);
-                phase = DONE; // signal generator to exit
+                // If generator is abandoned, we need to let it finish
+                {
+                    std::lock_guard<std::mutex> lk(mtx);
+                    phase = DONE; // signal generator to exit
+                }
+                cv.notify_all();
+                worker.join();
             }
-            cv.notify_all();
-            worker.join();
+            else
+            {
+                worker.detach();
+            }
         }
         delete yieldedValue;
     }
@@ -717,6 +725,19 @@ namespace xell
 
     XObject XObject::clone() const
     {
+        std::unordered_map<const void *, XObject> memo;
+        return clone(memo);
+    }
+
+    XObject XObject::clone(std::unordered_map<const void *, XObject> &memo) const
+    {
+        if (!rawData())
+            return makeNone();
+
+        auto it = memo.find(rawData());
+        if (it != memo.end())
+            return it->second;
+
         switch (type())
         {
         case XType::NONE:
@@ -733,50 +754,57 @@ namespace xell
             return makeString(asString());
         case XType::LIST:
         {
-            XList clonedList;
-            clonedList.reserve(asList().size());
+            XObject cloned = makeList();
+            memo[rawData()] = cloned;
+            cloned.asListMut().reserve(asList().size());
             for (const auto &elem : asList())
             {
-                clonedList.push_back(elem.clone());
+                cloned.asListMut().push_back(elem.clone(memo));
             }
-            return makeList(std::move(clonedList));
+            return cloned;
         }
         case XType::TUPLE:
         {
-            XTuple clonedTuple;
-            clonedTuple.reserve(asTuple().size());
+            XObject cloned = makeTuple(XTuple{});
+            memo[rawData()] = cloned;
+            auto *tupPayload = static_cast<XTuple *>(cloned.rawData()->payload);
+            tupPayload->reserve(asTuple().size());
             for (const auto &elem : asTuple())
             {
-                clonedTuple.push_back(elem.clone());
+                tupPayload->push_back(elem.clone(memo));
             }
-            return makeTuple(std::move(clonedTuple));
+            return cloned;
         }
         case XType::SET:
         {
-            XSet clonedSet;
+            XObject cloned = makeSet();
+            memo[rawData()] = cloned;
             for (const auto &elem : asSet().elements())
             {
-                clonedSet.add(elem.clone());
+                cloned.asSetMut().add(elem.clone(memo));
             }
-            return makeSet(std::move(clonedSet));
+            return cloned;
         }
         case XType::FROZEN_SET:
         {
-            XSet clonedSet;
+            XObject cloned = makeFrozenSet();
+            memo[rawData()] = cloned;
+            auto *setPayload = static_cast<XSet *>(cloned.rawData()->payload);
             for (const auto &elem : asFrozenSet().elements())
             {
-                clonedSet.add(elem.clone());
+                setPayload->add(elem.clone(memo));
             }
-            return makeFrozenSet(std::move(clonedSet));
+            return cloned;
         }
         case XType::MAP:
         {
-            XMap clonedMap;
-            for (auto it = asMap().begin(); it.valid(); it.next())
+            XObject cloned = makeMap();
+            memo[rawData()] = cloned;
+            for (auto mapIt = asMap().begin(); mapIt.valid(); mapIt.next())
             {
-                clonedMap.set(it.key().clone(), it.value().clone());
+                cloned.asMapMut().set(mapIt.key().clone(memo), mapIt.value().clone(memo));
             }
-            return makeMap(std::move(clonedMap));
+            return cloned;
         }
         case XType::FUNCTION:
         {
@@ -802,10 +830,11 @@ namespace xell
         case XType::INSTANCE:
         {
             const auto &inst = asInstance();
-            XInstance cloned(inst.typeName, inst.structDef);
+            XObject cloned = makeInstance(XInstance(inst.typeName, inst.structDef));
+            memo[rawData()] = cloned;
             for (const auto &[k, v] : inst.fields)
-                cloned.fields[k] = v.clone();
-            return makeInstance(std::move(cloned));
+                cloned.asInstanceMut().fields[k] = v.clone(memo);
+            return cloned;
         }
         case XType::MODULE:
             // Modules are shared — return as-is (ref counted shared_ptr)
@@ -819,6 +848,12 @@ namespace xell
     // ========================================================================
 
     std::string XObject::toString() const
+    {
+        std::unordered_set<const void *> visited;
+        return toString(visited);
+    }
+
+    std::string XObject::toString(std::unordered_set<const void *> &visited) const
     {
         switch (type())
         {
@@ -878,6 +913,15 @@ namespace xell
 
         case XType::LIST:
         {
+            if (visited.count(rawData()))
+                return "[...]";
+            visited.insert(rawData());
+            struct Guard {
+                std::unordered_set<const void *> &s;
+                const void *p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, rawData()};
+
             std::ostringstream oss;
             oss << "[";
             const auto &list = asList();
@@ -888,7 +932,7 @@ namespace xell
                 if (list[i].isString())
                     oss << "\"" << list[i].asString() << "\"";
                 else
-                    oss << list[i].toString();
+                    oss << list[i].toString(visited);
             }
             oss << "]";
             return oss.str();
@@ -896,6 +940,15 @@ namespace xell
 
         case XType::TUPLE:
         {
+            if (visited.count(rawData()))
+                return "[...]";
+            visited.insert(rawData());
+            struct Guard {
+                std::unordered_set<const void *> &s;
+                const void *p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, rawData()};
+
             std::ostringstream oss;
             oss << "(";
             const auto &tup = asTuple();
@@ -906,7 +959,7 @@ namespace xell
                 if (tup[i].isString())
                     oss << "\"" << tup[i].asString() << "\"";
                 else
-                    oss << tup[i].toString();
+                    oss << tup[i].toString(visited);
             }
             if (tup.size() == 1)
                 oss << ","; // trailing comma for single-element tuple
@@ -918,6 +971,15 @@ namespace xell
         {
             if (asSet().empty())
                 return "set()";
+            if (visited.count(rawData()))
+                return "[...]";
+            visited.insert(rawData());
+            struct Guard {
+                std::unordered_set<const void *> &s;
+                const void *p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, rawData()};
+
             std::ostringstream oss;
             oss << "{";
             auto elems = asSet().elements();
@@ -928,7 +990,7 @@ namespace xell
                 if (elems[i].isString())
                     oss << "\"" << elems[i].asString() << "\"";
                 else
-                    oss << elems[i].toString();
+                    oss << elems[i].toString(visited);
             }
             oss << "}";
             return oss.str();
@@ -938,6 +1000,15 @@ namespace xell
         {
             if (asFrozenSet().empty())
                 return "<>";
+            if (visited.count(rawData()))
+                return "[...]";
+            visited.insert(rawData());
+            struct Guard {
+                std::unordered_set<const void *> &s;
+                const void *p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, rawData()};
+
             std::ostringstream oss;
             oss << "<";
             auto elems = asFrozenSet().elements();
@@ -948,7 +1019,7 @@ namespace xell
                 if (elems[i].isString())
                     oss << "\"" << elems[i].asString() << "\"";
                 else
-                    oss << elems[i].toString();
+                    oss << elems[i].toString(visited);
             }
             oss << ">";
             return oss.str();
@@ -956,6 +1027,15 @@ namespace xell
 
         case XType::MAP:
         {
+            if (visited.count(rawData()))
+                return "[...]";
+            visited.insert(rawData());
+            struct Guard {
+                std::unordered_set<const void *> &s;
+                const void *p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, rawData()};
+
             std::ostringstream oss;
             oss << "{";
             size_t i = 0;
@@ -967,13 +1047,13 @@ namespace xell
                 if (it.key().isString())
                     oss << it.key().asString();
                 else
-                    oss << it.key().toString();
+                    oss << it.key().toString(visited);
                 oss << ": ";
                 // Show value: strings with quotes
                 if (it.value().isString())
                     oss << "\"" << it.value().asString() << "\"";
                 else
-                    oss << it.value().toString();
+                    oss << it.value().toString(visited);
             }
             oss << "}";
             return oss.str();
@@ -1025,6 +1105,15 @@ namespace xell
 
         case XType::INSTANCE:
         {
+            if (visited.count(rawData()))
+                return "[...]";
+            visited.insert(rawData());
+            struct Guard {
+                std::unordered_set<const void *> &s;
+                const void *p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, rawData()};
+
             const auto &inst = asInstance();
             std::ostringstream oss;
             oss << inst.typeName << "(";
@@ -1043,7 +1132,7 @@ namespace xell
                     if (it->second.isString())
                         oss << "\"" << it->second.asString() << "\"";
                     else
-                        oss << it->second.toString();
+                        oss << it->second.toString(visited);
                 }
             }
             oss << ")";
@@ -1066,9 +1155,22 @@ namespace xell
 
     bool XObject::equals(const XObject &other) const
     {
-        // Same XData pointer → same object
+        VisitedEqualsSet visited;
+        return equals(other, visited);
+    }
+
+    bool XObject::equals(const XObject &other, VisitedEqualsSet &visited) const
+    {
+        // For non-container collection types, same pointer implies equality
         if (data_ == other.data_)
-            return true;
+        {
+            if (type() != XType::LIST && type() != XType::TUPLE &&
+                type() != XType::MAP && type() != XType::SET &&
+                type() != XType::FROZEN_SET && type() != XType::INSTANCE)
+            {
+                return true;
+            }
+        }
 
         // Numeric cross-type equality: int == float, int == complex, float == complex
         if (isNumeric() && other.isNumeric())
@@ -1104,32 +1206,71 @@ namespace xell
             return asString() == other.asString();
         case XType::LIST:
         {
+            const void *p1 = std::min((const void *)rawData(), (const void *)other.rawData());
+            const void *p2 = std::max((const void *)rawData(), (const void *)other.rawData());
+            if (visited.count({p1, p2}))
+            {
+                throw ValueError("cannot compare cyclic structures: circular reference detected", 0);
+            }
+            visited.insert({p1, p2});
+            struct Guard {
+                VisitedEqualsSet &s;
+                std::pair<const void *, const void *> p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, {p1, p2}};
+
             const auto &a = asList();
             const auto &b = other.asList();
             if (a.size() != b.size())
                 return false;
             for (size_t i = 0; i < a.size(); i++)
             {
-                if (!a[i].equals(b[i]))
+                if (!a[i].equals(b[i], visited))
                     return false;
             }
             return true;
         }
         case XType::TUPLE:
         {
+            const void *p1 = std::min((const void *)rawData(), (const void *)other.rawData());
+            const void *p2 = std::max((const void *)rawData(), (const void *)other.rawData());
+            if (visited.count({p1, p2}))
+            {
+                throw ValueError("cannot compare cyclic structures: circular reference detected", 0);
+            }
+            visited.insert({p1, p2});
+            struct Guard {
+                VisitedEqualsSet &s;
+                std::pair<const void *, const void *> p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, {p1, p2}};
+
             const auto &a = asTuple();
             const auto &b = other.asTuple();
             if (a.size() != b.size())
                 return false;
             for (size_t i = 0; i < a.size(); i++)
             {
-                if (!a[i].equals(b[i]))
+                if (!a[i].equals(b[i], visited))
                     return false;
             }
             return true;
         }
         case XType::SET:
         {
+            const void *p1 = std::min((const void *)rawData(), (const void *)other.rawData());
+            const void *p2 = std::max((const void *)rawData(), (const void *)other.rawData());
+            if (visited.count({p1, p2}))
+            {
+                throw ValueError("cannot compare cyclic structures: circular reference detected", 0);
+            }
+            visited.insert({p1, p2});
+            struct Guard {
+                VisitedEqualsSet &s;
+                std::pair<const void *, const void *> p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, {p1, p2}};
+
             const auto &a = asSet();
             const auto &b = other.asSet();
             if (a.size() != b.size())
@@ -1143,6 +1284,19 @@ namespace xell
         }
         case XType::FROZEN_SET:
         {
+            const void *p1 = std::min((const void *)rawData(), (const void *)other.rawData());
+            const void *p2 = std::max((const void *)rawData(), (const void *)other.rawData());
+            if (visited.count({p1, p2}))
+            {
+                throw ValueError("cannot compare cyclic structures: circular reference detected", 0);
+            }
+            visited.insert({p1, p2});
+            struct Guard {
+                VisitedEqualsSet &s;
+                std::pair<const void *, const void *> p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, {p1, p2}};
+
             const auto &a = asFrozenSet();
             const auto &b = other.asFrozenSet();
             if (a.size() != b.size())
@@ -1156,6 +1310,19 @@ namespace xell
         }
         case XType::MAP:
         {
+            const void *p1 = std::min((const void *)rawData(), (const void *)other.rawData());
+            const void *p2 = std::max((const void *)rawData(), (const void *)other.rawData());
+            if (visited.count({p1, p2}))
+            {
+                throw ValueError("cannot compare cyclic structures: circular reference detected", 0);
+            }
+            visited.insert({p1, p2});
+            struct Guard {
+                VisitedEqualsSet &s;
+                std::pair<const void *, const void *> p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, {p1, p2}};
+
             const auto &a = asMap();
             const auto &b = other.asMap();
             if (a.size() != b.size())
@@ -1163,7 +1330,7 @@ namespace xell
             for (auto it = a.begin(); it.valid(); it.next())
             {
                 const XObject *bVal = b.get(it.key());
-                if (!bVal || !it.value().equals(*bVal))
+                if (!bVal || !it.value().equals(*bVal, visited))
                     return false;
             }
             return true;
@@ -1184,6 +1351,19 @@ namespace xell
             return asStructDef().name == other.asStructDef().name;
         case XType::INSTANCE:
         {
+            const void *p1 = std::min((const void *)rawData(), (const void *)other.rawData());
+            const void *p2 = std::max((const void *)rawData(), (const void *)other.rawData());
+            if (visited.count({p1, p2}))
+            {
+                throw ValueError("cannot compare cyclic structures: circular reference detected", 0);
+            }
+            visited.insert({p1, p2});
+            struct Guard {
+                VisitedEqualsSet &s;
+                std::pair<const void *, const void *> p;
+                ~Guard() { s.erase(p); }
+            } guard{visited, {p1, p2}};
+
             // Field-by-field comparison: same type + same field values
             const auto &a = asInstance();
             const auto &b = other.asInstance();
@@ -1194,7 +1374,7 @@ namespace xell
             for (const auto &[key, val] : a.fields)
             {
                 auto it = b.fields.find(key);
-                if (it == b.fields.end() || !val.equals(it->second))
+                if (it == b.fields.end() || !val.equals(it->second, visited))
                     return false;
             }
             return true;
