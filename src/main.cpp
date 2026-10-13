@@ -1178,107 +1178,27 @@ static int runKernel()
         if (line.empty())
             continue;
 
-        // Minimal JSON parsing (no external lib dependency)
-        // Expected input: {"action":"execute","cell_id":"...","code":"..."}
-        //                 {"action":"reset"}
-        //                 {"action":"shutdown"}
-
-        // Extract action
-        auto extractField = [&](const std::string &json, const std::string &key) -> std::string
+        xell::json::Value req;
+        try
         {
-            std::string search = "\"" + key + "\"";
-            auto pos = json.find(search);
-            if (pos == std::string::npos)
-                return "";
-            // Find the colon after the key
-            pos = json.find(':', pos + search.size());
-            if (pos == std::string::npos)
-                return "";
-            pos++; // skip colon
-            // Skip whitespace
-            while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t'))
-                pos++;
-            if (pos >= json.size())
-                return "";
-            if (json[pos] == '"')
-            {
-                // String value — parse with escape handling
-                pos++; // skip opening quote
-                std::string result;
-                while (pos < json.size() && json[pos] != '"')
-                {
-                    if (json[pos] == '\\' && pos + 1 < json.size())
-                    {
-                        pos++;
-                        switch (json[pos])
-                        {
-                        case 'n':
-                            result += '\n';
-                            break;
-                        case 't':
-                            result += '\t';
-                            break;
-                        case '\\':
-                            result += '\\';
-                            break;
-                        case '"':
-                            result += '"';
-                            break;
-                        default:
-                            result += '\\';
-                            result += json[pos];
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        result += json[pos];
-                    }
-                    pos++;
-                }
-                return result;
-            }
-            // Number or other
-            auto end = json.find_first_of(",}", pos);
-            return json.substr(pos, end - pos);
-        };
-
-        // JSON escape helper
-        auto jsonEscape = [](const std::string &s) -> std::string
+            req = xell::json::parse(line);
+        }
+        catch (const xell::json::ParseError &e)
         {
-            std::string out;
-            out.reserve(s.size() + 16);
-            for (char c : s)
-            {
-                switch (c)
-                {
-                case '"':
-                    out += "\\\"";
-                    break;
-                case '\\':
-                    out += "\\\\";
-                    break;
-                case '\n':
-                    out += "\\n";
-                    break;
-                case '\r':
-                    out += "\\r";
-                    break;
-                case '\t':
-                    out += "\\t";
-                    break;
-                default:
-                    out += c;
-                }
-            }
-            return out;
-        };
+            xell::json::Object errResp;
+            errResp["status"] = "error";
+            errResp["stderr"] = std::string("JSON parse error: ") + e.what();
+            std::cout << xell::json::stringify(errResp) << std::endl;
+            continue;
+        }
 
-        std::string action = extractField(line, "action");
+        std::string action = req.getString("action");
 
         if (action == "shutdown")
         {
-            std::cout << "{\"status\":\"shutdown\"}" << std::endl;
+            xell::json::Object resp;
+            resp["status"] = "shutdown";
+            std::cout << xell::json::stringify(resp) << std::endl;
             break;
         }
 
@@ -1286,14 +1206,17 @@ static int runKernel()
         {
             interpreter.reset();
             executionCount = 0;
-            std::cout << "{\"status\":\"ok\",\"message\":\"Kernel reset\"}" << std::endl;
+            xell::json::Object resp;
+            resp["message"] = "Kernel reset";
+            resp["status"] = "ok";
+            std::cout << xell::json::stringify(resp) << std::endl;
             continue;
         }
 
         if (action == "execute")
         {
-            std::string cellId = extractField(line, "cell_id");
-            std::string code = extractField(line, "code");
+            std::string cellId = req.getString("cell_id");
+            std::string code = req.getString("code");
             executionCount++;
 
             std::string stdoutStr;
@@ -1331,18 +1254,22 @@ static int runKernel()
                 status = "error";
             }
 
-            std::cout << "{\"cell_id\":\"" << jsonEscape(cellId) << "\""
-                      << ",\"status\":\"" << status << "\""
-                      << ",\"stdout\":\"" << jsonEscape(stdoutStr) << "\""
-                      << ",\"stderr\":\"" << jsonEscape(stderrStr) << "\""
-                      << ",\"result\":\"" << jsonEscape(resultStr) << "\""
-                      << ",\"execution_count\":" << executionCount
-                      << "}" << std::endl;
+            xell::json::Object resp;
+            resp["cell_id"] = cellId;
+            resp["execution_count"] = executionCount;
+            resp["result"] = resultStr;
+            resp["status"] = status;
+            resp["stderr"] = stderrStr;
+            resp["stdout"] = stdoutStr;
+            std::cout << xell::json::stringify(resp) << std::endl;
             continue;
         }
 
         // Unknown action
-        std::cout << "{\"status\":\"error\",\"stderr\":\"Unknown action: " << action << "\"}" << std::endl;
+        xell::json::Object resp;
+        resp["status"] = "error";
+        resp["stderr"] = "Unknown action: " + action;
+        std::cout << xell::json::stringify(resp) << std::endl;
     }
 
     return 0;
