@@ -240,6 +240,7 @@ namespace xell
         std::exception_ptr error;        // captures exceptions from generator body
         std::thread worker;
         bool started = false;
+        std::atomic<bool> cancelled{false};
 
         ~GeneratorState();
     };

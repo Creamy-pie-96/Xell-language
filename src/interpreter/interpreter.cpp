@@ -6782,11 +6782,11 @@ namespace xell
         {
             std::unique_lock<std::mutex> lk(gs->mtx);
             gs->cv.wait(lk, [gs]
-                        { return gs->phase == GeneratorState::RUNNING || gs->phase == GeneratorState::DONE; });
+                        { return gs->cancelled || gs->phase == GeneratorState::RUNNING || gs->phase == GeneratorState::DONE; });
         }
 
-        // If DONE was signaled, the generator is being abandoned
-        if (gs->phase == GeneratorState::DONE)
+        // If cancelled or DONE was signaled, the generator is being abandoned
+        if (gs->cancelled || gs->phase == GeneratorState::DONE)
             throw GiveSignal{XObject::makeNone()}; // unwind the generator
 
         return XObject::makeNone(); // yield always "returns" none to the generator body
@@ -7773,10 +7773,10 @@ namespace xell
             {
                 std::unique_lock<std::mutex> lk(stateRaw->mtx);
                 stateRaw->cv.wait(lk, [stateRaw] {
-                    return stateRaw->phase == GeneratorState::RUNNING || stateRaw->phase == GeneratorState::DONE;
+                    return stateRaw->cancelled || stateRaw->phase == GeneratorState::RUNNING || stateRaw->phase == GeneratorState::DONE;
                 });
             }
-            if (stateRaw->phase == GeneratorState::DONE) return;
+            if (stateRaw->cancelled || stateRaw->phase == GeneratorState::DONE) return;
 
             // Create a mini-interpreter for the generator body
             Interpreter genInterp;
