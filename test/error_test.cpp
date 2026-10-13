@@ -132,7 +132,8 @@ static void testErrorConstruction()
         UndefinedFunctionError err("deploi", 22);
         XASSERT_EQ(err.line(), 22);
         XASSERT_EQ(err.category(), std::string("UndefinedFunction"));
-        XASSERT(contains(err.what(), "'deploi' is not defined")); });
+        XASSERT(contains(err.what(), "undefined function 'deploi'"));
+        XASSERT(contains(err.what(), "shell { deploi ... }")); });
 
     // -- IndexError --
     runTest("IndexError: construction", []()
