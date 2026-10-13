@@ -28,6 +28,7 @@
 
 #include "../src/lexer/lexer.hpp"
 #include "../src/parser/parser.hpp"
+#include "../src/common/dialect_convert.hpp"
 #include "../src/interpreter/interpreter.hpp"
 
 using namespace xell;
@@ -1766,6 +1767,32 @@ static void testModuleCaching()
 // main
 // =============================================================================
 
+static void testDialectReader()
+{
+    std::cout << "\n── Dialect reader tests ──\n";
+    std::string testXesy = "/tmp/test_dialect_" + std::to_string(getpid()) + ".xesy";
+    {
+        std::ofstream f(testXesy);
+        f << "{\n"
+          << "  \"_meta\": {\n"
+          << "    \"dialect_name\": \"Test Dialect\"\n"
+          << "  },\n"
+          << "  \"fn\": \"funcao\",\n"
+          << "  \"give\": \"retornar\",\n"
+          << "  \"ignored_empty\": \"\"\n"
+          << "}\n";
+    }
+
+    auto mapping = dialect::parseXesyFile(testXesy);
+    std::filesystem::remove(testXesy);
+
+    XASSERT_EQ(mapping.size(), (size_t)2);
+    XASSERT_EQ(mapping["fn"], std::string("funcao"));
+    XASSERT_EQ(mapping["give"], std::string("retornar"));
+    XASSERT(mapping.find("_meta") == mapping.end());
+    XASSERT(mapping.find("ignored_empty") == mapping.end());
+}
+
 int main()
 {
     setupTestDir();
@@ -1800,6 +1827,7 @@ int main()
     testFromDirBring();
     testFileBasedResolution();
     testModuleCaching();
+    testDialectReader();
 
     cleanupTestDir();
 
