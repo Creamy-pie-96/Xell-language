@@ -1,13 +1,104 @@
+--> ===== f-strings ===== <--
 x = "Xell"
 result = "Hello,"
-print(f"{result} {x}")
+print(f"{result} {x}")           --> Hello, Xell <--
 
-x = "Xell"
 result = f"Hello, {'Xell'}"
-print(result)
+print(result)                    --> Hello, Xell <--
 
-result = f"Hello, {"Xell"}"
-print(result)
+result = f"Hello, {"Xell"}"      --> same quote inside: may fail in the lexer <--
+print(result)                    --> Hello, Xell <--
+
+print(f"{{literal braces}} {x}")  --> {literal braces} Xell (after the {{ }} escape work) <--
+
+--> ===== plain shell: streams to terminal, raises on failure ===== <--
+shell
+{
+    pwd ;
+    echo "hello";
+    cd .. ;
+    pwd;
+}
+--> expect: current dir, hello, parent dir, parent dir <--
+pwd_after = shell->capture { pwd }
+print(pwd_after->stdout)         --> cd inside a block must NOT persist <--
+
+--> ===== capture, no options ===== <--
+result = shell->capture
+{
+    pwd ;
+    echo "hello";
+    cd .. ;
+    pwd;
+}
+print(result->stdout)
+print(result->stderr)            --> empty <--
+print(result->code)              --> 0 <--
+print(result->signal)            --> no signal (null/0, whatever you chose) <--
+
+--> ===== capture with every option ===== <--
+result = shell->capture(
+    timeout=30,
+    max_output=16777216,
+    stdin="closed",
+    check=false,
+    cwd="/tmp",
+    env={"GREETING": "hi"}
+)
+{
+    pwd
+    echo "$GREETING"
+    echo "to stderr" >&2
+    read line
+    echo "read exit: $?"
+}
+print(result->stdout)            --> /tmp, hi, read exit: 1 (stdin is closed) <--
+print(result->stderr)            --> to stderr <--
+print(result->code)              --> 0 <--
+
+--> ===== check=false: nonzero exit is returned, not raised ===== <--
+result = shell->capture(check=false) { echo oops >&2; exit 3 }
+print(result->code)              --> 3 <--
+print(result->stderr)            --> oops <--
+if result->success :
+    print("WRONG")
+else :
+    print("correct: not success")
+;
+
+result = shell->capture { test -d /tmp }
+if result->success :
+    print("/tmp exists")
+;
+
+--> ===== death by signal: code is not a success ===== <--
+result = shell->capture { kill -9 $$ }
+print(result->signal)            --> 9 <--
+if result->success :
+    print("WRONG: a signal death must never be success")
+;
+
+--> ===== interpolation: values stay inert ===== <--
+name = "evil; echo INJECTED"
+result = shell->capture { echo @{name} }
+print(result->stdout)            --> prints the string literally, no INJECTED line <--
+
+files = ["a b.txt", "c.txt"]
+result = shell->capture { printf '[%s]\n' @{files} }
+print(result->stdout)            --> [a b.txt] and [c.txt] <--
+
+empty = []
+result = shell->capture { echo start @{empty} end }
+print(result->stdout)            --> start end <--
+
+result = shell->capture { echo '@{name}' }
+print(result->stdout)            --> single quotes: literal @{name} <--
 
 result = (1 > 7)
-print(result)
+print(result)                    --> false <--
+
+shell
+{
+    ls ; echo "hello"; pwd
+}
+   

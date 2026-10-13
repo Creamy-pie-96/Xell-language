@@ -558,6 +558,7 @@
     "LT": "keyword.operator.comparison.word.xell",
     "GE": "keyword.operator.comparison.word.xell",
     "LE": "keyword.operator.comparison.word.xell",
+    "SHELL": "keyword.other.special.xell",
     "OF": "keyword.other.special.xell",
     "PLUS": "keyword.operator.arithmetic.xell",
     "MINUS": "keyword.operator.arithmetic.xell",
@@ -644,6 +645,7 @@
     "support.function.builtin.xell": [
       "add",
       "assert",
+      "clone",
       "contains",
       "diff",
       "exit",

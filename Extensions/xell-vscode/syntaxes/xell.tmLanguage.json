@@ -554,11 +554,11 @@
       ]
     },
     "special-keywords": {
-      "comment": "Special: belong, bind, of",
+      "comment": "Special: belong, bind, of, shell",
       "patterns": [
         {
           "name": "keyword.other.special.xell",
-          "match": "\\b(belong|bind|of)\\b"
+          "match": "\\b(belong|shell|bind|of)\\b"
         }
       ]
     },
@@ -610,11 +610,11 @@
       ]
     },
     "collection-builtins": {
-      "comment": "COLLECTION builtins: add, contains, diff, has, intersect, keys, len, pop, push, range, remove, set, to_list, to_set, to_tuple, union_set, values",
+      "comment": "COLLECTION builtins: add, clone, contains, diff, has, intersect, keys, len, pop, push, range, remove, set, to_list, to_set, to_tuple, union_set, values",
       "patterns": [
         {
           "name": "support.function.builtin.xell",
-          "match": "\\b(add|contains|diff|has|intersect|keys|len|pop|push|range|remove|set|to_list|to_set|to_tuple|union_set|values)\\b(?=\\s*\\()"
+          "match": "\\b(add|clone|contains|diff|has|intersect|keys|len|pop|push|range|remove|set|to_list|to_set|to_tuple|union_set|values)\\b(?=\\s*\\()"
         }
       ]
     },

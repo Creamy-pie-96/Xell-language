@@ -439,6 +439,11 @@
       }
     },
     {
+      "name": "shell",
+      "kind": "Keyword",
+      "detail": "shell keyword"
+    },
+    {
       "name": "static",
       "kind": "Keyword",
       "detail": "Static member",
@@ -660,6 +665,11 @@
     },
     {
       "name": "add",
+      "category": "collection",
+      "kind": "Function"
+    },
+    {
+      "name": "clone",
       "category": "collection",
       "kind": "Function"
     },
@@ -3288,6 +3298,7 @@
     "protected",
     "public",
     "requires",
+    "shell",
     "static",
     "struct",
     "throw",
@@ -3351,6 +3362,7 @@
       "protected",
       "public",
       "requires",
+      "shell",
       "static",
       "struct",
       "throw",
@@ -3413,6 +3425,7 @@
       "chown",
       "clamp",
       "clear",
+      "clone",
       "complex",
       "conjugate",
       "contains",

@@ -436,7 +436,7 @@ fi
 
 echo ""
 echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════════════╗"
-echo "║          ✅ Xell installed successfully!          ║"
+echo "║          ✅ Xell installed successfully!         ║"
 echo "╚══════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  Try it:  ${BOLD}xell${NC}                    # Start REPL"

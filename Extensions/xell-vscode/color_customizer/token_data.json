@@ -181,8 +181,8 @@
         "color": "#00ffff",
         "bold": false,
         "italic": false,
-        "label": "Core builtins (add, assert, contains, diff, exit, format, has, input, intersect, keys, len, pop, print, push, range, remove, set, to_list, to_set, to_tuple, union_set, values)",
-        "example": "add, assert, contains, diff, exit..."
+        "label": "Core builtins (add, assert, clone, contains, diff, exit, format, has, input, intersect, keys, len, pop, print, push, range, remove, set, to_list, to_set, to_tuple, union_set, values)",
+        "example": "add, assert, clone, contains, diff..."
       },
       {
         "id": "builtin_type",
@@ -501,8 +501,8 @@
         "color": "#e5c07b",
         "bold": true,
         "italic": false,
-        "label": "Special (belong, bind, of)",
-        "example": "belong bind of"
+        "label": "Special (belong, bind, of, shell)",
+        "example": "belong bind of shell"
       }
     ]
   },

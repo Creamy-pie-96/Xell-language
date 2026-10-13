@@ -96,6 +96,7 @@ CMakeFiles/xell-terminal.dir/home/DATA/CODE/code/Xell/src/lexer/lexer.cpp.o: /ho
   /usr/include/c++/13/initializer_list \
   /usr/include/c++/13/ios \
   /usr/include/c++/13/iosfwd \
+  /usr/include/c++/13/iostream \
   /usr/include/c++/13/istream \
   /usr/include/c++/13/new \
   /usr/include/c++/13/ostream \
@@ -2360,8 +2361,6 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/x86_64-linux-gnu/bits/struct_mutex.h:
 
-/usr/include/c++/13/bits/string_view.tcc:
-
 /usr/include/c++/13/bits/quoted_string.h:
 
 /usr/include/x86_64-linux-gnu/bits/stdio2-decl.h:
@@ -2392,10 +2391,6 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/x86_64-linux-gnu/bits/pthreadtypes.h:
 
-/usr/include/SDL2/SDL_guid.h:
-
-/usr/include/x86_64-linux-gnu/bits/floatn.h:
-
 /usr/include/asm-generic/ioctls.h:
 
 /usr/include/SDL2/SDL_blendmode.h:
@@ -2413,6 +2408,16 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 /usr/include/x86_64-linux-gnu/bits/byteswap.h:
 
 /usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
+
+/usr/include/c++/13/bits/stl_iterator.h:
+
+/usr/include/c++/13/ext/numeric_traits.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/error_t.h:
+
+/usr/include/poll.h:
 
 /usr/include/x86_64-linux-gnu/bits/endianness.h:
 
@@ -2546,6 +2551,12 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/linux/stat.h:
 
+/usr/include/c++/13/bits/string_view.tcc:
+
+/usr/include/x86_64-linux-gnu/bits/floatn.h:
+
+/usr/include/SDL2/SDL_guid.h:
+
 /usr/include/c++/13/future:
 
 /usr/include/x86_64-linux-gnu/bits/termios-struct.h:
@@ -2621,16 +2632,6 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 /usr/include/c++/13/bits/locale_conv.h:
 
 /usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
-
-/usr/include/c++/13/bits/stl_iterator.h:
-
-/usr/include/c++/13/ext/numeric_traits.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/error_t.h:
-
-/usr/include/poll.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/rtmintrin.h:
 
@@ -2761,6 +2762,10 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 /usr/include/c++/13/ext/type_traits.h:
 
 /usr/include/SDL2/SDL_rect.h:
+
+/usr/include/asm-generic/errno.h:
+
+/usr/include/c++/13/iostream:
 
 /usr/include/c++/13/bits/std_thread.h:
 
@@ -3050,10 +3055,6 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/strings.h:
 
-/usr/include/asm-generic/errno.h:
-
-/usr/include/c++/13/iostream:
-
 /usr/lib/gcc/x86_64-linux-gnu/13/include/popcntintrin.h:
 
 /usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
@@ -3156,9 +3157,9 @@ CMakeFiles/xell-terminal.dir/src/terminal/vt_parser.cpp.o: /home/DATA/CODE/code/
 
 /usr/include/x86_64-linux-gnu/bits/fp-fast.h:
 
-/usr/include/c++/13/bits/stl_vector.h:
-
 /usr/include/x86_64-linux-gnu/bits/stdlib.h:
+
+/usr/include/c++/13/bits/stl_vector.h:
 
 /usr/include/x86_64-linux-gnu/bits/getopt_core.h:
 
